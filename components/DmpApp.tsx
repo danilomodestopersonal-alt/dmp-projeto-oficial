@@ -548,7 +548,7 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
 
   const voiceWindow=window as any;
 
-  // Segundo toque: encerra o ditado definitivamente.
+  // Segundo toque: para definitivamente.
   if(voiceWindow.__dmpShouldListen){
     voiceWindow.__dmpShouldListen=false;
 
@@ -559,9 +559,95 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
     }
 
     voiceWindow.__dmpRecognition=null;
+    voiceWindow.__dmpLastFinalText="";
+    voiceWindow.__dmpLastFinalAt=0;
     setListening(false);
     return;
   }
+
+  const normalizeVoiceText=(value:string)=>
+    value
+      .toLocaleLowerCase("pt-BR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^\p{L}\p{N}\s]/gu," ")
+      .replace(/\s+/g," ")
+      .trim();
+
+  const appendWithoutDuplicate=(current:string,incoming:string)=>{
+    const cleanIncoming=incoming.replace(/\s+/g," ").trim();
+    if(!cleanIncoming) return current;
+
+    const now=Date.now();
+    const normalizedIncoming=normalizeVoiceText(cleanIncoming);
+    const lastFinal=String(voiceWindow.__dmpLastFinalText||"");
+    const normalizedLast=normalizeVoiceText(lastFinal);
+    const lastAt=Number(voiceWindow.__dmpLastFinalAt||0);
+
+    // Chrome/Android pode devolver a mesma frase final mais de uma vez.
+    if(normalizedLast && now-lastAt<3500){
+      if(normalizedIncoming===normalizedLast){
+        voiceWindow.__dmpLastFinalAt=now;
+        return current;
+      }
+
+      // Se a nova hipótese apenas cresceu, acrescenta só a parte nova.
+      if(normalizedIncoming.startsWith(normalizedLast+" ")){
+        const lastWords=lastFinal.trim().split(/\s+/).filter(Boolean).length;
+        const incomingWords=cleanIncoming.split(/\s+/).filter(Boolean);
+        const delta=incomingWords.slice(lastWords).join(" ").trim();
+
+        voiceWindow.__dmpLastFinalText=cleanIncoming;
+        voiceWindow.__dmpLastFinalAt=now;
+
+        if(!delta) return current;
+        const base=current.trim();
+        return base ? `${base} ${delta}` : delta;
+      }
+
+      // Se voltou uma hipótese menor já contida na anterior, ignora.
+      if(normalizedLast.startsWith(normalizedIncoming+" ")){
+        voiceWindow.__dmpLastFinalAt=now;
+        return current;
+      }
+    }
+
+    // Remove sobreposição entre o final já salvo e o começo do novo trecho.
+    const currentWords=current.trim().split(/\s+/).filter(Boolean);
+    const incomingWords=cleanIncoming.split(/\s+/).filter(Boolean);
+
+    if(!currentWords.length){
+      voiceWindow.__dmpLastFinalText=cleanIncoming;
+      voiceWindow.__dmpLastFinalAt=now;
+      return cleanIncoming;
+    }
+
+    const currentNormalized=currentWords.map(normalizeVoiceText);
+    const incomingNormalized=incomingWords.map(normalizeVoiceText);
+
+    let overlap=0;
+    const maxOverlap=Math.min(currentNormalized.length,incomingNormalized.length,24);
+
+    for(let size=maxOverlap;size>0;size--){
+      if(
+        currentNormalized.slice(-size).join(" ")===
+        incomingNormalized.slice(0,size).join(" ")
+      ){
+        overlap=size;
+        break;
+      }
+    }
+
+    const remainder=incomingWords.slice(overlap).join(" ").trim();
+
+    voiceWindow.__dmpLastFinalText=cleanIncoming;
+    voiceWindow.__dmpLastFinalAt=now;
+
+    if(!remainder) return current;
+
+    const base=current.trim();
+    return base ? `${base} ${remainder}` : remainder;
+  };
 
   const startRecognition=()=>{
     if(!voiceWindow.__dmpShouldListen) return;
@@ -571,26 +657,35 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
 
     recognition.lang="pt-BR";
     recognition.continuous=true;
-    recognition.interimResults=true;
+    recognition.interimResults=false;
     recognition.maxAlternatives=1;
 
-    recognition.onstart=()=>{
-      setListening(true);
-    };
+    // Índices já processados nesta instância do Chrome.
+    let processedResults=0;
+
+    recognition.onstart=()=>setListening(true);
 
     recognition.onresult=(event:any)=>{
       let finalText="";
+      const resultIndex=typeof event.resultIndex==="number" ? event.resultIndex : 0;
+      const startIndex=Math.max(resultIndex,processedResults);
 
-      for(let i=event.resultIndex;i<event.results.length;i++){
+      for(let i=startIndex;i<event.results.length;i++){
         const result=event.results[i];
 
-        if(result.isFinal){
-          finalText+=result[0].transcript+" ";
+        if(result?.isFinal){
+          const text=String(result[0]?.transcript||"").trim();
+
+          if(text){
+            finalText+=`${text} `;
+          }
+
+          processedResults=Math.max(processedResults,i+1);
         }
       }
 
       if(finalText.trim()){
-        setTranscript(current=>`${current} ${finalText.trim()}`.trim());
+        setTranscript(current=>appendWithoutDuplicate(current,finalText.trim()));
       }
     };
 
@@ -602,22 +697,26 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
       ){
         voiceWindow.__dmpShouldListen=false;
         voiceWindow.__dmpRecognition=null;
+        voiceWindow.__dmpLastFinalText="";
+        voiceWindow.__dmpLastFinalAt=0;
         setListening(false);
       }
     };
 
     recognition.onend=()=>{
-      setListening(false);
       voiceWindow.__dmpRecognition=null;
 
-      // Chrome/Android pode encerrar sozinho.
-      // Enquanto o usuário não mandar parar, iniciamos novamente.
+      // Se o navegador parou sozinho, recomeça sem desligar o modo.
       if(voiceWindow.__dmpShouldListen){
+        setListening(true);
+
         window.setTimeout(()=>{
           if(voiceWindow.__dmpShouldListen){
             startRecognition();
           }
-        },250);
+        },350);
+      }else{
+        setListening(false);
       }
     };
 
@@ -625,17 +724,39 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
       recognition.start();
     }catch{
       if(voiceWindow.__dmpShouldListen){
-        window.setTimeout(startRecognition,250);
+        window.setTimeout(startRecognition,350);
       }
     }
   };
 
-  // Primeiro toque: entra no modo de ditado contínuo.
+  // Primeiro toque: inicia o modo contínuo.
   voiceWindow.__dmpShouldListen=true;
+  voiceWindow.__dmpLastFinalText="";
+  voiceWindow.__dmpLastFinalAt=0;
   startRecognition();
 }
   return <main className="app-page"><Header title={`${student.name} — Registro rápido`} back={onBack}/><section className="content free-session-layout">
-    <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button className="primary" onClick={organize}>Organizar para revisão</button></div></article>
+    <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button
+  type="button"
+  className="primary"
+  onClick={()=>{
+    if(listening){
+      alert("Pare o microfone antes de organizar o treino.");
+      return;
+    }
+
+    const organized=organizeQuickTranscript(transcript);
+
+    if(!organized.length){
+      alert("Fale ou escreva o treino antes de organizar.");
+      return;
+    }
+
+    setExercises(organized);
+  }}
+>
+  Organizar para revisão
+</button></div></article>
     <article className="panel"><div className="panel-head"><div><h2>Revise antes de salvar</h2><p className="muted">Você pode corrigir bloco, exercício, séries, repetições e carga.</p></div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"",reps:"",load:""}])}>+ Exercício</button></div>{exercises.length? <div className="review-list">{exercises.map(ex=><div className="review-row enhanced" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input className="review-name" placeholder="Exercício" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==ex.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Ainda não organizado</strong><span>Escreva ou fale o treino e toque em “Organizar para revisão”.</span></div>}<label className="form-stack">Observações / próximos ajustes<textarea rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: não fizemos bloco 4; trocar exercício no próximo treino..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:focus||"Treino realizado",notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"FREE"})}>✓ Salvar no histórico</button></article>
   </section></main>;
 }
@@ -731,6 +852,147 @@ function sameSaoPauloDate(a:string,b:string){try{return saoPauloDateFromIso(a)==
 function isSundayInSaoPaulo(){const label=new Intl.DateTimeFormat("en-US",{timeZone:"America/Sao_Paulo",weekday:"short"}).format(new Date());return label==="Sun";}
 function formatSyncTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
 function formatSyncDateTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
+function organizeQuickTranscript(rawText:string): Exercise[] {
+  const text=rawText.replace(/\r/g," ").replace(/\s+/g," ").trim();
+  if(!text) return [];
+
+  const numbers:Record<string,string>={
+    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","três":"3",
+    "quatro":"4","cinco":"5","seis":"6","sete":"7","oito":"8","nove":"9",
+    "dez":"10","onze":"11","doze":"12","treze":"13","quatorze":"14",
+    "catorze":"14","quinze":"15","dezesseis":"16","dezessete":"17",
+    "dezoito":"18","dezenove":"19","vinte":"20"
+  };
+
+  const toNumber=(value:string)=>{
+    const key=value.toLocaleLowerCase("pt-BR").trim();
+    return numbers[key]||value;
+  };
+
+  const normalizedNumbers=text.replace(
+    /\b(um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
+    m=>toNumber(m)
+  );
+
+  const blockRegex=/\bbloco\s+(\d+)\b/gi;
+  const blockMatches=[...normalizedNumbers.matchAll(blockRegex)];
+  const chunks:{block:string;text:string}[]=[];
+
+  if(blockMatches.length){
+    for(let i=0;i<blockMatches.length;i++){
+      const match=blockMatches[i];
+      const start=(match.index||0)+match[0].length;
+      const end=i+1<blockMatches.length ? (blockMatches[i+1].index||normalizedNumbers.length) : normalizedNumbers.length;
+
+      chunks.push({
+        block:match[1],
+        text:normalizedNumbers.slice(start,end).replace(/^[\s,:;.\-–—]+/,"").trim()
+      });
+    }
+  }else{
+    chunks.push({block:"",text:normalizedNumbers});
+  }
+
+  const output:Exercise[]=[];
+
+  const cleanName=(value:string)=>
+    value
+      .replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g,"")
+      .replace(/^(?:e|depois|mais)\s+/i,"")
+      .trim();
+
+  const loadAtStart=(value:string)=>{
+    const match=value.match(/^\s*[,;:\-–—]*\s*(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i);
+
+    if(!match) return null;
+
+    return {
+      value:`${match[1].replace(",",".")} kg${/cada\s*lado/i.test(match[0]) ? " de cada lado" : ""}`,
+      length:match[0].length
+    };
+  };
+
+  for(const chunk of chunks){
+    const value=chunk.text.trim();
+    if(!value) continue;
+
+    const prescriptionRegex=/\b(\d+)\s*(?:s[eé]ries?\s*(?:de\s*)?|[x×]\s*|\s+de\s+)(\d+|falha)\b/gi;
+    const prescriptions=[...value.matchAll(prescriptionRegex)];
+
+    if(!prescriptions.length){
+      output.push({
+        id:crypto.randomUUID(),
+        block:chunk.block,
+        name:value,
+        sets:"",
+        reps:"",
+        load:""
+      } as Exercise);
+      continue;
+    }
+
+    let previousPrescriptionEnd=0;
+
+    for(let i=0;i<prescriptions.length;i++){
+      const prescription=prescriptions[i];
+      const prescriptionStart=prescription.index||0;
+
+      let between=value.slice(previousPrescriptionEnd,prescriptionStart);
+
+      if(i>0){
+        const leadingLoad=loadAtStart(between);
+
+        if(leadingLoad){
+          if(output.length){
+            output[output.length-1]={
+              ...output[output.length-1],
+              load:leadingLoad.value
+            };
+          }
+
+          between=between.slice(leadingLoad.length);
+        }
+      }
+
+      const name=cleanName(between);
+
+      output.push({
+        id:crypto.randomUUID(),
+        block:chunk.block,
+        name:name || `Exercício ${output.length+1}`,
+        sets:prescription[1]||"",
+        reps:prescription[2]||"",
+        load:""
+      } as Exercise);
+
+      previousPrescriptionEnd=prescriptionStart+prescription[0].length;
+    }
+
+    const tail=value.slice(previousPrescriptionEnd);
+    const finalLoad=loadAtStart(tail);
+
+    if(finalLoad && output.length){
+      output[output.length-1]={
+        ...output[output.length-1],
+        load:finalLoad.value
+      };
+    }
+  }
+
+  if(!output.length){
+    output.push({
+      id:crypto.randomUUID(),
+      block:"",
+      name:text,
+      sets:"",
+      reps:"",
+      load:""
+    } as Exercise);
+  }
+
+  return output;
+}
+
 function formatDate(value:string){if(!value)return"—";const [year,month,day]=value.split("-");return `${day}/${month}/${year}`;}
 function calculateAge(value:string){if(!value)return null;const birth=new Date(`${value}T12:00:00`);const now=new Date();let age=now.getFullYear()-birth.getFullYear();if(now.getMonth()<birth.getMonth()||(now.getMonth()===birth.getMonth()&&now.getDate()<birth.getDate()))age--;return age;}
 function monthsSince(value:string){if(!value)return null;const start=new Date(`${value}T12:00:00`);const now=new Date();return Math.max(0,(now.getFullYear()-start.getFullYear())*12+now.getMonth()-start.getMonth());}
