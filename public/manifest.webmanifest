@@ -1,1 +1,20 @@
-{"name":"Danilo Modesto Personal","short_name":"DMP","start_url":"/","display":"standalone","background_color":"#f4f7ee","theme_color":"#20242a","icons":[{"src":"/logo-danilo.jpg","sizes":"512x512","type":"image/jpeg"}]}
+{
+  "name": "Danilo Modesto Personal",
+  "short_name": "DMP",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7ee",
+  "theme_color": "#20242a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
