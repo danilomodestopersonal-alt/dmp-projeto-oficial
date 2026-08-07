@@ -20,7 +20,7 @@ export function buildGoogleAuthUrl(request: NextRequest, state: string) {
     client_id: process.env.GOOGLE_CLIENT_ID || "",
     redirect_uri: googleRedirectUri(request),
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/calendar.readonly",
+    scope: "https://www.googleapis.com/auth/calendar.events",
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",

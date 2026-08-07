@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
       start:event.start?.dateTime || event.start?.date || "",
       end:event.end?.dateTime || event.end?.date || "",
       allDay:Boolean(event.start?.date),
-      htmlLink:event.htmlLink || ""
+      htmlLink:event.htmlLink || "",
+      location:event.location || ""
     }));
     const response = NextResponse.json({events});
     if (refreshed) setGoogleCookies(response, refreshed);
