@@ -622,3 +622,37 @@ input:focus,textarea:focus{
 .calendar-auto-sync{margin:6px 0 0;color:#657149;font-size:.78rem;font-weight:800}
 .agenda-sync-summary{display:grid;gap:4px;margin-top:14px;padding:12px 14px;border:1px solid #dce7c3;border-radius:14px;background:#f8fbed;color:#5d6848;font-size:.82rem}
 .agenda-sync-summary strong{color:#3f4d22}.agenda-sync-summary span{display:block}
+
+/* Correção mobile — formulários longos dentro de modal */
+.modal-backdrop {
+  overflow-y: auto;
+}
+
+.modal,
+.modal-large {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 700px) {
+  .modal-backdrop {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .modal,
+  .modal-large {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid .full {
+    grid-column: 1;
+  }
+}
