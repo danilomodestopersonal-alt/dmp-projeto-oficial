@@ -22,6 +22,7 @@ export type Workout = {
   protocol?: WorkoutProtocol;
   sequenceSize?: number;
   notes?: string;
+  archivedAt?: string;
   exercises: Exercise[];
 };
 
