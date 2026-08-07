@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Assessment, CalendarEvent, Exercise, Session, Student, Workout } from "@/types/models";
+import type { Assessment, CalendarEvent, Exercise, Session, Student, Workout, WorkoutProtocol, WorkoutSlot } from "@/types/models";
 import { importedStudents2026 } from "@/lib/imported-data";
 import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
@@ -19,6 +19,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [tab, setTab] = useState<StudentTab>("summary");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
+  const [workoutEditorSlot, setWorkoutEditorSlot] = useState<WorkoutSlot>("A");
   const [search, setSearch] = useState("");
   const [studentFilter, setStudentFilter] = useState<"ACTIVE" | "ARCHIVED">("ACTIVE");
   const [showStudentForm, setShowStudentForm] = useState(false);
@@ -182,7 +183,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
   const selectedStudent = students.find(student => student.id === selectedStudentId) || null;
   const selectedWorkout =
     selectedStudent?.workouts.find(workout => workout.id === selectedWorkoutId) ||
-    selectedStudent?.workouts.find(workout => workout.active) ||
+    (selectedStudent ? getStudentWorkoutEntries(selectedStudent)[0]?.workout : null) ||
     null;
 
   const visibleStudents = useMemo(() => {
@@ -198,6 +199,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }, [students, search, studentFilter]);
 
+  const exerciseCatalog = useMemo(() => buildExerciseCatalog(students), [students]);
+
   function updateStudentRecord(nextStudent: Student) {
     setStudents(current => current.map(student => student.id === nextStudent.id ? nextStudent : student));
   }
@@ -210,6 +213,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
   function openStudent(id: string) {
     setSelectedStudentId(id);
+    setSelectedWorkoutId(null);
+    setWorkoutEditorSlot("A");
     setTab("summary");
     setView("student");
   }
@@ -240,33 +245,46 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
   function saveWorkout(workout: Workout) {
     if (!selectedStudent) return;
-    const exists = selectedStudent.workouts.some(item => item.id === workout.id);
+
+    const slot = workout.slot || workoutEditorSlot;
+    const entries = getStudentWorkoutEntries(selectedStudent);
+    const collision = entries.find(entry => entry.slot === slot && entry.workout.id !== workout.id)?.workout;
+    const base = collision
+      ? selectedStudent.workouts.filter(item => item.id !== collision.id)
+      : selectedStudent.workouts;
+    const normalized: Workout = {...workout, slot, active:true};
+    const exists = base.some(item => item.id === normalized.id);
     const workouts = exists
-      ? selectedStudent.workouts.map(item => item.id === workout.id ? workout : item)
-      : [{...workout, active:true}, ...selectedStudent.workouts.map(item => ({...item, active:false}))];
+      ? base.map(item => item.id === normalized.id ? normalized : item)
+      : [...base, normalized];
+
     updateStudentRecord({...selectedStudent, workouts});
-    setSelectedWorkoutId(workout.id);
+    setSelectedWorkoutId(normalized.id);
+    setWorkoutEditorSlot(slot);
     setTab("workouts");
     setView("student");
   }
-
   function duplicateWorkout() {
     if (!selectedStudent || !selectedWorkout) return;
+    const occupied = new Set(getStudentWorkoutEntries(selectedStudent).map(entry => entry.slot));
+    const nextSlot = WORKOUT_SLOTS.find(slot => !occupied.has(slot));
+    if (!nextSlot) {
+      alert("As quatro abas A, B, C e D já possuem treino.");
+      return;
+    }
     const duplicated: Workout = {
       ...selectedWorkout,
       id: crypto.randomUUID(),
-      name: `${selectedWorkout.name} - Cópia`,
+      slot: nextSlot,
+      name: `Treino ${nextSlot}`,
       active: true,
       exercises: selectedWorkout.exercises.map(exercise => ({...exercise, id:crypto.randomUUID()}))
     };
-    updateStudentRecord({
-      ...selectedStudent,
-      workouts: [duplicated, ...selectedStudent.workouts.map(workout => ({...workout, active:false}))]
-    });
+    updateStudentRecord({...selectedStudent, workouts:[...selectedStudent.workouts, duplicated]});
     setSelectedWorkoutId(duplicated.id);
+    setWorkoutEditorSlot(nextSlot);
     setView("workout-editor");
   }
-
   function saveSession(session: Session) {
     if (!selectedStudent) return;
     updateStudentRecord({...selectedStudent, sessions:[session, ...selectedStudent.sessions]});
@@ -279,6 +297,35 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     updateStudentRecord({...selectedStudent, assessments:[assessment, ...selectedStudent.assessments]});
     setShowAssessmentForm(false);
     setTab("assessments");
+  }
+
+  function startStudentFlow(studentId:string, mode:"session"|"attendance") {
+    const student = students.find(item => item.id === studentId);
+    if (!student) return;
+
+    setSelectedStudentId(studentId);
+
+    if (mode === "attendance") {
+      setView("attendance-session");
+      return;
+    }
+
+    const planned = getStudentWorkoutEntries(student);
+
+    if (!planned.length) {
+      setView("free-session");
+      return;
+    }
+
+    if (planned.length === 1) {
+      setSelectedWorkoutId(planned[0].workout.id);
+      setView("planned-session");
+      return;
+    }
+
+    setSelectedWorkoutId(null);
+    setTab("workouts");
+    setView("student");
   }
 
   async function logout() {
@@ -299,7 +346,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
     const todayKey = today();
     const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session})));
-    const plannedCount = students.filter(student => student.status === "ACTIVE" && student.workouts.some(workout => workout.active)).length;
+    const plannedCount = students.filter(student => student.status === "ACTIVE" && student.workouts.length > 0).length;
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
     const reassessmentDue = students.filter(student => student.status === "ACTIVE" && assessmentDue(student));
     const allHistory = students.flatMap(student=>student.sessions.map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
@@ -312,12 +359,12 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "today" ? <>
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><div className="hero-actions"><button className="secondary" onClick={() => setView("students")}>Ver alunos</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
             <section className="dashboard-content">
-              <div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length}/><Stat icon="📋" label="Com ficha ativa" value={plannedCount}/></div>
-              <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(studentId,mode) => { const student=students.find(item=>item.id===studentId); if(!student)return; setSelectedStudentId(studentId); if(mode==="attendance") { setView("attendance-session"); return; } const active=student.workouts.find(item=>item.active); if(active){ setSelectedWorkoutId(active.id); setView("planned-session"); } else { setView("free-session"); } }} />
+              <div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length}/><Stat icon="📋" label="Com treino montado" value={plannedCount}/></div>
+              <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={startStudentFlow} />
               <section className="panel today-panel"><div className="panel-head"><div><h2>Atendimentos de hoje</h2><p className="muted">Tudo que já foi salvo hoje aparece aqui.</p></div></div>
                 {todaySessions.length ? <div className="today-session-list">{todaySessions.map(({student,session}) => <button className="today-session-row" key={session.id} onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{sessionSourceLabel(session)}</small></span><span className="today-session-status">✓ Salvo</span></button>)}</div> : <div className="empty-review"><strong>Nenhum atendimento registrado ainda</strong><span>Quando você salvar uma ficha, um treino livre ou uma presença, ele aparecerá aqui.</span></div>}
               </section>
-              <section className="panel"><div className="panel-head"><div><h2>Acesso rápido aos alunos</h2><p className="muted">Escolha o aluno e registre a sessão do jeito que aconteceu.</p></div><button className="secondary" onClick={() => setView("students")}>Ver todos</button></div><div className="quick-student-list">{students.filter(student=>student.status==="ACTIVE").slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).slice(0,12).map(student => <button key={student.id} className="quick-student-row" onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{student.workouts.some(w=>w.active)?"Com ficha":"Sem ficha"}</small></span><span>›</span></button>)}</div></section>
+              <section className="panel"><div className="panel-head"><div><h2>Acesso rápido aos alunos</h2><p className="muted">Escolha o aluno e registre a sessão do jeito que aconteceu.</p></div><button className="secondary" onClick={() => setView("students")}>Ver todos</button></div><div className="quick-student-list">{students.filter(student=>student.status==="ACTIVE").slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).slice(0,12).map(student => <button key={student.id} className="quick-student-row" onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{student.workouts.length>0?"Com treino":"Sem treino"}</small></span><span>›</span></button>)}</div></section>
               {(birthdayStudents.length || reassessmentDue.length) ? <section className="panel smart-alerts"><div className="panel-head"><div><h2>Lembretes inteligentes</h2><p className="muted">O que merece sua atenção hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}{reassessmentDue.slice(0,8).map(student=><button key={`r-${student.id}`} className="smart-alert-card" onClick={()=>openStudent(student.id)}><span>📏</span><strong>Reavaliar {student.name}</strong><small>{student.assessments[0]?`Última em ${formatDate(student.assessments[0].date)}`:"Sem avaliação registrada"}</small></button>)}</div></section>:null}
             </section>
           </> : null}
@@ -325,16 +372,16 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "students" ? <>
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Painel de atendimento</p><h1>Alunos</h1><p>Cadastros, fichas, observações, restrições e histórico.</p></div><div className="hero-actions"><button className="secondary" onClick={resetData}>Restaurar importação</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
             <section className="dashboard-content"><div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount}/><Stat icon="✅" label="Sessões registradas" value={sessionCount}/><Stat icon="📏" label="Avaliações" value={assessmentCount}/></div>
-              <div className="student-toolbar dashboard-toolbar"><input className="search" placeholder="Pesquisar por nome, telefone ou objetivo..." value={search} onChange={event => setSearch(event.target.value)} /><div className="student-filters"><button className={studentFilter === "ACTIVE" ? "filter-active" : "secondary"} onClick={() => setStudentFilter("ACTIVE")}>Ativos</button><button className={studentFilter === "ARCHIVED" ? "filter-active" : "secondary"} onClick={() => setStudentFilter("ARCHIVED")}>Arquivados</button></div></div>
-              <div className="student-grid dashboard-student-grid">{visibleStudents.map(student => { const lastSession=student.sessions[0]; const lastAssessment=student.assessments[0]; return <article className="student-card dashboard-student-card" key={student.id}><div className="student-card-top"><div className="student-avatar">{student.name.slice(0,1).toUpperCase()}</div><div><div className="student-name-row"><span className={`dot ${student.status.toLowerCase()}`}/><h2>{student.name}</h2></div><p>{student.goal || "Objetivo não informado"}</p></div></div>{student.restrictions ? <div className="restriction-mini">⚠ {student.restrictions}</div> : null}<div className="student-card-meta"><span><strong>Última sessão</strong>{lastSession ? formatDate(lastSession.date) : "Sem sessões"}</span><span><strong>Última avaliação</strong>{lastAssessment ? formatDate(lastAssessment.date) : "Sem avaliação"}</span></div><div className="student-workflow-badge">{student.workouts.some(workout => workout.active) ? "✓ Com ficha ativa" : "⚡ Sem ficha — registro rápido"}</div><div className="card-actions three-actions"><button className="secondary" onClick={() => openStudent(student.id)}>Abrir</button>{student.workouts.some(workout => workout.active) ? <button className="primary" onClick={() => {const workout=student.workouts.find(item=>item.active);setSelectedStudentId(student.id);setSelectedWorkoutId(workout?.id||null);setView("planned-session");}}>▶ Ficha</button> : <button className="primary" onClick={()=>{setSelectedStudentId(student.id);setView("free-session");}}>✍ Treino</button>}<button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setView("attendance-session");}}>✓ Presença</button></div></article>;})}</div>
+              <div className="student-toolbar dashboard-toolbar"><input className="search" placeholder="Pesquisar por nome, telefone ou objetivo..." value={search} onChange={event => setSearch(event.target.value)} /><div className="student-filters"><button className={studentFilter === "ACTIVE" ? "filter-active" : "secondary"} onClick={() => setStudentFilter("ACTIVE")}>Ativos</button><button className={studentFilter === "ARCHIVED" ? "filter-active" : "secondary"} onClick={() => setStudentFilter("ARCHIVED")}>Inativos</button></div></div>
+              <div className="student-grid dashboard-student-grid">{visibleStudents.map(student => { const lastSession=student.sessions[0]; const lastAssessment=student.assessments[0]; return <article className="student-card dashboard-student-card" key={student.id}><div className="student-card-top"><div className="student-avatar">{student.name.slice(0,1).toUpperCase()}</div><div><div className="student-name-row"><span className={`dot ${student.status.toLowerCase()}`}/><h2>{student.name}</h2></div><p>{student.goal || "Objetivo não informado"}</p></div></div>{student.restrictions ? <div className="restriction-mini">⚠ {student.restrictions}</div> : null}<div className="student-card-meta"><span><strong>Última sessão</strong>{lastSession ? formatDate(lastSession.date) : "Sem sessões"}</span><span><strong>Última avaliação</strong>{lastAssessment ? formatDate(lastAssessment.date) : "Sem avaliação"}</span></div><div className="student-workflow-badge">{student.workouts.length > 0 ? "✓ Com treino montado" : "⚡ Sem treino — registro rápido"}</div><div className="card-actions three-actions"><button className="secondary" onClick={() => openStudent(student.id)}>Abrir</button>{student.workouts.length > 0 ? <button className="primary" onClick={() => startStudentFlow(student.id,"session")}>▶ Ficha</button> : <button className="primary" onClick={()=>{setSelectedStudentId(student.id);setView("free-session");}}>✍ Treino</button>}<button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setView("attendance-session");}}>✓ Presença</button></div></article>;})}</div>
             </section>
           </> : null}
 
-          {view === "workouts-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Biblioteca por aluno</p><h1>Treinos</h1><p>Veja rapidamente quem tem ficha ativa e entre para criar ou editar.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="📋" label="Com ficha ativa" value={plannedCount}/><Stat icon="⚡" label="Sem ficha ativa" value={activeCount-plannedCount}/><Stat icon="👥" label="Alunos ativos" value={activeCount}/></div><div className="overview-list">{students.filter(s=>s.status==="ACTIVE").sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(student => {const active=student.workouts.find(w=>w.active);return <button className="overview-row" key={student.id} onClick={()=>openStudent(student.id)}><span><strong>{student.name}</strong><small>{active ? `${active.name} · ${active.exercises.length} exercícios` : "Sem ficha ativa"}</small></span><span className={active?"status-chip ok":"status-chip"}>{active?"Ficha ativa":"Sem ficha"}</span></button>})}</div></section></> : null}
+          {view === "workouts-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Biblioteca por aluno</p><h1>Treinos</h1><p>Veja rapidamente as abas A, B, C e D montadas para cada aluno.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="📋" label="Com treino montado" value={plannedCount}/><Stat icon="⚡" label="Sem treino montado" value={activeCount-plannedCount}/><Stat icon="👥" label="Alunos ativos" value={activeCount}/></div><div className="overview-list">{students.filter(s=>s.status==="ACTIVE").sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(student => {const entries=getStudentWorkoutEntries(student);const slots=entries.map(entry=>entry.slot).join(" · ");const exerciseTotal=entries.reduce((sum,entry)=>sum+entry.workout.exercises.length,0);return <button className="overview-row" key={student.id} onClick={()=>{openStudent(student.id);setTab("workouts");}}><span><strong>{student.name}</strong><small>{entries.length ? `Treinos ${slots} · ${exerciseTotal} exercícios no total` : "Sem treino montado"}</small></span><span className={entries.length?"status-chip ok":"status-chip"}>{entries.length?`${entries.length} aba${entries.length===1?"":"s"}`:"Sem ficha"}</span></button>})}</div></section></> : null}
 
           {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
-          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={(studentId,mode) => { const student=students.find(item=>item.id===studentId); if(!student)return; setSelectedStudentId(studentId); if(mode==="attendance") { setView("attendance-session"); return; } const active=student.workouts.find(item=>item.active); if(active){ setSelectedWorkoutId(active.id); setView("planned-session"); } else { setView("free-session"); } }} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
+          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "data" ? <DataCenter students={students} onReplace={setStudents} /> : null}
         </div>
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
@@ -346,26 +393,30 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
   if (!selectedStudent) return null;
 
   if (view === "student") {
-    const activeWorkout = selectedStudent.workouts.find(workout => workout.active);
+    const workoutEntries = getStudentWorkoutEntries(selectedStudent);
+    const primaryWorkout = workoutEntries[0]?.workout;
+    const workoutSlots = workoutEntries.map(entry => entry.slot).join(" · ");
+
     return (
       <main className="app-page">
         <Header title={selectedStudent.name} back={goStudents} />
         <section className="content student-profile-page">
           <div className="hero student-profile-hero">
             <div>
-              <span className={`status-pill ${selectedStudent.status === "ARCHIVED" ? "archived" : ""}`}>{selectedStudent.status === "ACTIVE" ? "Ativo" : "Arquivado"}</span>
+              <span className={`status-pill ${selectedStudent.status === "ARCHIVED" ? "archived" : ""}`}>{selectedStudent.status === "ACTIVE" ? "Ativo" : "Inativo"}</span>
               <h1>{selectedStudent.name}</h1>
               <p>{selectedStudent.goal || "Objetivo não informado"}</p>
             </div>
             <div className="hero-actions">
-              {activeWorkout ? <button className="primary" onClick={() => {setSelectedWorkoutId(activeWorkout.id); setView("planned-session");}}>▶ Iniciar ficha</button> : null}
-              <button className={activeWorkout ? "secondary" : "primary"} onClick={() => setView("free-session")}>✍ Registrar treino realizado</button><button className="secondary" onClick={() => setView("attendance-session")}>✓ Registrar presença</button>
+              {workoutEntries.length ? <button className="primary" onClick={() => setTab("workouts")}>▶ Usar treino montado</button> : null}
+              <button className={workoutEntries.length ? "secondary" : "primary"} onClick={() => setView("free-session")}>🎤 Registrar o que fez</button>
+              <button className="secondary" onClick={() => setView("attendance-session")}>✓ Só presença</button>
               <button className="secondary" onClick={() => setShowEditStudentForm(true)}>Editar aluno</button>
-              <button className="secondary" onClick={toggleArchive}>{selectedStudent.status === "ACTIVE" ? "Arquivar" : "Reativar"}</button>
+              <button className="secondary" onClick={toggleArchive}>{selectedStudent.status === "ACTIVE" ? "Marcar inativo" : "Reativar"}</button>
             </div>
           </div>
 
-          <StudentProfileSnapshot student={selectedStudent} activeWorkout={activeWorkout} />
+          <StudentProfileSnapshot student={selectedStudent} />
 
           <nav className="profile-tabs">
             {(["summary","workouts","history","assessments"] as StudentTab[]).map(item => (
@@ -373,24 +424,20 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
             ))}
           </nav>
 
-          <section className={`workflow-strip ${activeWorkout ? "has-workout" : "no-workout"}`}>
+          <section className={`workflow-strip ${workoutEntries.length ? "has-workout" : "no-workout"}`}>
             <div>
-              <strong>{activeWorkout ? `Ficha ativa: ${activeWorkout.name}` : "Aluno sem ficha ativa"}</strong>
-              <span>{activeWorkout ? "Você pode acompanhar a ficha ou simplesmente registrar no final o que foi feito." : "Dê a aula normalmente e, no final, registre por voz ou texto o que foi realizado."}</span>
+              <strong>{workoutEntries.length ? `Treinos montados: ${workoutSlots}` : "Aluno sem treino montado"}</strong>
+              <span>{workoutEntries.length ? "Escolha A, B, C ou D para acompanhar a aula. Você também pode registrar por voz/texto ou somente presença." : "Monte uma aba de treino ou registre a aula por voz/texto sem ficha."}</span>
             </div>
             <div className="workflow-strip-actions">
-              {activeWorkout ? <button className="primary" onClick={() => {setSelectedWorkoutId(activeWorkout.id); setView("planned-session");}}>Iniciar ficha</button> : null}
-              <button className="secondary" onClick={() => setView("free-session")}>Registrar depois</button><button className="secondary" onClick={() => setView("attendance-session")}>Só presença</button>
+              {workoutEntries.length ? <button className="primary" onClick={() => setTab("workouts")}>Escolher treino</button> : <button className="primary" onClick={() => {setWorkoutEditorSlot("A");setSelectedWorkoutId(null);setTab("workouts");setView("workout-editor");}}>Montar Treino A</button>}
+              <button className="secondary" onClick={() => setView("free-session")}>Registrar depois</button>
+              <button className="secondary" onClick={() => setView("attendance-session")}>Só presença</button>
             </div>
           </section>
 
-          {tab === "summary" ? <StudentSummary student={selectedStudent} activeWorkout={activeWorkout} /> : null}
-          {tab === "workouts" ? (
-            <section className="panel">
-              <div className="panel-head"><h2>Treinos planejados</h2><div className="hero-actions"><button className="secondary" onClick={() => {setSelectedWorkoutId(activeWorkout?.id || null); setView("workout-editor");}}>{activeWorkout ? "Editar treino" : "Criar treino"}</button>{activeWorkout ? <button className="secondary" onClick={duplicateWorkout}>Duplicar treino</button> : null}{activeWorkout ? <button className="primary" onClick={() => {setSelectedWorkoutId(activeWorkout.id); setView("planned-session");}}>Iniciar treino</button> : null}</div></div>
-              {selectedStudent.workouts.length ? selectedStudent.workouts.map(workout => <div className="timeline" key={workout.id}><strong>{workout.name}{workout.active ? " — ativo" : ""}</strong><p>{workout.exercises.length} exercícios</p></div>) : <p className="muted">Nenhum treino planejado. Você ainda pode registrar uma sessão livre.</p>}
-            </section>
-          ) : null}
+          {tab === "summary" ? <StudentSummary student={selectedStudent} /> : null}
+          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{setSelectedWorkoutId(workout.id);setView("planned-session");}} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
         </section>
@@ -401,7 +448,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     );
   }
 
-  if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveWorkout} />;
+  if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
   if (view === "planned-session") return <PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} />;
   if (view === "attendance-session") return <AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
   return <FreeSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
@@ -411,7 +458,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"attendance")=>void}) {
   const completedIds=new Set(todaySessions.map(item=>item.student.id));
   return <section className="panel calendar-today-panel"><div className="panel-head"><div><h2>Agenda de hoje</h2><p className="muted">Sua agenda oficial do Google, agora ligada ao fluxo do DMP.</p>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
-    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : events.length ? <div className="calendar-preview-list">{events.slice(0,10).map(event=>{const slotStudents=getCalendarEventStudents(event,students);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={onOpenAgenda}><strong>{event.summary}</strong><small>{slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);return <div className="calendar-slot-student" key={student.id}><button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className={done?"status-chip ok":"status-chip waiting"}>{done?"✓ Finalizado":student.workouts.some(w=>w.active)?"Com ficha":"Sem ficha"}</span>{!done?<><button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>{student.workouts.some(w=>w.active)?"▶ Iniciar":"✍ Registrar"}</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
+    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : events.length ? <div className="calendar-preview-list">{events.slice(0,10).map(event=>{const slotStudents=getCalendarEventStudents(event,students);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={onOpenAgenda}><strong>{event.summary}</strong><small>{slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);return <div className="calendar-slot-student" key={student.id}><button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className={done?"status-chip ok":"status-chip waiting"}>{done?"✓ Finalizado":student.workouts.length>0?"Com treino":"Sem treino"}</span>{!done?<><button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>{student.workouts.length>0?"▶ Iniciar":"✍ Registrar"}</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
@@ -421,7 +468,7 @@ function CalendarAgenda({status,events,loading,sync,students,onOpenStudent,onSta
   return <>
     <section className="panel agenda-connect"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Atualiza ao abrir/voltar ao DMP</span><span>✓ Revisa o dia a cada 5 min em uso</span><span>✓ Domingo: pré-carrega 7 dias</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Criar/excluir compromisso pelo DMP</span></div>{status.connected?<div className="agenda-sync-summary"><strong>Sincronização automática ativa</strong><span>Hoje{sync.dailyAt?` atualizado às ${formatSyncTime(sync.dailyAt)}`:" aguardando primeira atualização"}.</span><span>{sync.weeklyAt?`Última revisão semanal: ${formatSyncDateTime(sync.weeklyAt)} · ${sync.weeklyCount} compromissos.`:"A revisão dos próximos 7 dias acontece automaticamente no primeiro uso de domingo."}</span></div>:null}</div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
-    {status.connected?<section className="panel"><div className="panel-head"><div><h2>Compromissos de hoje</h2><p className="muted">{formatLongDate(today())}</p></div><span className="status-chip ok">{events.length} evento{events.length===1?"":"s"}</span></div>{loading?<div className="calendar-empty">Carregando agenda...</div>:events.length?<div className="agenda-event-list">{events.map(event=>{const matchedStudents=getCalendarEventStudents(event,students);return <article className="agenda-event-row agenda-event-row-multi" key={event.id}><div className="agenda-event-time">{formatCalendarTime(event)}</div><div className="agenda-event-body"><strong>{event.summary}</strong>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=><div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className="slot-ficha-label">{student.workouts.some(w=>w.active)?"Ficha ativa":"Sem ficha"}</span><button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>{student.workouts.some(w=>w.active)?"▶ Treino":"✍ Registrar"}</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>)}</div>:event.allDay?<small className="muted">Evento de dia inteiro — sem treino vinculado automaticamente.</small>:<small className="muted">Nenhum aluno deste horário foi identificado no DMP.</small>}</div><div className="agenda-event-actions">{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}<button className="danger-link" onClick={()=>removeEvent(event.id)}>Excluir</button></div></article>})}</div>:<div className="calendar-empty">Nenhum compromisso encontrado para hoje.</div>}</section>:null}
+    {status.connected?<section className="panel"><div className="panel-head"><div><h2>Compromissos de hoje</h2><p className="muted">{formatLongDate(today())}</p></div><span className="status-chip ok">{events.length} evento{events.length===1?"":"s"}</span></div>{loading?<div className="calendar-empty">Carregando agenda...</div>:events.length?<div className="agenda-event-list">{events.map(event=>{const matchedStudents=getCalendarEventStudents(event,students);return <article className="agenda-event-row agenda-event-row-multi" key={event.id}><div className="agenda-event-time">{formatCalendarTime(event)}</div><div className="agenda-event-body"><strong>{event.summary}</strong>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=><div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className="slot-ficha-label">{student.workouts.length>0?"Treino montado":"Sem treino"}</span><button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>{student.workouts.length>0?"▶ Treino":"✍ Registrar"}</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>)}</div>:event.allDay?<small className="muted">Evento de dia inteiro — sem treino vinculado automaticamente.</small>:<small className="muted">Nenhum aluno deste horário foi identificado no DMP.</small>}</div><div className="agenda-event-actions">{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}<button className="danger-link" onClick={()=>removeEvent(event.id)}>Excluir</button></div></article>})}</div>:<div className="calendar-empty">Nenhum compromisso encontrado para hoje.</div>}</section>:null}
   </>;
 }
 
@@ -455,21 +502,25 @@ function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View
 function Stat({icon,label,value}:{icon:string;label:string;value:number}) { return <article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
 function Header({title,back}:{title:string;back?:()=>void}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong>{title}</strong></div></header>; }
 
-function StudentProfileSnapshot({student,activeWorkout}:{student:Student;activeWorkout?:Workout}) {
+function StudentProfileSnapshot({student}:{student:Student}) {
   const age=calculateAge(student.birthDate);
   const lastSession=student.sessions[0];
   const alerts=[student.restrictions,student.injuries].filter(Boolean);
-  return <section className="profile-snapshot"><div className="snapshot-card"><span>Idade</span><strong>{age!==null?`${age} anos`:"—"}</strong></div><div className="snapshot-card"><span>Modalidade</span><strong>{student.modality||"—"}</strong></div><div className="snapshot-card"><span>Ficha ativa</span><strong>{activeWorkout?.name||"Sem ficha"}</strong></div><div className="snapshot-card"><span>Última sessão</span><strong>{lastSession?formatDate(lastSession.date):"—"}</strong></div>{alerts.length?<div className="snapshot-alert"><span>⚠ Lembretes importantes</span><strong>{alerts.join(" · ")}</strong></div>:<div className="snapshot-alert clear"><span>✓ Cuidados</span><strong>Nenhuma restrição ou dor registrada</strong></div>}</section>;
+  const workouts=getStudentWorkoutEntries(student);
+  const slotLabel=workouts.length?workouts.map(entry=>entry.slot).join(" · "):"Sem ficha";
+  return <section className="profile-snapshot"><div className="snapshot-card"><span>Idade</span><strong>{age!==null?`${age} anos`:"—"}</strong></div><div className="snapshot-card"><span>Modalidade</span><strong>{student.modality||"—"}</strong></div><div className="snapshot-card"><span>Treinos montados</span><strong>{slotLabel}</strong></div><div className="snapshot-card"><span>Última sessão</span><strong>{lastSession?formatDate(lastSession.date):"—"}</strong></div>{alerts.length?<div className="snapshot-alert"><span>⚠ Lembretes importantes</span><strong>{alerts.join(" · ")}</strong></div>:<div className="snapshot-alert clear"><span>✓ Cuidados</span><strong>Nenhuma restrição ou dor registrada</strong></div>}</section>;
 }
 
-function StudentSummary({student,activeWorkout}:{student:Student;activeWorkout?:Workout}) {
+function StudentSummary({student}:{student:Student}) {
   const age = calculateAge(student.birthDate);
   const months = monthsSince(student.startDate);
-  return <div className="detail-grid"><article className="panel"><h2>Resumo rápido</h2><dl className="summary-list"><div><dt>Aluno desde</dt><dd>{student.startDate ? formatDate(student.startDate) : "Não informado"}</dd></div><div><dt>Tempo com você</dt><dd>{months === null ? "Não informado" : formatMonths(months)}</dd></div><div><dt>Nascimento</dt><dd>{student.birthDate ? `${formatDate(student.birthDate)}${age !== null ? ` (${age} anos)` : ""}` : "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{student.phone || "Não informado"}</dd></div><div><dt>E-mail</dt><dd>{student.email || "Não informado"}</dd></div><div><dt>Profissão</dt><dd>{student.profession || "Não informado"}</dd></div><div><dt>Modalidade</dt><dd>{student.modality || "Não informado"}</dd></div><div><dt>Frequência</dt><dd>{student.weeklyFrequency || "Não informado"}</dd></div><div><dt>Treino ativo</dt><dd>{activeWorkout?.name || "Sem treino ativo"}</dd></div></dl></article><article className="panel safety-panel"><h2>⚠ Cuidados do aluno</h2><div className="safety-block important"><strong>Restrições / cuidados</strong><p>{student.restrictions || "Nenhuma restrição registrada."}</p></div><div className="safety-block"><strong>Lesões / dores</strong><p>{student.injuries || "Nenhuma lesão ou dor registrada."}</p></div><div className="safety-block"><strong>Medicações / informações relevantes</strong><p>{student.medications || "Nenhuma informação registrada."}</p></div><div className="safety-block"><strong>Observações gerais</strong><p>{student.notes || "Nenhuma observação registrada."}</p></div>{student.emergencyContact||student.emergencyPhone?<div className="safety-block"><strong>Contato de emergência</strong><p>{[student.emergencyContact,student.emergencyPhone].filter(Boolean).join(" · ")}</p></div>:null}</article></div>;
+  const workouts=getStudentWorkoutEntries(student);
+  const slotLabel=workouts.length?workouts.map(entry=>`Treino ${entry.slot}`).join(", "):"Sem treino montado";
+  return <div className="detail-grid"><article className="panel"><h2>Resumo rápido</h2><dl className="summary-list"><div><dt>Aluno desde</dt><dd>{student.startDate ? formatDate(student.startDate) : "Não informado"}</dd></div><div><dt>Tempo com você</dt><dd>{months === null ? "Não informado" : formatMonths(months)}</dd></div><div><dt>Nascimento</dt><dd>{student.birthDate ? `${formatDate(student.birthDate)}${age !== null ? ` (${age} anos)` : ""}` : "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{student.phone || "Não informado"}</dd></div><div><dt>E-mail</dt><dd>{student.email || "Não informado"}</dd></div><div><dt>Profissão</dt><dd>{student.profession || "Não informado"}</dd></div><div><dt>Modalidade</dt><dd>{student.modality || "Não informado"}</dd></div><div><dt>Frequência</dt><dd>{student.weeklyFrequency || "Não informado"}</dd></div><div><dt>Treinos montados</dt><dd>{slotLabel}</dd></div></dl></article><article className="panel safety-panel"><h2>⚠ Cuidados do aluno</h2><div className="safety-block important"><strong>Restrições / cuidados</strong><p>{student.restrictions || "Nenhuma restrição registrada."}</p></div><div className="safety-block"><strong>Lesões / dores</strong><p>{student.injuries || "Nenhuma lesão ou dor registrada."}</p></div><div className="safety-block"><strong>Medicações / informações relevantes</strong><p>{student.medications || "Nenhuma informação registrada."}</p></div><div className="safety-block"><strong>Observações gerais</strong><p>{student.notes || "Nenhuma observação registrada."}</p></div>{student.emergencyContact||student.emergencyPhone?<div className="safety-block"><strong>Contato de emergência</strong><p>{[student.emergencyContact,student.emergencyPhone].filter(Boolean).join(" · ")}</p></div>:null}</article></div>;
 }
 
 function HistoryPanel({student}:{student:Student}) {
-  return <section className="panel"><div className="panel-head"><h2>Histórico de sessões</h2><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>{student.sessions.length ? student.sessions.map(session => <details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length ? <ul className="simple-list">{session.completedExercises.map(exercise => <li key={exercise.id}>{exercise.block ? `${exercise.block} · ` : ""}{exercise.name}{exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}{exercise.load ? ` — ${exercise.load}` : ""}</li>)}</ul> : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}<p>{session.notes || "Sem observações."}</p></details>) : <p className="muted">Nenhuma sessão registrada.</p>}</section>;
+  return <section className="panel"><div className="panel-head"><h2>Histórico de sessões</h2><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>{student.sessions.length ? student.sessions.map(session => <details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length ? <ul className="simple-list">{session.completedExercises.map(exercise => <li key={exercise.id}>{exercise.block ? `${exercise.block} · ` : ""}{exercise.name}{exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}{exercise.load ? ` — ${exercise.load}` : ""}{exercise.notes ? ` — ${exercise.notes}` : ""}</li>)}</ul> : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}<p>{session.notes || "Sem observações."}</p></details>) : <p className="muted">Nenhuma sessão registrada.</p>}</section>;
 }
 
 function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
@@ -494,13 +545,59 @@ function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initial
     <label className="full">Observações gerais<textarea rows={4} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></label><button className="primary full">Salvar aluno</button></form></section></div>;
 }
 
-function WorkoutEditor({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(workout:Workout)=>void}) {
-  const [name,setName]=useState(workout?.name||"Treino A"); const [week,setWeek]=useState(workout?.week||1); const [exercises,setExercises]=useState<Exercise[]>(workout?.exercises||[]);
-  return <main className="app-page"><Header title={`Treino de ${student.name}`} back={onBack}/><section className="content narrow"><div className="panel form-stack"><label>Nome do treino<input value={name} onChange={e=>setName(e.target.value)} /></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><div className="exercise-editor-list">{exercises.map((exercise,index)=><div className="exercise-editor-row" key={exercise.id}><strong>{index+1}</strong><input placeholder="Bloco" value={exercise.block||""} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,block:e.target.value}:item))}/><input placeholder="Exercício" value={exercise.name} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,name:e.target.value}:item))}/><input placeholder="Séries" value={exercise.sets} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,sets:e.target.value}:item))}/><input placeholder="Reps" value={exercise.reps} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,reps:e.target.value}:item))}/><input placeholder="Carga" value={exercise.load} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,load:e.target.value}:item))}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>Remover</button></div>)}</div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"3",reps:"12",load:""}])}>+ Adicionar exercício</button><button className="primary" onClick={()=>onSave({id:workout?.id||crypto.randomUUID(),name:name.trim()||"Treino",week,active:true,exercises:exercises.filter(exercise=>exercise.name.trim())})}>Salvar treino</button></div></section></main>;
+function WorkoutSlotsPanel({student,onEdit,onStart}:{student:Student;onEdit:(slot:WorkoutSlot,workout:Workout|null)=>void;onStart:(workout:Workout)=>void}) {
+  const entries=getStudentWorkoutEntries(student);
+  return <section className="panel workout-library-panel"><div className="panel-head workout-library-head"><div><h2>Treinos planejados</h2><p className="muted">Cada aba é independente. Monte A, B, C e D com o protocolo que quiser.</p></div><span className="status-chip ok">{entries.length}/4 montados</span></div><div className="workout-tabs-grid">{WORKOUT_SLOTS.map(slot=>{const entry=entries.find(item=>item.slot===slot);const workout=entry?.workout;return <article className={`workout-slot-card ${workout?"filled":"empty"}`} key={slot}><div className="workout-slot-head"><span className="workout-slot-badge">Treino {slot}</span>{workout?<span className="protocol-chip">{workoutProtocolLabel(workout.protocol)}</span>:<span className="status-chip">Vazio</span>}</div>{workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}</article>})}</div></section>;
+}
+
+function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{student:Student;workout:Workout|null;slot:WorkoutSlot;exerciseCatalog:string[];onBack:()=>void;onSave:(workout:Workout)=>void}) {
+  const initialProtocol=workout?.protocol||"CONVENTIONAL";
+  const [name,setName]=useState(workout?.name||`Treino ${slot}`);
+  const [week,setWeek]=useState(workout?.week||1);
+  const [protocol,setProtocol]=useState<WorkoutProtocol>(initialProtocol);
+  const [sequenceSize,setSequenceSize]=useState(workout?.sequenceSize||defaultSequenceSize(initialProtocol));
+  const [workoutNotes,setWorkoutNotes]=useState(workout?.notes||"");
+  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
+
+  function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
+  function addExercise(){setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"3",reps:"12",load:"",notes:""}]);}
+  function changeProtocol(next:WorkoutProtocol){setProtocol(next);setSequenceSize(defaultSequenceSize(next));}
+  function organizeSequences(){setExercises(current=>current.map((exercise,index)=>({...exercise,block:sequenceBlockLabel(protocol,index,sequenceSize)})));}
+
+  const save=()=>{
+    const cleanExercises=exercises.filter(exercise=>exercise.name.trim()).map((exercise,index)=>({
+      ...exercise,
+      block:exercise.block?.trim()||sequenceBlockLabel(protocol,index,sequenceSize),
+      name:exercise.name.trim(),
+      sets:exercise.sets.trim(),
+      reps:exercise.reps.trim(),
+      load:exercise.load.trim(),
+      notes:exercise.notes?.trim()||""
+    }));
+
+    onSave({
+      id:workout?.id||crypto.randomUUID(),
+      slot,
+      name:name.trim()||`Treino ${slot}`,
+      week,
+      active:true,
+      protocol,
+      sequenceSize:Math.max(1,sequenceSize),
+      notes:workoutNotes.trim(),
+      exercises:cleanExercises
+    });
+  };
+
+  return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content workout-editor-page">
+    {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
+    <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div><div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
+
+    <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><button className="danger-link workout-remove" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></section>
+  </section></main>;
 }
 
 function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session)=>void}) {
-  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex})));
+  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
   const [completed,setCompleted]=useState<Record<string,boolean>>(() => Object.fromEntries((workout?.exercises||[]).map(ex=>[ex.id,true])));
   const [notes,setNotes]=useState("");
   const [sessionDate,setSessionDate]=useState(today());
@@ -510,22 +607,26 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   function updateExercise(id:string, patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
   const completedCount=exercises.filter(ex=>completed[ex.id]).length;
   const currentExercise=exercises[currentIndex];
+  const slot=workout?.slot||inferWorkoutSlot(workout,0);
+  const protocol=workout?.protocol||"CONVENTIONAL";
+
   if(lessonMode && currentExercise){
     const previous=findPreviousExercise(student,currentExercise.name);
-    return <main className="app-page lesson-mode-page"><Header title={`${student.name} — Modo aula`} back={()=>setLessonMode(false)}/><section className="content lesson-mode-content">
+    return <main className="app-page lesson-mode-page"><Header title={`${student.name} — Treino ${slot}`} back={()=>setLessonMode(false)}/><section className="content lesson-mode-content">
       {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
-      <div className="lesson-progress"><span>Exercício {currentIndex+1} de {exercises.length}</span><div><i style={{width:`${((currentIndex+1)/Math.max(1,exercises.length))*100}%`}}/></div></div>
-      <article className="panel lesson-card"><div className="lesson-card-top"><span className="status-chip">{currentExercise.block||`#${currentIndex+1}`}</span><label className="exercise-check"><input type="checkbox" checked={completed[currentExercise.id]??true} onChange={e=>setCompleted(current=>({...current,[currentExercise.id]:e.target.checked}))}/><span>Realizado</span></label></div><h1>{currentExercise.name}</h1>{previous?<div className="previous-load"><span>Última execução</span><strong>{previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""}</strong><small>{formatDate(previous.date)}</small></div>:<div className="previous-load muted">Sem execução anterior encontrada.</div>}<div className="planned-fields lesson-fields"><label>Séries<input value={currentExercise.sets} onChange={e=>updateExercise(currentExercise.id,{sets:e.target.value})}/></label><label>Repetições<input value={currentExercise.reps} onChange={e=>updateExercise(currentExercise.id,{reps:e.target.value})}/></label><label>Carga<input value={currentExercise.load} onChange={e=>updateExercise(currentExercise.id,{load:e.target.value})}/></label></div><div className="lesson-actions"><button className="secondary" disabled={currentIndex===0} onClick={()=>setCurrentIndex(i=>Math.max(0,i-1))}>← Anterior</button><button className="primary" onClick={()=>{setCompleted(current=>({...current,[currentExercise.id]:true}));setCurrentIndex(i=>Math.min(exercises.length-1,i+1));}}>{currentIndex===exercises.length-1?"✓ Último exercício":"Concluir e próximo →"}</button></div></article>
+      <div className="lesson-progress"><span>{workoutProtocolLabel(protocol)} · Exercício {currentIndex+1} de {exercises.length}</span><div><i style={{width:`${((currentIndex+1)/Math.max(1,exercises.length))*100}%`}}/></div></div>
+      <article className="panel lesson-card"><div className="lesson-card-top"><span className="status-chip">{currentExercise.block||`#${currentIndex+1}`}</span><label className="exercise-check"><input type="checkbox" checked={completed[currentExercise.id]??true} onChange={e=>setCompleted(current=>({...current,[currentExercise.id]:e.target.checked}))}/><span>Realizado</span></label></div><h1>{currentExercise.name}</h1>{currentExercise.notes?<div className="planned-note">📌 {currentExercise.notes}</div>:null}{previous?<div className="previous-load"><span>Última execução</span><strong>{previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""}</strong><small>{formatDate(previous.date)}</small></div>:<div className="previous-load muted">Sem execução anterior encontrada.</div>}<div className="planned-fields lesson-fields"><label>Séries<input value={currentExercise.sets} onChange={e=>updateExercise(currentExercise.id,{sets:e.target.value})}/></label><label>Repetições<input value={currentExercise.reps} onChange={e=>updateExercise(currentExercise.id,{reps:e.target.value})}/></label><label>Carga<input value={currentExercise.load} onChange={e=>updateExercise(currentExercise.id,{load:e.target.value})}/></label></div><label className="lesson-exercise-note">Observação de hoje<input value={currentExercise.notes||""} onChange={e=>updateExercise(currentExercise.id,{notes:e.target.value})} placeholder="Ajuste feito hoje..."/></label><div className="lesson-actions"><button className="secondary" disabled={currentIndex===0} onClick={()=>setCurrentIndex(i=>Math.max(0,i-1))}>← Anterior</button><button className="primary" onClick={()=>{setCompleted(current=>({...current,[currentExercise.id]:true}));setCurrentIndex(i=>Math.min(exercises.length-1,i+1));}}>{currentIndex===exercises.length-1?"✓ Último exercício":"Concluir e próximo →"}</button></div></article>
       <button className="secondary" onClick={()=>setLessonMode(false)}>Voltar para ficha completa</button>
     </section></main>;
   }
-  return <main className="app-page"><Header title={`${student.name} — Ficha`} back={onBack}/><section className="content narrow">
-    {student.restrictions||student.injuries ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div> : null}<div className="session-mode-banner"><span>📋 Ficha ativa</span><strong>{workout?.name||"Treino planejado"}</strong><small>{completedCount}/{exercises.length} exercícios marcados</small><button className="secondary compact-button" onClick={()=>setLessonMode(true)}>▶ Modo aula</button></div>
+
+  return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content narrow">
+    {student.restrictions||student.injuries ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div> : null}<div className="session-mode-banner"><span>📋 Treino {slot} · {workoutProtocolLabel(protocol)}</span><strong>{workout?.name||`Treino ${slot}`}</strong><small>{completedCount}/{exercises.length} exercícios marcados{workout?.notes?` · ${workout.notes}`:""}</small><button className="secondary compact-button" onClick={()=>setLessonMode(true)}>▶ Modo aula</button></div>
     <div className="session-list">{exercises.map(ex=>{const previous=findPreviousExercise(student,ex.name);return <article className={`session-exercise planned-row ${completed[ex.id]?"is-done":""}`} key={ex.id}>
       <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??true} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
-      <div className="planned-exercise-main"><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/>{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/></div></div>
+      <div className="planned-exercise-main"><div className="planned-title-line"><span className="status-chip">{ex.block||"—"}</span><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div></div>
     </article>})}</div>
-    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: troquei o C1, bloco 4 não foi feito, aumentar carga no próximo..."/></label><button className="primary finish-button" onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||"Treino planejado",notes,completedExercises:exercises.filter(ex=>completed[ex.id]),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Finalizar e salvar treino</button></div>
+    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>completed[ex.id])} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,notes,completedExercises:exercises.filter(ex=>completed[ex.id]),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
 }
 
@@ -794,6 +895,78 @@ function parseTranscript(text:string):Exercise[] {
   return exercises;
 }
 
+
+const WORKOUT_SLOTS:WorkoutSlot[]=["A","B","C","D"];
+const WORKOUT_PROTOCOL_OPTIONS:{value:WorkoutProtocol;label:string}[]=[
+  {value:"CONVENTIONAL",label:"Convencional"},
+  {value:"BISET",label:"Bi-set"},
+  {value:"TRISET",label:"Tri-set"},
+  {value:"B7",label:"B7"},
+  {value:"CIRCUIT",label:"Circuito"},
+  {value:"MIXED",label:"Misto / personalizado"}
+];
+
+function inferWorkoutSlot(workout:Workout|null|undefined,index:number):WorkoutSlot{
+  if(workout?.slot&&WORKOUT_SLOTS.includes(workout.slot))return workout.slot;
+  const match=(workout?.name||"").match(/(?:treino\s*)?([ABCD])\b/i);
+  if(match)return match[1].toUpperCase() as WorkoutSlot;
+  return WORKOUT_SLOTS[Math.min(index,WORKOUT_SLOTS.length-1)]||"A";
+}
+
+function getStudentWorkoutEntries(student:Student):{workout:Workout;slot:WorkoutSlot}[]{
+  const used=new Set<WorkoutSlot>();
+  const entries:{workout:Workout;slot:WorkoutSlot}[]=[];
+
+  student.workouts.forEach((workout,index)=>{
+    let slot=inferWorkoutSlot(workout,index);
+    if(used.has(slot))slot=WORKOUT_SLOTS.find(candidate=>!used.has(candidate))||slot;
+    used.add(slot);
+    entries.push({workout,slot});
+  });
+
+  return entries.sort((a,b)=>WORKOUT_SLOTS.indexOf(a.slot)-WORKOUT_SLOTS.indexOf(b.slot)).slice(0,4);
+}
+
+function workoutProtocolLabel(protocol?:WorkoutProtocol){
+  return WORKOUT_PROTOCOL_OPTIONS.find(option=>option.value===(protocol||"CONVENTIONAL"))?.label||"Convencional";
+}
+
+function defaultSequenceSize(protocol:WorkoutProtocol){
+  return protocol==="BISET"?2:protocol==="TRISET"?3:protocol==="B7"?7:protocol==="CIRCUIT"?4:protocol==="MIXED"?2:1;
+}
+
+function sequenceBlockLabel(protocol:WorkoutProtocol,index:number,size:number){
+  if(protocol==="CONVENTIONAL"&&Math.max(1,size)===1)return "";
+  return `Bloco ${Math.floor(index/Math.max(1,size))+1}`;
+}
+
+function protocolDescription(protocol:WorkoutProtocol,size:number){
+  if(protocol==="CONVENTIONAL")return size===1?"Exercícios executados individualmente. Você ainda pode aumentar a sequência se quiser.":`Convencional organizado em grupos de ${size}.`;
+  if(protocol==="BISET")return `Bi-set: o editor agrupa ${size} exercícios por sequência. O padrão é 2, mas você pode ajustar.`;
+  if(protocol==="TRISET")return `Tri-set: o editor agrupa ${size} exercícios por sequência. O padrão é 3.`;
+  if(protocol==="B7")return `B7: protocolo identificado na ficha e organizado em sequências de ${size} exercícios. Você pode ajustar esse número.`;
+  if(protocol==="CIRCUIT")return `Circuito com ${size} exercícios por sequência. Ajuste a quantidade conforme a aula.`;
+  return `Misto / personalizado com ${size} exercícios por sequência. Use a coluna Seq. para mudar blocos específicos.`;
+}
+
+function buildExerciseCatalog(students:Student[]){
+  const names=new Map<string,string>();
+  for(const student of students){
+    for(const workout of student.workouts){
+      for(const exercise of workout.exercises){
+        const key=normalizeName(exercise.name);
+        if(key&&!names.has(key))names.set(key,exercise.name.trim());
+      }
+    }
+    for(const session of student.sessions){
+      for(const exercise of session.completedExercises){
+        const key=normalizeName(exercise.name);
+        if(key&&!names.has(key))names.set(key,exercise.name.trim());
+      }
+    }
+  }
+  return [...names.values()].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+}
 
 function isBirthdayToday(value:string){if(!value)return false;const [y,m,d]=value.split("-").map(Number);const now=new Date();return m===now.getMonth()+1&&d===now.getDate();}
 function assessmentDue(student:Student){const last=student.assessments[0];if(!last)return true;const date=new Date(`${last.date}T12:00:00`);return Date.now()-date.getTime()>1000*60*60*24*90;}

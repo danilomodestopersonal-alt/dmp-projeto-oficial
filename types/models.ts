@@ -1,5 +1,8 @@
 export type StudentStatus = "ACTIVE" | "ARCHIVED";
 
+export type WorkoutSlot = "A" | "B" | "C" | "D";
+export type WorkoutProtocol = "CONVENTIONAL" | "BISET" | "TRISET" | "B7" | "CIRCUIT" | "MIXED";
+
 export type Exercise = {
   id: string;
   block?: string;
@@ -7,6 +10,7 @@ export type Exercise = {
   sets: string;
   reps: string;
   load: string;
+  notes?: string;
 };
 
 export type Workout = {
@@ -14,6 +18,10 @@ export type Workout = {
   name: string;
   week: number;
   active: boolean;
+  slot?: WorkoutSlot;
+  protocol?: WorkoutProtocol;
+  sequenceSize?: number;
+  notes?: string;
   exercises: Exercise[];
 };
 
