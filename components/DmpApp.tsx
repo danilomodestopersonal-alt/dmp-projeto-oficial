@@ -13,6 +13,8 @@ type StudentTab = "summary" | "workouts" | "history" | "assessments";
 export default function DmpApp() {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>(importedStudents2026);
+  const [studentsLoaded, setStudentsLoaded] = useState(false);
+const [cloudWritable, setCloudWritable] = useState(false);
   const [view, setView] = useState<View>("today");
   const [tab, setTab] = useState<StudentTab>("summary");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -32,9 +34,74 @@ export default function DmpApp() {
   const [showGoogleEventForm, setShowGoogleEventForm] = useState(false);
 
   useEffect(() => setStudents(loadStudents(importedStudents2026)), []);
-  useEffect(() => saveStudents(students), [students]);
-  useEffect(() => {
-    fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>{});
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadStudentsFromCloud() {
+    const localStudents = loadStudents(importedStudents2026);
+
+    try {
+      const response = await fetch("/api/data", { cache: "no-store" });
+
+      if (!response.ok) {
+        throw new Error("Falha ao carregar dados da nuvem");
+      }
+
+      const result = await response.json();
+
+      if (!Array.isArray(result.data)) {
+        throw new Error("Dados da nuvem inválidos");
+      }
+
+      if (cancelled) return;
+
+      setStudents(result.data as Student[]);
+      saveStudents(result.data as Student[]);
+      setCloudWritable(true);
+    } catch (error) {
+      console.error("Nuvem indisponível; usando backup local:", error);
+
+      if (cancelled) return;
+
+      setStudents(localStudents);
+      setCloudWritable(false);
+    } finally {
+      if (!cancelled) {
+        setStudentsLoaded(true);
+      }
+    }
+  }
+
+  void loadStudentsFromCloud();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+useEffect(() => {
+  if (!studentsLoaded) return;
+
+  saveStudents(students);
+
+  if (!cloudWritable) return;
+
+  const timer = window.setTimeout(() => {
+    void fetch("/api/data", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(students),
+    }).catch(error => {
+      console.error("Erro ao salvar na nuvem:", error);
+    });
+  }, 300);
+
+  return () => window.clearTimeout(timer);
+}, [students, studentsLoaded, cloudWritable]);    
+useEffect(() => {
+fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>{});
     try {
       const dailyAt=localStorage.getItem("dmp_calendar_daily_sync")||"";
       const weeklyAt=localStorage.getItem("dmp_calendar_weekly_sync")||"";
