@@ -538,7 +538,102 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
   const [listening,setListening]=useState(false);
   function organize(){setExercises(parseTranscript(transcript));}
   function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
-  function listen(){const SpeechRecognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!SpeechRecognition){alert("O reconhecimento de voz não está disponível neste navegador. Use o campo de texto.");return;}const recognition=new SpeechRecognition();recognition.lang="pt-BR";recognition.interimResults=false;recognition.onstart=()=>setListening(true);recognition.onend=()=>setListening(false);recognition.onresult=(event:any)=>setTranscript(current=>`${current} ${event.results[0][0].transcript}`.trim());recognition.start();}
+  function listen(){
+  const SpeechRecognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+
+  if(!SpeechRecognition){
+    alert("O reconhecimento de voz não está disponível neste navegador. Use o campo de texto.");
+    return;
+  }
+
+  const voiceWindow=window as any;
+
+  // Segundo toque: encerra o ditado definitivamente.
+  if(voiceWindow.__dmpShouldListen){
+    voiceWindow.__dmpShouldListen=false;
+
+    const activeRecognition=voiceWindow.__dmpRecognition;
+    if(activeRecognition){
+      activeRecognition.onend=null;
+      try{activeRecognition.stop();}catch{}
+    }
+
+    voiceWindow.__dmpRecognition=null;
+    setListening(false);
+    return;
+  }
+
+  const startRecognition=()=>{
+    if(!voiceWindow.__dmpShouldListen) return;
+
+    const recognition=new SpeechRecognition();
+    voiceWindow.__dmpRecognition=recognition;
+
+    recognition.lang="pt-BR";
+    recognition.continuous=true;
+    recognition.interimResults=true;
+    recognition.maxAlternatives=1;
+
+    recognition.onstart=()=>{
+      setListening(true);
+    };
+
+    recognition.onresult=(event:any)=>{
+      let finalText="";
+
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const result=event.results[i];
+
+        if(result.isFinal){
+          finalText+=result[0].transcript+" ";
+        }
+      }
+
+      if(finalText.trim()){
+        setTranscript(current=>`${current} ${finalText.trim()}`.trim());
+      }
+    };
+
+    recognition.onerror=(event:any)=>{
+      if(
+        event.error==="not-allowed" ||
+        event.error==="service-not-allowed" ||
+        event.error==="audio-capture"
+      ){
+        voiceWindow.__dmpShouldListen=false;
+        voiceWindow.__dmpRecognition=null;
+        setListening(false);
+      }
+    };
+
+    recognition.onend=()=>{
+      setListening(false);
+      voiceWindow.__dmpRecognition=null;
+
+      // Chrome/Android pode encerrar sozinho.
+      // Enquanto o usuário não mandar parar, iniciamos novamente.
+      if(voiceWindow.__dmpShouldListen){
+        window.setTimeout(()=>{
+          if(voiceWindow.__dmpShouldListen){
+            startRecognition();
+          }
+        },250);
+      }
+    };
+
+    try{
+      recognition.start();
+    }catch{
+      if(voiceWindow.__dmpShouldListen){
+        window.setTimeout(startRecognition,250);
+      }
+    }
+  };
+
+  // Primeiro toque: entra no modo de ditado contínuo.
+  voiceWindow.__dmpShouldListen=true;
+  startRecognition();
+}
   return <main className="app-page"><Header title={`${student.name} — Registro rápido`} back={onBack}/><section className="content free-session-layout">
     <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button className="primary" onClick={organize}>Organizar para revisão</button></div></article>
     <article className="panel"><div className="panel-head"><div><h2>Revise antes de salvar</h2><p className="muted">Você pode corrigir bloco, exercício, séries, repetições e carga.</p></div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"",reps:"",load:""}])}>+ Exercício</button></div>{exercises.length? <div className="review-list">{exercises.map(ex=><div className="review-row enhanced" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input className="review-name" placeholder="Exercício" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==ex.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Ainda não organizado</strong><span>Escreva ou fale o treino e toque em “Organizar para revisão”.</span></div>}<label className="form-stack">Observações / próximos ajustes<textarea rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: não fizemos bloco 4; trocar exercício no próximo treino..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:focus||"Treino realizado",notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"FREE"})}>✓ Salvar no histórico</button></article>
