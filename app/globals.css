@@ -500,3 +500,68 @@ input:focus,textarea:focus{
 .free-session-layout{display:grid;grid-template-columns:1fr 1.1fr;gap:18px;align-items:start}.review-list{display:grid;gap:8px;margin:14px 0}.review-row{display:grid;grid-template-columns:2fr .6fr .6fr 1fr auto;gap:8px}.review-row input{min-width:0}
 .finish-button:disabled{opacity:.45;cursor:not-allowed}.panel .form-stack{margin-top:14px}
 @media(max-width:800px){.free-session-layout{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}.review-row{grid-template-columns:1fr 1fr}.review-row input:first-child{grid-column:1/-1}.student-profile-hero{align-items:stretch}.history-item summary{flex-direction:column}.summary-list div{flex-direction:column;gap:4px}.summary-list dd{text-align:left}}
+
+/* =========================================================
+   DMP — FLUXO DE ATENDIMENTO V1.2
+   Ficha quando existe; registro rápido quando não existe.
+   ========================================================= */
+.student-workflow-badge{
+  width:max-content;max-width:100%;padding:7px 10px;border-radius:999px;
+  background:#f2f6e8;color:#59672d;font-size:.78rem;font-weight:900
+}
+.quick-text-action{
+  border:0;background:transparent;color:var(--dmp-green-dark);font-weight:850;
+  padding:2px 0;text-align:left;font-size:.82rem
+}
+.workflow-strip{
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  margin:0 0 18px;padding:16px 18px;border-radius:18px;border:1px solid var(--dmp-border);
+  background:#fff
+}
+.workflow-strip.has-workout{box-shadow:inset 4px 0 0 var(--dmp-green)}
+.workflow-strip.no-workout{box-shadow:inset 4px 0 0 #f3a847}
+.workflow-strip>div:first-child{display:grid;gap:4px}
+.workflow-strip strong{font-size:.98rem}
+.workflow-strip span{color:var(--dmp-muted);font-size:.9rem}
+.workflow-strip-actions{display:flex;gap:8px;flex-shrink:0}
+.session-mode-banner{
+  display:grid;gap:4px;margin-bottom:16px;padding:16px 18px;border-radius:18px;
+  background:linear-gradient(135deg,#25272c,#34383f);color:#fff;
+  box-shadow:0 12px 30px rgba(37,39,44,.16)
+}
+.session-mode-banner.free{background:linear-gradient(135deg,#91ae30,#b3cf4c);color:#20242a}
+.session-mode-banner span{font-size:.77rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;opacity:.82}
+.session-mode-banner strong{font-size:1.18rem}
+.session-mode-banner small{opacity:.78}
+.planned-row{
+  grid-template-columns:84px 1fr;align-items:center;transition:.18s ease
+}
+.planned-row:not(.is-done){opacity:.54;background:#f6f7f8}
+.exercise-check{display:flex!important;align-items:center!important;gap:8px!important;font-size:.82rem!important}
+.exercise-check input{width:20px;height:20px;accent-color:var(--dmp-green-dark)}
+.planned-exercise-main{display:grid;gap:10px}
+.planned-name{font-weight:850;font-size:1rem}
+.planned-fields{display:grid;grid-template-columns:.7fr .7fr .8fr 1.2fr;gap:8px}
+.quick-register-panel{align-content:start}
+.review-row.enhanced{
+  display:grid;grid-template-columns:.75fr 2.2fr .7fr .8fr 1fr 38px;gap:8px;align-items:center;margin-bottom:8px
+}
+.review-name{font-weight:800}
+.empty-review{
+  display:grid;gap:4px;margin:16px 0;padding:24px;border:1px dashed var(--dmp-border);
+  border-radius:16px;background:#fafbf8;color:var(--dmp-muted)
+}
+.empty-review strong{color:var(--dmp-graphite)}
+.exercise-editor-row{grid-template-columns:34px .65fr 2fr .7fr .7fr 1fr auto}
+@media(max-width:760px){
+  .workflow-strip{align-items:stretch;flex-direction:column}
+  .workflow-strip-actions{width:100%}
+  .workflow-strip-actions button{flex:1}
+  .planned-row{grid-template-columns:1fr}
+  .exercise-check{display:flex!important;flex-direction:row!important}
+  .planned-fields{grid-template-columns:1fr 1fr}
+  .review-row.enhanced{grid-template-columns:1fr 1fr}
+  .review-row.enhanced .review-name{grid-column:1/-1}
+  .review-row.enhanced .danger-link{grid-column:2;justify-self:end}
+  .exercise-editor-row{grid-template-columns:28px 1fr 1fr}
+}

@@ -2,6 +2,7 @@ export type StudentStatus = "ACTIVE" | "ARCHIVED";
 
 export type Exercise = {
   id: string;
+  block?: string;
   name: string;
   sets: string;
   reps: string;

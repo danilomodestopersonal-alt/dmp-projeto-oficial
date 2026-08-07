@@ -193,10 +193,21 @@ export default function DmpApp() {
                       <span><strong>Última sessão</strong>{lastSession ? formatDate(lastSession.date) : "Sem sessões"}</span>
                       <span><strong>Última avaliação</strong>{lastAssessment ? formatDate(lastAssessment.date) : "Sem avaliação"}</span>
                     </div>
+                    <div className="student-workflow-badge">{student.workouts.some(workout => workout.active) ? "✓ Com ficha ativa" : "⚡ Sem ficha — registro rápido"}</div>
                     <div className="card-actions">
-                      <button className="secondary" onClick={() => openStudent(student.id)}>Abrir ficha</button>
-                      <button className="primary" onClick={() => {setSelectedStudentId(student.id); setView("free-session");}}>Registrar sessão</button>
+                      <button className="secondary" onClick={() => openStudent(student.id)}>Abrir aluno</button>
+                      {student.workouts.some(workout => workout.active) ? (
+                        <button className="primary" onClick={() => {
+                          const workout = student.workouts.find(item => item.active);
+                          setSelectedStudentId(student.id);
+                          setSelectedWorkoutId(workout?.id || null);
+                          setView("planned-session");
+                        }}>▶ Iniciar ficha</button>
+                      ) : (
+                        <button className="primary" onClick={() => {setSelectedStudentId(student.id); setView("free-session");}}>✍ Registrar o que fez</button>
+                      )}
                     </div>
+                    {student.workouts.some(workout => workout.active) ? <button className="quick-text-action" onClick={() => {setSelectedStudentId(student.id); setView("free-session");}}>Sem usar a ficha hoje? Registrar treino realizado</button> : null}
                   </article>
                 );
               })}
@@ -224,9 +235,10 @@ export default function DmpApp() {
               <p>{selectedStudent.goal || "Objetivo não informado"}</p>
             </div>
             <div className="hero-actions">
+              {activeWorkout ? <button className="primary" onClick={() => {setSelectedWorkoutId(activeWorkout.id); setView("planned-session");}}>▶ Iniciar ficha</button> : null}
+              <button className={activeWorkout ? "secondary" : "primary"} onClick={() => setView("free-session")}>✍ Registrar treino realizado</button>
               <button className="secondary" onClick={() => setShowEditStudentForm(true)}>Editar aluno</button>
               <button className="secondary" onClick={toggleArchive}>{selectedStudent.status === "ACTIVE" ? "Arquivar" : "Reativar"}</button>
-              <button className="primary" onClick={() => setView("free-session")}>🎤 Registrar sessão livre</button>
             </div>
           </div>
 
@@ -235,6 +247,17 @@ export default function DmpApp() {
               <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{tabLabel(item)}</button>
             ))}
           </nav>
+
+          <section className={`workflow-strip ${activeWorkout ? "has-workout" : "no-workout"}`}>
+            <div>
+              <strong>{activeWorkout ? `Ficha ativa: ${activeWorkout.name}` : "Aluno sem ficha ativa"}</strong>
+              <span>{activeWorkout ? "Você pode acompanhar a ficha ou simplesmente registrar no final o que foi feito." : "Dê a aula normalmente e, no final, registre por voz ou texto o que foi realizado."}</span>
+            </div>
+            <div className="workflow-strip-actions">
+              {activeWorkout ? <button className="primary" onClick={() => {setSelectedWorkoutId(activeWorkout.id); setView("planned-session");}}>Iniciar ficha</button> : null}
+              <button className="secondary" onClick={() => setView("free-session")}>Registrar depois</button>
+            </div>
+          </section>
 
           {tab === "summary" ? <StudentSummary student={selectedStudent} activeWorkout={activeWorkout} /> : null}
           {tab === "workouts" ? (
@@ -271,7 +294,7 @@ function StudentSummary({student,activeWorkout}:{student:Student;activeWorkout?:
 }
 
 function HistoryPanel({student}:{student:Student}) {
-  return <section className="panel"><div className="panel-head"><h2>Histórico de sessões</h2><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>{student.sessions.length ? student.sessions.map(session => <details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span><small>{session.source === "IMPORTED" ? "Importado da planilha" : session.source === "FREE" ? "Sessão livre" : "Treino planejado"}</small></summary><ul className="simple-list">{session.completedExercises.map(exercise => <li key={exercise.id}>{exercise.name}{exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}{exercise.load ? ` — ${exercise.load}` : ""}</li>)}</ul><p>{session.notes || "Sem observações."}</p></details>) : <p className="muted">Nenhuma sessão registrada.</p>}</section>;
+  return <section className="panel"><div className="panel-head"><h2>Histórico de sessões</h2><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>{student.sessions.length ? student.sessions.map(session => <details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span><small>{session.source === "IMPORTED" ? "Importado da planilha" : session.source === "FREE" ? "Sessão livre" : "Treino planejado"}</small></summary><ul className="simple-list">{session.completedExercises.map(exercise => <li key={exercise.id}>{exercise.block ? `${exercise.block} · ` : ""}{exercise.name}{exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}{exercise.load ? ` — ${exercise.load}` : ""}</li>)}</ul><p>{session.notes || "Sem observações."}</p></details>) : <p className="muted">Nenhuma sessão registrada.</p>}</section>;
 }
 
 function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
@@ -287,19 +310,40 @@ function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initial
 
 function WorkoutEditor({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(workout:Workout)=>void}) {
   const [name,setName]=useState(workout?.name||"Treino A"); const [week,setWeek]=useState(workout?.week||1); const [exercises,setExercises]=useState<Exercise[]>(workout?.exercises||[]);
-  return <main className="app-page"><Header title={`Treino de ${student.name}`} back={onBack}/><section className="content narrow"><div className="panel form-stack"><label>Nome do treino<input value={name} onChange={e=>setName(e.target.value)} /></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><div className="exercise-editor-list">{exercises.map((exercise,index)=><div className="exercise-editor-row" key={exercise.id}><strong>{index+1}</strong><input placeholder="Exercício" value={exercise.name} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,name:e.target.value}:item))}/><input placeholder="Séries" value={exercise.sets} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,sets:e.target.value}:item))}/><input placeholder="Reps" value={exercise.reps} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,reps:e.target.value}:item))}/><input placeholder="Carga" value={exercise.load} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,load:e.target.value}:item))}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>Remover</button></div>)}</div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),name:"",sets:"3",reps:"12",load:""}])}>+ Adicionar exercício</button><button className="primary" onClick={()=>onSave({id:workout?.id||crypto.randomUUID(),name:name.trim()||"Treino",week,active:true,exercises:exercises.filter(exercise=>exercise.name.trim())})}>Salvar treino</button></div></section></main>;
+  return <main className="app-page"><Header title={`Treino de ${student.name}`} back={onBack}/><section className="content narrow"><div className="panel form-stack"><label>Nome do treino<input value={name} onChange={e=>setName(e.target.value)} /></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><div className="exercise-editor-list">{exercises.map((exercise,index)=><div className="exercise-editor-row" key={exercise.id}><strong>{index+1}</strong><input placeholder="Bloco" value={exercise.block||""} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,block:e.target.value}:item))}/><input placeholder="Exercício" value={exercise.name} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,name:e.target.value}:item))}/><input placeholder="Séries" value={exercise.sets} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,sets:e.target.value}:item))}/><input placeholder="Reps" value={exercise.reps} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,reps:e.target.value}:item))}/><input placeholder="Carga" value={exercise.load} onChange={e=>setExercises(current=>current.map(item=>item.id===exercise.id?{...item,load:e.target.value}:item))}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>Remover</button></div>)}</div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"3",reps:"12",load:""}])}>+ Adicionar exercício</button><button className="primary" onClick={()=>onSave({id:workout?.id||crypto.randomUUID(),name:name.trim()||"Treino",week,active:true,exercises:exercises.filter(exercise=>exercise.name.trim())})}>Salvar treino</button></div></section></main>;
 }
 
 function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session)=>void}) {
-  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex}))); const [notes,setNotes]=useState("");
-  return <main className="app-page"><Header title={`${student.name} — Sessão`} back={onBack}/><section className="content narrow"><div className="session-list">{exercises.map(ex=><article className="session-exercise" key={ex.id}><div><h2>{ex.name}</h2><p>{ex.sets}×{ex.reps}</p></div><input value={ex.load} onChange={e=>setExercises(current=>current.map(item=>item.id===ex.id?{...item,load:e.target.value}:item))} placeholder="Carga de hoje"/></article>)}</div><div className="panel form-stack"><label>Observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)}/></label><button className="primary" onClick={()=>onSave({id:crypto.randomUUID(),date:today(),workoutName:workout?.name||"Treino planejado",notes,completedExercises:exercises,source:"PLANNED"})}>Treino concluído</button></div></section></main>;
+  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex})));
+  const [completed,setCompleted]=useState<Record<string,boolean>>(() => Object.fromEntries((workout?.exercises||[]).map(ex=>[ex.id,true])));
+  const [notes,setNotes]=useState("");
+  const [sessionDate,setSessionDate]=useState(today());
+  function updateExercise(id:string, patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
+  const completedCount=exercises.filter(ex=>completed[ex.id]).length;
+  return <main className="app-page"><Header title={`${student.name} — Ficha`} back={onBack}/><section className="content narrow">
+    <div className="session-mode-banner"><span>📋 Ficha ativa</span><strong>{workout?.name||"Treino planejado"}</strong><small>{completedCount}/{exercises.length} exercícios marcados</small></div>
+    <div className="session-list">{exercises.map(ex=><article className={`session-exercise planned-row ${completed[ex.id]?"is-done":""}`} key={ex.id}>
+      <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??true} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
+      <div className="planned-exercise-main"><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/><div className="planned-fields"><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/></div></div>
+    </article>)}</div>
+    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: troquei o C1, bloco 4 não foi feito, aumentar carga no próximo..."/></label><button className="primary finish-button" onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||"Treino planejado",notes,completedExercises:exercises.filter(ex=>completed[ex.id]),source:"PLANNED"})}>✓ Finalizar e salvar treino</button></div>
+  </section></main>;
 }
 
 function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>void;onSave:(session:Session)=>void}) {
-  const [transcript,setTranscript]=useState(""); const [focus,setFocus]=useState("Sessão livre"); const [notes,setNotes]=useState(""); const [exercises,setExercises]=useState<Exercise[]>([]); const [listening,setListening]=useState(false);
+  const [transcript,setTranscript]=useState("");
+  const [focus,setFocus]=useState("Treino realizado");
+  const [notes,setNotes]=useState("");
+  const [sessionDate,setSessionDate]=useState(today());
+  const [exercises,setExercises]=useState<Exercise[]>([]);
+  const [listening,setListening]=useState(false);
   function organize(){setExercises(parseTranscript(transcript));}
+  function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
   function listen(){const SpeechRecognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!SpeechRecognition){alert("O reconhecimento de voz não está disponível neste navegador. Use o campo de texto.");return;}const recognition=new SpeechRecognition();recognition.lang="pt-BR";recognition.interimResults=false;recognition.onstart=()=>setListening(true);recognition.onend=()=>setListening(false);recognition.onresult=(event:any)=>setTranscript(current=>`${current} ${event.results[0][0].transcript}`.trim());recognition.start();}
-  return <main className="app-page"><Header title={`${student.name} — Sessão livre`} back={onBack}/><section className="content free-session-layout"><article className="panel form-stack"><h2>1. Fale ou escreva o treino</h2><label>Foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)}/></label><label>Relato do treino<textarea rows={9} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder="Ex.: Leg press 4x12 com 140 kg; cadeira flexora 4x12 com 45 kg..."/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button className="primary" onClick={organize}>Organizar para revisão</button></div></article><article className="panel"><h2>2. Revise antes de salvar</h2>{exercises.length? <div className="review-list">{exercises.map((ex,index)=><div className="review-row" key={ex.id}><input value={ex.name} onChange={e=>setExercises(current=>current.map(item=>item.id===ex.id?{...item,name:e.target.value}:item))}/><input placeholder="Séries" value={ex.sets} onChange={e=>setExercises(current=>current.map(item=>item.id===ex.id?{...item,sets:e.target.value}:item))}/><input placeholder="Reps" value={ex.reps} onChange={e=>setExercises(current=>current.map(item=>item.id===ex.id?{...item,reps:e.target.value}:item))}/><input placeholder="Carga" value={ex.load} onChange={e=>setExercises(current=>current.map(item=>item.id===ex.id?{...item,load:e.target.value}:item))}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==ex.id))}>×</button></div>)}</div>:<p className="muted">Clique em “Organizar para revisão”.</p>}<button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),name:"",sets:"",reps:"",load:""}])}>+ Exercício</button><label className="form-stack">Observações<textarea rows={4} value={notes} onChange={e=>setNotes(e.target.value)}/></label><button className="primary finish-button" disabled={!exercises.length} onClick={()=>onSave({id:crypto.randomUUID(),date:today(),workoutName:focus||"Sessão livre",notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"FREE"})}>Salvar no histórico</button></article></section></main>;
+  return <main className="app-page"><Header title={`${student.name} — Registro rápido`} back={onBack}/><section className="content free-session-layout">
+    <article className="panel form-stack quick-register-panel"><div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button className="primary" onClick={organize}>Organizar para revisão</button></div></article>
+    <article className="panel"><div className="panel-head"><div><h2>Revise antes de salvar</h2><p className="muted">Você pode corrigir bloco, exercício, séries, repetições e carga.</p></div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"",reps:"",load:""}])}>+ Exercício</button></div>{exercises.length? <div className="review-list">{exercises.map(ex=><div className="review-row enhanced" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input className="review-name" placeholder="Exercício" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==ex.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Ainda não organizado</strong><span>Escreva ou fale o treino e toque em “Organizar para revisão”.</span></div>}<label className="form-stack">Observações / próximos ajustes<textarea rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: não fizemos bloco 4; trocar exercício no próximo treino..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:focus||"Treino realizado",notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"FREE"})}>✓ Salvar no histórico</button></article>
+  </section></main>;
 }
 
 function AssessmentForm({onClose,onSave}:{onClose:()=>void;onSave:(assessment:Assessment)=>void}) {
@@ -309,7 +353,23 @@ function AssessmentForm({onClose,onSave}:{onClose:()=>void;onSave:(assessment:As
   return <div className="modal-backdrop"><section className="modal assessment-modal"><div className="modal-head"><h2>Nova avaliação</h2><button className="text-button" onClick={onClose}>Fechar</button></div><div className="form-grid"><label>Data<input type="date" value={values.date} onChange={e=>setValues({...values,date:e.target.value})}/></label><label>Peso (kg)<input type="number" step="0.1" value={values.weight} onChange={e=>setValues({...values,weight:e.target.value})}/></label><label>Altura (cm)<input type="number" step="0.1" value={values.height} onChange={e=>setValues({...values,height:e.target.value})}/></label><label>% de gordura<input type="number" step="0.1" value={values.bodyFatPercent} onChange={e=>setValues({...values,bodyFatPercent:e.target.value})}/></label><label>Peso de gordura (kg)<input type="number" step="0.1" value={values.fatMass} onChange={e=>setValues({...values,fatMass:e.target.value})}/></label><label>Massa magra (kg)<input type="number" step="0.1" value={values.leanMass} onChange={e=>setValues({...values,leanMass:e.target.value})}/></label>{measurementFields.map(([key,label])=><label key={key}>{label} (cm)<input value={values.measurements[key]||""} onChange={e=>setValues({...values,measurements:{...values.measurements,[key]:e.target.value}})}/></label>)}<label className="full">Fotos / relatório<input type="file" accept="image/*" multiple onChange={e=>photos(e.target.files)}/><small>Até 4 imagens. Revise antes de salvar.</small></label><label className="full">Observações<textarea rows={4} value={values.notes} onChange={e=>setValues({...values,notes:e.target.value})}/></label><button className="primary full" onClick={()=>onSave({id:crypto.randomUUID(),date:values.date,weight:num(values.weight),height:num(values.height),bodyFatPercent:num(values.bodyFatPercent),fatMass:num(values.fatMass),leanMass:num(values.leanMass),measurements:values.measurements,notes:values.notes,photos:values.photos})}>Salvar avaliação</button></div></section></div>;
 }
 
-function parseTranscript(text:string):Exercise[] { return text.split(/;|\n|\|/).map(part=>part.trim()).filter(Boolean).map((part,index)=>{const match=part.match(/(\d+)\s*[x×]\s*(\d+)/i);const load=part.match(/(?:com|carga|-)\s*([\d,.]+\s*(?:kg|quilos?|cada lado)?)/i);let name=part.replace(/\d+\s*[x×]\s*\d+/i,"").replace(/(?:com|carga|-)\s*[\d,.]+\s*(?:kg|quilos?|cada lado)?/i,"").trim().replace(/^[,.-]+|[,.-]+$/g,"").trim();return{id:crypto.randomUUID(),name:name||`Exercício ${index+1}`,sets:match?.[1]||"",reps:match?.[2]||"",load:load?.[1]||""};}); }
+function parseTranscript(text:string):Exercise[] {
+  let currentBlock="";
+  const parts=text.split(/;|\n|\|/).map(part=>part.trim()).filter(Boolean);
+  const exercises:Exercise[]=[];
+  for(const raw of parts){
+    let part=raw;
+    const blockMatch=part.match(/^(bloco\s*[a-z0-9]+|[a-e]\d?)\s*[:.-]?\s*/i);
+    if(blockMatch){currentBlock=blockMatch[1].replace(/^bloco\s*/i,"Bloco ").trim();part=part.slice(blockMatch[0].length).trim();}
+    if(!part) continue;
+    const match=part.match(/(\d+)\s*[x×]\s*([\d–—-]+|falha|f)/i);
+    const load=part.match(/(?:com|carga|-)?\s*([\d,.]+\s*(?:kg|quilos?|cada lado|kg\/lado))/i);
+    let name=part.replace(/\d+\s*[x×]\s*([\d–—-]+|falha|f)/i,"").replace(/(?:com|carga|-)?\s*[\d,.]+\s*(?:kg|quilos?|cada lado|kg\/lado)/i,"").trim().replace(/^[,.-]+|[,.-]+$/g,"").trim();
+    exercises.push({id:crypto.randomUUID(),block:currentBlock,name:name||`Exercício ${exercises.length+1}`,sets:match?.[1]||"",reps:match?.[2]||"",load:load?.[1]||""});
+  }
+  return exercises;
+}
+
 function fileToDataUrl(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(file);});}
 function num(value:string){return value===""?null:Number(value);}
 function today(){return new Date().toISOString().slice(0,10);}
