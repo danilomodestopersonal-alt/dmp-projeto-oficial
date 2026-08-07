@@ -17,7 +17,7 @@ export type Workout = {
   exercises: Exercise[];
 };
 
-export type SessionSource = "PLANNED" | "FREE" | "IMPORTED";
+export type SessionSource = "PLANNED" | "FREE" | "ATTENDANCE" | "IMPORTED";
 
 export type Session = {
   id: string;
@@ -26,6 +26,8 @@ export type Session = {
   notes: string;
   completedExercises: Exercise[];
   source?: SessionSource;
+  startedAt?: string;
+  finishedAt?: string;
 };
 
 export type Measurements = {
@@ -62,13 +64,32 @@ export type Student = {
   id: string;
   name: string;
   phone: string;
+  email?: string;
+  birthDate: string;
+  startDate: string;
   goal: string;
+  profession?: string;
+  modality?: string;
+  weeklyFrequency?: string;
   notes: string;
   restrictions: string;
-  startDate: string;
-  birthDate: string;
+  injuries?: string;
+  medications?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
   status: StudentStatus;
   workouts: Workout[];
   sessions: Session[];
   assessments: Assessment[];
+};
+
+export type CalendarEvent = {
+  id: string;
+  summary: string;
+  description?: string;
+  start: string;
+  end: string;
+  allDay?: boolean;
+  htmlLink?: string;
+  matchedStudentId?: string | null;
 };
