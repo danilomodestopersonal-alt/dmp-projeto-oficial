@@ -93,4 +93,5 @@ export type CalendarEvent = {
   htmlLink?: string;
   location?: string;
   matchedStudentId?: string | null;
+  matchedStudentIds?: string[];
 };
