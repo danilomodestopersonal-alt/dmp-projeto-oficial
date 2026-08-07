@@ -6,17 +6,24 @@ export async function GET(request: NextRequest) {
   try {
     const {accessToken,refreshed} = await getGoogleAccessToken(request);
     if (!accessToken) return NextResponse.json({error:"not_connected"},{status:401});
-    const date = request.nextUrl.searchParams.get("date") || new Date().toISOString().slice(0,10);
-    const start = new Date(`${date}T00:00:00`);
-    const end = new Date(`${date}T23:59:59.999`);
+
+    const date = request.nextUrl.searchParams.get("date") || new Intl.DateTimeFormat("en-CA", {
+      timeZone:"America/Sao_Paulo", year:"numeric", month:"2-digit", day:"2-digit"
+    }).format(new Date());
+    const requestedDays = Number(request.nextUrl.searchParams.get("days") || "1");
+    const days = Math.min(14, Math.max(1, Number.isFinite(requestedDays) ? Math.floor(requestedDays) : 1));
+
+    const start = new Date(`${date}T00:00:00-03:00`);
+    const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000 - 1);
     const params = new URLSearchParams({
       timeMin:start.toISOString(),
       timeMax:end.toISOString(),
       singleEvents:"true",
       orderBy:"startTime",
-      maxResults:"100",
+      maxResults:"250",
       timeZone:"America/Sao_Paulo"
     });
+
     const google = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
       headers:{authorization:`Bearer ${accessToken}`}, cache:"no-store"
     });
@@ -32,7 +39,7 @@ export async function GET(request: NextRequest) {
       htmlLink:event.htmlLink || "",
       location:event.location || ""
     }));
-    const response = NextResponse.json({events});
+    const response = NextResponse.json({events,range:{date,days}});
     if (refreshed) setGoogleCookies(response, refreshed);
     return response;
   } catch (error) {

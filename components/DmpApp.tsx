@@ -25,6 +25,8 @@ export default function DmpApp() {
   const [calendarStatus, setCalendarStatus] = useState<{configured:boolean;connected:boolean}>({configured:false,connected:false});
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarLoaded, setCalendarLoaded] = useState(false);
+  const [calendarSync, setCalendarSync] = useState<{dailyAt:string;weeklyAt:string;weeklyCount:number}>({dailyAt:"",weeklyAt:"",weeklyCount:0});
   const [historySearch, setHistorySearch] = useState("");
   const [historySource, setHistorySource] = useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
   const [showGoogleEventForm, setShowGoogleEventForm] = useState(false);
@@ -33,16 +35,82 @@ export default function DmpApp() {
   useEffect(() => saveStudents(students), [students]);
   useEffect(() => {
     fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>{});
+    try {
+      const dailyAt=localStorage.getItem("dmp_calendar_daily_sync")||"";
+      const weeklyAt=localStorage.getItem("dmp_calendar_weekly_sync")||"";
+      const weeklyCount=Number(localStorage.getItem("dmp_calendar_weekly_count")||"0");
+      setCalendarSync({dailyAt,weeklyAt,weeklyCount:Number.isFinite(weeklyCount)?weeklyCount:0});
+    } catch {}
   }, []);
+
+  async function refreshCalendarDay(force=false) {
+    if (!calendarStatus.connected) return;
+    const last=readLocalStorage("dmp_calendar_daily_sync");
+    if (!force && calendarLoaded && last && Date.now()-new Date(last).getTime()<CALENDAR_AUTO_REFRESH_MS) return;
+    setCalendarLoading(true);
+    try {
+      const response=await fetch(`/api/google/calendar?date=${today()}&days=1`,{cache:"no-store"});
+      if (!response.ok) throw new Error("calendar_day_failed");
+      const data=await response.json();
+      setCalendarEvents(matchCalendarEvents(data.events||[],students));
+      setCalendarLoaded(true);
+      const now=new Date().toISOString();
+      writeLocalStorage("dmp_calendar_daily_sync",now);
+      setCalendarSync(current=>({...current,dailyAt:now}));
+    } catch {
+      if (force) setCalendarEvents([]);
+    } finally {
+      setCalendarLoading(false);
+    }
+  }
+
+  async function refreshCalendarWeek(force=false) {
+    if (!calendarStatus.connected || !isSundayInSaoPaulo()) return;
+    const last=readLocalStorage("dmp_calendar_weekly_sync");
+    if (!force && last && sameSaoPauloDate(last,new Date().toISOString())) return;
+    try {
+      const response=await fetch(`/api/google/calendar?date=${today()}&days=7`,{cache:"no-store"});
+      if (!response.ok) return;
+      const data=await response.json();
+      const events=Array.isArray(data.events)?data.events:[];
+      const now=new Date().toISOString();
+      writeLocalStorage("dmp_calendar_week_cache",JSON.stringify(events));
+      writeLocalStorage("dmp_calendar_weekly_sync",now);
+      writeLocalStorage("dmp_calendar_weekly_count",String(events.length));
+      setCalendarSync(current=>({...current,weeklyAt:now,weeklyCount:events.length}));
+    } catch {}
+  }
+
+  async function refreshCalendarAutomatic(forceDay=false) {
+    await refreshCalendarDay(forceDay);
+    await refreshCalendarWeek(false);
+  }
+
   useEffect(() => {
     if (!(view === "today" || view === "agenda") || !calendarStatus.connected) return;
-    setCalendarLoading(true);
-    fetch(`/api/google/calendar?date=${today()}`)
-      .then(async r => r.ok ? r.json() : Promise.reject(await r.json()))
-      .then(data => setCalendarEvents(matchCalendarEvents(data.events || [], students)))
-      .catch(()=>setCalendarEvents([]))
-      .finally(()=>setCalendarLoading(false));
-  }, [view, calendarStatus.connected, students]);
+    void refreshCalendarAutomatic(false);
+  }, [view, calendarStatus.connected, calendarLoaded]);
+
+  useEffect(() => {
+    if (!calendarLoaded) return;
+    setCalendarEvents(current=>matchCalendarEvents(current,students));
+  }, [students,calendarLoaded]);
+
+  useEffect(() => {
+    if (!calendarStatus.connected) return;
+    const syncWhenActive=()=>{
+      if (document.visibilityState!=="visible") return;
+      if (view==="today"||view==="agenda") void refreshCalendarAutomatic(false);
+    };
+    window.addEventListener("focus",syncWhenActive);
+    document.addEventListener("visibilitychange",syncWhenActive);
+    const timer=window.setInterval(syncWhenActive,CALENDAR_AUTO_REFRESH_MS);
+    return()=>{
+      window.removeEventListener("focus",syncWhenActive);
+      document.removeEventListener("visibilitychange",syncWhenActive);
+      window.clearInterval(timer);
+    };
+  }, [calendarStatus.connected,view,students,calendarLoaded]);
 
   const selectedStudent = students.find(student => student.id === selectedStudentId) || null;
   const selectedWorkout =
@@ -178,7 +246,7 @@ export default function DmpApp() {
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><div className="hero-actions"><button className="secondary" onClick={() => setView("students")}>Ver alunos</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
             <section className="dashboard-content">
               <div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length}/><Stat icon="📋" label="Com ficha ativa" value={plannedCount}/></div>
-              <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(studentId,mode) => { const student=students.find(item=>item.id===studentId); if(!student)return; setSelectedStudentId(studentId); if(mode==="attendance") { setView("attendance-session"); return; } const active=student.workouts.find(item=>item.active); if(active){ setSelectedWorkoutId(active.id); setView("planned-session"); } else { setView("free-session"); } }} />
+              <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(studentId,mode) => { const student=students.find(item=>item.id===studentId); if(!student)return; setSelectedStudentId(studentId); if(mode==="attendance") { setView("attendance-session"); return; } const active=student.workouts.find(item=>item.active); if(active){ setSelectedWorkoutId(active.id); setView("planned-session"); } else { setView("free-session"); } }} />
               <section className="panel today-panel"><div className="panel-head"><div><h2>Atendimentos de hoje</h2><p className="muted">Tudo que já foi salvo hoje aparece aqui.</p></div></div>
                 {todaySessions.length ? <div className="today-session-list">{todaySessions.map(({student,session}) => <button className="today-session-row" key={session.id} onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{sessionSourceLabel(session)}</small></span><span className="today-session-status">✓ Salvo</span></button>)}</div> : <div className="empty-review"><strong>Nenhum atendimento registrado ainda</strong><span>Quando você salvar uma ficha, um treino livre ou uma presença, ele aparecerá aqui.</span></div>}
               </section>
@@ -199,11 +267,11 @@ export default function DmpApp() {
 
           {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
-          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} students={students} onOpenStudent={openStudent} onStartStudent={(studentId,mode) => { const student=students.find(item=>item.id===studentId); if(!student)return; setSelectedStudentId(studentId); if(mode==="attendance") { setView("attendance-session"); return; } const active=student.workouts.find(item=>item.active); if(active){ setSelectedWorkoutId(active.id); setView("planned-session"); } else { setView("free-session"); } }} onStatusChange={setCalendarStatus} onRefresh={()=>{setCalendarLoading(true);fetch(`/api/google/calendar?date=${today()}`).then(r=>r.json()).then(data=>setCalendarEvents(matchCalendarEvents(data.events||[],students))).finally(()=>setCalendarLoading(false));}} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
+          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={(studentId,mode) => { const student=students.find(item=>item.id===studentId); if(!student)return; setSelectedStudentId(studentId); if(mode==="attendance") { setView("attendance-session"); return; } const active=student.workouts.find(item=>item.active); if(active){ setSelectedWorkoutId(active.id); setView("planned-session"); } else { setView("free-session"); } }} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "data" ? <DataCenter students={students} onReplace={setStudents} /> : null}
         </div>
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
-        {showGoogleEventForm ? <GoogleEventForm students={students} onClose={()=>setShowGoogleEventForm(false)} onSaved={()=>{setShowGoogleEventForm(false);setCalendarLoading(true);fetch(`/api/google/calendar?date=${today()}`).then(r=>r.json()).then(data=>setCalendarEvents(matchCalendarEvents(data.events||[],students))).finally(()=>setCalendarLoading(false));}} /> : null}
+        {showGoogleEventForm ? <GoogleEventForm students={students} onClose={()=>setShowGoogleEventForm(false)} onSaved={()=>{setShowGoogleEventForm(false);void refreshCalendarAutomatic(true);}} /> : null}
       </main>
     );
   }
@@ -273,18 +341,18 @@ export default function DmpApp() {
 }
 
 
-function CalendarTodayPanel({status,events,loading,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"attendance")=>void}) {
+function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"attendance")=>void}) {
   const completedIds=new Set(todaySessions.map(item=>item.student.id));
-  return <section className="panel calendar-today-panel"><div className="panel-head"><div><h2>Agenda de hoje</h2><p className="muted">Sua agenda oficial do Google, agora ligada ao fluxo do DMP.</p></div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
+  return <section className="panel calendar-today-panel"><div className="panel-head"><div><h2>Agenda de hoje</h2><p className="muted">Sua agenda oficial do Google, agora ligada ao fluxo do DMP.</p>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
     {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : events.length ? <div className="calendar-preview-list">{events.slice(0,10).map(event=>{const slotStudents=getCalendarEventStudents(event,students);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={onOpenAgenda}><strong>{event.summary}</strong><small>{slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);return <div className="calendar-slot-student" key={student.id}><button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className={done?"status-chip ok":"status-chip waiting"}>{done?"✓ Finalizado":student.workouts.some(w=>w.active)?"Com ficha":"Sem ficha"}</span>{!done?<><button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>{student.workouts.some(w=>w.active)?"▶ Iniciar":"✍ Registrar"}</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
-function CalendarAgenda({status,events,loading,students,onOpenStudent,onStartStudent,onStatusChange,onRefresh,onNewEvent}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;students:Student[];onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"attendance")=>void;onStatusChange:(value:{configured:boolean;connected:boolean})=>void;onRefresh:()=>void;onNewEvent:()=>void}) {
+function CalendarAgenda({status,events,loading,sync,students,onOpenStudent,onStartStudent,onStatusChange,onRefresh,onNewEvent}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"attendance")=>void;onStatusChange:(value:{configured:boolean;connected:boolean})=>void;onRefresh:()=>void;onNewEvent:()=>void}) {
   async function disconnect(){await fetch("/api/google/disconnect",{method:"POST"});onStatusChange({...status,connected:false});}
   async function removeEvent(id:string){if(!confirm("Excluir este compromisso do Google Calendar?"))return;const r=await fetch(`/api/google/events?id=${encodeURIComponent(id)}`,{method:"DELETE"});if(r.ok)onRefresh();else alert("Não foi possível excluir o compromisso.");}
   return <>
-    <section className="panel agenda-connect"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Leitura da agenda</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Treinos do horário</span><span>✓ Criar compromisso pelo DMP</span><span>✓ Excluir compromisso pelo DMP</span></div></div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
+    <section className="panel agenda-connect"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Atualiza ao abrir/voltar ao DMP</span><span>✓ Revisa o dia a cada 5 min em uso</span><span>✓ Domingo: pré-carrega 7 dias</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Criar/excluir compromisso pelo DMP</span></div>{status.connected?<div className="agenda-sync-summary"><strong>Sincronização automática ativa</strong><span>Hoje{sync.dailyAt?` atualizado às ${formatSyncTime(sync.dailyAt)}`:" aguardando primeira atualização"}.</span><span>{sync.weeklyAt?`Última revisão semanal: ${formatSyncDateTime(sync.weeklyAt)} · ${sync.weeklyCount} compromissos.`:"A revisão dos próximos 7 dias acontece automaticamente no primeiro uso de domingo."}</span></div>:null}</div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
     {status.connected?<section className="panel"><div className="panel-head"><div><h2>Compromissos de hoje</h2><p className="muted">{formatLongDate(today())}</p></div><span className="status-chip ok">{events.length} evento{events.length===1?"":"s"}</span></div>{loading?<div className="calendar-empty">Carregando agenda...</div>:events.length?<div className="agenda-event-list">{events.map(event=>{const matchedStudents=getCalendarEventStudents(event,students);return <article className="agenda-event-row agenda-event-row-multi" key={event.id}><div className="agenda-event-time">{formatCalendarTime(event)}</div><div className="agenda-event-body"><strong>{event.summary}</strong>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=><div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className="slot-ficha-label">{student.workouts.some(w=>w.active)?"Ficha ativa":"Sem ficha"}</span><button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>{student.workouts.some(w=>w.active)?"▶ Treino":"✍ Registrar"}</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>)}</div>:event.allDay?<small className="muted">Evento de dia inteiro — sem treino vinculado automaticamente.</small>:<small className="muted">Nenhum aluno deste horário foi identificado no DMP.</small>}</div><div className="agenda-event-actions">{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}<button className="danger-link" onClick={()=>removeEvent(event.id)}>Excluir</button></div></article>})}</div>:<div className="calendar-empty">Nenhum compromisso encontrado para hoje.</div>}</section>:null}
   </>;
@@ -492,7 +560,15 @@ function sessionSourceLabel(session:Session){return session.source==="ATTENDANCE
 function formatLongDate(value:string){const d=new Date(`${value}T12:00:00`);return d.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});}
 function fileToDataUrl(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(file);});}
 function num(value:string){return value===""?null:Number(value);}
-function today(){return new Date().toISOString().slice(0,10);}
+const CALENDAR_AUTO_REFRESH_MS=5*60*1000;
+function readLocalStorage(key:string){try{return localStorage.getItem(key)||"";}catch{return"";}}
+function writeLocalStorage(key:string,value:string){try{localStorage.setItem(key,value);}catch{}}
+function today(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
+function saoPauloDateFromIso(value:string){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value));}
+function sameSaoPauloDate(a:string,b:string){try{return saoPauloDateFromIso(a)===saoPauloDateFromIso(b);}catch{return false;}}
+function isSundayInSaoPaulo(){const label=new Intl.DateTimeFormat("en-US",{timeZone:"America/Sao_Paulo",weekday:"short"}).format(new Date());return label==="Sun";}
+function formatSyncTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
+function formatSyncDateTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
 function formatDate(value:string){if(!value)return"—";const [year,month,day]=value.split("-");return `${day}/${month}/${year}`;}
 function calculateAge(value:string){if(!value)return null;const birth=new Date(`${value}T12:00:00`);const now=new Date();let age=now.getFullYear()-birth.getFullYear();if(now.getMonth()<birth.getMonth()||(now.getMonth()===birth.getMonth()&&now.getDate()<birth.getDate()))age--;return age;}
 function monthsSince(value:string){if(!value)return null;const start=new Date(`${value}T12:00:00`);const now=new Date();return Math.max(0,(now.getFullYear()-start.getFullYear())*12+now.getMonth()-start.getMonth());}
