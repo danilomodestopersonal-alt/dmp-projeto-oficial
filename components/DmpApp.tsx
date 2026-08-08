@@ -8,6 +8,7 @@ import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 import PerformancePage from "@/components/performance/PerformancePage";
+import BackupCenter from "@/components/backup/BackupCenter";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "performance" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
@@ -459,7 +460,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage /> : null}
           {view === "performance" ? <PerformancePage /> : null}
-          {view === "data" ? <DataCenter students={students} onReplace={setStudents} /> : null}
+          {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
         </div>
         {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} onChange={value => { setFinancePin(value.replace(/\D/g, "").slice(0, 4)); setFinancePinError(""); }} onClose={() => { setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
