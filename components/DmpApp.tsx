@@ -1078,19 +1078,32 @@ function protocolDescription(protocol:WorkoutProtocol,size:number){
   return `Misto / personalizado com ${size} exercícios por sequência. Use a coluna Seq. para mudar blocos específicos.`;
 }
 
+function cleanExerciseCatalogName(value:string){
+  return value
+    .replace(/\s*[-–—|:,;]?\s*\(?\d+\s*(?:x|×)\s*(?:\d+(?:\s*(?:a|[-–—])\s*\d+)?|(?:até\s+)?(?:a\s+)?falha)\b.*$/i,"")
+    .replace(/\s*[-–—|:,;]?\s*\(?\d+\s*séries?(?:\s*(?:de\s*)?\d+(?:\s*(?:a|[-–—])\s*\d+)?)?(?:\s+até\s+(?:a\s+)?falha)?\b.*$/i,"")
+    .replace(/\s*[|–—]\s*carga\s*:\s*\d+(?:[.,]\d+)?\s*(?:kg)?\s*$/i,"")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
 function buildExerciseCatalog(students:Student[]){
   const names=new Map<string,string>();
+  const addName=(value:string)=>{
+    const cleanName=cleanExerciseCatalogName(value);
+    const key=normalizeName(cleanName);
+    if(key&&!names.has(key))names.set(key,cleanName);
+  };
+
   for(const student of students){
     for(const workout of student.workouts){
       for(const exercise of workout.exercises){
-        const key=normalizeName(exercise.name);
-        if(key&&!names.has(key))names.set(key,exercise.name.trim());
+        addName(exercise.name);
       }
     }
     for(const session of student.sessions){
       for(const exercise of session.completedExercises){
-        const key=normalizeName(exercise.name);
-        if(key&&!names.has(key))names.set(key,exercise.name.trim());
+        addName(exercise.name);
       }
     }
   }
