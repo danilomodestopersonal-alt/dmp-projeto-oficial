@@ -294,9 +294,7 @@ export default function FinanceiroPage() {
               <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" />
               <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" />
               <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" />
-              <Kpi label="Despesas pagas" value={summary.expensesPaid + summary.extrasTotal} tone="expense" />
-              <Kpi label="Resultado realizado" value={summary.realizedResult} tone={summary.realizedResult > 0 ? "resultPositive" : summary.realizedResult < 0 ? "resultNegative" : "resultZero"} />
-              <Kpi label="Resultado projetado" value={summary.projectedResult} />
+<Kpi label="Despesas pagas" value={summary.expensesPaid + summary.extrasTotal} tone="expense" />              <Kpi label="Resultado projetado" value={summary.projectedResult} />
               <Kpi label="A receber" value={summary.receivable} tone="income" />
               <Kpi label="A pagar" value={summary.payable} tone="expense" />
             </div>
