@@ -7,8 +7,9 @@ import { importedStudents2026 } from "@/lib/imported-data";
 import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
+import PerformancePage from "@/components/performance/PerformancePage";
 
-type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
+type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "performance" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
 
 const FINANCE_UNLOCK_KEY = "dmp_finance_unlocked_until";
@@ -414,7 +415,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setView("finance");
   }
 
-  if (["today","students","workouts-overview","history-overview","agenda","finance","data"].includes(view)) {
+  if (["today","students","workouts-overview","history-overview","agenda","finance","performance","data"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
@@ -457,6 +458,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage /> : null}
+          {view === "performance" ? <PerformancePage /> : null}
           {view === "data" ? <DataCenter students={students} onReplace={setStudents} /> : null}
         </div>
         {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} onChange={value => { setFinancePin(value.replace(/\D/g, "").slice(0, 4)); setFinancePinError(""); }} onClose={() => { setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
@@ -578,7 +580,7 @@ function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error
 function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View)=>void;logout:()=>void}) {
   const [mobile, setMobile] = useState(false);
   useEffect(() => { setMobile(isPhoneDevice()); }, []);
-  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"data",icon:"💾",label:"Dados"}];
+  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"data",icon:"💾",label:"Dados"}];
   const orderedItems = mobile ? [items.find(item=>item.view==="finance")!, ...items.filter(item=>item.view!=="finance")] : items;
   return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
 }
