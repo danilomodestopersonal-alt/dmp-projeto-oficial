@@ -60,8 +60,7 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const realizedResult = realizedRevenue - expensesPaid - extrasTotal;
   const personalOpen = Math.max(0, personalExpected - personalReceived);
   const receivable = personalOpen + Math.max(0, dsBalance);
-  const payable = Math.max(0, expensesExpected - expensesPaid) + Math.max(0, -dsBalance);
-
+const payable = Math.max(0, expensesExpected - expensesPaid);
   return {
     personal,
     kids,
