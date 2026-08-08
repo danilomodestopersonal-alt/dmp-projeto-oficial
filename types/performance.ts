@@ -13,10 +13,30 @@ export type PerformanceActivity = {
   date: string;
   type: PerformanceActivityType;
   title: string;
+
   distanceKm?: number | null;
   durationMinutes?: number | null;
+  elapsedMinutes?: number | null;
+
   elevationMeters?: number | null;
+  elevationLossMeters?: number | null;
+
+  averageSpeedKmh?: number | null;
+  maxSpeedKmh?: number | null;
+
+  heartRateAverage?: number | null;
+  heartRateMax?: number | null;
+
+  powerAverage?: number | null;
+  powerWeighted?: number | null;
+  powerMax?: number | null;
+
   calories?: number | null;
+  relativeEffort?: number | null;
+
+  gearName?: string | null;
+  description?: string | null;
+
   notes?: string;
   source: PerformanceActivitySource;
   externalId?: string | null;
