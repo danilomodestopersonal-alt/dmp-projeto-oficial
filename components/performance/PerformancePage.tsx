@@ -11,6 +11,7 @@ import type {
   PerformanceGoalPeriod,
 } from "@/types/performance";
 import styles from "./PerformancePage.module.css";
+import StravaSyncCard from "./StravaSyncCard";
 
 type Tab = "summary" | "activities" | "goals" | "assessments" | "records";
 type Modal = "activity" | "goal" | "assessment" | null;
@@ -538,10 +539,7 @@ export default function PerformancePage() {
               </section>
             </div>
 
-            <section className={styles.stravaCard}>
-              <div><span className={styles.kicker}>PRÓXIMA ETAPA</span><h2>Pronto para Strava</h2><p>A estrutura já possui origem da atividade e identificador externo, preparando a sincronização futura sem refazer o banco.</p></div>
-              <div className={styles.stravaMark}>S</div>
-            </section>
+            <StravaSyncCard onSynced={() => void loadData()} />
           </div>
         ) : null}
 
