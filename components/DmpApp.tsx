@@ -6,8 +6,9 @@ import type { Assessment, CalendarEvent, Exercise, Session, Student, Workout, Wo
 import { importedStudents2026 } from "@/lib/imported-data";
 import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
+import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 
-type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
+type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
 
 export default function DmpApp() {
@@ -364,7 +365,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setStudents(importedStudents2026);
   }
 
-  if (["today","students","workouts-overview","history-overview","agenda","data"].includes(view)) {
+  if (["today","students","workouts-overview","history-overview","agenda","finance","data"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
@@ -406,6 +407,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
+          {view === "finance" ? <FinanceiroPage /> : null}
           {view === "data" ? <DataCenter students={students} onReplace={setStudents} /> : null}
         </div>
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
@@ -520,7 +522,7 @@ function DataCenter({students,onReplace}:{students:Student[];onReplace:(students
 }
 
 function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View)=>void;logout:()=>void}) {
-  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"data",icon:"💾",label:"Dados"}];
+  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"data",icon:"💾",label:"Dados"}];
   return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{items.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
 }
 function Stat({icon,label,value}:{icon:string;label:string;value:number}) { return <article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
