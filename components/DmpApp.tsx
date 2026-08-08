@@ -11,6 +11,21 @@ import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
 
+const FINANCE_UNLOCK_KEY = "dmp_finance_unlocked_until";
+const FINANCE_UNLOCK_MS = 10 * 60 * 1000;
+const FINANCE_PIN_SHA256 = "6249017f9372350bfc9cf3456c324bbb3661e1bb5a7a10d61912fd1be650d52f";
+
+function isPhoneDevice() {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export default function DmpApp() {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>(importedStudents2026);
@@ -34,6 +49,9 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [historySource, setHistorySource] = useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
   const [showGoogleEventForm, setShowGoogleEventForm] = useState(false);
+  const [showFinancePin, setShowFinancePin] = useState(false);
+  const [financePin, setFinancePin] = useState("");
+  const [financePinError, setFinancePinError] = useState("");
 
   useEffect(() => setStudents(loadStudents(importedStudents2026)), []);
 useEffect(() => {
@@ -365,6 +383,37 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setStudents(importedStudents2026);
   }
 
+  function financeUnlocked() {
+    if (typeof window === "undefined") return false;
+    const until = Number(window.sessionStorage.getItem(FINANCE_UNLOCK_KEY) || 0);
+    return until > Date.now();
+  }
+
+  function navigateMain(target: View) {
+    if (target === "finance" && !isPhoneDevice() && !financeUnlocked()) {
+      setFinancePin("");
+      setFinancePinError("");
+      setShowFinancePin(true);
+      return;
+    }
+    setView(target);
+  }
+
+  async function unlockFinance(event: FormEvent) {
+    event.preventDefault();
+    const digest = await sha256(financePin);
+    if (digest !== FINANCE_PIN_SHA256) {
+      setFinancePinError("PIN incorreto.");
+      setFinancePin("");
+      return;
+    }
+    window.sessionStorage.setItem(FINANCE_UNLOCK_KEY, String(Date.now() + FINANCE_UNLOCK_MS));
+    setFinancePin("");
+    setFinancePinError("");
+    setShowFinancePin(false);
+    setView("finance");
+  }
+
   if (["today","students","workouts-overview","history-overview","agenda","finance","data"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
@@ -379,7 +428,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
     return (
       <main className="dashboard-shell">
-        <Sidebar current={view} onNavigate={target => setView(target)} logout={logout} />
+        <Sidebar current={view} onNavigate={navigateMain} logout={logout} />
         <div className="dashboard-main">
           {view === "today" ? <>
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><div className="hero-actions"><button className="secondary" onClick={() => setView("students")}>Ver alunos</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
@@ -410,6 +459,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "finance" ? <FinanceiroPage /> : null}
           {view === "data" ? <DataCenter students={students} onReplace={setStudents} /> : null}
         </div>
+        {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} onChange={value => { setFinancePin(value.replace(/\D/g, "").slice(0, 4)); setFinancePinError(""); }} onClose={() => { setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
         {showGoogleEventForm ? <GoogleEventForm students={students} onClose={()=>setShowGoogleEventForm(false)} onSaved={()=>{setShowGoogleEventForm(false);void refreshCalendarAutomatic(true);}} /> : null}
       </main>
@@ -521,9 +571,16 @@ function DataCenter({students,onReplace}:{students:Student[];onReplace:(students
   return <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Segurança e portabilidade</p><h1>Dados</h1><p>Backup, restauração e exportação do seu histórico.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="👥" label="Alunos" value={students.length}/><Stat icon="✅" label="Sessões" value={sessions}/><Stat icon="📏" label="Avaliações" value={assessments}/></div><div className="data-grid"><article className="panel"><h2>Backup completo</h2><p>Salva alunos, fichas, sessões, avaliações, observações e restrições em um arquivo JSON.</p><button className="primary" onClick={exportBackup}>⬇ Baixar backup</button></article><article className="panel"><h2>Restaurar backup</h2><p>Use um arquivo gerado pelo próprio DMP. A restauração substitui os dados locais atuais.</p><label className="secondary button-link file-button">Selecionar backup<input type="file" accept="application/json,.json" onChange={e=>importBackup(e.target.files)}/></label></article><article className="panel"><h2>Exportar histórico</h2><p>Gera um CSV único com todas as sessões de todos os alunos.</p><button className="secondary" onClick={exportAllCsv}>Exportar CSV geral</button></article><article className="panel"><h2>Importação de planilhas</h2><p>Estrutura reservada para a migração das planilhas históricas. Não altera os dados atuais até você confirmar a importação.</p><span className="status-chip">Próxima etapa</span></article></div></section></>;
 }
 
+function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error:string;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
+  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" onSubmit={onSubmit}><label className="full">PIN<input autoFocus type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={pin.length!==4}>Entrar no Financeiro</button></form></section></div>;
+}
+
 function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View)=>void;logout:()=>void}) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => { setMobile(isPhoneDevice()); }, []);
   const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"data",icon:"💾",label:"Dados"}];
-  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{items.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
+  const orderedItems = mobile ? [items.find(item=>item.view==="finance")!, ...items.filter(item=>item.view!=="finance")] : items;
+  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
 }
 function Stat({icon,label,value}:{icon:string;label:string;value:number}) { return <article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
 function Header({title,back}:{title:string;back?:()=>void}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong>{title}</strong></div></header>; }

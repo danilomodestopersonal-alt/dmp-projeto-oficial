@@ -5,3 +5,13 @@
 @media(max-width:1000px){.twoColWide{grid-template-columns:1fr}.reportHeader{align-items:stretch;flex-direction:column}}
 @media(max-width:640px){.competencePicker{width:100%}.competencePicker select{width:100%}.closedBanner{align-items:flex-start;flex-direction:column}.rowShell{grid-template-columns:minmax(0,1fr)}.manageButton{padding:9px 12px}.paymentHistory>div{grid-template-columns:1fr auto}.paymentHistory button{grid-column:1/-1;text-align:right}.reportHeader .inlineActions{width:100%}.reportHeader .inlineActions button{flex:1}.modalActions{flex-wrap:wrap}.dangerButton{width:100%;order:4}.modalSpacer{display:none}}
 @media print{.tabs,.topActions,.floatingMic,.manageButton,.closedBanner,.reportHeader .inlineActions{display:none!important}.content{display:block}.panel{break-inside:avoid}.dashboard-topbar{padding-bottom:10px}.reportTable{min-width:0}}
+
+/* v4.6.1 — leitura rápida somente nos cards superiores do Resumo */
+.kpiIncome span,.kpiIncome strong{color:#2f7a55}
+.kpiExpense span,.kpiExpense strong{color:#a84840}
+.kpiResultPositive{background:#2f7a55;color:#fff;border-color:#2f7a55}
+.kpiResultPositive span{color:#e8f5ed}
+.kpiResultNegative{background:#a84840;color:#fff;border-color:#a84840}
+.kpiResultNegative span{color:#fff0ee}
+.kpiResultZero{background:#687169;color:#fff;border-color:#687169}
+.kpiResultZero span{color:#eef1ee}

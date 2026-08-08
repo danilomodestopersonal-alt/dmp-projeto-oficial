@@ -291,14 +291,14 @@ export default function FinanceiroPage() {
         {tab === "summary" ? (
           <>
             <div className={styles.kpiGrid}>
-              <Kpi label="Receitas previstas" value={summary.projectedRevenue} />
-              <Kpi label="Receitas recebidas" value={summary.realizedRevenue} />
-              <Kpi label="Despesas previstas" value={summary.expensesExpected} />
-              <Kpi label="Despesas pagas" value={summary.expensesPaid + summary.extrasTotal} />
-              <Kpi label="Resultado realizado" value={summary.realizedResult} emphasis />
+              <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" />
+              <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" />
+              <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" />
+              <Kpi label="Despesas pagas" value={summary.expensesPaid + summary.extrasTotal} tone="expense" />
+              <Kpi label="Resultado realizado" value={summary.realizedResult} tone={summary.realizedResult > 0 ? "resultPositive" : summary.realizedResult < 0 ? "resultNegative" : "resultZero"} />
               <Kpi label="Resultado projetado" value={summary.projectedResult} />
-              <Kpi label="A receber" value={summary.receivable} />
-              <Kpi label="A pagar" value={summary.payable} />
+              <Kpi label="A receber" value={summary.receivable} tone="income" />
+              <Kpi label="A pagar" value={summary.payable} tone="expense" />
             </div>
 
             <div className={styles.twoCol}>
@@ -594,7 +594,7 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (value: Filte
 }
 
 function matchesFilter(status: string, filter: Filter) { if (filter === "ALL") return true; if (filter === "PAID") return status === "PAID"; if (filter === "OVERDUE") return status.includes("OVERDUE"); return status !== "PAID"; }
-function Kpi({ label, value, text, emphasis = false, percent = false }: { label: string; value?: number; text?: string; emphasis?: boolean; percent?: boolean }) { return <article className={`${styles.kpi} ${emphasis ? styles.kpiEmphasis : ""}`}><span>{label}</span><strong>{text ?? (percent ? `${(value || 0).toFixed(1).replace(".", ",")}%` : money.format(value || 0))}</strong></article>; }
+function Kpi({ label, value, text, emphasis = false, percent = false, tone = "neutral" }: { label: string; value?: number; text?: string; emphasis?: boolean; percent?: boolean; tone?: "neutral" | "income" | "expense" | "resultPositive" | "resultNegative" | "resultZero" }) { const toneClass = tone === "income" ? styles.kpiIncome : tone === "expense" ? styles.kpiExpense : tone === "resultPositive" ? styles.kpiResultPositive : tone === "resultNegative" ? styles.kpiResultNegative : tone === "resultZero" ? styles.kpiResultZero : ""; return <article className={`${styles.kpi} ${emphasis ? styles.kpiEmphasis : ""} ${toneClass}`}><span>{label}</span><strong>{text ?? (percent ? `${(value || 0).toFixed(1).replace(".", ",")}%` : money.format(value || 0))}</strong></article>; }
 function Pending({ text, onClick, danger = false }: { text: string; onClick: () => void; danger?: boolean }) { return <button className={`${styles.pending} ${danger ? styles.pendingDanger : ""}`} onClick={onClick}><span>●</span><strong>{text}</strong><span>›</span></button>; }
 function MiniSummary({ title, rows, onClick }: { title: string; rows: [string, number][]; onClick: () => void }) { return <section className={`panel ${styles.mini}`}><div className="panel-head"><h2>{title}</h2><button className="text-button" onClick={onClick}>Ver</button></div>{rows.map(([label, value]) => <div className={styles.miniRow} key={label}><span>{label}</span><strong>{money.format(value)}</strong></div>)}</section>; }
 function Calc({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) { return <div className={`${styles.calcRow} ${strong ? styles.calcStrong : ""}`}><span>{label}</span><strong>{money.format(value)}</strong></div>; }
