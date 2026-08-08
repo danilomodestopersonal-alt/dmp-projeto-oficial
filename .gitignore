@@ -8,3 +8,9 @@ coverage
 .vercel
 *.log
 .DS_Store
+
+# Arquivos locais de manutencao do DMP
+backups/
+scripts/
+LEIA-ME.txt
+README_MIGRACAO_HISTORICO.txt
