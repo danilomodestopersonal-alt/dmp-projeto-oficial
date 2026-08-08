@@ -1,5 +1,3 @@
-"use client";
-
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   PerformanceActivity,
@@ -71,9 +69,9 @@ const ACTIVITY_LABELS: Record<PerformanceActivityType, string> = {
 
 const ACTIVITY_ICONS: Record<PerformanceActivityType, string> = {
   CYCLING: "🚴",
-  STRENGTH: "🏋️",
+  STRENGTH: "��",
   PILATES: "🧘",
-  RUNNING: "🏃",
+  RUNNING: "�",
   TENNIS: "🎾",
   OTHER: "⚡",
 };
@@ -180,6 +178,7 @@ export default function PerformancePage() {
   const [assessmentForm, setAssessmentForm] = useState<AssessmentForm>(emptyAssessment());
   const [filterType, setFilterType] = useState<"ALL" | PerformanceActivityType>("ALL");
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
+  const [detailActivity, setDetailActivity] = useState<PerformanceActivity | null>(null);
 
   useEffect(() => {
     void loadData();
@@ -196,7 +195,7 @@ export default function PerformancePage() {
       setData({ ...EMPTY_DATA, ...incoming });
     } catch (err) {
       console.error(err);
-      setError("Não foi possível carregar o Performance. Os outros módulos do DMP não foram afetados.");
+      setError("Não foi poss�vel carregar o Performance. Os outros módulos do DMP não foram afetados.");
     } finally {
       setLoading(false);
     }
@@ -217,7 +216,7 @@ export default function PerformancePage() {
       return true;
     } catch (err) {
       console.error(err);
-      setError("Não foi possível salvar. Tente novamente.");
+      setError("Não foi poss�vel salvar. Tente novamente.");
       return false;
     } finally {
       setSaving(false);
@@ -472,7 +471,7 @@ export default function PerformancePage() {
           <div className={styles.heroCopy}>
             <span className={styles.heroBadge}>DMP PERFORMANCE</span>
             <h2>{MONTHS[currentMonth - 1]} em movimento.</h2>
-            <p>Seu painel pessoal de consistência, volume e evolução física.</p>
+            <p>Seu painel pessoal de consistência, volume e evolução f�sica.</p>
             <div className={styles.heroMiniStats}>
               <span><strong>{fmtNumber(monthTotals.distance, 1)}</strong> km no mês</span>
               <span><strong>{monthTotals.count}</strong> atividades</span>
@@ -482,7 +481,7 @@ export default function PerformancePage() {
           <img src="/performance-cyclist.svg" alt="Ilustração de ciclista em movimento" className={styles.heroImage} />
         </div>
 
-        <nav className={styles.tabs} aria-label="Áreas do Performance">
+        <nav className={styles.tabs} aria-label="�reas do Performance">
           {([
             ["summary", "Resumo"],
             ["activities", "Atividades"],
@@ -527,12 +526,12 @@ export default function PerformancePage() {
                   <div><span className={styles.kicker}>ÚLTIMAS ATIVIDADES</span><h2>Histórico recente</h2></div>
                   <button className="secondary" onClick={() => setTab("activities")}>Ver histórico</button>
                 </div>
-                {data.activities.length ? data.activities.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(activity => <ActivityRow key={activity.id} activity={activity} compact />) : <Empty text="Nenhuma atividade registrada ainda." action="Registrar" onClick={openNewActivity} />}
+                {data.activities.length ? data.activities.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(activity => <ActivityRow key={activity.id} activity={activity} compact onClick={() => setDetailActivity(activity)} />) : <Empty text="Nenhuma atividade registrada ainda." action="Registrar" onClick={openNewActivity} />}
               </section>
 
               <section className={styles.panel}>
                 <div className={styles.panelHeader}>
-                  <div><span className={styles.kicker}>AVALIAÇÃO FÍSICA</span><h2>Última leitura</h2></div>
+                  <div><span className={styles.kicker}>AVALIAÇÃO F�SICA</span><h2>Última leitura</h2></div>
                   <button className="secondary" onClick={() => setTab("assessments")}>Ver avaliações</button>
                 </div>
                 {latestAssessment ? <AssessmentSummary item={latestAssessment} /> : <Empty text="Registre peso, composição corporal e medidas." action="Nova avaliação" onClick={openNewAssessment} />}
@@ -559,7 +558,7 @@ export default function PerformancePage() {
             <div className={styles.list}>
               {filteredActivities.length ? filteredActivities.map(activity => (
                 <div className={styles.editableRow} key={activity.id}>
-                  <ActivityRow activity={activity} />
+                  <ActivityRow activity={activity} onClick={() => setDetailActivity(activity)} />
                   <div className={styles.rowActions}><button className="secondary" onClick={() => openEditActivity(activity)}>Editar</button><button className={styles.dangerButton} onClick={() => void deleteActivity(activity.id)}>Excluir</button></div>
                 </div>
               )) : <Empty text="Nenhuma atividade encontrada com estes filtros." action="Registrar atividade" onClick={openNewActivity} />}
@@ -592,14 +591,14 @@ export default function PerformancePage() {
         {tab === "assessments" ? (
           <section className={styles.panel}>
             <div className={styles.panelHeaderWrap}>
-              <div><span className={styles.kicker}>CORPO & COMPOSIÇÃO</span><h2>Avaliações físicas</h2><p>Acompanhe mudanças de composição e medidas.</p></div>
+              <div><span className={styles.kicker}>CORPO & COMPOSIÇÃO</span><h2>Avaliações f�sicas</h2><p>Acompanhe mudanças de composição e medidas.</p></div>
               <button className="primary" onClick={openNewAssessment}>+ Nova avaliação</button>
             </div>
             {data.assessments.length ? (
               <div className={styles.assessmentTable}>
                 {[...data.assessments].sort((a,b) => b.date.localeCompare(a.date)).map(item => (
                   <article className={styles.assessmentRow} key={item.id}>
-                    <div className={styles.assessmentDate}><strong>{fmtDate(item.date)}</strong><span>{item.notes || "Avaliação física"}</span></div>
+                    <div className={styles.assessmentDate}><strong>{fmtDate(item.date)}</strong><span>{item.notes || "Avaliação f�sica"}</span></div>
                     <Measure label="Peso" value={item.weightKg} unit="kg" />
                     <Measure label="Gordura" value={item.bodyFatPercent} unit="%" />
                     <Measure label="Massa muscular" value={item.muscleMassKg} unit="kg" />
@@ -634,13 +633,43 @@ export default function PerformancePage() {
         ) : null}
       </section>
 
+      {detailActivity ? (
+        <ModalShell title={detailActivity.title} eyebrow="DETALHES DA ATIVIDADE" onClose={() => setDetailActivity(null)}>
+          <div className={styles.stack}>
+            <div className={styles.measureGrid}>
+              <div className={styles.measure}><span>Data</span><strong>{fmtDate(detailActivity.date)}</strong></div>
+              <Measure label="Dist�ncia" value={detailActivity.distanceKm} unit="km" />
+              <Measure label="Tempo em movimento" value={detailActivity.durationMinutes} unit="min" />
+              <Measure label="Tempo decorrido" value={detailActivity.elapsedMinutes} unit="min" />
+              <Measure label="Velocidade m�dia" value={detailActivity.averageSpeedKmh} unit="km/h" />
+              <Measure label="Velocidade m�xima" value={detailActivity.maxSpeedKmh} unit="km/h" />
+              <Measure label="Eleva��o" value={detailActivity.elevationMeters} unit="m" />
+              <Measure label="FC m�dia" value={detailActivity.heartRateAverage} unit="bpm" />
+              <Measure label="FC m�xima" value={detailActivity.heartRateMax} unit="bpm" />
+              <Measure label="Pot�ncia m�dia" value={detailActivity.powerAverage} unit="W" />
+              <Measure label="Pot�ncia ponderada" value={detailActivity.powerWeighted} unit="W" />
+              <Measure label="Pot�ncia m�xima" value={detailActivity.powerMax} unit="W" />
+              <Measure label="Calorias" value={detailActivity.calories} unit="kcal" />
+              <Measure label="Esfor�o relativo" value={detailActivity.relativeEffort} unit="" />
+            </div>
+            {detailActivity.gearName ? <div className={styles.assessmentHeadline}><strong>Equipamento</strong><span>{detailActivity.gearName}</span></div> : null}
+            {detailActivity.description ? <div className={styles.assessmentHeadline}><strong>Descri��o</strong><span>{detailActivity.description}</span></div> : null}
+            {detailActivity.notes ? <div className={styles.assessmentHeadline}><strong>Observa��es</strong><span>{detailActivity.notes}</span></div> : null}
+            <div className={styles.rowActions}>
+              <button className="secondary" onClick={() => { setDetailActivity(null); openEditActivity(detailActivity); }}>Editar atividade</button>
+              <button className="secondary" onClick={() => setDetailActivity(null)}>Fechar</button>
+            </div>
+          </div>
+        </ModalShell>
+      ) : null}
+
       {modal === "activity" ? (
         <ModalShell title={activityForm.id ? "Editar atividade" : "Registrar atividade"} eyebrow="PERFORMANCE" onClose={() => setModal(null)}>
           <form onSubmit={submitActivity} className={styles.form}>
             <div className={styles.formGrid}>
               <Field label="Data"><input type="date" value={activityForm.date} onChange={e => setActivityForm({...activityForm,date:e.target.value})} required /></Field>
               <Field label="Modalidade"><select value={activityForm.type} onChange={e => setActivityForm({...activityForm,type:e.target.value as PerformanceActivityType})}>{Object.entries(ACTIVITY_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-              <Field label="Título" full><input value={activityForm.title} onChange={e => setActivityForm({...activityForm,title:e.target.value})} placeholder="Ex.: Pedal Speed, Musculação A, Pilates..." required /></Field>
+              <Field label="T�tulo" full><input value={activityForm.title} onChange={e => setActivityForm({...activityForm,title:e.target.value})} placeholder="Ex.: Pedal Speed, Musculação A, Pilates..." required /></Field>
               <Field label="Distância (km)"><input inputMode="decimal" value={activityForm.distanceKm} onChange={e => setActivityForm({...activityForm,distanceKm:e.target.value})} placeholder="0,0" /></Field>
               <Field label="Duração (min)"><input inputMode="numeric" value={activityForm.durationMinutes} onChange={e => setActivityForm({...activityForm,durationMinutes:e.target.value})} placeholder="0" /></Field>
               <Field label="Altimetria (m)"><input inputMode="numeric" value={activityForm.elevationMeters} onChange={e => setActivityForm({...activityForm,elevationMeters:e.target.value})} placeholder="0" /></Field>
@@ -656,7 +685,7 @@ export default function PerformancePage() {
         <ModalShell title={goalForm.id ? "Editar meta" : "Nova meta"} eyebrow="META DE PERFORMANCE" onClose={() => setModal(null)}>
           <form onSubmit={submitGoal} className={styles.form}>
             <div className={styles.formGrid}>
-              <Field label="Período"><select value={goalForm.period} onChange={e => setGoalForm({...goalForm,period:e.target.value as PerformanceGoalPeriod})}><option value="MONTHLY">Mensal</option><option value="YEARLY">Anual</option></select></Field>
+              <Field label="Per�odo"><select value={goalForm.period} onChange={e => setGoalForm({...goalForm,period:e.target.value as PerformanceGoalPeriod})}><option value="MONTHLY">Mensal</option><option value="YEARLY">Anual</option></select></Field>
               <Field label="Ano"><input type="number" value={goalForm.year} onChange={e => setGoalForm({...goalForm,year:e.target.value})} required /></Field>
               {goalForm.period === "MONTHLY" ? <Field label="Mês"><select value={goalForm.month} onChange={e => setGoalForm({...goalForm,month:e.target.value})}>{MONTHS.map((month,index) => <option key={month} value={index+1}>{month}</option>)}</select></Field> : null}
               <Field label="Modalidade"><select value={goalForm.activityType} onChange={e => setGoalForm({...goalForm,activityType:e.target.value as GoalForm["activityType"]})}><option value="ALL">Todas</option>{Object.entries(ACTIVITY_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
@@ -669,7 +698,7 @@ export default function PerformancePage() {
       ) : null}
 
       {modal === "assessment" ? (
-        <ModalShell title={assessmentForm.id ? "Editar avaliação" : "Nova avaliação física"} eyebrow="EVOLUÇÃO CORPORAL" onClose={() => setModal(null)}>
+        <ModalShell title={assessmentForm.id ? "Editar avaliação" : "Nova avaliação f�sica"} eyebrow="EVOLUÇÃO CORPORAL" onClose={() => setModal(null)}>
           <form onSubmit={submitAssessment} className={styles.form}>
             <div className={styles.formGrid}>
               <Field label="Data"><input type="date" value={assessmentForm.date} onChange={e => setAssessmentForm({...assessmentForm,date:e.target.value})} required /></Field>
@@ -726,8 +755,8 @@ function formatMetric(value:number,metric:PerformanceGoalMetric) {
   return `${fmtNumber(value)} treino${value === 1 ? "" : "s"}`;
 }
 
-function ActivityRow({activity,compact=false}:{activity:PerformanceActivity;compact?:boolean}) {
-  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
+function ActivityRow({activity,compact=false,onClick}:{activity:PerformanceActivity;compact?:boolean;onClick?:()=>void}) {
+  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} � {ACTIVITY_LABELS[activity.type]}{activity.source === "STRAVA" ? " � Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ?</span> : null}</div></div>;
 }
 
 function AssessmentSummary({item}:{item:PerformanceAssessment}) {
