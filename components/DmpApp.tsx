@@ -59,21 +59,24 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [notesLoaded, setNotesLoaded] = useState(false);
 
-  // No Android, o botão/gesto Voltar percorre o DMP antes de sair do app.
+  // Mantém uma entrada de histórico interna para o botão/gesto Voltar do Android.
   useEffect(() => {
-    if (!isPhoneDevice()) return;
-    if (!(window.history.state && window.history.state.dmpGuard)) window.history.pushState({dmpGuard:true}, "", window.location.href);
+    if (!(window.history.state && window.history.state.dmpRoot)) {
+      window.history.replaceState({dmpRoot:true}, "", window.location.href);
+      window.history.pushState({dmpGuard:true}, "", window.location.href);
+    }
+    const rearm=()=>window.history.pushState({dmpGuard:true}, "", window.location.href);
     const onPopState=()=>{
-      if(showFinancePin){setShowFinancePin(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(showStudentForm){setShowStudentForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(showEditStudentForm){setShowEditStudentForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(showAssessmentForm){setShowAssessmentForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(showGoogleEventForm){setShowGoogleEventForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(view==="workout-editor"&&!confirm("Voltar sem salvar? Alterações feitas nesta montagem podem ser perdidas.")){window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(["workout-editor","planned-session","free-session","attendance-session"].includes(view)){setView("student");window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(view==="student"){setView("students");window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      if(view!=="today"){setView("today");window.history.pushState({dmpGuard:true},"",window.location.href);return;}
-      // Na tela Hoje não rearma a trava: o próximo Voltar pode sair do DMP.
+      if(showFinancePin){setShowFinancePin(false);rearm();return;}
+      if(showStudentForm){setShowStudentForm(false);rearm();return;}
+      if(showEditStudentForm){setShowEditStudentForm(false);rearm();return;}
+      if(showAssessmentForm){setShowAssessmentForm(false);rearm();return;}
+      if(showGoogleEventForm){setShowGoogleEventForm(false);rearm();return;}
+      if(view==="workout-editor"&&!confirm("Voltar sem salvar? Alterações feitas nesta montagem podem ser perdidas.")){rearm();return;}
+      if(["workout-editor","planned-session","free-session","attendance-session"].includes(view)){setView("student");rearm();return;}
+      if(view==="student"){setView("students");rearm();return;}
+      if(view!=="today"){setView("today");rearm();return;}
+      // Em Hoje, não rearma: um novo Voltar pode sair normalmente.
     };
     window.addEventListener("popstate",onPopState);
     return()=>window.removeEventListener("popstate",onPopState);
@@ -826,7 +829,7 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
     {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
     <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div><div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
 
-    <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>🎙️ Ditado inteligente</h2><p className="muted">Fale ou cole o treino. Ele só preenche a ficha para revisão — nunca salva sozinho.</p></div></div><textarea rows={6} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7.\nBloco 1: supino reto, três de quinze, trinta quilos. E agachamento livre, três de quinze.\nBloco 2: supino inclinado, três de doze, doze quilos de cada lado.\nFim do treino.'}/><div className="hero-actions"><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar"}</button><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Organizar para revisão</button></div><small className="muted">Confira protocolo, blocos, séries, repetições e cargas na tabela abaixo antes de tocar em Salvar.</small></section>
+    <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>📋 Importar treino por texto</h2><p className="muted">Cole aqui o treino organizado e transforme em ficha para revisão. Nada é salvo automaticamente.</p></div></div><textarea rows={8} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7\n\nBloco 1\nSupino reto — 3x15 — 30 kg\nAgachamento livre — 3x15\n\nBloco 2\nSupino inclinado — 3x12 — 12 kg de cada lado\nCadeira extensora — 3x15'}/><div className="hero-actions"><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Interpretar texto</button><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar (experimental)"}</button></div><small className="muted">Depois de interpretar, confira protocolo, blocos, séries, repetições e cargas na tabela abaixo. O microfone continua disponível, mas é experimental.</small></section>
 
     <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><button className="danger-link workout-remove" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></section>
   </section></main>;
