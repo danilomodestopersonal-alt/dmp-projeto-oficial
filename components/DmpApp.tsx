@@ -10,8 +10,9 @@ import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
 
-type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "performance" | "data" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
+type View = "today" | "students" | "workouts-overview" | "history-overview" | "agenda" | "finance" | "performance" | "data" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
+type DmpNote = { id:string; text:string; done:boolean; createdAt:string; updatedAt:string };
 
 const FINANCE_UNLOCK_KEY = "dmp_finance_unlocked_until";
 const FINANCE_UNLOCK_MS = 10 * 60 * 1000;
@@ -54,6 +55,29 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [showFinancePin, setShowFinancePin] = useState(false);
   const [financePin, setFinancePin] = useState("");
   const [financePinError, setFinancePinError] = useState("");
+  const [notes, setNotes] = useState<DmpNote[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [notesLoaded, setNotesLoaded] = useState(false);
+
+  // No Android, o botão/gesto Voltar percorre o DMP antes de sair do app.
+  useEffect(() => {
+    if (!isPhoneDevice()) return;
+    if (!(window.history.state && window.history.state.dmpGuard)) window.history.pushState({dmpGuard:true}, "", window.location.href);
+    const onPopState=()=>{
+      if(showFinancePin){setShowFinancePin(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(showStudentForm){setShowStudentForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(showEditStudentForm){setShowEditStudentForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(showAssessmentForm){setShowAssessmentForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(showGoogleEventForm){setShowGoogleEventForm(false);window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(view==="workout-editor"&&!confirm("Voltar sem salvar? Alterações feitas nesta montagem podem ser perdidas.")){window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(["workout-editor","planned-session","free-session","attendance-session"].includes(view)){setView("student");window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(view==="student"){setView("students");window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      if(view!=="today"){setView("today");window.history.pushState({dmpGuard:true},"",window.location.href);return;}
+      // Na tela Hoje não rearma a trava: o próximo Voltar pode sair do DMP.
+    };
+    window.addEventListener("popstate",onPopState);
+    return()=>window.removeEventListener("popstate",onPopState);
+  },[view,showFinancePin,showStudentForm,showEditStudentForm,showAssessmentForm,showGoogleEventForm]);
 
   useEffect(() => setStudents(loadStudents(importedStudents2026)), []);
 useEffect(() => {
@@ -122,6 +146,26 @@ useEffect(() => {
 
   return () => window.clearTimeout(timer);
 }, [students, studentsLoaded, cloudWritable]);    
+useEffect(() => {
+  let cancelled=false;
+  fetch("/api/notes",{cache:"no-store"}).then(r=>r.json()).then(result=>{
+    if(!cancelled&&Array.isArray(result.data)){setNotes(result.data);}
+  }).catch(()=>{}).finally(()=>{if(!cancelled)setNotesLoaded(true);});
+  return()=>{cancelled=true;};
+},[]);
+
+useEffect(()=>{
+  if(!notesLoaded)return;
+  const timer=window.setTimeout(()=>{
+    void fetch("/api/notes",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(notes)}).catch(()=>{});
+  },350);
+  return()=>window.clearTimeout(timer);
+},[notes,notesLoaded]);
+
+  function addNote(){const text=newNote.trim();if(!text)return;const now=new Date().toISOString();setNotes(current=>[{id:crypto.randomUUID(),text,done:false,createdAt:now,updatedAt:now},...current]);setNewNote("");}
+  function patchNote(id:string,patch:Partial<DmpNote>){setNotes(current=>current.map(note=>note.id===id?{...note,...patch,updatedAt:new Date().toISOString()}:note));}
+  function removeNote(id:string){if(confirm("Excluir este recado?"))setNotes(current=>current.filter(note=>note.id!==id));}
+
 useEffect(() => {
 fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>{});
     try {
@@ -416,7 +460,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setView("finance");
   }
 
-  if (["today","students","workouts-overview","history-overview","agenda","finance","performance","data"].includes(view)) {
+  if (["today","students","workouts-overview","history-overview","agenda","finance","performance","data","weather"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
@@ -424,7 +468,6 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session})));
     const plannedCount = students.filter(student => student.status === "ACTIVE" && getStudentWorkoutEntries(student).length > 0).length;
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
-    const reassessmentDue = students.filter(student => student.status === "ACTIVE" && assessmentDue(student));
     const allHistory = students.flatMap(student=>student.sessions.map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
     const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${student.name} ${session.workoutName} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; return matchText&&matchSource; });
 
@@ -436,12 +479,13 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><div className="hero-actions"><button className="secondary" onClick={() => setView("students")}>Ver alunos</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
             <section className="dashboard-content">
               <div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length}/><Stat icon="📋" label="Com treino montado" value={plannedCount}/></div>
+              <section className="panel notes-panel"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addNote();}} placeholder="Escreva um recado..."/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}><textarea aria-label="Recado" value={note.text} onChange={e=>patchNote(note.id,{text:e.target.value})}/><div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}</section>
               <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={startStudentFlow} />
               <section className="panel today-panel"><div className="panel-head"><div><h2>Atendimentos de hoje</h2><p className="muted">Tudo que já foi salvo hoje aparece aqui.</p></div></div>
                 {todaySessions.length ? <div className="today-session-list">{todaySessions.map(({student,session}) => <button className="today-session-row" key={session.id} onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{sessionSourceLabel(session)}</small></span><span className="today-session-status">✓ Salvo</span></button>)}</div> : <div className="empty-review"><strong>Nenhum atendimento registrado ainda</strong><span>Quando você salvar uma ficha, um treino livre ou uma presença, ele aparecerá aqui.</span></div>}
               </section>
               <section className="panel"><div className="panel-head"><div><h2>Acesso rápido aos alunos</h2><p className="muted">Escolha o aluno e registre a sessão do jeito que aconteceu.</p></div><button className="secondary" onClick={() => setView("students")}>Ver todos</button></div><div className="quick-student-list">{students.filter(student=>student.status==="ACTIVE").slice().sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).slice(0,12).map(student => <button key={student.id} className="quick-student-row" onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{getStudentWorkoutEntries(student).length>0?"Com treino":"Sem treino"}</small></span><span>›</span></button>)}</div></section>
-              {(birthdayStudents.length || reassessmentDue.length) ? <section className="panel smart-alerts"><div className="panel-head"><div><h2>Lembretes inteligentes</h2><p className="muted">O que merece sua atenção hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}{reassessmentDue.slice(0,8).map(student=><button key={`r-${student.id}`} className="smart-alert-card" onClick={()=>openStudent(student.id)}><span>📏</span><strong>Reavaliar {student.name}</strong><small>{student.assessments[0]?`Última em ${formatDate(student.assessments[0].date)}`:"Sem avaliação registrada"}</small></button>)}</div></section>:null}
+              {birthdayStudents.length ? <section className="panel smart-alerts"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
             </section>
           </> : null}
 
@@ -461,6 +505,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "finance" ? <FinanceiroPage /> : null}
           {view === "performance" ? <PerformancePage /> : null}
           {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
+          {view === "weather" ? <WeatherPage onBack={()=>setView("today")} /> : null}
         </div>
         {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} onChange={value => { setFinancePin(value.replace(/\D/g, "").slice(0, 4)); setFinancePinError(""); }} onClose={() => { setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
@@ -583,8 +628,59 @@ function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View
   useEffect(() => { setMobile(isPhoneDevice()); }, []);
   const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"data",icon:"💾",label:"Dados"}];
   const orderedItems = mobile ? [items.find(item=>item.view==="finance")!, ...items.filter(item=>item.view!=="finance")] : items;
-  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
+  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><WeatherWidget onOpen={()=>onNavigate("weather")}/><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
 }
+type WeatherData={temperature:number;wind:number;rainChance:number;code:number;hours:{time:string;rain:number}[]};
+function WeatherWidget({onOpen}:{onOpen:()=>void}){
+  const [weather,setWeather]=useState<WeatherData|null>(null);
+  const [status,setStatus]=useState<"loading"|"ready"|"denied"|"error">("loading");
+  useEffect(()=>{
+    let cancelled=false;
+    const load=(latitude:number,longitude:number)=>{
+      const url=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+      fetch(url).then(r=>{if(!r.ok)throw new Error("weather");return r.json();}).then(data=>{
+        if(cancelled)return;
+        const now=Date.now();
+        const times:string[]=data.hourly?.time||[]; const rains:number[]=data.hourly?.precipitation_probability||[];
+        const upcoming=times.map((time,i)=>({time,rain:Number(rains[i]||0)})).filter(item=>new Date(item.time).getTime()>=now-30*60*1000).slice(0,4);
+        setWeather({temperature:Number(data.current?.temperature_2m||0),wind:Number(data.current?.wind_speed_10m||0),rainChance:upcoming.length?Math.max(...upcoming.map(i=>i.rain)):0,code:Number(data.current?.weather_code||0),hours:upcoming});setStatus("ready");
+      }).catch(()=>{if(!cancelled)setStatus("error");});
+    };
+    if(!navigator.geolocation){setStatus("error");return;}
+    navigator.geolocation.getCurrentPosition(pos=>load(pos.coords.latitude,pos.coords.longitude),()=>setStatus("denied"),{enableHighAccuracy:false,timeout:8000,maximumAge:30*60*1000});
+    return()=>{cancelled=true;};
+  },[]);
+  const icon=weather?weatherIcon(weather.code):"🌦️";
+  return <section className="sidebar-weather" role="button" tabIndex={0} onClick={onOpen} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onOpen();}}} title="Abrir previsão completa"><div className="sidebar-weather-title"><span>{icon}</span><strong>Clima local</strong></div>{status==="loading"?<small>Carregando previsão...</small>:status==="denied"?<small>Permita a localização para ver o clima.</small>:status==="error"?<small>Previsão indisponível. O DMP segue normal.</small>:weather?<><div className="sidebar-weather-main"><b>{Math.round(weather.temperature)}°C</b><span>Chuva {Math.round(weather.rainChance)}%</span></div><div className="sidebar-weather-meta"><span>💨 {Math.round(weather.wind)} km/h</span><span>{weatherDescription(weather.code)}</span></div><div className="sidebar-weather-hours">{weather.hours.slice(0,3).map(item=><span key={item.time}>{new Date(item.time).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} · {Math.round(item.rain)}%</span>)}</div></>:null}</section>;
+}
+function weatherIcon(code:number){if(code===0)return"☀️";if(code<=3)return"⛅";if(code<=48)return"🌫️";if(code<=67)return"🌧️";if(code<=77)return"🌨️";if(code<=82)return"🌦️";return"⛈️";}
+function weatherDescription(code:number){if(code===0)return"Céu limpo";if(code<=3)return"Parcialmente nublado";if(code<=48)return"Neblina";if(code<=67)return"Chuva";if(code<=77)return"Granizo/neve";if(code<=82)return"Pancadas";return"Temporal";}
+
+type WeatherDay={date:string;min:number;max:number;rain:number;wind:number;code:number};
+function WeatherPage({onBack}:{onBack:()=>void}){
+  const [status,setStatus]=useState<"loading"|"ready"|"denied"|"error">("loading");
+  const [days,setDays]=useState<WeatherDay[]>([]);
+  const [current,setCurrent]=useState<{temperature:number;wind:number;code:number}|null>(null);
+  useEffect(()=>{
+    if(!navigator.geolocation){setStatus("error");return;}
+    navigator.geolocation.getCurrentPosition(({coords:{latitude,longitude}})=>{
+      const url=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&forecast_days=7&timezone=auto`;
+      fetch(url).then(r=>{if(!r.ok)throw new Error("weather");return r.json();}).then(data=>{
+        setCurrent({temperature:Number(data.current?.temperature_2m||0),wind:Number(data.current?.wind_speed_10m||0),code:Number(data.current?.weather_code||0)});
+        const d=(data.daily?.time||[]).map((date:string,i:number)=>({date,min:Number(data.daily.temperature_2m_min?.[i]||0),max:Number(data.daily.temperature_2m_max?.[i]||0),rain:Number(data.daily.precipitation_probability_max?.[i]||0),wind:Number(data.daily.wind_speed_10m_max?.[i]||0),code:Number(data.daily.weather_code?.[i]||0)}));
+        setDays(d);setStatus("ready");
+      }).catch(()=>setStatus("error"));
+    },err=>setStatus(err.code===1?"denied":"error"),{enableHighAccuracy:false,timeout:8000,maximumAge:600000});
+  },[]);
+  return <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Planejamento das aulas</p><h1>Previsão do tempo</h1><p>Clima local para os próximos 7 dias.</p></div><button className="secondary" onClick={onBack}>← Voltar</button></header><section className="dashboard-content weather-page">
+    {status==="loading"?<div className="panel"><strong>Carregando previsão...</strong></div>:status==="denied"?<div className="panel"><strong>Localização não autorizada.</strong><p className="muted">Permita a localização no navegador para consultar a previsão local.</p></div>:status==="error"?<div className="panel"><strong>Previsão indisponível.</strong><p className="muted">O restante do DMP continua funcionando normalmente.</p></div>:<>
+      {current?<section className="panel weather-current"><div><span className="weather-big-icon">{weatherIcon(current.code)}</span><div><p className="dashboard-eyebrow">Agora</p><h2>{Math.round(current.temperature)}°C</h2><p>{weatherDescription(current.code)} · Vento {Math.round(current.wind)} km/h</p></div></div></section>:null}
+      <div className="weather-days">{days.map((day,i)=><article className="panel weather-day" key={day.date}><div className="weather-day-head"><span>{weatherIcon(day.code)}</span><div><strong>{i===0?"Hoje":new Date(`${day.date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"long"})}</strong><small>{new Date(`${day.date}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</small></div></div><h3>{Math.round(day.min)}° / {Math.round(day.max)}°</h3><p>🌧️ Chuva {Math.round(day.rain)}%</p><p>💨 Vento até {Math.round(day.wind)} km/h</p><small>{weatherDescription(day.code)}</small></article>)}</div>
+    </>}
+  </section></>;
+}
+
+
 function Stat({icon,label,value}:{icon:string;label:string;value:number}) { return <article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
 function Header({title,back}:{title:string;back?:()=>void}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong>{title}</strong></div></header>; }
 
@@ -646,7 +742,7 @@ function WorkoutSlotsPanel({student,onEdit,onStart,onArchive}:{student:Student;o
         const workout=entry?.workout;
         return <article className={`workout-slot-card ${workout?"filled":"empty"}`} key={slot}>
           <div className="workout-slot-head"><span className="workout-slot-badge">Treino {slot}</span>{workout?<span className="protocol-chip">{workoutProtocolLabel(workout.protocol)}</span>:<span className="status-chip">Vazio</span>}</div>
-          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions three-actions"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
+          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
         </article>
       })}</div>
     </section>
@@ -680,6 +776,22 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
   const [sequenceSize,setSequenceSize]=useState(workout?.sequenceSize||defaultSequenceSize(initialProtocol));
   const [workoutNotes,setWorkoutNotes]=useState(workout?.notes||"");
   const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
+  const [dictation,setDictation]=useState("");
+  const [dictating,setDictating]=useState(false);
+
+  function applyDictation(){
+    const text=dictation.trim(); if(!text)return;
+    const detected=detectWorkoutProtocol(text); if(detected){setProtocol(detected);setSequenceSize(defaultSequenceSize(detected));}
+    const parsed=organizeQuickTranscript(text.replace(/treino\s+em\s+sistema\s+(?:convencional|b7|bi[- ]?set|tri[- ]?set|circuito|personalizado)[.,;:]?/i,"").replace(/fim\s+do\s+treino[.!]?/i,""));
+    if(parsed.length)setExercises(parsed.map((ex,index)=>({...ex,block:ex.block?`Bloco ${ex.block}`:sequenceBlockLabel(detected||protocol,index,defaultSequenceSize(detected||protocol)),notes:ex.notes||""})));
+  }
+  function listenWorkout(){
+    const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+    if(!Recognition){alert("Ditado por voz não disponível neste navegador. Você pode colar ou digitar o treino.");return;}
+    const recognition=new Recognition(); recognition.lang="pt-BR"; recognition.continuous=true; recognition.interimResults=false;
+    recognition.onstart=()=>setDictating(true); recognition.onend=()=>setDictating(false); recognition.onerror=()=>setDictating(false);
+    recognition.onresult=(event:any)=>{let spoken="";for(let i=event.resultIndex;i<event.results.length;i++)spoken+=`${event.results[i][0].transcript} `;setDictation(current=>`${current} ${spoken}`.trim());}; recognition.start();
+  }
 
   function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
   function addExercise(){setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"3",reps:"12",load:"",notes:""}]);}
@@ -713,6 +825,8 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content workout-editor-page">
     {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
     <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div><div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
+
+    <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>🎙️ Ditado inteligente</h2><p className="muted">Fale ou cole o treino. Ele só preenche a ficha para revisão — nunca salva sozinho.</p></div></div><textarea rows={6} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7.\nBloco 1: supino reto, três de quinze, trinta quilos. E agachamento livre, três de quinze.\nBloco 2: supino inclinado, três de doze, doze quilos de cada lado.\nFim do treino.'}/><div className="hero-actions"><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar"}</button><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Organizar para revisão</button></div><small className="muted">Confira protocolo, blocos, séries, repetições e cargas na tabela abaixo antes de tocar em Salvar.</small></section>
 
     <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><button className="danger-link workout-remove" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></section>
   </section></main>;
@@ -1078,37 +1192,65 @@ function protocolDescription(protocol:WorkoutProtocol,size:number){
   return `Misto / personalizado com ${size} exercícios por sequência. Use a coluna Seq. para mudar blocos específicos.`;
 }
 
-function cleanExerciseCatalogName(value:string){
-  return value
-    .replace(/\s*[-–—|:,;]?\s*\(?\d+\s*(?:x|×)\s*(?:\d+(?:\s*(?:a|[-–—])\s*\d+)?|(?:até\s+)?(?:a\s+)?falha)\b.*$/i,"")
-    .replace(/\s*[-–—|:,;]?\s*\(?\d+\s*séries?(?:\s*(?:de\s*)?\d+(?:\s*(?:a|[-–—])\s*\d+)?)?(?:\s+até\s+(?:a\s+)?falha)?\b.*$/i,"")
-    .replace(/\s*[|–—]\s*carga\s*:\s*\d+(?:[.,]\d+)?\s*(?:kg)?\s*$/i,"")
-    .replace(/\s+/g," ")
-    .trim();
+function openWorkoutSharePreview(student:Student,workout:Workout){
+  const popup=window.open("","_blank","width=900,height=760");
+  if(!popup){alert("O navegador bloqueou a prévia. Permita pop-ups para o DMP e tente novamente.");return;}
+  const esc=(value:string)=>value.replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[char]||char));
+  const groups=new Map<string,Exercise[]>();
+  workout.exercises.forEach((exercise,index)=>{const block=exercise.block?.trim()||sequenceBlockLabel(workout.protocol||"CONVENTIONAL",index,workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL"))||"Sequência";groups.set(block,[...(groups.get(block)||[]),exercise]);});
+  const blocks=[...groups.entries()].map(([block,items])=>`<section><h3>${esc(block)}</h3>${items.map((ex,i)=>`<div class="exercise"><b>${i+1}. ${esc(ex.name)}</b><span>${esc(ex.sets||"—")} × ${esc(ex.reps||"—")}${ex.load?` · ${esc(ex.load)}`:""}</span>${ex.notes?`<small>${esc(ex.notes)}</small>`:""}</div>`).join("")}</section>`).join("");
+  const date=new Date().toLocaleDateString("pt-BR");
+  (window as any).__dmpShareWorkout={student,workout};
+  (window as any).downloadWorkoutJpgFromShare=()=>downloadWorkoutJpg(student,workout);
+  popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(student.name)} - ${esc(workout.name)}</title><style>body{font-family:Arial,sans-serif;margin:0;background:#f4f7ee;color:#25272c}.sheet{max-width:760px;margin:24px auto;background:#fff;padding:34px;border-radius:18px}.head{display:flex;align-items:center;gap:18px;border-bottom:3px solid #a8c93b;padding-bottom:18px}.head img{width:72px;height:72px;object-fit:contain}.head h1{margin:0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.meta span{background:#eef4df;padding:8px 12px;border-radius:999px}section{margin:22px 0}h3{border-left:5px solid #a8c93b;padding-left:10px}.exercise{display:grid;grid-template-columns:1fr auto;gap:5px 16px;padding:11px 0;border-bottom:1px solid #e3e8d8}.exercise small{grid-column:1/-1;color:#707781}.actions{display:flex;gap:10px;margin:20px auto;max-width:760px}.actions button{padding:12px 16px;border:0;border-radius:10px;cursor:pointer}.primary{background:#a8c93b;font-weight:700}@media print{body{background:#fff}.actions{display:none}.sheet{margin:0;max-width:none;box-shadow:none}}</style></head><body><div class="actions"><button class="primary" onclick="window.print()">Salvar / imprimir PDF</button><button onclick="window.opener.downloadWorkoutJpgFromShare && window.opener.downloadWorkoutJpgFromShare()">Salvar como JPG</button><button onclick="window.close()">Fechar prévia</button></div><main class="sheet"><div class="head"><img src="${location.origin}/logo-danilo.jpg" alt="Logo"><div><h1>${esc(student.name)}</h1><p>${esc(workout.name||`Treino ${workout.slot||""}`)}</p></div></div><div class="meta"><span>Treino ${esc(workout.slot||"—")}</span><span>${esc(workoutProtocolLabel(workout.protocol||"CONVENTIONAL"))}</span><span>${date}</span></div>${blocks}</main></body></html>`);
+  popup.document.close();
 }
 
+function cleanExerciseCatalogName(value:string){
+  let clean=value.replace(/\s+/g," ").trim();
+  // Remove prescrições/cargas no fim sem apagar números legítimos do nome (45°, Rosca 21 etc.).
+  clean=clean
+    .replace(/\s*[-–—|:,;]?\s*\d+\s*[x×]\s*(?:f|falha|\d+(?:\s*(?:a|[-–—])\s*\d+)?)(?:\s+\d+(?:[.,]\d+)?(?:\s*kg)?)?.*$/i,"")
+    .replace(/\s*[-–—|:,;]?\s*\d+\s*(?:de|por|vezes)\s*(?:\d+|(?:até\s+)?(?:a\s+)?falha)(?:\s+\d+(?:[.,]\d+)?(?:\s*kg)?)?.*$/i,"")
+    .replace(/\s*[-–—|:,;]?\s*\d+\s*séries?(?:\s*(?:de|por)?\s*\d+)?(?:\s+até\s+(?:a\s+)?falha)?.*$/i,"")
+    .replace(/\s*[-–—|:,;]?\s*(?:carga\s*:?\s*)?\d+(?:[.,]\d+)?\s*(?:kg|quilos?|kilos?)(?:\s+de\s+cada\s+lado)?.*$/i,"")
+    .replace(/\s*[-–—|:,;]?\s*(?:até\s+)?(?:a\s+)?falha.*$/i,"")
+    .replace(/\s*[-–—|:,;]?\s*\d+\s*(?:segundos?|s)(?:\s|$).*$/i,"")
+    .replace(/\s+/g," ").trim();
+  return clean.replace(/[\s,;:|–—-]+$/g,"").trim();
+}
+function splitExerciseCatalogNames(value:string){
+  const base=value.replace(/\s+/g," ").trim();
+  // Se um histórico antigo juntou dois exercícios, transforma em duas sugestões.
+  return base.split(/\s+(?:\+|&|e)\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/).map(cleanExerciseCatalogName).filter(Boolean);
+}
 function buildExerciseCatalog(students:Student[]){
   const names=new Map<string,string>();
   const addName=(value:string)=>{
-    const cleanName=cleanExerciseCatalogName(value);
-    const key=normalizeName(cleanName);
-    if(key&&!names.has(key))names.set(key,cleanName);
+    for(const cleanName of splitExerciseCatalogNames(value)){
+      const key=normalizeName(cleanName);
+      if(key&&!names.has(key))names.set(key,cleanName);
+    }
   };
-
   for(const student of students){
-    for(const workout of student.workouts){
-      for(const exercise of workout.exercises){
-        addName(exercise.name);
-      }
-    }
-    for(const session of student.sessions){
-      for(const exercise of session.completedExercises){
-        addName(exercise.name);
-      }
-    }
+    for(const workout of student.workouts)for(const exercise of workout.exercises)addName(exercise.name);
+    for(const session of student.sessions)for(const exercise of session.completedExercises)addName(exercise.name);
   }
   return [...names.values()].sort((a,b)=>a.localeCompare(b,"pt-BR"));
 }
+
+function detectWorkoutProtocol(text:string):WorkoutProtocol|null{const v=normalizeName(text);if(/\bb7\b/.test(v))return"B7";if(/\btri set\b|\btriset\b/.test(v))return"TRISET";if(/\bbi set\b|\bbiset\b/.test(v))return"BISET";if(/\bcircuito\b/.test(v))return"CIRCUIT";if(/\bpersonalizado\b|\bmisto\b/.test(v))return"MIXED";if(/\bconvencional\b/.test(v))return"CONVENTIONAL";return null;}
+async function downloadWorkoutJpg(student:Student,workout:Workout){
+  const W=1240,H=1754,margin=90,line=44; const groups=new Map<string,Exercise[]>();
+  workout.exercises.forEach((ex,index)=>{const block=ex.block?.trim()||sequenceBlockLabel(workout.protocol||"CONVENTIONAL",index,workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL"))||"Sequência";groups.set(block,[...(groups.get(block)||[]),ex]);});
+  const rows:[string,Exercise[]][]=[...groups.entries()]; let page=1, y=0; let canvas!:HTMLCanvasElement; let ctx!:CanvasRenderingContext2D;
+  const newPage=()=>{canvas=document.createElement("canvas");canvas.width=W;canvas.height=H;ctx=canvas.getContext("2d")!;ctx.fillStyle="#ffffff";ctx.fillRect(0,0,W,H);ctx.fillStyle="#25272c";ctx.font="700 42px Arial";ctx.fillText(student.name,margin,110);ctx.font="28px Arial";ctx.fillText(`${workout.name||`Treino ${workout.slot||""}`} · ${workoutProtocolLabel(workout.protocol||"CONVENTIONAL")}`,margin,155);ctx.fillStyle="#a8c93b";ctx.fillRect(margin,185,W-margin*2,6);ctx.fillStyle="#25272c";ctx.font="22px Arial";ctx.fillText(`Treino ${workout.slot||"—"} · ${new Date().toLocaleDateString("pt-BR")} · página ${page}`,margin,225);y=285;};
+  const savePage=()=>new Promise<void>(resolve=>canvas.toBlob(blob=>{if(blob){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${safeFileName(student.name)}_${safeFileName(workout.name||`Treino_${workout.slot||""}`)}_${page}.jpg`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}resolve();},"image/jpeg",0.94));
+  newPage();
+  for(const [block,items] of rows){const needed=70+items.length*92;if(y+needed>H-100){await savePage();page++;newPage();}ctx.fillStyle="#a8c93b";ctx.fillRect(margin,y-30,8,42);ctx.fillStyle="#25272c";ctx.font="700 30px Arial";ctx.fillText(block,margin+22,y);y+=48;for(const ex of items){ctx.font="700 25px Arial";ctx.fillText(ex.name.slice(0,58),margin,y);ctx.font="22px Arial";const prescription=[ex.sets&&ex.reps?`${ex.sets} × ${ex.reps}`:"",ex.load].filter(Boolean).join(" · ");ctx.fillText(prescription,W-margin-ctx.measureText(prescription).width,y);if(ex.notes){ctx.font="19px Arial";ctx.fillStyle="#707781";ctx.fillText(ex.notes.slice(0,90),margin,y+30);ctx.fillStyle="#25272c";}y+=82;}}
+  await savePage();
+}
+function safeFileName(value:string){return normalizeName(value).replace(/\s+/g,"_")||"treino";}
 
 function isBirthdayToday(value:string){if(!value)return false;const [y,m,d]=value.split("-").map(Number);const now=new Date();return m===now.getMonth()+1&&d===now.getDate();}
 function assessmentDue(student:Student){const last=student.assessments[0];if(!last)return true;const date=new Date(`${last.date}T12:00:00`);return Date.now()-date.getTime()>1000*60*60*24*90;}

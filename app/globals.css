@@ -683,3 +683,20 @@ input:focus,textarea:focus{
 .archived-workout-item>.workout-slot-note{margin:12px 14px 0}
 .archived-exercise-list{margin:12px 16px 16px}
 @media(max-width:700px){.workout-slot-actions.three-actions{grid-template-columns:1fr}.archived-workout-item summary{grid-template-columns:1fr}.archived-workout-date{white-space:normal}}
+
+
+/* Pacote 2: Meus Recados e compartilhamento */
+.notes-panel{overflow:hidden}.note-create{display:flex;gap:10px;margin-bottom:16px}.note-create input{flex:1}.note-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.note-card{background:#fff6b8;border:1px solid #eadb78;border-radius:14px;padding:12px;box-shadow:0 6px 18px rgba(37,39,44,.08);transform:rotate(-.3deg)}.note-card:nth-child(even){background:#eef6c8;transform:rotate(.3deg)}.note-card.done{opacity:.62}.note-card.done textarea{text-decoration:line-through}.note-card textarea{width:100%;min-height:96px;resize:vertical;background:transparent;border:0;font:inherit;line-height:1.45}.note-card textarea:focus{outline:none}.note-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-size:.86rem}.note-actions label{display:flex;align-items:center;gap:6px}.compact-empty{padding:18px}.workout-slot-actions-share{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}@media(max-width:720px){.note-create{flex-direction:column}.note-grid{grid-template-columns:1fr}.workout-slot-actions-share{grid-template-columns:1fr 1fr}}
+
+/* Pacote 3 */
+.dashboard-sidebar{overflow:hidden}
+.dashboard-nav{min-height:0}
+.sidebar-weather{flex:0 0 auto;margin:8px 4px 8px;padding:9px 10px;border:1px solid rgba(255,255,255,.13);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;max-height:142px;overflow:hidden;cursor:pointer;transition:.15s ease}
+.sidebar-weather:hover{background:rgba(255,255,255,.1);transform:translateY(-1px)}
+.sidebar-weather:focus-visible{outline:2px solid #a8c93b;outline-offset:2px}
+.sidebar-weather-title{display:flex;align-items:center;gap:7px;margin-bottom:5px}.sidebar-weather-title span{font-size:1.05rem;line-height:1}.sidebar-weather-title strong{font-size:.8rem;line-height:1.1}.sidebar-weather-main{display:flex;align-items:baseline;justify-content:space-between;gap:7px}.sidebar-weather-main b{font-size:1.32rem;line-height:1.05}.sidebar-weather-main span,.sidebar-weather-meta,.sidebar-weather-hours,.sidebar-weather small{font-size:.66rem;opacity:.9}.sidebar-weather-meta{display:flex;justify-content:space-between;gap:6px;margin-top:3px}.sidebar-weather-hours{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)}.sidebar-weather-hours span{white-space:nowrap}
+.weather-page{padding-bottom:32px}.weather-current>div{display:flex;align-items:center;gap:18px}.weather-big-icon{font-size:3rem}.weather-current h2{font-size:2.2rem;margin:2px 0}.weather-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}.weather-day{padding:16px}.weather-day-head{display:flex;align-items:center;gap:10px}.weather-day-head>span{font-size:1.7rem}.weather-day-head div{display:grid;gap:2px}.weather-day-head small{color:#7b8190}.weather-day h3{margin:14px 0 10px;font-size:1.35rem}.weather-day p{margin:5px 0}.weather-day>small{display:block;margin-top:10px;color:#7b8190}
+.workout-dictation-panel textarea{width:100%;margin:10px 0 12px;resize:vertical}
+@media(max-height:820px) and (min-width:901px){.dashboard-sidebar{padding-top:16px;padding-bottom:12px}.dashboard-logo-card{margin-bottom:14px;padding:8px}.dashboard-logo-card .dashboard-sidebar-logo{height:76px}.dashboard-nav{gap:3px}.dashboard-nav-item{min-height:42px;padding-top:9px;padding-bottom:9px}.sidebar-weather{margin-top:auto;max-height:118px;padding:8px 9px}.sidebar-weather-hours{display:none}}
+@media(max-width:900px){.sidebar-weather{display:none}.weather-days{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.weather-days{grid-template-columns:1fr}}
