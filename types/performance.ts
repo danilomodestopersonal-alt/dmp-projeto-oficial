@@ -8,6 +8,16 @@ export type PerformanceActivityType =
 
 export type PerformanceActivitySource = "MANUAL" | "STRAVA";
 
+export type PerformanceStrengthExercise = {
+  id: string;
+  name: string;
+  sets: string;
+  reps: string;
+  load: string;
+};
+
+export type PerformanceTennisKind = "TRAINING" | "MATCH";
+
 export type PerformanceActivity = {
   id: string;
   date: string;
@@ -36,6 +46,11 @@ export type PerformanceActivity = {
 
   gearName?: string | null;
   description?: string | null;
+
+  strengthExercises?: PerformanceStrengthExercise[];
+  tennisKind?: PerformanceTennisKind | null;
+  tennisOpponent?: string | null;
+  tennisScore?: string | null;
 
   notes?: string;
   source: PerformanceActivitySource;

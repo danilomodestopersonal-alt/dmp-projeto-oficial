@@ -56,14 +56,18 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const expensesExpected = sum(expenses.map(item => item.expectedAmount));
   const expensesPaid = sum(expenses.map(item => paid(item.payments)));
   const extrasTotal = sum(extras.map(item => item.amount));
-  const totalExpensesPaid = roundMoney(expensesPaid + extrasTotal);
+  // Gastos extras são informativos e ficam exclusivamente no quadro próprio.
+  // Não alteram despesas pagas, resultado ou contas a pagar.
+  const totalExpensesPaid = expensesPaid;
   const projectedRevenue = roundMoney(personalExpected + dsSettlement);
   const realizedRevenue = roundMoney(personalReceived + dsReceived);
   const realizedResult = roundMoney(realizedRevenue - totalExpensesPaid);
   const personalOpen = sum(personal.map(item => remaining(item.expectedAmount, item.payments)));
   const receivable = roundMoney(personalOpen + Math.max(0, dsBalance));
-  const plannedPayable = Math.max(0, roundMoney(expensesExpected - totalExpensesPaid));
-  const payable = roundMoney(plannedPayable + Math.max(0, -dsBalance));
+  // A pagar é somente o saldo individual das despesas planejadas.
+  // Gastos extras e saldo da DS não entram neste cálculo.
+  const plannedPayable = sum(expenses.map(item => remaining(item.expectedAmount, item.payments)));
+  const payable = roundMoney(plannedPayable);
   const projectedResult = roundMoney(receivable - payable);
 
   return {

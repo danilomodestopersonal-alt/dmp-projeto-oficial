@@ -43,7 +43,7 @@ import styles from "./FinanceiroPage.module.css";
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => localDateISO();
 
-type Tab = "summary" | "personal" | "ds" | "expenses" | "cards" | "extras" | "closing" | "reports";
+type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "closing" | "reports";
 type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
 
 type Action =
@@ -275,7 +275,7 @@ export default function FinanceiroPage() {
         <nav className={styles.tabs}>
           {([
             ["summary", "Resumo"], ["personal", "Personal"], ["ds", "DS Tênis"],
-            ["expenses", "Despesas"], ["cards", "Cartões"], ["extras", "Gastos extras"],
+            ["expenses", "Despesas"], ["extras", "Gastos extras"],
             ["closing", "Fechamento"], ["reports", "Relatórios"],
           ] as [Tab, string][]).map(([key, label]) => (
             <button key={key} className={tab === key ? styles.activeTab : ""} onClick={() => setTab(key)}>{label}</button>
@@ -301,7 +301,7 @@ export default function FinanceiroPage() {
               <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" />
               <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" />
               <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" />
-              <Kpi label="Despesas pagas" value={summary.totalExpensesPaid} tone="expense" />
+              <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" />
               <Kpi label="Saldo projetado" value={summary.projectedResult} />
               <Kpi label="A receber" value={summary.receivable} tone="income" />
               <Kpi label="A pagar" value={summary.payable} tone="expense" />
@@ -359,14 +359,7 @@ export default function FinanceiroPage() {
           </div>
         ) : null}
 
-        {tab === "expenses" ? <ExpenseList title="Despesas" items={summary.expenses.filter(item => item.kind !== "CARD")} filter={listFilter} setFilter={setListFilter} editable={editable} onCreate={() => openAction({ type: "expense-create" })} onPay={expense => openAction({ type: "expense-payment", expense })} onEdit={expense => openAction({ type: "expense-edit", expense })} /> : null}
-
-        {tab === "cards" ? (
-          <section className="panel">
-            <div className="panel-head"><div><h2>Cartões</h2><p className="muted">Fatura mensal, sem controlar compra por compra.</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "expense-create", kind: "CARD" })}>+ Cartão</button></div>
-            <div className={styles.cardGrid}>{summary.expenses.filter(item => item.kind === "CARD").map(card => <article className={styles.cardInvoice} key={card.id}><div><strong>{card.name}</strong><span>Vence dia {card.dueDay}</span></div><strong>{money.format(card.expectedAmount)}</strong><span>{statusLabel(expenseStatus(card))} · pago {money.format(paid(card.payments))}</span><div className={styles.inlineActions}><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "card-value", expense: card })}>Fatura</button><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "expense-edit", expense: card })}>Editar</button><button className="primary" disabled={!editable} onClick={() => openAction({ type: "expense-payment", expense: card })}>Pagar</button></div></article>)}</div>
-          </section>
-        ) : null}
+        {tab === "expenses" ? <ExpenseList title="Despesas" items={summary.expenses} filter={listFilter} setFilter={setListFilter} editable={editable} onCreate={() => openAction({ type: "expense-create" })} onPay={expense => openAction({ type: "expense-payment", expense })} onEdit={expense => openAction({ type: "expense-edit", expense })} /> : null}
 
         {tab === "extras" ? (
           <div className={styles.twoColWide}>
