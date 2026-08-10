@@ -1,4 +1,5 @@
 export type StudentStatus = "ACTIVE" | "ARCHIVED";
+export type TennisCategory = "RED" | "ORANGE" | "GREEN" | null;
 
 export type WorkoutSlot = "A" | "B" | "C" | "D";
 export type WorkoutProtocol = "CONVENTIONAL" | "BISET" | "TRISET" | "B7" | "CIRCUIT" | "MIXED";
@@ -87,6 +88,7 @@ export type Student = {
   emergencyContact?: string;
   emergencyPhone?: string;
   status: StudentStatus;
+  tennisCategory?: TennisCategory;
   workouts: Workout[];
   sessions: Session[];
   assessments: Assessment[];

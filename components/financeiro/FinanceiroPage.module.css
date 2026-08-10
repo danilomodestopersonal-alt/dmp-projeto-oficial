@@ -30,3 +30,6 @@
 }
 .undoStrip button{border:0;background:transparent;color:#116f99;font-weight:900;cursor:pointer}
 .monthCheckOk,.monthCheckWarning{display:grid;gap:4px;margin:12px 0;padding:13px 15px;border-radius:12px}.monthCheckOk{background:#edf7e7;color:#35622e;border:1px solid #c9e2bd}.monthCheckWarning{background:#fff7df;color:#7a5a10;border:1px solid #ead596}.monthCheckOk span,.monthCheckWarning span{font-size:.84rem;font-weight:600}
+
+.categoryPicker{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;padding:12px;border:1px solid #d9dfcf;border-radius:12px}.categoryPicker legend{padding:0 6px;font-weight:800}.categoryPicker button{padding:7px 10px;border:1px solid #d9dfcf;border-radius:999px;background:#fff;cursor:pointer}.categorySelected{outline:2px solid #92b52d}
+.row .financeCategoryDot{display:inline-block;width:14px;height:14px;margin-right:8px;border-radius:50%;vertical-align:-1px;border:1px solid rgba(0,0,0,.18)}.red{background:#df3d35}.orange{background:#f39a28}.green{background:#69a94b}

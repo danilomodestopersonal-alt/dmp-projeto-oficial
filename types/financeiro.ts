@@ -17,11 +17,16 @@ export type PersonalInvoice = {
   payments: FinancePayment[];
 };
 
+export type DsKidBillingMode = "SINGLE" | "INSTALLMENT" | "RECURRING";
+
 export type DsKidEntry = {
   id: string;
   competence: string;
   studentName: string;
   amount: number;
+  dueDay?: number | null;
+  billingMode?: DsKidBillingMode;
+  tennisCategory?: "RED" | "ORANGE" | "GREEN" | null;
   installmentCurrent?: number | null;
   installmentTotal?: number | null;
 };

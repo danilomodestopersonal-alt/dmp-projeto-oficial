@@ -19,8 +19,8 @@ export type FinanceCommand =
   | { type: "PERSONAL_DELETE"; id: string }
   | { type: "PERSONAL_PAYMENT_ADD"; invoiceId: string; date: string; amount: number; note?: string }
   | { type: "PERSONAL_PAYMENT_DELETE"; invoiceId: string; paymentId: string }
-  | { type: "DS_KID_CREATE"; competence: string; studentName: string; amount: number; installmentCurrent?: number | null; installmentTotal?: number | null }
-  | { type: "DS_KID_UPDATE"; id: string; studentName: string; amount: number; installmentCurrent?: number | null; installmentTotal?: number | null }
+  | { type: "DS_KID_CREATE"; competence: string; studentName: string; amount: number; dueDay?:number|null; billingMode?:"SINGLE"|"INSTALLMENT"|"RECURRING"; tennisCategory?:"RED"|"ORANGE"|"GREEN"|null; installmentCurrent?: number | null; installmentTotal?: number | null }
+  | { type: "DS_KID_UPDATE"; id: string; studentName: string; amount: number; dueDay?:number|null; billingMode?:"SINGLE"|"INSTALLMENT"|"RECURRING"; tennisCategory?:"RED"|"ORANGE"|"GREEN"|null; installmentCurrent?: number | null; installmentTotal?: number | null }
   | { type: "DS_KID_DELETE"; id: string }
   | { type: "DS_RECEIPT_ADD"; competence: string; date: string; amount: number; sourceName?: string; note?: string }
   | { type: "DS_RECEIPT_DELETE"; competence: string; receiptId: string }
@@ -78,7 +78,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
   }
 
   const sourcePersonal = data.personalInvoices.filter(item => item.competence === fromCompetence);
-  const sourceKids = data.dsKids.filter(item => item.competence === fromCompetence);
+  const sourceKids = data.dsKids.filter(item => item.competence === fromCompetence).filter(item=>item.billingMode!=="SINGLE");
   const sourceExpenses = data.expenses.filter(item => item.competence === fromCompetence);
 
   const personalInvoices: PersonalInvoice[] = sourcePersonal.map(item => ({
@@ -207,12 +207,12 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory({ ...data, personalInvoices: updated }, historyEntry(invoice.competence, "PERSONAL_PAYMENT_DELETED", `Recebimento de ${invoice.studentName} removido.`, payment.amount, invoice.id));
     }
 
-    case "DS_KID_CREATE": { const kid: DsKidEntry = { id: id("kid"), competence: command.competence, studentName: command.studentName.trim(), amount: command.amount, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null };
+    case "DS_KID_CREATE": { const kid: DsKidEntry = { id: id("kid"), competence: command.competence, studentName: command.studentName.trim(), amount: command.amount, dueDay:command.dueDay??null, billingMode:command.billingMode||"RECURRING", tennisCategory:command.tennisCategory??null, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null };
       return withHistory({ ...data, dsKids: [...data.dsKids, kid] }, historyEntry(command.competence, "DS_KID_CREATED", `Aluno Kids ${kid.studentName} criado.`, kid.amount, kid.id));
     }
 
     case "DS_KID_UPDATE": { const current = data.dsKids.find(item => item.id === command.id); if (!current) return data;
-      const updated = data.dsKids.map(item => item.id === command.id ? { ...item, studentName: command.studentName.trim(), amount: command.amount, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null } : item);
+      const updated = data.dsKids.map(item => item.id === command.id ? { ...item, studentName: command.studentName.trim(), amount: command.amount, dueDay:command.dueDay??null, billingMode:command.billingMode||item.billingMode||"RECURRING", tennisCategory:command.tennisCategory??null, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null } : item);
       return withHistory({ ...data, dsKids: updated }, historyEntry(current.competence, "DS_KID_UPDATED", `Aluno Kids ${command.studentName.trim()} atualizado.`, command.amount, command.id));
     }
 

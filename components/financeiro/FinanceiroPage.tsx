@@ -335,7 +335,7 @@ export default function FinanceiroPage() {
             <div className="panel-head"><div><h2>Personal · {competenceLabel(competence)}</h2><p className="muted">{money.format(summary.personalReceived)} recebidos de {money.format(summary.personalExpected)} previstos.</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "personal-create" })}>+ Mensalidade</button></div>
             <FilterBar value={listFilter} onChange={setListFilter} />
             <div className={styles.list}>
-              {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).map(invoice => {
+              {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).sort(compareDueDay).map(invoice => {
                 const received = paid(invoice.payments); const missing = remaining(invoice.expectedAmount, invoice.payments); const status = invoiceStatus(invoice);
                 return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><button className={styles.manageButton} disabled={!editable} onClick={() => openAction({ type: "personal-edit", invoice })}>Editar</button></div>;
               })}
@@ -354,7 +354,7 @@ export default function FinanceiroPage() {
             </section>
             <section className="panel">
               <div className="panel-head"><div><h2>Alunos Kids</h2><p className="muted">{summary.kids.length} registros · {money.format(summary.kidsGross)} bruto.</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "kid-create" })}>+ Kids</button></div>
-              <div className={`${styles.list} ${styles.scrollList}`}>{summary.kids.map(kid => <div className={styles.rowShell} key={kid.id}><div className={`${styles.row} ${styles.staticRow} ${styles.rowMain}`}><span><strong>{kid.studentName}</strong><small>{kid.installmentCurrent && kid.installmentTotal ? `${kid.installmentCurrent}/${kid.installmentTotal}` : kid.installmentTotal ? `${kid.installmentTotal} parcelas · atual a configurar` : "Parcelas a configurar"}</small></span><strong>{money.format(kid.amount)}</strong></div><button className={styles.manageButton} disabled={!editable} onClick={() => openAction({ type: "kid-edit", kid })}>Editar</button></div>)}</div>
+              <div className={`${styles.list} ${styles.scrollList}`}>{summary.kids.slice().sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")).map(kid => <div className={styles.rowShell} key={kid.id}><div className={`${styles.row} ${styles.staticRow} ${styles.rowMain}`}><span><strong><FinanceCategoryDot category={kid.tennisCategory}/>{kid.studentName}</strong><small>{kid.installmentCurrent && kid.installmentTotal ? `${kid.installmentCurrent}/${kid.installmentTotal}` : kid.installmentTotal ? `${kid.installmentTotal} parcelas · atual a configurar` : "Parcelas a configurar"}</small></span><strong>{money.format(kid.amount)}</strong></div><button className={styles.manageButton} disabled={!editable} onClick={() => openAction({ type: "kid-edit", kid })}>Editar</button></div>)}</div>
             </section>
           </div>
         ) : null}
@@ -415,13 +415,15 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
   const [description, setDescription] = useState(extra?.description || "");
   const [category, setCategory] = useState(extra?.category || data.categories[0] || "Outros");
   const [method, setMethod] = useState(extra?.paymentMethod || "");
-  const [dueDay, setDueDay] = useState(String(invoice?.dueDay || expense?.dueDay || 10));
+  const [dueDay, setDueDay] = useState(String(invoice?.dueDay || kid?.dueDay || expense?.dueDay || 10));
   const [kind, setKind] = useState<FinanceExpenseKind>(defaultKind);
   const [installmentCurrent, setInstallmentCurrent] = useState(String(kid?.installmentCurrent || expense?.installmentCurrent || ""));
   const [installmentTotal, setInstallmentTotal] = useState(String(kid?.installmentTotal || expense?.installmentTotal || ""));
   const [sourceName, setSourceName] = useState("DS");
   const [note, setNote] = useState("");
   const [newCategory, setNewCategory] = useState("");
+  const [kidBillingMode,setKidBillingMode]=useState<"SINGLE"|"INSTALLMENT"|"RECURRING">(kid?.billingMode||"RECURRING");
+  const [kidCategory,setKidCategory]=useState<"RED"|"ORANGE"|"GREEN"|null>(kid?.tennisCategory||null);
 
   function numericAmount() { return parseMoney(amount); }
   function validDay() { return Math.min(31, Math.max(1, Number(dueDay) || 1)); }
@@ -484,9 +486,12 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
 
     if (action.type === "kid-create" || action.type === "kid-edit") {
       if (!name.trim() || numeric === null || numeric < 0) return;
-      const current = optNumber(installmentCurrent); const total = optNumber(installmentTotal);
-      if (action.type === "kid-create") dispatch({ type: "DS_KID_CREATE", competence, studentName: name, amount: numeric, installmentCurrent: current, installmentTotal: total });
-      else dispatch({ type: "DS_KID_UPDATE", id: action.kid.id, studentName: name, amount: numeric, installmentCurrent: current, installmentTotal: total });
+      const total = kidBillingMode==="INSTALLMENT"?optNumber(installmentTotal):null;
+      const current = kidBillingMode==="INSTALLMENT"?(optNumber(installmentCurrent)||1):null;
+      if(kidBillingMode==="INSTALLMENT"&&!total)return;
+      const payload={studentName:name,amount:numeric,dueDay:validDay(),billingMode:kidBillingMode,tennisCategory:kidCategory,installmentCurrent:current,installmentTotal:total};
+      if (action.type === "kid-create") dispatch({ type: "DS_KID_CREATE", competence, ...payload });
+      else dispatch({ type: "DS_KID_UPDATE", id: action.kid.id, ...payload });
       onClose(); return;
     }
 
@@ -518,7 +523,7 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
 
     {action.type === "ds-receipt" ? <><div className={styles.formGrid}><label>Valor recebido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Origem<input value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="DS" /></label><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Opcional" /></label></> : null}
 
-    {action.type === "kid-create" || action.type === "kid-edit" ? <><label>Aluno Kids<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><label>Valor da mensalidade/parcela<input value={amount} onChange={event => setAmount(event.target.value)} /></label><div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent} onChange={event => setInstallmentCurrent(event.target.value)} /></label><label>Total de parcelas<input type="number" min="1" value={installmentTotal} onChange={event => setInstallmentTotal(event.target.value)} /></label></div></> : null}
+    {action.type === "kid-create" || action.type === "kid-edit" ? <><label>Aluno Kids<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event=>setDueDay(event.target.value)}/></label></div><label>Forma de cobrança<select value={kidBillingMode} onChange={event=>setKidBillingMode(event.target.value as typeof kidBillingMode)}><option value="SINGLE">Parcela única</option><option value="INSTALLMENT">Parcelado por quantidade de meses</option><option value="RECURRING">Recorrente sem término</option></select></label>{kidBillingMode==="INSTALLMENT"?<div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent||"1"} onChange={event=>setInstallmentCurrent(event.target.value)}/></label><label>Quantidade de parcelas<input type="number" min="1" value={installmentTotal} onChange={event=>setInstallmentTotal(event.target.value)}/></label></div>:null}<fieldset className={styles.categoryPicker}><legend>Categoria DS Tênis</legend>{([null,"RED","ORANGE","GREEN"] as const).map(value=><button type="button" key={value||"NONE"} className={kidCategory===value?styles.categorySelected:""} onClick={()=>setKidCategory(value)}>{value===null?"Sem categoria":value==="RED"?"🔴 Vermelha":value==="ORANGE"?"🟠 Laranja":"🟢 Verde"}</button>)}</fieldset></> : null}
 
     {action.type === "extra-create" || action.type === "extra-edit" ? <><label>Descrição<input value={description} onChange={event => { setDescription(event.target.value); if (!category) setCategory(suggestCategory(event.target.value)); }} placeholder="Ex.: Padaria" autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><div className={styles.formGrid}><label>Categoria<select value={category} onChange={event => setCategory(event.target.value)}>{data.categories.map(item => <option key={item}>{item}</option>)}</select></label><label>Forma de pagamento<input value={method} onChange={event => setMethod(event.target.value)} placeholder="Pix, Débito..." /></label></div></> : null}
 
@@ -536,7 +541,7 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
 }
 
 function ExpenseList({ title, items, filter, setFilter, editable, onCreate, onPay, onEdit }: { title: string; items: FinanceExpense[]; filter: Filter; setFilter: (value: Filter) => void; editable: boolean; onCreate: () => void; onPay: (expense: FinanceExpense) => void; onEdit: (expense: FinanceExpense) => void }) {
-  const filtered = items.filter(item => matchesFilter(expenseStatus(item), filter));
+  const filtered = items.filter(item => matchesFilter(expenseStatus(item), filter)).sort(compareDueDay);
   return <section className="panel"><div className="panel-head"><div><h2>{title}</h2><p className="muted">Contas recorrentes, parcelamentos e despesas do mês.</p></div><button className="primary" disabled={!editable} onClick={onCreate}>+ Nova conta</button></div><FilterBar value={filter} onChange={setFilter} /><div className={styles.list}>{filtered.length ? filtered.map(expense => { const missing = remaining(expense.expectedAmount, expense.payments); return <div className={styles.rowShell} key={expense.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => onPay(expense)}><span><strong>{expense.name}</strong><small>{expense.installmentCurrent && expense.installmentTotal ? `${expense.installmentCurrent}/${expense.installmentTotal} · ` : ""}vence dia {expense.dueDay} · {expenseKindLabel(expense.kind)} · {statusLabel(expenseStatus(expense))}</small></span><span className={styles.right}><strong>{money.format(expense.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : "✓ Pago"}</small></span></button><button className={styles.manageButton} disabled={!editable} onClick={() => onEdit(expense)}>Editar</button></div>; }) : <Empty text="Nenhuma conta neste filtro." />}</div></section>;
 }
 
@@ -588,6 +593,8 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (value: Filte
   return <div className={styles.filters}>{([ ["ALL", "Todos"], ["OPEN", "Em aberto"], ["OVERDUE", "Vencidos"], ["PAID", "Pagos"] ] as const).map(([key, label]) => <button key={key} className={value === key ? styles.activeFilter : ""} onClick={() => onChange(key)}>{label}</button>)}</div>;
 }
 
+function compareDueDay(a:{dueDay?:number|null},b:{dueDay?:number|null}) { const ad=a.dueDay&&a.dueDay>0?a.dueDay:Number.MAX_SAFE_INTEGER; const bd=b.dueDay&&b.dueDay>0?b.dueDay:Number.MAX_SAFE_INTEGER; return ad-bd; }
+function FinanceCategoryDot({category}:{category?:"RED"|"ORANGE"|"GREEN"|null}) { return category?<span className={`${styles.financeCategoryDot} ${styles[category.toLowerCase()]}`} aria-label={`Categoria ${category.toLowerCase()}`}/>:null; }
 function matchesFilter(status: string, filter: Filter) { if (filter === "ALL") return true; if (filter === "PAID") return status === "PAID"; if (filter === "OVERDUE") return status.includes("OVERDUE"); return status !== "PAID"; }
 function Kpi({ label, value, text, emphasis = false, percent = false, tone = "neutral" }: { label: string; value?: number; text?: string; emphasis?: boolean; percent?: boolean; tone?: "neutral" | "income" | "expense" | "resultPositive" | "resultNegative" | "resultZero" }) { const toneClass = tone === "income" ? styles.kpiIncome : tone === "expense" ? styles.kpiExpense : tone === "resultPositive" ? styles.kpiResultPositive : tone === "resultNegative" ? styles.kpiResultNegative : tone === "resultZero" ? styles.kpiResultZero : ""; return <article className={`${styles.kpi} ${emphasis ? styles.kpiEmphasis : ""} ${toneClass}`}><span>{label}</span><strong>{text ?? (percent ? `${(value || 0).toFixed(1).replace(".", ",")}%` : money.format(value || 0))}</strong></article>; }
 function Pending({ text, onClick, danger = false }: { text: string; onClick: () => void; danger?: boolean }) { return <button className={`${styles.pending} ${danger ? styles.pendingDanger : ""}`} onClick={onClick}><span>●</span><strong>{text}</strong><span>›</span></button>; }
