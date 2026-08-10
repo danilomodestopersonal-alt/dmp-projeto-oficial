@@ -44,6 +44,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [showEditStudentForm, setShowEditStudentForm] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
+  const [workoutToCopy, setWorkoutToCopy] = useState<Workout | null>(null);
   const [calendarStatus, setCalendarStatus] = useState<{configured:boolean;connected:boolean}>({configured:false,connected:false});
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -51,6 +52,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [calendarSync, setCalendarSync] = useState<{dailyAt:string;weeklyAt:string;weeklyCount:number}>({dailyAt:"",weeklyAt:"",weeklyCount:0});
   const [historySearch, setHistorySearch] = useState("");
   const [historySource, setHistorySource] = useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
+  const [workoutsOnly, setWorkoutsOnly] = useState(false);
   const [showGoogleEventForm, setShowGoogleEventForm] = useState(false);
   const [showFinancePin, setShowFinancePin] = useState(false);
   const [financePin, setFinancePin] = useState("");
@@ -58,6 +60,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [notes, setNotes] = useState<DmpNote[]>([]);
   const [newNote, setNewNote] = useState("");
   const [notesLoaded, setNotesLoaded] = useState(false);
+  const [removedNote, setRemovedNote] = useState<{note:DmpNote;index:number}|null>(null);
 
   // Mantém uma entrada de histórico interna para o botão/gesto Voltar do Android.
   useEffect(() => {
@@ -167,7 +170,8 @@ useEffect(()=>{
 
   function addNote(){const text=newNote.trim();if(!text)return;const now=new Date().toISOString();setNotes(current=>[{id:crypto.randomUUID(),text,done:false,createdAt:now,updatedAt:now},...current]);setNewNote("");}
   function patchNote(id:string,patch:Partial<DmpNote>){setNotes(current=>current.map(note=>note.id===id?{...note,...patch,updatedAt:new Date().toISOString()}:note));}
-  function removeNote(id:string){if(confirm("Excluir este recado?"))setNotes(current=>current.filter(note=>note.id!==id));}
+  function removeNote(id:string){if(!confirm("Excluir este recado?"))return;setNotes(current=>{const index=current.findIndex(note=>note.id===id);if(index<0)return current;setRemovedNote({note:current[index],index});return current.filter(note=>note.id!==id);});}
+  function undoNoteRemoval(){if(!removedNote)return;setNotes(current=>{const next=[...current];next.splice(Math.min(removedNote.index,next.length),0,removedNote.note);return next;});setRemovedNote(null);}
 
 useEffect(() => {
 fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>{});
@@ -356,6 +360,26 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setView("student");
   }
 
+  function copyWorkoutToStudent(targetStudentId:string,targetSlot:WorkoutSlot) {
+    if(!workoutToCopy)return;
+    const target=students.find(student=>student.id===targetStudentId);
+    if(!target)return;
+    const collision=getStudentWorkoutEntries(target).find(entry=>entry.slot===targetSlot)?.workout;
+    if(collision&&!confirm(`${target.name} já possui o Treino ${targetSlot}. Substituir essa ficha pela cópia?`))return;
+    const copy:Workout={
+      ...workoutToCopy,
+      id:crypto.randomUUID(),
+      slot:targetSlot,
+      name:workoutToCopy.name===`Treino ${workoutToCopy.slot||""}`?`Treino ${targetSlot}`:workoutToCopy.name,
+      active:true,
+      archivedAt:undefined,
+      exercises:workoutToCopy.exercises.map(exercise=>({...exercise,id:crypto.randomUUID()}))
+    };
+    const base=collision?target.workouts.map(item=>item.id===collision.id?{...item,active:false,archivedAt:today()}:item):target.workouts;
+    updateStudentRecord({...target,workouts:[...base,copy]});
+    setWorkoutToCopy(null);
+  }
+
   function duplicateWorkout() {
     if (!selectedStudent || !selectedWorkout) return;
     const occupied = new Set(getStudentWorkoutEntries(selectedStudent).map(entry => entry.slot));
@@ -451,6 +475,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       setShowFinancePin(true);
       return;
     }
+    if(target==="workouts-overview")setWorkoutsOnly(false);
     setView(target);
   }
 
@@ -478,7 +503,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     const plannedCount = students.filter(student => student.status === "ACTIVE" && getStudentWorkoutEntries(student).length > 0).length;
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
     const allHistory = students.flatMap(student=>student.sessions.map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
-    const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${student.name} ${session.workoutName} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; return matchText&&matchSource; });
+    const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${session.date} ${student.name} ${session.workoutName} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; return matchText&&matchSource; });
 
     return (
       <main className="dashboard-shell">
@@ -487,8 +512,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "today" ? <>
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><div className="hero-actions"><button className="secondary" onClick={() => setView("students")}>Ver alunos</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
             <section className="dashboard-content">
-              <div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length}/><Stat icon="📋" label="Com treino montado" value={plannedCount}/></div>
-              <section className="panel notes-panel"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addNote();}} placeholder="Escreva um recado..."/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}><textarea aria-label="Recado" value={note.text} onChange={e=>patchNote(note.id,{text:e.target.value})}/><div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}</section>
+              <div className="dashboard-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount} onClick={()=>{setStudentFilter("ACTIVE");setView("students");}}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length} onClick={()=>{setHistorySearch(todayKey);setHistorySource("ALL");setView("history-overview");}}/><Stat icon="📋" label="Com treino montado" value={plannedCount} onClick={()=>{setWorkoutsOnly(true);setView("workouts-overview");}}/></div>
+              <section className="panel notes-panel"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input value={newNote} onChange={e=>setNewNote(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addNote();}} placeholder="Escreva um recado..."/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}><textarea aria-label="Recado" value={note.text} onChange={e=>patchNote(note.id,{text:e.target.value})}/><div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}</section>
               <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={startStudentFlow} />
               <section className="panel today-panel"><div className="panel-head"><div><h2>Atendimentos de hoje</h2><p className="muted">Tudo que já foi salvo hoje aparece aqui.</p></div></div>
                 {todaySessions.length ? <div className="today-session-list">{todaySessions.map(({student,session}) => <button className="today-session-row" key={session.id} onClick={() => openStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><span><strong>{student.name}</strong><small>{sessionSourceLabel(session)}</small></span><span className="today-session-status">✓ Salvo</span></button>)}</div> : <div className="empty-review"><strong>Nenhum atendimento registrado ainda</strong><span>Quando você salvar uma ficha, um treino livre ou uma presença, ele aparecerá aqui.</span></div>}
@@ -506,7 +531,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
             </section>
           </> : null}
 
-          {view === "workouts-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Biblioteca por aluno</p><h1>Treinos</h1><p>Veja rapidamente as abas A, B, C e D montadas para cada aluno.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="📋" label="Com treino montado" value={plannedCount}/><Stat icon="⚡" label="Sem treino montado" value={activeCount-plannedCount}/><Stat icon="👥" label="Alunos ativos" value={activeCount}/></div><div className="overview-list">{students.filter(s=>s.status==="ACTIVE").sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(student => {const entries=getStudentWorkoutEntries(student);const slots=entries.map(entry=>entry.slot).join(" · ");const exerciseTotal=entries.reduce((sum,entry)=>sum+entry.workout.exercises.length,0);return <button className="overview-row" key={student.id} onClick={()=>{openStudent(student.id);setTab("workouts");}}><span><strong>{student.name}</strong><small>{entries.length ? `Treinos ${slots} · ${exerciseTotal} exercícios no total` : "Sem treino montado"}</small></span><span className={entries.length?"status-chip ok":"status-chip"}>{entries.length?`${entries.length} aba${entries.length===1?"":"s"}`:"Sem ficha"}</span></button>})}</div></section></> : null}
+          {view === "workouts-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Biblioteca por aluno</p><h1>Treinos</h1><p>Veja rapidamente as abas A, B, C e D montadas para cada aluno.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="📋" label="Com treino montado" value={plannedCount}/><Stat icon="⚡" label="Sem treino montado" value={activeCount-plannedCount}/><Stat icon="👥" label="Alunos ativos" value={activeCount}/></div><div className="overview-list">{students.filter(s=>s.status==="ACTIVE"&&(!workoutsOnly||getStudentWorkoutEntries(s).length>0)).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(student => {const entries=getStudentWorkoutEntries(student);const slots=entries.map(entry=>entry.slot).join(" · ");const exerciseTotal=entries.reduce((sum,entry)=>sum+entry.workout.exercises.length,0);return <button className="overview-row" key={student.id} onClick={()=>{openStudent(student.id);setTab("workouts");}}><span><strong>{student.name}</strong><small>{entries.length ? `Treinos ${slots} · ${exerciseTotal} exercícios no total` : "Sem treino montado"}</small></span><span className={entries.length?"status-chip ok":"status-chip"}>{entries.length?`${entries.length} aba${entries.length===1?"":"s"}`:"Sem ficha"}</span></button>})}</div></section></> : null}
 
           {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
@@ -570,13 +595,14 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           </section>
 
           {tab === "summary" ? <StudentSummary student={selectedStudent} /> : null}
-          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} /> : null}
+          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
         </section>
 
         {showEditStudentForm ? <StudentForm title="Editar aluno" initialStudent={selectedStudent} onClose={() => setShowEditStudentForm(false)} onSave={editStudent} /> : null}
         {showAssessmentForm ? <AssessmentForm onClose={() => setShowAssessmentForm(false)} onSave={saveAssessment} /> : null}
+        {workoutToCopy ? <DuplicateWorkoutModal workout={workoutToCopy} students={students} sourceStudentId={selectedStudent.id} onClose={()=>setWorkoutToCopy(null)} onConfirm={copyWorkoutToStudent} /> : null}
       </main>
     );
   }
@@ -629,7 +655,7 @@ function DataCenter({students,onReplace}:{students:Student[];onReplace:(students
 }
 
 function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error:string;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
-  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" onSubmit={onSubmit}><label className="full">PIN<input autoFocus type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={pin.length!==4}>Entrar no Financeiro</button></form></section></div>;
+  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" autoComplete="off" onSubmit={onSubmit}><label className="full">PIN<input autoFocus className="finance-pin-input" type="text" name="dmp-finance-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={4} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={pin.length!==4}>Entrar no Financeiro</button></form></section></div>;
 }
 
 function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View)=>void;logout:()=>void}) {
@@ -690,7 +716,7 @@ function WeatherPage({onBack}:{onBack:()=>void}){
 }
 
 
-function Stat({icon,label,value}:{icon:string;label:string;value:number}) { return <article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
+function Stat({icon,label,value,onClick}:{icon:string;label:string;value:number;onClick?:()=>void}) { return onClick?<button type="button" className="stat-card stat-card-button" onClick={onClick}><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></button>:<article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
 function Header({title,back}:{title:string;back?:()=>void}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong>{title}</strong></div></header>; }
 
 function StudentProfileSnapshot({student}:{student:Student}) {
@@ -736,7 +762,14 @@ function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initial
     <label className="full">Observações gerais<textarea rows={4} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} /></label><button className="primary full">Salvar aluno</button></form></section></div>;
 }
 
-function WorkoutSlotsPanel({student,onEdit,onStart,onArchive}:{student:Student;onEdit:(slot:WorkoutSlot,workout:Workout|null)=>void;onStart:(workout:Workout)=>void;onArchive:(workout:Workout)=>void}) {
+function DuplicateWorkoutModal({workout,students,sourceStudentId,onClose,onConfirm}:{workout:Workout;students:Student[];sourceStudentId:string;onClose:()=>void;onConfirm:(studentId:string,slot:WorkoutSlot)=>void}){
+  const targets=students.filter(student=>student.status==="ACTIVE"&&student.id!==sourceStudentId).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+  const [studentId,setStudentId]=useState(targets[0]?.id||"");
+  const [slot,setSlot]=useState<WorkoutSlot>(workout.slot||"A");
+  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Duplicar ficha</h2><p className="muted">Copie “{workout.name}” para outro aluno. A cópia poderá ser editada normalmente.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><div className="form-grid"><label className="full">Aluno<select value={studentId} onChange={event=>setStudentId(event.target.value)}>{targets.map(student=><option key={student.id} value={student.id}>{student.name}</option>)}</select></label><label className="full">Destino<select value={slot} onChange={event=>setSlot(event.target.value as WorkoutSlot)}>{WORKOUT_SLOTS.map(value=><option key={value} value={value}>Treino {value}</option>)}</select></label><button className="primary full" disabled={!studentId} onClick={()=>onConfirm(studentId,slot)}>Duplicar ficha</button></div></section></div>;
+}
+
+function WorkoutSlotsPanel({student,onEdit,onStart,onArchive,onCopy}:{student:Student;onEdit:(slot:WorkoutSlot,workout:Workout|null)=>void;onStart:(workout:Workout)=>void;onArchive:(workout:Workout)=>void;onCopy:(workout:Workout)=>void}) {
   const entries=getStudentWorkoutEntries(student);
   const archived=getArchivedWorkouts(student);
 
@@ -751,7 +784,7 @@ function WorkoutSlotsPanel({student,onEdit,onStart,onArchive}:{student:Student;o
         const workout=entry?.workout;
         return <article className={`workout-slot-card ${workout?"filled":"empty"}`} key={slot}>
           <div className="workout-slot-head"><span className="workout-slot-badge">Treino {slot}</span>{workout?<span className="protocol-chip">{workoutProtocolLabel(workout.protocol)}</span>:<span className="status-chip">Vazio</span>}</div>
-          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
+          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>onCopy(workout)}>Duplicar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
         </article>
       })}</div>
     </section>
@@ -787,6 +820,7 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
   const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
   const [dictation,setDictation]=useState("");
   const [dictating,setDictating]=useState(false);
+  const [removedExercise,setRemovedExercise]=useState<{exercise:Exercise;index:number}|null>(null);
 
   function applyDictation(){
     const text=dictation.trim(); if(!text)return;
@@ -804,8 +838,17 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
 
   function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
   function addExercise(){setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"3",reps:"12",load:"",notes:""}]);}
+  function removeExercise(id:string){setExercises(current=>{const index=current.findIndex(item=>item.id===id);if(index<0)return current;setRemovedExercise({exercise:current[index],index});return current.filter(item=>item.id!==id);});}
+  function undoExerciseRemoval(){if(!removedExercise)return;setExercises(current=>{const next=[...current];next.splice(Math.min(removedExercise.index,next.length),0,removedExercise.exercise);return next;});setRemovedExercise(null);}
   function changeProtocol(next:WorkoutProtocol){setProtocol(next);setSequenceSize(defaultSequenceSize(next));}
   function organizeSequences(){setExercises(current=>current.map((exercise,index)=>({...exercise,block:sequenceBlockLabel(protocol,index,sequenceSize)})));}
+  function applyTemplate(template:WorkoutTemplate){
+    if(exercises.some(exercise=>exercise.name.trim())&&!confirm(`Substituir os exercícios atuais pelo modelo “${template.label}”?`))return;
+    setProtocol(template.protocol);
+    setSequenceSize(template.sequenceSize);
+    setWorkoutNotes(template.notes||"");
+    setExercises(template.exercises.map((exercise,index)=>({id:crypto.randomUUID(),block:exercise.block||sequenceBlockLabel(template.protocol,index,template.sequenceSize),name:exercise.name||"",sets:exercise.sets||"3",reps:exercise.reps||"12",load:"",notes:""})));
+  }
 
   const save=()=>{
     const cleanExercises=exercises.filter(exercise=>exercise.name.trim()).map((exercise,index)=>({
@@ -835,9 +878,11 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
     {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
     <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div><div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
 
+    <section className="panel workout-template-panel"><div className="panel-head"><div><h2>Modelos de treino</h2><p className="muted">Use uma estrutura pronta como ponto de partida e revise tudo antes de salvar.</p></div></div><div className="workout-template-grid">{WORKOUT_TEMPLATES.map(template=><button className="secondary" key={template.id} onClick={()=>applyTemplate(template)}><strong>{template.label}</strong><small>{template.description}</small></button>)}</div></section>
+
     <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>📋 Importar treino por texto</h2><p className="muted">Cole aqui o treino organizado e transforme em ficha para revisão. Nada é salvo automaticamente.</p></div></div><textarea rows={8} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7\n\nBloco 1\nSupino reto — 3x15 — 30 kg\nAgachamento livre — 3x15\n\nBloco 2\nSupino inclinado — 3x12 — 12 kg de cada lado\nCadeira extensora — 3x15'}/><div className="hero-actions"><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Interpretar texto</button><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar (experimental)"}</button></div><small className="muted">Depois de interpretar, confira protocolo, blocos, séries, repetições e cargas na tabela abaixo. O microfone continua disponível, mas é experimental.</small></section>
 
-    <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><button className="danger-link workout-remove" onClick={()=>setExercises(current=>current.filter(item=>item.id!==exercise.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></section>
+    <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><button className="danger-link workout-remove" onClick={()=>removeExercise(exercise.id)}>×</button></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}{removedExercise?<div className="undo-strip"><span>Exercício removido.</span><button onClick={undoExerciseRemoval}>Desfazer</button></div>:null}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></section>
   </section></main>;
 }
 
@@ -1142,6 +1187,15 @@ function parseTranscript(text:string):Exercise[] {
 
 
 const WORKOUT_SLOTS:WorkoutSlot[]=["A","B","C","D"];
+type WorkoutTemplate={id:string;label:string;description:string;protocol:WorkoutProtocol;sequenceSize:number;notes?:string;exercises:Array<Partial<Exercise>>};
+const blankTemplateExercises=(count:number,size:number)=>Array.from({length:count},(_,index)=>({block:`Bloco ${Math.floor(index/size)+1}`,name:"",sets:"3",reps:"12"}));
+const WORKOUT_TEMPLATES:WorkoutTemplate[]=[
+  {id:"b7",label:"B7",description:"4 blocos com 2 exercícios",protocol:"B7",sequenceSize:2,exercises:blankTemplateExercises(8,2)},
+  {id:"biset",label:"Bi-set",description:"3 blocos com 2 exercícios",protocol:"BISET",sequenceSize:2,exercises:blankTemplateExercises(6,2)},
+  {id:"circuit",label:"Circuito",description:"6 exercícios em sequência",protocol:"CIRCUIT",sequenceSize:6,exercises:blankTemplateExercises(6,6)},
+  {id:"travel",label:"Viagem / academia",description:"Ficha geral fácil de adaptar",protocol:"CONVENTIONAL",sequenceSize:1,notes:"Treino para realizar durante a viagem. Ajustar cargas conforme os equipamentos disponíveis.",exercises:["Agachamento livre com halteres","Puxada frontal","Supino com halteres","Cadeira extensora","Remada baixa","Mesa ou cadeira flexora"].map(name=>({name,sets:"3",reps:"12"}))},
+  {id:"bodyweight",label:"Sem equipamentos",description:"Treino usando o peso corporal",protocol:"CIRCUIT",sequenceSize:6,notes:"Executar respeitando limitações e espaço disponível.",exercises:["Agachamento livre","Avanço alternado","Flexão de braço","Elevação de quadril","Prancha","Polichinelo"].map(name=>({name,sets:"3",reps:"12"}))}
+];
 const WORKOUT_PROTOCOL_OPTIONS:{value:WorkoutProtocol;label:string}[]=[
   {value:"CONVENTIONAL",label:"Convencional"},
   {value:"BISET",label:"Bi-set"},

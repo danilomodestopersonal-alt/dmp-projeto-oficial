@@ -313,6 +313,64 @@ input:focus,textarea:focus{
   box-shadow: 0 14px 36px rgba(37, 39, 44, 0.07);
 }
 
+.stat-card-button {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.stat-card-button:hover,
+.stat-card-button:focus-visible {
+  transform: translateY(-2px);
+  border-color: #a8c93b;
+  box-shadow: 0 18px 40px rgba(37, 39, 44, 0.11);
+  outline: none;
+}
+
+.finance-pin-input {
+  -webkit-text-security: disc;
+}
+
+.workout-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.workout-template-grid button {
+  display: grid;
+  gap: 5px;
+  min-height: 82px;
+  text-align: left;
+}
+
+.workout-template-grid small { color: #6f7767; }
+
+.undo-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 11px 14px;
+  border: 1px solid #d7e4b8;
+  border-radius: 12px;
+  background: #f4f8e9;
+  color: #445225;
+  font-weight: 750;
+}
+
+.undo-strip button {
+  border: 0;
+  background: transparent;
+  color: #116f99;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .stat-card-icon {
   width: 52px;
   height: 52px;

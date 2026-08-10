@@ -73,6 +73,7 @@ export default function FinanceiroPage() {
   const [voiceText, setVoiceText] = useState("");
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const [listFilter, setListFilter] = useState<Filter>("ALL");
+  const [undoDeletion, setUndoDeletion] = useState<FinanceData | null>(null);
   const competence = data.currentCompetence;
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
@@ -121,8 +122,11 @@ export default function FinanceiroPage() {
   }, [data, loaded, cloudWritable]);
 
   function dispatch(command: FinanceCommand) {
+    if(command.type.endsWith("_DELETE"))setUndoDeletion(data);
     setData(current => applyFinanceCommand(current, command));
   }
+
+  function undoLastDeletion(){if(!undoDeletion)return;setData(undoDeletion);setUndoDeletion(null);}
 
   function requireEditable() {
     if (editable) return true;
@@ -206,8 +210,10 @@ export default function FinanceiroPage() {
   function closeCompetence(createNext: boolean) {
     const warnings = [
       pendencies.personalOpen ? `${pendencies.personalOpen} mensalidades de Personal em aberto` : "",
-      summary.expenses.filter(item => expenseStatus(item) !== "PAID").length ? `${summary.expenses.filter(item => expenseStatus(item) !== "PAID").length} contas em aberto` : "",
+      summary.expenses.filter(item => item.expectedAmount > 0 && expenseStatus(item) !== "PAID").length ? `${summary.expenses.filter(item => item.expectedAmount > 0 && expenseStatus(item) !== "PAID").length} contas em aberto` : "",
       summary.dsBalance > 0 ? `${money.format(summary.dsBalance)} ainda a receber da DS` : "",
+      pendencies.cardsMissing ? `${pendencies.cardsMissing} cartões sem valor de fatura` : "",
+      pendencies.rankingMissing ? "ranking DS ainda não informado" : "",
     ].filter(Boolean);
     const suffix = warnings.length ? `\n\nPendências atuais:\n• ${warnings.join("\n• ")}\n\nO fechamento continuará guardando essas informações.` : "";
     const next = nextCompetence(competence);
@@ -265,6 +271,7 @@ export default function FinanceiroPage() {
       </header>
 
       <section className={`dashboard-content ${styles.content}`}>
+        {undoDeletion ? <div className={styles.undoStrip}><span>Exclusão realizada.</span><button onClick={undoLastDeletion}>Desfazer</button></div> : null}
         <nav className={styles.tabs}>
           {([
             ["summary", "Resumo"], ["personal", "Personal"], ["ds", "DS Tênis"],
@@ -536,13 +543,15 @@ function ExpenseList({ title, items, filter, setFilter, editable, onCreate, onPa
 function ClosingTab({ data, competence, summary, pendencies, editable, onClose, onReopen, onCreateNext, onSwitch }: { data: FinanceData; competence: string; summary: ReturnType<typeof financeSummary>; pendencies: ReturnType<typeof financialPendencies>; editable: boolean; onClose: (createNext: boolean) => void; onReopen: () => void; onCreateNext: () => void; onSwitch: (value: string) => void }) {
   const next = nextCompetence(competence);
   const monthHistory = (data.history || []).filter(item => item.competence === competence).slice().sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
-  const accountsOpen = summary.expenses.filter(item => expenseStatus(item) !== "PAID").length;
+  const accountsOpen = summary.expenses.filter(item => item.expectedAmount > 0 && expenseStatus(item) !== "PAID").length;
+  const monthChecked = !pendencies.personalOpen && !accountsOpen && Math.abs(summary.dsBalance) < .01 && !pendencies.cardsMissing && !pendencies.rankingMissing;
   return <div className={styles.twoCol}>
     <section className="panel">
       <div className="panel-head"><div><h2>Fechamento · {competenceLabel(competence)}</h2><p className="muted">Congele o mês e prepare a competência seguinte.</p></div></div>
       <div className={styles.closingStatus}><span>Status atual</span><strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong></div>
+      <div className={monthChecked?styles.monthCheckOk:styles.monthCheckWarning}><strong>{monthChecked?"✓ Conferência do mês concluída":"⚠ Conferência do mês requer atenção"}</strong><span>{monthChecked?"Personal, despesas e DS estão conferidos.":"Revise os itens indicados abaixo antes de fechar."}</span></div>
       <div className={styles.calc}><Calc label="Resultado realizado" value={summary.realizedResult} strong /><Calc label="Saldo projetado" value={summary.projectedResult} /><Calc label="Personal em aberto" value={summary.personalOpen} /><Calc label="Saldo DS" value={summary.dsBalance} /><Calc label="Contas a pagar" value={summary.payable} /></div>
-      <div className={styles.checkList}><span className={!pendencies.personalOpen ? styles.checkOk : ""}>● {pendencies.personalOpen ? `${pendencies.personalOpen} mensalidades de Personal em aberto` : "Personal conferido"}</span><span className={!accountsOpen ? styles.checkOk : ""}>● {accountsOpen ? `${accountsOpen} contas ainda em aberto` : "Despesas conferidas"}</span><span className={Math.abs(summary.dsBalance) < .01 ? styles.checkOk : ""}>● {Math.abs(summary.dsBalance) < .01 ? "DS acertada" : `${money.format(Math.abs(summary.dsBalance))} ${summary.dsBalance >= 0 ? "a receber da DS" : "a devolver para DS"}`}</span></div>
+      <div className={styles.checkList}><span className={!pendencies.personalOpen ? styles.checkOk : ""}>● {pendencies.personalOpen ? `${pendencies.personalOpen} mensalidades de Personal em aberto` : "Personal conferido"}</span><span className={!accountsOpen ? styles.checkOk : ""}>● {accountsOpen ? `${accountsOpen} contas ainda em aberto` : "Despesas conferidas"}</span><span className={Math.abs(summary.dsBalance) < .01 ? styles.checkOk : ""}>● {Math.abs(summary.dsBalance) < .01 ? "DS acertada" : `${money.format(Math.abs(summary.dsBalance))} ${summary.dsBalance >= 0 ? "a receber da DS" : "a devolver para DS"}`}</span><span className={!pendencies.cardsMissing ? styles.checkOk : ""}>● {pendencies.cardsMissing ? `${pendencies.cardsMissing} cartões sem valor de fatura` : "Faturas dos cartões conferidas"}</span><span className={!pendencies.rankingMissing ? styles.checkOk : ""}>● {pendencies.rankingMissing ? "Ranking DS ainda não informado" : "Ranking DS conferido"}</span></div>
       {editable ? <div className={styles.closingActions}><button className="secondary" onClick={() => onClose(false)}>Fechar somente este mês</button><button className="primary" onClick={() => onClose(true)}>Fechar e abrir {competenceLabel(next)}</button><button className="text-button" onClick={onCreateNext}>{data.competences[next] ? `Ir para ${competenceLabel(next)}` : `Criar ${competenceLabel(next)} sem fechar agora`}</button></div> : <div className={styles.closingActions}><button className="primary" onClick={onReopen}>Reabrir competência</button>{data.competences[next] ? <button className="secondary" onClick={() => onSwitch(next)}>Ir para {competenceLabel(next)}</button> : <button className="secondary" onClick={onCreateNext}>Criar {competenceLabel(next)}</button>}</div>}
     </section>
     <section className="panel">
