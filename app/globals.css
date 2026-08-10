@@ -284,6 +284,8 @@ input:focus,textarea:focus{
   text-transform: uppercase;
 }
 
+.today-heading{display:flex;align-items:center;gap:28px;min-width:0}.header-weather{display:flex;align-items:center;gap:11px;min-width:220px;padding:10px 13px;border:1px solid #dce5c5;border-radius:16px;background:#f6faeb;color:var(--dmp-graphite);cursor:pointer;transition:.15s ease}.header-weather:hover{border-color:#b7cd72;background:#f0f7dc;transform:translateY(-1px)}.header-weather:focus-visible{outline:2px solid var(--dmp-green);outline-offset:2px}.header-weather-icon{font-size:1.75rem;line-height:1}.header-weather>div{display:grid;gap:3px}.header-weather-main{display:flex;align-items:baseline;gap:8px}.header-weather-main b{font-size:1.18rem}.header-weather-main span{font-size:.78rem;color:var(--dmp-muted)}.header-weather-meta{display:flex;gap:10px;color:var(--dmp-muted);font-size:.68rem}.header-weather small{color:var(--dmp-muted);font-size:.76rem}
+
 .dashboard-new-student {
   min-width: 150px;
 }
@@ -528,6 +530,8 @@ input:focus,textarea:focus{
     align-items: flex-start;
     padding: 22px 16px;
   }
+
+  .today-heading{flex-direction:column;align-items:flex-start;gap:12px}.header-weather{min-width:0;width:100%;box-sizing:border-box;padding:9px 11px}.header-weather-main b{font-size:1.08rem}
 
   .dashboard-content {
     width: min(100% - 24px, 1180px);
