@@ -2,9 +2,10 @@ import type { FinanceData, FinanceExpense, FinancePayment, PersonalInvoice } fro
 
 export type PaymentStatus = "PENDING" | "PARTIAL" | "PAID" | "OVERDUE" | "PARTIAL_OVERDUE";
 
-export const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+export const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+export const sum = (values: number[]) => roundMoney(values.reduce((total, value) => total + value, 0));
 export const paid = (payments: FinancePayment[]) => sum(payments.map(item => item.amount));
-export const remaining = (expected: number, payments: FinancePayment[]) => Math.max(0, expected - paid(payments));
+export const remaining = (expected: number, payments: FinancePayment[]) => roundMoney(Math.max(0, expected - paid(payments)));
 
 export function localDateISO(date = new Date()) {
   const year = date.getFullYear();
@@ -21,6 +22,7 @@ export function dueDateFor(competence: string, dueDay: number) {
 
 export function paymentStatus(expected: number, payments: FinancePayment[], dueDate: string, referenceDate = new Date()): PaymentStatus {
   const received = paid(payments);
+  if (expected <= 0) return received > 0 ? "PAID" : "PENDING";
   if (received >= expected && expected > 0) return "PAID";
   const today = localDateISO(referenceDate);
   const overdue = today > dueDate;
@@ -46,21 +48,25 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const personalExpected = sum(personal.map(item => item.expectedAmount));
   const personalReceived = sum(personal.map(item => paid(item.payments)));
   const kidsGross = sum(kids.map(item => item.amount));
-  const kidsNet = kidsGross * data.dsPercent;
+  const kidsNet = roundMoney(kidsGross * data.dsPercent);
   const ranking = data.rankingByCompetence[competence] || 0;
-  const dsSettlement = kidsNet + ranking;
+  const dsSettlement = roundMoney(kidsNet + ranking);
   const dsReceived = sum(receipts.map(item => item.amount));
-  const dsBalance = dsSettlement - dsReceived;
+  const dsBalance = roundMoney(dsSettlement - dsReceived);
   const expensesExpected = sum(expenses.map(item => item.expectedAmount));
   const expensesPaid = sum(expenses.map(item => paid(item.payments)));
   const extrasTotal = sum(extras.map(item => item.amount));
-  const projectedRevenue = personalExpected + dsSettlement;
-  const realizedRevenue = personalReceived + dsReceived;
-  const projectedResult = projectedRevenue - expensesExpected - extrasTotal;
-  const realizedResult = realizedRevenue - expensesPaid - extrasTotal;
-  const personalOpen = Math.max(0, personalExpected - personalReceived);
-  const receivable = personalOpen + Math.max(0, dsBalance);
-const payable = Math.max(0, expensesExpected - expensesPaid - extrasTotal);  return {
+  const totalExpensesPaid = roundMoney(expensesPaid + extrasTotal);
+  const projectedRevenue = roundMoney(personalExpected + dsSettlement);
+  const realizedRevenue = roundMoney(personalReceived + dsReceived);
+  const realizedResult = roundMoney(realizedRevenue - totalExpensesPaid);
+  const personalOpen = sum(personal.map(item => remaining(item.expectedAmount, item.payments)));
+  const receivable = roundMoney(personalOpen + Math.max(0, dsBalance));
+  const plannedPayable = Math.max(0, roundMoney(expensesExpected - totalExpensesPaid));
+  const payable = roundMoney(plannedPayable + Math.max(0, -dsBalance));
+  const projectedResult = roundMoney(receivable - payable);
+
+  return {
     personal,
     kids,
     expenses,
@@ -78,6 +84,7 @@ const payable = Math.max(0, expensesExpected - expensesPaid - extrasTotal);  ret
     expensesExpected,
     expensesPaid,
     extrasTotal,
+    totalExpensesPaid,
     projectedRevenue,
     realizedRevenue,
     projectedResult,

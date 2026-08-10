@@ -294,33 +294,21 @@ export default function FinanceiroPage() {
               <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" />
               <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" />
               <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" />
-<Kpi label="Despesas pagas" value={summary.expensesPaid + summary.extrasTotal} tone="expense" />              <Kpi label="Resultado projetado" value={summary.projectedResult} />
+              <Kpi label="Despesas pagas" value={summary.totalExpensesPaid} tone="expense" />
+              <Kpi label="Saldo projetado" value={summary.projectedResult} />
               <Kpi label="A receber" value={summary.receivable} tone="income" />
               <Kpi label="A pagar" value={summary.payable} tone="expense" />
             </div>
 
-            <div className={styles.twoCol}>
-              <section className="panel">
-                <div className="panel-head"><div><h2>Pendências do mês</h2><p className="muted">O que merece atenção agora.</p></div></div>
-                <div className={styles.pendingList}>
-                  {pendencies.personalOpen ? <Pending text={`${pendencies.personalOpen} mensalidades de Personal em aberto`} onClick={() => setTab("personal")} /> : null}
-                  {pendencies.personalOverdue ? <Pending text={`${pendencies.personalOverdue} mensalidades vencidas`} onClick={() => setTab("personal")} danger /> : null}
-                  {pendencies.expensesOverdue ? <Pending text={`${pendencies.expensesOverdue} contas vencidas`} onClick={() => setTab("expenses")} danger /> : null}
-                  {pendencies.rankingMissing ? <Pending text="Ranking do mês ainda não informado" onClick={() => openAction({ type: "ranking" })} /> : null}
-                  <Pending text={summary.dsBalance >= 0 ? `${money.format(summary.dsBalance)} a receber da DS` : `${money.format(Math.abs(summary.dsBalance))} a devolver para DS`} onClick={() => setTab("ds")} danger={summary.dsBalance < 0} />
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-head"><div><h2>Ações rápidas</h2><p className="muted">Rotina diária em poucos toques.</p></div></div>
-                <div className={styles.actionGrid}>
-                  <button className="secondary" onClick={() => setTab("personal")}>Receber Personal</button>
-                  <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
-                  <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
-                  <button className="primary" onClick={() => openAction({ type: "extra-create" })}>+ Gasto extra</button>
-                </div>
-              </section>
-            </div>
+            <section className="panel">
+              <div className="panel-head"><div><h2>Ações rápidas</h2><p className="muted">Rotina diária em poucos toques.</p></div></div>
+              <div className={styles.actionGrid}>
+                <button className="secondary" onClick={() => setTab("personal")}>Receber Personal</button>
+                <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
+                <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
+                <button className="primary" onClick={() => openAction({ type: "extra-create" })}>+ Gasto extra</button>
+              </div>
+            </section>
 
             <div className={styles.threeCol}>
               <MiniSummary title="Personal" rows={[["Previsto", summary.personalExpected], ["Recebido", summary.personalReceived], ["Falta", summary.personalOpen]]} onClick={() => setTab("personal")} />
@@ -553,7 +541,7 @@ function ClosingTab({ data, competence, summary, pendencies, editable, onClose, 
     <section className="panel">
       <div className="panel-head"><div><h2>Fechamento · {competenceLabel(competence)}</h2><p className="muted">Congele o mês e prepare a competência seguinte.</p></div></div>
       <div className={styles.closingStatus}><span>Status atual</span><strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong></div>
-      <div className={styles.calc}><Calc label="Resultado realizado" value={summary.realizedResult} strong /><Calc label="Resultado projetado" value={summary.projectedResult} /><Calc label="Personal em aberto" value={summary.personalOpen} /><Calc label="Saldo DS" value={summary.dsBalance} /><Calc label="Contas a pagar" value={summary.payable} /></div>
+      <div className={styles.calc}><Calc label="Resultado realizado" value={summary.realizedResult} strong /><Calc label="Saldo projetado" value={summary.projectedResult} /><Calc label="Personal em aberto" value={summary.personalOpen} /><Calc label="Saldo DS" value={summary.dsBalance} /><Calc label="Contas a pagar" value={summary.payable} /></div>
       <div className={styles.checkList}><span className={!pendencies.personalOpen ? styles.checkOk : ""}>● {pendencies.personalOpen ? `${pendencies.personalOpen} mensalidades de Personal em aberto` : "Personal conferido"}</span><span className={!accountsOpen ? styles.checkOk : ""}>● {accountsOpen ? `${accountsOpen} contas ainda em aberto` : "Despesas conferidas"}</span><span className={Math.abs(summary.dsBalance) < .01 ? styles.checkOk : ""}>● {Math.abs(summary.dsBalance) < .01 ? "DS acertada" : `${money.format(Math.abs(summary.dsBalance))} ${summary.dsBalance >= 0 ? "a receber da DS" : "a devolver para DS"}`}</span></div>
       {editable ? <div className={styles.closingActions}><button className="secondary" onClick={() => onClose(false)}>Fechar somente este mês</button><button className="primary" onClick={() => onClose(true)}>Fechar e abrir {competenceLabel(next)}</button><button className="text-button" onClick={onCreateNext}>{data.competences[next] ? `Ir para ${competenceLabel(next)}` : `Criar ${competenceLabel(next)} sem fechar agora`}</button></div> : <div className={styles.closingActions}><button className="primary" onClick={onReopen}>Reabrir competência</button>{data.competences[next] ? <button className="secondary" onClick={() => onSwitch(next)}>Ir para {competenceLabel(next)}</button> : <button className="secondary" onClick={onCreateNext}>Criar {competenceLabel(next)}</button>}</div>}
     </section>
@@ -579,7 +567,7 @@ function ReportsTab({ data, competence, onDownload }: { data: FinanceData; compe
       <section className="panel"><div className="panel-head"><div><h2>Gastos extras por categoria</h2><p className="muted">Onde o dinheiro variável foi gasto.</p></div></div><div className={styles.bars}>{categories.length ? categories.map(item => <div className={styles.barRow} key={item.label}><div><span>{item.label}</span><strong>{money.format(item.value)}</strong></div><div className={styles.barTrack}><span style={{ width: `${Math.max(3, (item.value / maxCategory) * 100)}%` }} /></div></div>) : <Empty text="Sem gastos extras nesta competência." />}</div></section>
       <section className="panel"><div className="panel-head"><div><h2>Despesas por tipo</h2><p className="muted">Recorrentes, parcelamentos, cartões e variáveis.</p></div></div><div className={styles.calc}>{expenseKinds.map(item => <div className={styles.reportKind} key={item.kind}><span><strong>{item.label}</strong><small>{item.count} item{item.count === 1 ? "" : "s"}</small></span><span className={styles.right}><strong>{money.format(item.expected)}</strong><small>{money.format(item.paid)} pago</small></span></div>)}</div></section>
     </div>
-    <section className="panel"><div className="panel-head"><div><h2>Comparativo por competência</h2><p className="muted">O histórico cresce automaticamente a cada mês.</p></div></div><div className={styles.tableWrap}><table className={styles.reportTable}><thead><tr><th>Mês</th><th>Status</th><th>Receitas</th><th>Despesas</th><th>Resultado realizado</th><th>A receber</th><th>A pagar</th></tr></thead><tbody>{comparison.map(item => <tr key={item.competence}><td>{competenceLabel(item.competence)}</td><td>{competenceStatusLabel(item.status)}</td><td>{money.format(item.realizedRevenue)}</td><td>{money.format(item.expensesPaid + item.extrasTotal)}</td><td className={item.realizedResult >= 0 ? styles.inValue : styles.outValue}>{money.format(item.realizedResult)}</td><td>{money.format(item.receivable)}</td><td>{money.format(item.payable)}</td></tr>)}</tbody></table></div></section>
+    <section className="panel"><div className="panel-head"><div><h2>Comparativo por competência</h2><p className="muted">O histórico cresce automaticamente a cada mês.</p></div></div><div className={styles.tableWrap}><table className={styles.reportTable}><thead><tr><th>Mês</th><th>Status</th><th>Receitas</th><th>Despesas</th><th>Resultado realizado</th><th>A receber</th><th>A pagar</th></tr></thead><tbody>{comparison.map(item => <tr key={item.competence}><td>{competenceLabel(item.competence)}</td><td>{competenceStatusLabel(item.status)}</td><td>{money.format(item.realizedRevenue)}</td><td>{money.format(item.totalExpensesPaid)}</td><td className={item.realizedResult >= 0 ? styles.inValue : styles.outValue}>{money.format(item.realizedResult)}</td><td>{money.format(item.receivable)}</td><td>{money.format(item.payable)}</td></tr>)}</tbody></table></div></section>
   </>;
 }
 

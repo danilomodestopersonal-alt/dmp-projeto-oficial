@@ -75,8 +75,8 @@ export function financeReportCsv(data: FinanceData, competence = data.currentCom
   lines.push(csvRow(["Receitas previstas", summary.projectedRevenue.toFixed(2)]));
   lines.push(csvRow(["Receitas recebidas", summary.realizedRevenue.toFixed(2)]));
   lines.push(csvRow(["Despesas previstas", summary.expensesExpected.toFixed(2)]));
-  lines.push(csvRow(["Despesas pagas", (summary.expensesPaid + summary.extrasTotal).toFixed(2)]));
-  lines.push(csvRow(["Resultado projetado", summary.projectedResult.toFixed(2)]));
+  lines.push(csvRow(["Despesas pagas", summary.totalExpensesPaid.toFixed(2)]));
+  lines.push(csvRow(["Saldo projetado", summary.projectedResult.toFixed(2)]));
   lines.push(csvRow(["Resultado realizado", summary.realizedResult.toFixed(2)]));
   lines.push(csvRow(["A receber", summary.receivable.toFixed(2)]));
   lines.push(csvRow(["A pagar", summary.payable.toFixed(2)]));
