@@ -9,8 +9,9 @@ import { exportStudentSessionsCsv } from "@/lib/export";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
+import KidsPage from "@/components/kids/KidsPage";
 
-type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "performance" | "data" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
+type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "kids" | "performance" | "data" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
 type DmpNote = { id:string; text:string; done:boolean; createdAt:string; updatedAt:string };
 
@@ -504,12 +505,12 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setView("finance");
   }
 
-  if (["today","students","workouts-overview","history-overview","assessments-overview","agenda","finance","performance","data","weather"].includes(view)) {
+  if (["today","students","workouts-overview","history-overview","assessments-overview","agenda","finance","kids","performance","data","weather"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
     const todayKey = today();
-    const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session})));
+    const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session}))).sort((a,b)=>(b.session.finishedAt||b.session.startedAt||"").localeCompare(a.session.finishedAt||a.session.startedAt||""));
     const plannedCount = students.filter(student => student.status === "ACTIVE" && getStudentWorkoutEntries(student).length > 0).length;
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
     const allHistory = students.flatMap(student=>student.sessions.map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
@@ -521,7 +522,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         <Sidebar current={view} onNavigate={navigateMain} logout={logout} />
         <div className="dashboard-main">
           {view === "today" ? <>
-            <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><WeatherWidget onOpen={()=>setView("weather")}/></div><div className="hero-actions"><button className="secondary" onClick={() => setView("students")}>Ver alunos</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
+            <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>Hoje</h1><p>{formatLongDate(todayKey)}</p></div><WeatherWidget onOpen={()=>setView("weather")}/></div><button className="kids-hero-shortcut" onClick={()=>setView("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><small>Gestão das aulas</small><strong>Tênis Kids</strong></span><b>›</b></button></header>
             <section className="dashboard-content">
               <div className="dashboard-stats four-stats"><Stat icon="👥" label="Alunos ativos" value={activeCount} onClick={()=>{setStudentFilter("ACTIVE");setView("students");}}/><Stat icon="✅" label="Registros hoje" value={todaySessions.length} onClick={()=>{setHistorySearch(todayKey);setHistorySource("ALL");setView("history-overview");}}/><Stat icon="📋" label="Treinos montados" value={plannedCount} onClick={()=>{setWorkoutsOnly(true);setView("workouts-overview");}}/><Stat icon="📏" label="Avaliações realizadas" value={assessmentCount} onClick={()=>setView("assessments-overview")}/></div>
               <CalendarTodayPanel status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={startStudentFlow} />
@@ -550,6 +551,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Central do dia</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage /> : null}
+          {view === "kids" ? <KidsPage onBack={()=>setView("today")} /> : null}
           {view === "performance" ? <PerformancePage /> : null}
           {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
           {view === "weather" ? <WeatherPage onBack={()=>setView("today")} /> : null}
@@ -674,8 +676,8 @@ function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error
 function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View)=>void;logout:()=>void}) {
   const [mobile, setMobile] = useState(false);
   useEffect(() => { setMobile(isPhoneDevice()); }, []);
-  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"data",icon:"💾",label:"Dados"}];
-  const orderedItems = mobile ? [items.find(item=>item.view==="finance")!, ...items.filter(item=>item.view!=="finance")] : items;
+  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"data",icon:"💾",label:"Dados"}];
+  const orderedItems = mobile ? [items.find(item=>item.view==="finance")!,items.find(item=>item.view==="kids")!,...items.filter(item=>item.view!=="finance"&&item.view!=="kids")] : items;
   return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav><button className="dashboard-logout" onClick={logout}>Sair</button></aside>;
 }
 type WeatherData={temperature:number;wind:number;rainChance:number;code:number;hours:{time:string;rain:number}[]};
