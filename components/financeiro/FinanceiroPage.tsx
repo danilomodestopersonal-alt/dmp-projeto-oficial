@@ -12,6 +12,7 @@ import type {
 import { financeSeedAugust2026 } from "@/lib/financeiro/agosto2026";
 import {
   expenseStatus,
+  dueDateFor,
   financeSummary,
   financialPendencies,
   invoiceStatus,
@@ -39,6 +40,7 @@ import {
 import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud, saveFinanceData } from "@/lib/financeiro/storage";
 import { parseFinanceVoice, parseMoney, suggestCategory, type VoicePreview } from "@/lib/financeiro/voz";
 import styles from "./FinanceiroPage.module.css";
+import type { KidsData } from "@/types/kids";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => localDateISO();
@@ -79,6 +81,11 @@ export default function FinanceiroPage() {
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
   const editable = isCompetenceEditable(data, competence);
   const competences = useMemo(() => Object.keys(data.competences).sort().reverse(), [data.competences]);
+  const weeklyDue = useMemo(() => {
+    const now=new Date();const day=now.getDay();const monday=new Date(now);monday.setDate(now.getDate()-(day===0?6:day-1));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+    const start=localDateISO(monday),end=localDateISO(sunday);
+    return summary.expenses.filter(item=>remaining(item.expectedAmount,item.payments)>0).map(item=>({...item,dueDate:dueDateFor(competence,item.dueDay),open:remaining(item.expectedAmount,item.payments)})).filter(item=>item.dueDate>=start&&item.dueDate<=end).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)||a.name.localeCompare(b.name,"pt-BR"));
+  },[summary.expenses,competence]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,11 +94,14 @@ export default function FinanceiroPage() {
       try {
         const cloud = await fetchFinanceCloud(financeSeedAugust2026);
         if (cancelled) return;
+        const base=cloud||local;
+        let next=base;
+        try{const kidsResponse=await fetch("/api/kids",{cache:"no-store"});if(kidsResponse.ok){const kidsPayload=await kidsResponse.json();if(kidsPayload.data)next=mergeKidsFinance(base,kidsPayload.data);}}catch{}
         if (cloud) {
-          setData(cloud);
-          saveFinanceData(cloud);
+          setData(next);
+          saveFinanceData(next);
         } else {
-          setData(local);
+          setData(next);
         }
         setCloudWritable(true);
       } catch (error) {
@@ -306,6 +316,11 @@ export default function FinanceiroPage() {
               <Kpi label="A receber" value={summary.receivable} tone="income" />
               <Kpi label="A pagar" value={summary.payable} tone="expense" />
             </div>
+
+            <section className={`panel ${styles.weeklyDue}`}>
+              <div className="panel-head"><div><h2>Vencimentos da semana</h2><p className="muted">Somente contas previstas que ainda estão em aberto.</p></div><button className="secondary" onClick={()=>setTab("expenses")}>Ver despesas</button></div>
+              {weeklyDue.length?<div className={styles.list}>{weeklyDue.map(item=><div className={`${styles.row} ${styles.staticRow}`} key={item.id}><span><strong>{item.name}</strong><small>Vence em {formatDate(item.dueDate)}</small></span><strong className={styles.outValue}>{money.format(item.open)}</strong></div>)}</div>:<Empty text="Nenhuma conta em aberto vence nesta semana."/>}
+            </section>
 
             <section className="panel">
               <div className="panel-head"><div><h2>Ações rápidas</h2><p className="muted">Rotina diária em poucos toques.</p></div></div>
@@ -580,6 +595,20 @@ function ReportsTab({ data, competence, onDownload }: { data: FinanceData; compe
 
 function PaymentHistory({ title, payments, onDelete }: { title: string; payments: PersonalInvoice["payments"]; onDelete: (payment: PersonalInvoice["payments"][number]) => void }) {
   return <div className={styles.paymentHistory}><strong>{title}</strong>{payments.length ? payments.slice().sort((a, b) => b.date.localeCompare(a.date)).map(payment => <div key={payment.id}><span>{formatDate(payment.date)}{payment.note ? ` · ${payment.note}` : ""}</span><strong>{money.format(payment.amount)}</strong><button type="button" onClick={() => onDelete(payment)}>Excluir</button></div>) : <span className="muted">Nenhum pagamento registrado.</span>}</div>;
+}
+
+function mergeKidsFinance(finance:FinanceData,kids:KidsData):FinanceData{
+  const competence=finance.currentCompetence;const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const profiles=new Map<string,{student:KidsData["classes"][number]["students"][number];category:KidsData["classes"][number]["category"]}>();
+  for(const group of kids.classes)for(const student of group.students)if(student.active&&!profiles.has(student.id))profiles.set(student.id,{student,category:group.category});
+  const merged=[...finance.dsKids.filter(item=>item.competence===competence)];
+  for(const {student,category} of profiles.values()){
+    if(student.monthlyAmount===undefined)continue;const index=merged.findIndex(item=>normalize(item.studentName)===normalize(student.name));
+    const billingMode=student.billingMode==="ONE_TIME"?"SINGLE":student.billingMode==="INSTALLMENTS"?"INSTALLMENT":"RECURRING";
+    const next:DsKidEntry={id:index>=0?merged[index].id:`kids-${student.id}-${competence}`,competence,studentName:student.name,amount:student.monthlyAmount||0,dueDay:student.dueDay||null,billingMode,tennisCategory:category==="YELLOW"?"GREEN":category,installmentTotal:student.installmentCount||null,installmentCurrent:index>=0?merged[index].installmentCurrent:null};
+    if(index>=0)merged[index]=next;else merged.push(next);
+  }
+  return {...finance,dsKids:[...finance.dsKids.filter(item=>item.competence!==competence),...merged]};
 }
 
 function FilterBar({ value, onChange }: { value: Filter; onChange: (value: Filter) => void }) {
