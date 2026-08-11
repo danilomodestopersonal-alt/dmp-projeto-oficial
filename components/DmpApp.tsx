@@ -1393,6 +1393,7 @@ function downloadText(filename:string,content:string,type:string){const blob=new
 
 function findPreviousExercise(student:Student,name:string){const target=normalizeName(name);for(const session of student.sessions){const found=session.completedExercises.find(ex=>normalizeName(ex.name)===target);if(found)return {...found,date:session.date};}return null;}
 function normalizeName(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();}
+const CALENDAR_STUDENT_ALIASES:Record<string,string>={bruna:"bruna sickler"};
 function matchCalendarEvents(events:CalendarEvent[],students:Student[]):CalendarEvent[]{
   const active=students.filter(student=>student.status==="ACTIVE");
   const firstNameCount=new Map<string,number>();
@@ -1410,7 +1411,14 @@ function matchCalendarEvents(events:CalendarEvent[],students:Student[]):Calendar
       const firstLast=parts.length>=2?`${first} ${parts[parts.length-1]}`:"";
       if(full&&padded.includes(` ${full} `))return true;
       if(firstLast&&padded.includes(` ${firstLast} `))return true;
+      if([...tokens].some(token=>CALENDAR_STUDENT_ALIASES[token]===full))return true;
       if(first.length>=3&&firstNameCount.get(first)===1&&tokens.has(first))return true;
+      // Aceita qualquer parte única do nome, inclusive sobrenomes usados na agenda.
+      if(parts.some(part=>{
+        if(part.length<3||!tokens.has(part))return false;
+        const candidates=active.filter(item=>normalizeName(item.name).split(" ").filter(Boolean).includes(part));
+        return candidates.length===1&&candidates[0].id===student.id;
+      }))return true;
       // Aceita abreviações como "Gra" somente quando apontam para um único aluno ativo.
       return [...tokens].some(token=>{
         if(token.length<3||!first.startsWith(token))return false;
