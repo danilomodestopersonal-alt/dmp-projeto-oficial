@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Assessment, CalendarEvent, Exercise, Session, Student, TennisCategory, Workout, WorkoutProtocol, WorkoutSlot } from "@/types/models";
 import { importedStudents2026 } from "@/lib/imported-data";
@@ -18,6 +18,7 @@ type DmpNote = { id:string; text:string; done:boolean; createdAt:string; updated
 const FINANCE_UNLOCK_KEY = "dmp_finance_unlocked_until";
 const FINANCE_UNLOCK_MS = 10 * 60 * 1000;
 const FINANCE_PIN_SHA256 = "6249017f9372350bfc9cf3456c324bbb3661e1bb5a7a10d61912fd1be650d52f";
+const STUDENTS_CHANNEL = "dmp_students_sync";
 
 function isPhoneDevice() {
   if (typeof navigator === "undefined") return false;
@@ -64,6 +65,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [removedNote, setRemovedNote] = useState<{note:DmpNote;index:number}|null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string|null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
+  const deepLinkHandled = useRef(false);
 
   // Mantém uma entrada de histórico interna para o botão/gesto Voltar do Android.
   useEffect(() => {
@@ -155,6 +157,36 @@ useEffect(() => {
 
   return () => window.clearTimeout(timer);
 }, [students, studentsLoaded, cloudWritable]);    
+
+useEffect(() => {
+  if (!studentsLoaded || deepLinkHandled.current) return;
+  deepLinkHandled.current = true;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("mode") !== "planned-session") return;
+  const studentId = params.get("student");
+  const workoutId = params.get("workout");
+  const student = students.find(item => item.id === studentId);
+  const workout = student?.workouts.find(item => item.id === workoutId && item.active !== false);
+  if (!student || !workout) return;
+  setSelectedStudentId(student.id);
+  setSelectedWorkoutId(workout.id);
+  setView("planned-session");
+}, [studentsLoaded, students]);
+
+useEffect(() => {
+  const channel = new BroadcastChannel(STUDENTS_CHANNEL);
+  channel.onmessage = async () => {
+    try {
+      const response = await fetch("/api/data", {cache:"no-store"});
+      const result = await response.json();
+      if (response.ok && Array.isArray(result.data)) {
+        setStudents(result.data as Student[]);
+        saveStudents(result.data as Student[]);
+      }
+    } catch {}
+  };
+  return () => channel.close();
+}, []);
 useEffect(() => {
   let cancelled=false;
   fetch("/api/notes",{cache:"no-store"}).then(r=>r.json()).then(result=>{
@@ -412,11 +444,30 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setWorkoutEditorSlot(nextSlot);
     setView("workout-editor");
   }
-  function saveSession(session: Session) {
+  async function saveSession(session: Session) {
     if (!selectedStudent) return;
-    updateStudentRecord({...selectedStudent, sessions:[session, ...selectedStudent.sessions]});
-    setTab("history");
-    setView("student");
+    try {
+      const response = await fetch("/api/data", {cache:"no-store"});
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      if (!Array.isArray(result.data)) throw new Error();
+      const latest = result.data as Student[];
+      const target = latest.find(student => student.id === selectedStudent.id);
+      if (!target) throw new Error();
+      const updated = {...target,sessions:[session,...target.sessions.filter(item=>item.id!==session.id)]};
+      const next = latest.map(student=>student.id===updated.id?updated:student);
+      const saveResponse = await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});
+      if (!saveResponse.ok) throw new Error();
+      setStudents(next);
+      saveStudents(next);
+      const channel = new BroadcastChannel(STUDENTS_CHANNEL);
+      channel.postMessage({type:"refresh"});
+      channel.close();
+      setTab("history");
+      setView("student");
+    } catch {
+      alert("Não foi possível salvar esta sessão. Confira a conexão e tente novamente.");
+    }
   }
 
   function saveAssessment(assessment: Assessment) {
@@ -610,7 +661,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           </section>
 
           {tab === "summary" ? <StudentSummary student={selectedStudent} /> : null}
-          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){openWorkoutSharePreview(selectedStudent,workout);return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
+          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
         </section>
