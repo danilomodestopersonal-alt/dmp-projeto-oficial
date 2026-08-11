@@ -1932,6 +1932,9 @@ function buildReport(
   const absent = completed.filter(
     (item) => item.attendance[id] === "ABSENT",
   ).length;
+  const cancelled = lessonSet.filter(
+    (item) => item.status === "CANCELLED",
+  ).length;
   const rate =
     present + absent ? Math.round((present / (present + absent)) * 100) : 0;
   const replacements = lessonSet.filter(
@@ -1946,12 +1949,12 @@ function buildReport(
         `<li><b>${formatDate(item.date)}</b> — ${item.status === "SCHEDULED" && lessonHasPassed(item, data.classes) ? "Realizada" : statusLabel[item.status]}${item.theme ? ` — ${escapeHtml(item.theme)}` : ""}${item.objective ? `<br>${escapeHtml(item.objective)}` : ""}</li>`,
     )
     .join("");
-  const body = `<div class="metrics"><b>${present}<small>Presenças</small></b><b>${absent}<small>Faltas</small></b><b>${rate}%<small>Frequência</small></b><b>${replacements.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><h3>Turmas</h3><p>${occurrences.map((item) => escapeHtml(item.group.name)).join(" · ")}</p><h3>Objetivos e conteúdos</h3><ul>${contents || "<li>Nenhum conteúdo registrado.</li>"}</ul>`;
+  const body = `<div class="metrics"><b>${present}<small>Presenças</small></b><b>${absent}<small>Faltas</small></b><b>${cancelled}<small>Aulas canceladas</small></b><b>${rate}%<small>Frequência</small></b><b>${replacements.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><h3>Turmas</h3><p>${occurrences.map((item) => escapeHtml(item.group.name)).join(" · ")}</p><h3>Objetivos e conteúdos</h3><ul>${contents || "<li>Nenhum conteúdo registrado.</li>"}</ul>`;
   return {
     title: `Relatório de ${name}`,
     subtitle: `Período: ${formatDate(data.semesterStart)} a ${formatDate(data.semesterEnd)}`,
     body,
-    text: `${name}: ${present} presenças, ${absent} faltas e ${rate}% de frequência.`,
+    text: `${name}: ${present} presenças, ${absent} faltas, ${cancelled} aulas canceladas e ${rate}% de frequência.`,
   };
 }
 function reportHtml(report: Report) {

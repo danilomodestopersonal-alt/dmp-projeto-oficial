@@ -610,7 +610,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           </section>
 
           {tab === "summary" ? <StudentSummary student={selectedStudent} /> : null}
-          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
+          {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){openWorkoutSharePreview(selectedStudent,workout);return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
         </section>

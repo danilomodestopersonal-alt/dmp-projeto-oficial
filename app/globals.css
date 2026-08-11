@@ -1,3 +1,5 @@
+@media(min-width:801px){.workout-slot-actions-share button:nth-child(3){font-size:0}.workout-slot-actions-share button:nth-child(3)::after{content:"↗ Abrir em nova janela";font-size:14px}}
+.finance-ds-single{display:block}.finance-ds-single>section:nth-child(2){display:none}
 :root{
   --bg:#eef3f6;
   --surface:#fff;

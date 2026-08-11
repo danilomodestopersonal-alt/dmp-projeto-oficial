@@ -359,7 +359,7 @@ export default function FinanceiroPage() {
         ) : null}
 
         {tab === "ds" ? (
-          <div className={styles.twoCol}>
+          <div className="finance-ds-single">
             <section className="panel">
               <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button></div>
               {competence === "2026-08" && summary.ranking === 6500 ? <div className={styles.importNote}><strong>Conferência da planilha</strong><span>O Resumo DS informa Ranking de R$ 6.500,00. Outro quadro da planilha mostra R$ 7.000,00. O DMP está usando R$ 6.500,00; altere aqui se necessário.</span></div> : null}

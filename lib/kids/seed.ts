@@ -55,9 +55,16 @@ export function normalizeKidsData(source:KidsData):KidsData{
     return {...group,category,name:kidsClassName(category,group.weekday,group.startTime),teacher:group.teacher||"Danilo Modesto",students:group.students.map(student=>({...student}))};
   });
   const classMap=new Map(classes.map(group=>[group.id,group]));
-  const lessons=source.lessons.map(lesson=>{
+  const sourceLessons=new Map(source.lessons.map(lesson=>[lesson.id,lesson]));
+  const canonicalLessons=createKidsSeed().lessons.filter(lesson=>classMap.has(lesson.classId));
+  const mergedLessons=[...source.lessons,...canonicalLessons.filter(lesson=>!sourceLessons.has(lesson.id))];
+  const lessons=mergedLessons.map(lesson=>{
     const group=classMap.get(lesson.classId);const plan=group?getKidsPedagogicalPlan(group.category,lesson.date):undefined;
-    return {...lesson,theme:lesson.theme||plan?.theme||"",pedagogicalFocus:lesson.pedagogicalFocus||plan?.focus||"",objective:lesson.objective||plan?.objective||"",stations:lesson.stations?.length?lesson.stations:plan?.stations||[],teacherTip:lesson.teacherTip||plan?.tip||"",plannedPlan:lesson.plannedPlan|| (plan?formatKidsPlan(plan):"")};
+    const endTime=group?.endTime||group?.startTime||"23:59";
+    const passed=lesson.status==="SCHEDULED"&&new Date(`${lesson.date}T${endTime}:00`).getTime()<=Date.now();
+    const attendance={...(lesson.attendance||{})};
+    if(passed&&group)for(const student of group.students)if(student.active&&(!student.startDate||student.startDate<=lesson.date)&&attendance[student.id]!=="ABSENT")attendance[student.id]="PRESENT";
+    return {...lesson,status:passed?"COMPLETED":lesson.status,attendance,theme:lesson.theme||plan?.theme||"",pedagogicalFocus:lesson.pedagogicalFocus||plan?.focus||"",objective:lesson.objective||plan?.objective||"",stations:lesson.stations?.length?lesson.stations:plan?.stations||[],teacherTip:lesson.teacherTip||plan?.tip||"",plannedPlan:lesson.plannedPlan|| (plan?formatKidsPlan(plan):"")};
   });
   return {...source,classes,lessons,replacements:source.replacements||[],updatedAt:source.updatedAt||now};
 }
