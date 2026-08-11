@@ -50,9 +50,25 @@ export function createKidsSeed():KidsData{
 
 export function normalizeKidsData(source:KidsData):KidsData{
   const now=new Date().toISOString();
-  const classes=source.classes.map(group=>{
+  const rawClasses=source.classes.map(group=>{
     const category=(group.category as string)==="PURPLE"?"RED":group.category;
     return {...group,category,name:kidsClassName(category,group.weekday,group.startTime),teacher:group.teacher||"Danilo Modesto",students:group.students.map(student=>({...student}))};
+  });
+  const aliases=new Map<string,string>();
+  const profiles=new Map<string,KidsClass["students"][number]>();
+  for(const group of rawClasses)for(const student of group.students){
+    const key=slug(student.name);const id=`kid-${key}`;aliases.set(student.id,id);
+    const current=profiles.get(id);
+    profiles.set(id,current?mergeKidsStudent(current,student,id):{...student,id,name:student.name.trim()});
+  }
+  const classes=rawClasses.map(group=>{
+    const students=new Map<string,KidsClass["students"][number]>();
+    for(const membership of group.students){
+      const id=aliases.get(membership.id)||membership.id;const profile=profiles.get(id)||membership;const current=students.get(id);
+      const next={...profile,id,active:membership.active,startDate:membership.startDate||profile.startDate};
+      students.set(id,current?{...mergeKidsStudent(current,next,id),active:current.active||next.active,startDate:earliestDate(current.startDate,next.startDate)}:next);
+    }
+    return {...group,students:[...students.values()].sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"))};
   });
   const classMap=new Map(classes.map(group=>[group.id,group]));
   const sourceLessons=new Map(source.lessons.map(lesson=>[lesson.id,lesson]));
@@ -62,9 +78,20 @@ export function normalizeKidsData(source:KidsData):KidsData{
     const group=classMap.get(lesson.classId);const plan=group?getKidsPedagogicalPlan(group.category,lesson.date):undefined;
     const endTime=group?.endTime||group?.startTime||"23:59";
     const passed=lesson.status==="SCHEDULED"&&new Date(`${lesson.date}T${endTime}:00`).getTime()<=Date.now();
-    const attendance={...(lesson.attendance||{})};
+    const attendance:KidsLesson["attendance"]={};
+    for(const [studentId,status] of Object.entries(lesson.attendance||{})){
+      const id=aliases.get(studentId)||studentId;
+      attendance[id]=attendance[id]==="ABSENT"||status==="ABSENT"?"ABSENT":"PRESENT";
+    }
     if(passed&&group)for(const student of group.students)if(student.active&&(!student.startDate||student.startDate<=lesson.date)&&attendance[student.id]!=="ABSENT")attendance[student.id]="PRESENT";
     return {...lesson,status:passed?"COMPLETED":lesson.status,attendance,theme:lesson.theme||plan?.theme||"",pedagogicalFocus:lesson.pedagogicalFocus||plan?.focus||"",objective:lesson.objective||plan?.objective||"",stations:lesson.stations?.length?lesson.stations:plan?.stations||[],teacherTip:lesson.teacherTip||plan?.tip||"",plannedPlan:lesson.plannedPlan|| (plan?formatKidsPlan(plan):"")};
   });
-  return {...source,classes,lessons,replacements:source.replacements||[],updatedAt:source.updatedAt||now};
+  const replacements=[...(source.replacements||[])].map(item=>({...item,studentId:aliases.get(item.studentId)||item.studentId}));
+  const uniqueReplacements=[...new Map(replacements.map(item=>[`${item.sourceLessonId}:${item.studentId}`,item])).values()];
+  return {...source,classes,lessons,replacements:uniqueReplacements,updatedAt:source.updatedAt||now};
+}
+
+function earliestDate(a?:string,b?:string){if(!a)return b;if(!b)return a;return a<b?a:b;}
+function mergeKidsStudent(a:KidsClass["students"][number],b:KidsClass["students"][number],id:string):KidsClass["students"][number]{
+  return {...a,...b,id,name:(a.name||b.name).trim(),active:a.active||b.active,startDate:earliestDate(a.startDate,b.startDate),birthDate:a.birthDate||b.birthDate,fatherName:a.fatherName||b.fatherName,fatherPhone:a.fatherPhone||b.fatherPhone,motherName:a.motherName||b.motherName,motherPhone:a.motherPhone||b.motherPhone,primaryContact:a.primaryContact||b.primaryContact,notes:a.notes||b.notes,monthlyAmount:a.monthlyAmount??b.monthlyAmount,dueDay:a.dueDay??b.dueDay,billingMode:a.billingMode||b.billingMode,installmentCount:a.installmentCount??b.installmentCount};
 }

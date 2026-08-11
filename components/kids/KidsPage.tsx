@@ -18,7 +18,7 @@ import type {
 } from "@/types/kids";
 import type { FinanceData } from "@/types/financeiro";
 
-type KidsTab = "dashboard" | "agenda" | "classes" | "reports";
+type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "reports";
 type AgendaFilter = "ALL" | "COMPLETED" | "CANCELLED" | "REPLACEMENTS";
 const categoryLabel: Record<KidsCategory, string> = {
   RED: "Vermelha",
@@ -331,6 +331,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
             ["dashboard", "Visão geral"],
             ["agenda", "Agenda"],
             ["classes", "Turmas"],
+            ["students", "Alunos"],
             ["reports", "Relatórios"],
           ] as [KidsTab, string][]
         ).map(([value, label]) => (
@@ -577,6 +578,32 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
                   </button>
                 );
               })}
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "students" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHead}>
+            <div>
+              <h2>Alunos</h2>
+              <p>Cadastro único das crianças e todas as suas turmas.</p>
+            </div>
+            <strong>{allKids.length} alunos</strong>
+          </div>
+          <div className={styles.kidsRoster}>
+            {allKids.map((student) => (
+              <button key={student.id} onClick={() => openStudent(student.id)}>
+                <span className={styles.categoryDots}>
+                  {student.categories.map((category) => (
+                    <CategoryDot key={category} category={category} />
+                  ))}
+                </span>
+                <strong>{student.name}</strong>
+                <small>{student.classIds.length} turma{student.classIds.length === 1 ? "" : "s"}</small>
+                <span>›</span>
+              </button>
+            ))}
           </div>
         </section>
       ) : null}
