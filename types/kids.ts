@@ -44,12 +44,21 @@ export type KidsLesson = {
   replacementEligible:boolean;
   replacementStatus:KidsReplacementStatus;
   replacementDate?:string;
+  kind?:"REGULAR"|"REPLACEMENT";
+  replacementName?:string;
+  replacementCategory?:KidsCategory;
+  replacementStartTime?:string;
+  replacementEndTime?:string;
+  replacementCapacity?:number;
+  replacementStudentIds?:string[];
   updatedAt:string;
 };
 
 export type KidsReplacement = {
   id:string; studentId:string; classId:string; sourceLessonId:string; sourceDate:string;
   reason:string; status:"PENDING"|"SCHEDULED"|"COMPLETED"; scheduledDate?:string; completedDate?:string;
+  destinationLessonId?:string;
+  attendance?:KidsAttendanceStatus;
 };
 
 export type KidsData = {

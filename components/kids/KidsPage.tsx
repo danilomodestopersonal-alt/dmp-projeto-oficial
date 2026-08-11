@@ -18,8 +18,9 @@ import type {
 } from "@/types/kids";
 import type { FinanceData } from "@/types/financeiro";
 
-type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "reports";
-type AgendaFilter = "ALL" | "COMPLETED" | "CANCELLED" | "REPLACEMENTS";
+type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "replacements" | "reports";
+type AgendaFilter = "ALL" | "COMPLETED" | "CANCELLED";
+export type KidsLessonOpenRequest={date:string;time:string;category:KidsCategory};
 const categoryLabel: Record<KidsCategory, string> = {
   RED: "Vermelha",
   ORANGE: "Laranja",
@@ -46,7 +47,7 @@ const formatDate = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
-export default function KidsPage({ onBack }: { onBack: () => void }) {
+export default function KidsPage({ onBack, openRequest }: { onBack: () => void; openRequest?:KidsLessonOpenRequest|null }) {
   const [data, setData] = useState<KidsData | null>(null);
   const [tab, setTab] = useState<KidsTab>("dashboard");
   const [loading, setLoading] = useState(true);
@@ -60,10 +61,19 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
   const [reportId, setReportId] = useState("");
   const [agendaFilter, setAgendaFilter] = useState<AgendaFilter>("ALL");
   const [vacanciesOnly, setVacanciesOnly] = useState(false);
+  const [showReplacementForm,setShowReplacementForm]=useState(false);
 
   useEffect(() => {
     void load();
   }, []);
+  useEffect(()=>{
+    if(!data||!openRequest)return;
+    const target=data.lessons.find(lesson=>{
+      const lessonClass=data.classes.find(group=>group.id===lesson.classId);
+      return lesson.date===openRequest.date&&lessonClass?.category===openRequest.category&&lessonClass.startTime===openRequest.time;
+    });
+    if(target){setTab("agenda");setLessonId(target.id);}
+  },[data,openRequest]);
   async function load() {
     setLoading(true);
     try {
@@ -120,7 +130,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
         .sort(
           (a, b) =>
             a.date.localeCompare(b.date) ||
-            classTime(a.classId).localeCompare(classTime(b.classId)),
+            lessonTime(a).localeCompare(lessonTime(b)),
         ),
     [lessons, month, classes],
   );
@@ -157,8 +167,35 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
   function classTime(id: string) {
     return classes.find((item) => item.id === id)?.startTime || "";
   }
+  function lessonTime(lesson:KidsLesson){
+    return lesson.replacementStartTime || classTime(lesson.classId);
+  }
+  function studentProfile(id:string){
+    for(const item of classes){
+      const student=item.students.find(candidate=>candidate.id===id);
+      if(student)return student;
+    }
+    return undefined;
+  }
   function group(id: string) {
     return classes.find((item) => item.id === id);
+  }
+  function lessonGroup(lesson:KidsLesson):KidsClass|undefined{
+    const regular=group(lesson.classId);
+    if(regular)return regular;
+    if(lesson.kind!=="REPLACEMENT"||!lesson.replacementCategory)return undefined;
+    return {
+      id:lesson.classId,
+      name:lesson.replacementName||"Aula avulsa de reposição",
+      weekday:new Date(`${lesson.date}T12:00:00`).getDay(),
+      startTime:lesson.replacementStartTime||"",
+      endTime:lesson.replacementEndTime||"",
+      category:lesson.replacementCategory,
+      teacher:"Danilo Modesto",
+      students:(lesson.replacementStudentIds||[]).map(studentProfile).filter(Boolean) as KidsStudent[],
+      active:true,
+      updatedAt:lesson.updatedAt,
+    };
   }
   function openLesson(id: string) {
     setLessonId(id);
@@ -180,14 +217,17 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
   }
   function updateLesson(next: KidsLesson) {
     if (!data) return;
-    const lessonGroup = group(next.classId);
+    const current=data.lessons.find(item=>item.id===next.id);
+    const currentReplacementIds=new Set(current?.replacementStudentIds||[]);
+    const nextReplacementIds=new Set(next.replacementStudentIds||[]);
+    const relatedGroup = lessonGroup(next);
     let replacements = [...(data.replacements || [])];
     if (
       next.status === "CANCELLED" &&
       next.replacementEligible &&
-      lessonGroup
+      relatedGroup && next.kind!=="REPLACEMENT"
     ) {
-      for (const student of lessonGroup.students.filter(
+      for (const student of relatedGroup.students.filter(
         (item) =>
           item.active && (!item.startDate || item.startDate <= next.date),
       )) {
@@ -212,6 +252,24 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
         (item) =>
           item.sourceLessonId !== next.id || item.status === "COMPLETED",
       );
+    for(const studentId of nextReplacementIds){
+      if(currentReplacementIds.has(studentId))continue;
+      const credit=replacements.find(item=>item.studentId===studentId&&item.status==="PENDING");
+      if(credit){
+        credit.status="SCHEDULED";
+        credit.scheduledDate=next.date;
+        credit.destinationLessonId=next.id;
+      }
+    }
+    for(const studentId of currentReplacementIds){
+      if(nextReplacementIds.has(studentId))continue;
+      const credit=replacements.find(item=>item.studentId===studentId&&item.destinationLessonId===next.id&&item.status==="SCHEDULED");
+      if(credit){
+        credit.status="PENDING";
+        delete credit.scheduledDate;
+        delete credit.destinationLessonId;
+      }
+    }
     void persist(
       {
         ...data,
@@ -223,6 +281,25 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
       "Aula salva com sucesso.",
     );
     setLessonId(null);
+  }
+  function createReplacementLesson(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]}){
+    if(!data)return;
+    const id=`replacement-lesson-${crypto.randomUUID()}`;
+    const nextLesson:KidsLesson={
+      id,classId:"replacement",date:input.date,status:"SCHEDULED",kind:"REPLACEMENT",
+      replacementName:`Reposição coletiva · Bola ${categoryLabel[input.category]}`,
+      replacementCategory:input.category,replacementStartTime:input.startTime,replacementEndTime:input.endTime,
+      replacementCapacity:input.studentIds.length,replacementStudentIds:input.studentIds,
+      attendance:Object.fromEntries(input.studentIds.map(studentId=>[studentId,"PRESENT"])),
+      objective:"",plannedPlan:"",actualPlan:"",notes:"",replacementEligible:false,replacementStatus:"NONE",updatedAt:new Date().toISOString(),
+    };
+    const replacements=(data.replacements||[]).map(item=>{
+      if(input.studentIds.includes(item.studentId)&&item.status==="PENDING")
+        return {...item,status:"SCHEDULED" as const,scheduledDate:input.date,destinationLessonId:id};
+      return item;
+    });
+    void persist({...data,lessons:[...data.lessons,nextLesson],replacements},"Aula avulsa de reposição criada.");
+    setShowReplacementForm(false);setTab("replacements");setLessonId(id);
   }
   function updateClass(next: KidsClass) {
     if (!data) return;
@@ -249,7 +326,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const todayLessons = lessons
     .filter((item) => item.date === today)
-    .sort((a, b) => classTime(a.classId).localeCompare(classTime(b.classId)));
+    .sort((a, b) => lessonTime(a).localeCompare(lessonTime(b)));
   const completed = lessons.filter(
     (item) =>
       item.status === "COMPLETED" ||
@@ -291,7 +368,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
     .sort(
       (a, b) =>
         a.date.localeCompare(b.date) ||
-        classTime(a.classId).localeCompare(classTime(b.classId)),
+        lessonTime(a).localeCompare(lessonTime(b)),
     );
 
   if (loading)
@@ -332,6 +409,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
             ["agenda", "Agenda"],
             ["classes", "Turmas"],
             ["students", "Alunos"],
+            ["replacements", "Reposições"],
             ["reports", "Relatórios"],
           ] as [KidsTab, string][]
         ).map(([value, label]) => (
@@ -404,7 +482,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
                   <LessonRow
                     key={lesson.id}
                     lesson={lesson}
-                    group={group(lesson.classId)}
+                    group={lessonGroup(lesson)}
                     onClick={() => openLesson(lesson.id)}
                   />
                 ))}
@@ -427,14 +505,14 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
                   .sort(
                     (a, b) =>
                       a.date.localeCompare(b.date) ||
-                      classTime(a.classId).localeCompare(classTime(b.classId)),
+                      lessonTime(a).localeCompare(lessonTime(b)),
                   )
                   .slice(0, 6)
                   .map((lesson) => (
                     <LessonRow
                       key={lesson.id}
                       lesson={lesson}
-                      group={group(lesson.classId)}
+                      group={lessonGroup(lesson)}
                       onClick={() => openLesson(lesson.id)}
                     />
                   ))}
@@ -505,7 +583,7 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
                 <LessonRow
                   key={lesson.id}
                   lesson={lesson}
-                  group={group(lesson.classId)}
+                  group={lessonGroup(lesson)}
                   onClick={() => openLesson(lesson.id)}
                 />
               ))
@@ -608,6 +686,16 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
         </section>
       ) : null}
 
+      {tab === "replacements" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHead}>
+            <div><h2>Controle de reposições</h2><p>Créditos individuais, aulas agendadas e histórico de utilização.</p></div>
+            <button className={styles.primary} onClick={()=>setShowReplacementForm(true)}>+ Aula avulsa de reposição</button>
+          </div>
+          <ReplacementBoard replacements={data.replacements||[]} students={allKids}/>
+        </section>
+      ) : null}
+
       {tab === "reports" ? (
         <Reports
           data={data}
@@ -620,11 +708,14 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
       {lessonId ? (
         <LessonEditor
           lesson={lessons.find((item) => item.id === lessonId)!}
-          group={group(lessons.find((item) => item.id === lessonId)!.classId)!}
+          group={lessonGroup(lessons.find((item) => item.id === lessonId)!)!}
+          replacements={data.replacements||[]}
+          allStudents={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)}
           onClose={() => setLessonId(null)}
           onSave={updateLesson}
         />
       ) : null}
+      {showReplacementForm ? <ReplacementLessonForm replacements={data.replacements||[]} students={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)} onClose={()=>setShowReplacementForm(false)} onSave={createReplacementLesson}/> : null}
       {classId ? (
         <ClassEditor
           group={group(classId)!}
@@ -648,6 +739,22 @@ export default function KidsPage({ onBack }: { onBack: () => void }) {
       ) : null}
     </div>
   );
+}
+
+function ReplacementBoard({replacements,students}:{replacements:KidsReplacement[];students:{id:string;name:string}[]}){
+  const studentName=(id:string)=>students.find(item=>item.id===id)?.name||"Aluno";
+  const sections:[KidsReplacement["status"],string][]=[["PENDING","Pendentes"],["SCHEDULED","Agendadas"],["COMPLETED","Utilizadas"]];
+  return <div className={styles.grid2}>{sections.map(([status,label])=><article key={status} className={styles.cancelBox}><h3>{label} · {replacements.filter(item=>item.status===status).length}</h3>{replacements.filter(item=>item.status===status).sort((a,b)=>localeCompare(studentName(a.studentId),studentName(b.studentId))).map(item=><div key={item.id} className={styles.replacementLine}><strong>{studentName(item.studentId)}</strong><small>{status==="PENDING"?`Aula perdida em ${formatDate(item.sourceDate)}`:status==="SCHEDULED"?`Marcada para ${formatDate(item.scheduledDate||item.sourceDate)}`:`Reposta em ${formatDate(item.completedDate||item.scheduledDate||item.sourceDate)}${item.attendance==="ABSENT"?" · faltou, crédito consumido":""}`}</small></div>)}</article>)}</div>;
+}
+
+function ReplacementLessonForm({replacements,students,onClose,onSave}:{replacements:KidsReplacement[];students:KidsStudent[];onClose:()=>void;onSave:(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]})=>void}){
+  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
+  const [startTime,setStartTime]=useState("16:00");
+  const [endTime,setEndTime]=useState("17:00");
+  const [category,setCategory]=useState<KidsCategory>("RED");
+  const [selected,setSelected]=useState<string[]>([]);
+  const pending=replacements.filter(item=>item.status==="PENDING").map(item=>students.find(student=>student.id===item.studentId)).filter((item,index,array):item is KidsStudent=>Boolean(item)&&array.findIndex(candidate=>candidate?.id===item?.id)===index).sort((a,b)=>localeCompare(a.name,b.name));
+  return <div className={styles.modalBackdrop}><section className={styles.modal}><div className={styles.modalHead}><div><h2>Nova aula avulsa de reposição</h2><p>Escolha individualmente as crianças confirmadas.</p></div><button onClick={onClose}>×</button></div><div className={styles.formGrid}><label>Data<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label>Categoria<select value={category} onChange={event=>setCategory(event.target.value as KidsCategory)}>{Object.entries(categoryLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Início<input type="time" value={startTime} onChange={event=>setStartTime(event.target.value)}/></label><label>Fim<input type="time" value={endTime} onChange={event=>setEndTime(event.target.value)}/></label></div><h3>Crianças com reposição pendente</h3><div className={styles.attendance}>{pending.map(student=><button key={student.id} className={selected.includes(student.id)?styles.present:""} onClick={()=>setSelected(current=>current.includes(student.id)?current.filter(id=>id!==student.id):[...current,student.id])}><span>{selected.includes(student.id)?"✓":"+"}</span><strong>{student.name}</strong><small>Selecionar</small></button>)}</div>{!pending.length?<Empty title="Nenhuma reposição pendente" text="Quando uma aula for cancelada com direito à reposição, os alunos aparecerão aqui."/>:null}<div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!date||!startTime||!endTime||!selected.length} onClick={()=>onSave({date,startTime,endTime,category,studentIds:selected})}>Criar aula</button></div></section></div>;
 }
 
 function Stat({
@@ -734,11 +841,15 @@ function LessonRow({
 function LessonEditor({
   lesson,
   group,
+  replacements,
+  allStudents,
   onClose,
   onSave,
 }: {
   lesson: KidsLesson;
   group: KidsClass;
+  replacements:KidsReplacement[];
+  allStudents:KidsStudent[];
   onClose: () => void;
   onSave: (next: KidsLesson) => void;
 }) {
@@ -746,12 +857,15 @@ function LessonEditor({
     ...lesson,
     attendance: { ...lesson.attendance },
   });
-  const students = group.students
+  const [replacementStudent,setReplacementStudent]=useState("");
+  const regularStudents = group.students
     .filter(
       (item) =>
         item.active && (!item.startDate || item.startDate <= lesson.date),
     )
-    .sort((a, b) => localeCompare(a.name, b.name));
+  const extraStudents=(draft.replacementStudentIds||[]).map(id=>allStudents.find(item=>item.id===id)).filter(Boolean) as KidsStudent[];
+  const students=[...regularStudents,...extraStudents.filter(item=>!regularStudents.some(regular=>regular.id===item.id))].sort((a,b)=>localeCompare(a.name,b.name));
+  const pendingStudents=replacements.filter(item=>item.status==="PENDING").map(item=>allStudents.find(student=>student.id===item.studentId)).filter((item,index,array):item is KidsStudent=>Boolean(item)&&array.findIndex(candidate=>candidate?.id===item?.id)===index).filter(item=>!students.some(current=>current.id===item.id)).sort((a,b)=>localeCompare(a.name,b.name));
   useEffect(() => {
     if (
       draft.status !== "HOLIDAY" &&
@@ -897,6 +1011,13 @@ function LessonEditor({
               <h3>Chamada</h3>
               <button onClick={allPresent}>Todos presentes</button>
             </div>
+            {pendingStudents.length ? <div className={styles.cancelBox}>
+              <strong>Adicionar criança em reposição</strong>
+              <div className={styles.inlineActions}>
+                <select value={replacementStudent} onChange={event=>setReplacementStudent(event.target.value)}><option value="">Selecione a criança</option>{pendingStudents.map(student=><option key={student.id} value={student.id}>{student.name}</option>)}</select>
+                <button disabled={!replacementStudent} onClick={()=>{if(!replacementStudent)return;setDraft(current=>({...current,replacementStudentIds:[...(current.replacementStudentIds||[]),replacementStudent],attendance:{...current.attendance,[replacementStudent]:"PRESENT"}}));setReplacementStudent("");}}>Adicionar</button>
+              </div>
+            </div>:null}
             <div className={styles.attendance}>
               {students.map((student) => {
                 const value = (draft.attendance[student.id] ||
@@ -912,6 +1033,7 @@ function LessonEditor({
                     <span>{value === "PRESENT" ? "✓" : "×"}</span>
                     <strong>{student.name}</strong>
                     <small>{value === "PRESENT" ? "Presente" : "Falta"}</small>
+                    {(draft.replacementStudentIds||[]).includes(student.id)?<em onClick={(event)=>{event.stopPropagation();setDraft(current=>({...current,replacementStudentIds:(current.replacementStudentIds||[]).filter(id=>id!==student.id)}));}}>Remover reposição</em>:null}
                   </button>
                 );
               })}
