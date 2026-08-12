@@ -93,6 +93,24 @@ export function normalizeKidsData(source:KidsData):KidsData{
     if(item.status==="SCHEDULED"&&destination?.status==="COMPLETED")return {...item,studentId,status:"COMPLETED" as const,completedDate:destination.date,attendance:destination.attendance[studentId]||"PRESENT"};
     return {...item,studentId};
   });
+  for(const lesson of lessons){
+    if(lesson.status!=="CANCELLED"||!lesson.replacementEligible)continue;
+    const group=classMap.get(lesson.classId);
+    if(!group)continue;
+    for(const student of group.students){
+      if(!student.active||(student.startDate&&student.startDate>lesson.date))continue;
+      if(replacements.some(item=>item.sourceLessonId===lesson.id&&item.studentId===student.id))continue;
+      replacements.push({
+        id:`replacement-${lesson.id}-${student.id}`,
+        studentId:student.id,
+        classId:lesson.classId,
+        sourceLessonId:lesson.id,
+        sourceDate:lesson.date,
+        reason:lesson.notes||"Aula cancelada com direito à reposição",
+        status:"PENDING",
+      });
+    }
+  }
   const uniqueReplacements=[...new Map(replacements.map(item=>[`${item.sourceLessonId}:${item.studentId}`,item])).values()];
   return {...source,classes,lessons,replacements:uniqueReplacements,updatedAt:source.updatedAt||now};
 }

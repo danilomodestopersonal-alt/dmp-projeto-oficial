@@ -46,6 +46,7 @@ const localeCompare = (a: string, b: string) => a.localeCompare(b, "pt-BR");
 const formatDate = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
 const currentMonth = () => new Date().toISOString().slice(0, 7);
+const groupName=(classes:KidsClass[],id:string)=>classes.find(group=>group.id===id)?.name||"Turma";
 
 export default function KidsPage({ onBack, openRequest }: { onBack: () => void; openRequest?:KidsLessonOpenRequest|null }) {
   const [data, setData] = useState<KidsData | null>(null);
@@ -62,6 +63,7 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
   const [agendaFilter, setAgendaFilter] = useState<AgendaFilter>("ALL");
   const [vacanciesOnly, setVacanciesOnly] = useState(false);
   const [showReplacementForm,setShowReplacementForm]=useState(false);
+  const [showInactiveStudents,setShowInactiveStudents]=useState(false);
 
   useEffect(() => {
     void load();
@@ -164,6 +166,15 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
     );
     return [...map.values()].sort((a, b) => localeCompare(a.name, b.name));
   }, [classes]);
+  const inactiveKids = useMemo(()=>{
+    const map=new Map<string,{id:string;name:string;categories:KidsCategory[];classIds:string[]}>();
+    classes.forEach(group=>group.students.filter(student=>!student.active).forEach(student=>{
+      const current=map.get(student.id);
+      if(current){if(!current.categories.includes(group.category))current.categories.push(group.category);current.classIds.push(group.id);}
+      else map.set(student.id,{id:student.id,name:student.name,categories:[group.category],classIds:[group.id]});
+    }));
+    return [...map.values()].filter(student=>!allKids.some(active=>active.id===student.id)).sort((a,b)=>localeCompare(a.name,b.name));
+  },[classes,allKids]);
   function classTime(id: string) {
     return classes.find((item) => item.id === id)?.startTime || "";
   }
@@ -664,13 +675,13 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
         <section className={styles.panel}>
           <div className={styles.panelHead}>
             <div>
-              <h2>Alunos</h2>
-              <p>Cadastro único das crianças e todas as suas turmas.</p>
+              <h2>{showInactiveStudents?"Alunos inativos":"Alunos"}</h2>
+              <p>{showInactiveStudents?"Cadastros preservados fora das chamadas atuais.":"Cadastro único das crianças e todas as suas turmas."}</p>
             </div>
-            <strong>{allKids.length} alunos</strong>
+            <button onClick={()=>setShowInactiveStudents(current=>!current)}>{showInactiveStudents?"Ver alunos ativos":`Ver alunos inativos (${inactiveKids.length})`}</button>
           </div>
           <div className={styles.kidsRoster}>
-            {allKids.map((student) => (
+            {(showInactiveStudents?inactiveKids:allKids).map((student) => (
               <button key={student.id} onClick={() => openStudent(student.id)}>
                 <span className={styles.categoryDots}>
                   {student.categories.map((category) => (
@@ -715,7 +726,7 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
           onSave={updateLesson}
         />
       ) : null}
-      {showReplacementForm ? <ReplacementLessonForm replacements={data.replacements||[]} students={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)} onClose={()=>setShowReplacementForm(false)} onSave={createReplacementLesson}/> : null}
+      {showReplacementForm ? <ReplacementLessonForm replacements={data.replacements||[]} students={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)} classes={classes} lessons={lessons} onClose={()=>setShowReplacementForm(false)} onSave={createReplacementLesson}/> : null}
       {classId ? (
         <ClassEditor
           group={group(classId)!}
@@ -747,14 +758,24 @@ function ReplacementBoard({replacements,students}:{replacements:KidsReplacement[
   return <div className={styles.grid2}>{sections.map(([status,label])=><article key={status} className={styles.cancelBox}><h3>{label} · {replacements.filter(item=>item.status===status).length}</h3>{replacements.filter(item=>item.status===status).sort((a,b)=>localeCompare(studentName(a.studentId),studentName(b.studentId))).map(item=><div key={item.id} className={styles.replacementLine}><strong>{studentName(item.studentId)}</strong><small>{status==="PENDING"?`Aula perdida em ${formatDate(item.sourceDate)}`:status==="SCHEDULED"?`Marcada para ${formatDate(item.scheduledDate||item.sourceDate)}`:`Reposta em ${formatDate(item.completedDate||item.scheduledDate||item.sourceDate)}${item.attendance==="ABSENT"?" · faltou, crédito consumido":""}`}</small></div>)}</article>)}</div>;
 }
 
-function ReplacementLessonForm({replacements,students,onClose,onSave}:{replacements:KidsReplacement[];students:KidsStudent[];onClose:()=>void;onSave:(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]})=>void}){
+function ReplacementLessonForm({replacements,students,classes,lessons,onClose,onSave}:{replacements:KidsReplacement[];students:KidsStudent[];classes:KidsClass[];lessons:KidsLesson[];onClose:()=>void;onSave:(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]})=>void}){
+  const replacementCategory=(item:KidsReplacement)=>{
+    const sourceLesson=lessons.find(lesson=>lesson.id===item.sourceLessonId);
+    const sourceClassId=sourceLesson?.classId||item.classId;
+    return classes.find(group=>group.id===sourceClassId)?.category;
+  };
   const [date,setDate]=useState(new Date().toISOString().slice(0,10));
   const [startTime,setStartTime]=useState("16:00");
   const [endTime,setEndTime]=useState("17:00");
-  const [category,setCategory]=useState<KidsCategory>("RED");
+  const [category,setCategory]=useState<KidsCategory>(()=>{
+    const firstPending=replacements.find(item=>item.status==="PENDING");
+    return firstPending?replacementCategory(firstPending)||"RED":"RED";
+  });
   const [selected,setSelected]=useState<string[]>([]);
-  const pending=replacements.filter(item=>item.status==="PENDING").map(item=>students.find(student=>student.id===item.studentId)).filter((item,index,array):item is KidsStudent=>Boolean(item)&&array.findIndex(candidate=>candidate?.id===item?.id)===index).sort((a,b)=>localeCompare(a.name,b.name));
-  return <div className={styles.modalBackdrop}><section className={styles.modal}><div className={styles.modalHead}><div><h2>Nova aula avulsa de reposição</h2><p>Escolha individualmente as crianças confirmadas.</p></div><button onClick={onClose}>×</button></div><div className={styles.formGrid}><label>Data<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label>Categoria<select value={category} onChange={event=>setCategory(event.target.value as KidsCategory)}>{Object.entries(categoryLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Início<input type="time" value={startTime} onChange={event=>setStartTime(event.target.value)}/></label><label>Fim<input type="time" value={endTime} onChange={event=>setEndTime(event.target.value)}/></label></div><h3>Crianças com reposição pendente</h3><div className={styles.attendance}>{pending.map(student=><button key={student.id} className={selected.includes(student.id)?styles.present:""} onClick={()=>setSelected(current=>current.includes(student.id)?current.filter(id=>id!==student.id):[...current,student.id])}><span>{selected.includes(student.id)?"✓":"+"}</span><strong>{student.name}</strong><small>Selecionar</small></button>)}</div>{!pending.length?<Empty title="Nenhuma reposição pendente" text="Quando uma aula for cancelada com direito à reposição, os alunos aparecerão aqui."/>:null}<div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!date||!startTime||!endTime||!selected.length} onClick={()=>onSave({date,startTime,endTime,category,studentIds:selected})}>Criar aula</button></div></section></div>;
+  const [showStudents,setShowStudents]=useState(false);
+  const pending=replacements.filter(item=>item.status==="PENDING"&&replacementCategory(item)===category).map(item=>students.find(student=>student.id===item.studentId)).filter((item,index,array):item is KidsStudent=>Boolean(item)&&array.findIndex(candidate=>candidate?.id===item?.id)===index).sort((a,b)=>localeCompare(a.name,b.name));
+  useEffect(()=>{setSelected(current=>current.filter(id=>pending.some(student=>student.id===id)));setShowStudents(false);},[category]);
+  return <div className={styles.modalBackdrop}><section className={styles.modal}><div className={styles.modalHead}><div><h2>Nova aula avulsa de reposição</h2><p>Escolha individualmente as crianças confirmadas.</p></div><button onClick={onClose}>×</button></div><div className={styles.formGrid}><label>Data<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label>Categoria<select value={category} onChange={event=>setCategory(event.target.value as KidsCategory)}>{Object.entries(categoryLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Início<input type="time" value={startTime} onChange={event=>setStartTime(event.target.value)}/></label><label>Fim<input type="time" value={endTime} onChange={event=>setEndTime(event.target.value)}/></label></div><button type="button" className={styles.primary} onClick={()=>setShowStudents(current=>!current)}>+ Adicionar alunos {pending.length?`(${pending.length} disponíveis)`:""}</button>{showStudents?<><h3>Crianças com reposição pendente · {selected.length} selecionada{selected.length===1?"":"s"}</h3><div className={styles.attendance}>{pending.map(student=><button type="button" key={student.id} className={selected.includes(student.id)?styles.present:""} onClick={()=>setSelected(current=>current.includes(student.id)?current.filter(id=>id!==student.id):[...current,student.id])}><span>{selected.includes(student.id)?"✓":"+"}</span><strong>{student.name}</strong><small>{selected.includes(student.id)?"Adicionada":"Adicionar"}</small></button>)}</div>{!pending.length?<Empty title={`Nenhuma reposição pendente na bola ${categoryLabel[category].toLowerCase()}`} text="Somente crianças com crédito pendente desta categoria aparecem aqui."/>:null}</>:null}<div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!date||!startTime||!endTime||!selected.length} onClick={()=>onSave({date,startTime,endTime,category,studentIds:selected})}>Criar aula</button></div></section></div>;
 }
 
 function Stat({
@@ -1550,6 +1571,7 @@ function StudentEditor({
               ...student,
               ...profile,
               name: profile.name.trim() || student.name,
+              active:profile.active ? student.active : false,
             }
           : student,
       ),
@@ -1603,6 +1625,7 @@ function StudentEditor({
   const absent = completedLessons.filter(
     (lesson) => lesson.attendance[studentId] === "ABSENT",
   ).length;
+  const cancelledLessons=lessons.filter(lesson=>lesson.status==="CANCELLED"&&classes.some(group=>group.id===lesson.classId&&group.students.some(student=>student.id===studentId&&(!student.startDate||student.startDate<=lesson.date)))).sort((a,b)=>b.date.localeCompare(a.date));
   function printStudentReport() {
     printReport(buildReport({ ...data, classes: draft }, "student", studentId));
   }
@@ -1655,6 +1678,14 @@ function StudentEditor({
                 }))
               }
             />
+          </label>
+          <label>
+            Situação do cadastro
+            <select value={profile.active?"ACTIVE":"INACTIVE"} onChange={event=>setProfile(current=>({...current,active:event.target.value==="ACTIVE"}))}>
+              <option value="ACTIVE">Aluno ativo</option>
+              <option value="INACTIVE">Aluno inativo</option>
+            </select>
+            <small>Ao inativar, a criança sai de todas as turmas e chamadas futuras, sem apagar o histórico.</small>
           </label>
           <label>
             Nome do pai
@@ -1750,6 +1781,7 @@ function StudentEditor({
                 }))
               }
             />
+            <small>{new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(profile.monthlyAmount||0)}</small>
           </label>
           <label>
             Dia do vencimento
@@ -1839,6 +1871,8 @@ function StudentEditor({
             <p>Nenhuma reposição registrada.</p>
           )}
         </div>
+        <h3>Aulas canceladas da criança ({cancelledLessons.length})</h3>
+        <div className={styles.lessonList}>{cancelledLessons.length?cancelledLessons.map(lesson=><article key={lesson.id} className={styles.lessonRow}><span><strong>{formatDate(lesson.date)} · {groupName(classes,lesson.classId)}</strong><small>{lesson.notes||"Aula cancelada"}{lesson.replacementEligible?" · com direito à reposição":" · sem reposição"}</small></span></article>):<p>Nenhuma aula cancelada registrada.</p>}</div>
         <h3>Turmas da criança</h3>
         <div className={styles.enrollmentList}>
           {memberships.map((group) => {
