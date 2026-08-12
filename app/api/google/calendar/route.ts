@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
       timeZone:"America/Sao_Paulo", year:"numeric", month:"2-digit", day:"2-digit"
     }).format(new Date());
     const requestedDays = Number(request.nextUrl.searchParams.get("days") || "1");
-    const days = Math.min(14, Math.max(1, Number.isFinite(requestedDays) ? Math.floor(requestedDays) : 1));
+    // A agenda anual precisa consultar um intervalo maior que as duas semanas
+    // usadas na tela Hoje. O limite de 370 cobre um ano completo com folga.
+    const days = Math.min(370, Math.max(1, Number.isFinite(requestedDays) ? Math.floor(requestedDays) : 1));
 
     const start = new Date(`${date}T00:00:00-03:00`);
     const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000 - 1);
