@@ -38,6 +38,7 @@ export type Session = {
   source?: SessionSource;
   startedAt?: string;
   finishedAt?: string;
+  calendarEvent?: Pick<CalendarEvent,"id"|"summary"|"description"|"start"|"end"|"allDay"|"location">;
 };
 
 export type Measurements = {

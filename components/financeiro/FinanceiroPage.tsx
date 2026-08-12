@@ -177,6 +177,13 @@ export default function FinanceiroPage() {
     recognition.start();
   }
 
+  useEffect(()=>{
+    if(window.sessionStorage.getItem("dmp_finance_voice_start")!=="1")return;
+    window.sessionStorage.removeItem("dmp_finance_voice_start");
+    const timer=window.setTimeout(()=>startVoice(),350);
+    return()=>window.clearTimeout(timer);
+  },[]);
+
   function confirmVoice() {
     if (!voicePreview || !requireEditable()) return;
     const preview = voicePreview;
