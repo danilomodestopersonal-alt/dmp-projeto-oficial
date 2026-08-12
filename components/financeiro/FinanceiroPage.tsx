@@ -149,6 +149,14 @@ export default function FinanceiroPage() {
     setAction(next);
   }
 
+  useEffect(() => {
+    const quickAction=window.sessionStorage.getItem("dmp_finance_quick_action");
+    if(quickAction!=="extra")return;
+    window.sessionStorage.removeItem("dmp_finance_quick_action");
+    setTab("extras");
+    setAction({type:"extra-create"});
+  }, []);
+
   function startVoice() {
     if (!requireEditable()) return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
