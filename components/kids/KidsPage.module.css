@@ -619,6 +619,8 @@
   flex: 1;
   min-width: 220px;
 }
+.eventsYear{display:grid;gap:14px;margin-top:22px}.eventsYear>h3{margin:0;color:#173f37;font-size:26px}.eventsGrid{display:grid;gap:14px}.eventCard{display:grid;grid-template-columns:84px 1fr auto;gap:18px;align-items:center;padding:18px;border:1px solid #d9e3df;border-radius:20px;background:linear-gradient(135deg,#fff,#fbf7ef)}.eventDate{display:grid;place-items:center;border-radius:16px;overflow:hidden;border:1px solid #dbe3df}.eventDate span{width:100%;padding:6px;text-align:center;text-transform:uppercase;font-weight:800;color:#fff;background:#ef7e1a}.eventDate strong{padding:10px;font-size:30px;color:#164339}.eventInfo{display:grid;gap:5px}.eventInfo h3,.eventInfo p{margin:0}.eventInfo small{color:#ef7e1a;font-weight:800}.eventInfo p{color:#667772}.eventActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.eventActions a,.eventActions button{padding:10px 13px;border:1px solid #d5dfdc;border-radius:12px;background:#fff;color:#164339;font-weight:800;text-decoration:none}.eventDriveEdit{display:flex;gap:8px;margin-top:8px}.eventDriveEdit input{min-width:300px;flex:1;padding:10px;border:1px solid #cad7d3;border-radius:11px}
+.eventFilters{display:grid;grid-template-columns:minmax(220px,1fr) 180px 180px;gap:10px;margin-top:18px}.eventFilters input,.eventFilters select{width:100%;padding:11px 13px;border:1px solid #ccd9d5;border-radius:13px;background:#fff;font:inherit}.eventPast{opacity:.8;background:#f7f8f6}.eventDone,.eventUpcoming{padding:6px 9px;border-radius:999px;font-size:.72rem;font-weight:900}.eventDone{background:#eef0ed;color:#64706c}.eventUpcoming{background:#eaf6d6;color:#557420}
 @media (max-width: 800px) {
   .enrollmentList > article {
     grid-template-columns: auto 1fr;
@@ -631,4 +633,5 @@
     align-items: stretch;
     flex-direction: column;
   }
+  .eventFilters{grid-template-columns:1fr}.eventCard{grid-template-columns:65px 1fr}.eventActions{grid-column:2}.eventDriveEdit{flex-direction:column}.eventDriveEdit input{min-width:0;width:100%}
 }

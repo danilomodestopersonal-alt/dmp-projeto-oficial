@@ -12,13 +12,14 @@ import type {
   KidsCategory,
   KidsClass,
   KidsData,
+  KidsEvent,
   KidsLesson,
   KidsReplacement,
   KidsStudent,
 } from "@/types/kids";
 import type { FinanceData } from "@/types/financeiro";
 
-type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "replacements" | "reports";
+type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "replacements" | "events" | "reports";
 type AgendaFilter = "ALL" | "COMPLETED" | "CANCELLED";
 export type KidsLessonOpenRequest={date:string;time:string;category:KidsCategory};
 const categoryLabel: Record<KidsCategory, string> = {
@@ -122,6 +123,10 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
     } finally {
       setSaving(false);
     }
+  }
+  function updateEvent(event:KidsEvent){
+    if(!data)return;
+    void persist({...data,events:(data.events||[]).map(item=>item.id===event.id?event:item)},"Evento atualizado.");
   }
   const classes = data?.classes || [];
   const lessons = data?.lessons || [];
@@ -421,6 +426,7 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
             ["classes", "Turmas"],
             ["students", "Alunos"],
             ["replacements", "Reposições"],
+            ["events", "Eventos"],
             ["reports", "Relatórios"],
           ] as [KidsTab, string][]
         ).map(([value, label]) => (
@@ -707,6 +713,8 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
         </section>
       ) : null}
 
+      {tab === "events" ? <KidsEvents events={data.events||[]} onSave={updateEvent}/> : null}
+
       {tab === "reports" ? (
         <Reports
           data={data}
@@ -750,6 +758,44 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       ) : null}
     </div>
   );
+}
+
+function KidsEvents({events,onSave}:{events:KidsEvent[];onSave:(event:KidsEvent)=>void}){
+  const [query,setQuery]=useState("");
+  const [year,setYear]=useState("ALL");
+  const [month,setMonth]=useState("ALL");
+  const years=[...new Set(events.map(item=>item.year))].sort();
+  const normalized=query.trim().toLocaleLowerCase("pt-BR");
+  const filtered=events.filter(event=>(year==="ALL"||String(event.year)===year)&&(month==="ALL"||event.startDate.slice(5,7)===month)&&(!normalized||`${event.name} ${event.description||""}`.toLocaleLowerCase("pt-BR").includes(normalized))).sort((a,b)=>{
+    const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    const aPast=(a.endDate||a.startDate)<todayKey;const bPast=(b.endDate||b.startDate)<todayKey;
+    if(aPast!==bPast)return aPast?1:-1;
+    return aPast?b.startDate.localeCompare(a.startDate):a.startDate.localeCompare(b.startDate);
+  });
+  const visibleYears=[...new Set(filtered.map(item=>item.year))].sort();
+  return <section className={styles.panel}>
+    <div className={styles.panelHead}><div><h2>Eventos DS Tennis</h2><p>Calendário anual, informações e pastas de trabalho no Google Drive.</p></div></div>
+    <div className={styles.eventFilters}><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Buscar evento..."/><select value={year} onChange={event=>setYear(event.target.value)}><option value="ALL">Todos os anos</option>{years.map(value=><option key={value} value={value}>{value}</option>)}</select><select value={month} onChange={event=>setMonth(event.target.value)}><option value="ALL">Todos os meses</option>{Array.from({length:12},(_,index)=>{const value=String(index+1).padStart(2,"0");return <option key={value} value={value}>{new Date(2026,index,1).toLocaleDateString("pt-BR",{month:"long"})}</option>;})}</select></div>
+    {visibleYears.map(value=><div key={value} className={styles.eventsYear}>
+      <h3>{value}</h3>
+      <div className={styles.eventsGrid}>{filtered.filter(item=>item.year===value).map(event=><KidsEventCard key={event.id} event={event} onSave={onSave}/>)}</div>
+    </div>)}
+    {!filtered.length?<Empty title="Nenhum evento encontrado" text="Altere os filtros ou pesquise outro nome."/>:null}
+  </section>;
+}
+
+function KidsEventCard({event,onSave}:{event:KidsEvent;onSave:(event:KidsEvent)=>void}){
+  const [editing,setEditing]=useState(false);
+  const [driveUrl,setDriveUrl]=useState(event.driveUrl||"");
+  const date=event.endDate&&event.endDate!==event.startDate?`${formatDate(event.startDate)} a ${formatDate(event.endDate)}`:formatDate(event.startDate);
+  const past=(event.endDate||event.startDate)<new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  return <article className={`${styles.eventCard} ${past?styles.eventPast:""}`}>
+    <div className={styles.eventDate}><span>{new Date(`${event.startDate}T12:00:00`).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span><strong>{new Date(`${event.startDate}T12:00:00`).getDate()}</strong></div>
+    <div className={styles.eventInfo}><small>{date}</small><h3>{event.name}</h3>{event.description?<p>{event.description}</p>:null}
+      {editing?<div className={styles.eventDriveEdit}><input value={driveUrl} onChange={e=>setDriveUrl(e.target.value)} placeholder="Cole o link da pasta no Google Drive"/><button className={styles.primary} onClick={()=>{onSave({...event,driveUrl:driveUrl.trim()});setEditing(false);}}>Salvar</button></div>:null}
+    </div>
+    <div className={styles.eventActions}><span className={past?styles.eventDone:styles.eventUpcoming}>{past?"Realizado":"Programado"}</span>{event.driveUrl?<a href={event.driveUrl} target="_blank" rel="noreferrer">📁 Abrir pasta</a>:null}<button onClick={()=>setEditing(current=>!current)}>{event.driveUrl?"Editar link":"+ Pasta do Drive"}</button></div>
+  </article>;
 }
 
 function ReplacementBoard({replacements,students}:{replacements:KidsReplacement[];students:{id:string;name:string}[]}){

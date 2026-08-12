@@ -9,13 +9,15 @@ async function tokenFor(request: NextRequest) {
 }
 
 function eventPayload(body:any) {
-  return {
+  const payload:any = {
     summary: String(body.summary || "Compromisso DMP"),
     description: String(body.description || ""),
     location: String(body.location || ""),
     start: { dateTime: body.start, timeZone: "America/Sao_Paulo" },
     end: { dateTime: body.end, timeZone: "America/Sao_Paulo" }
   };
+  if (Array.isArray(body.recurrence) && body.recurrence.length) payload.recurrence = body.recurrence;
+  return payload;
 }
 
 export async function POST(request: NextRequest) {

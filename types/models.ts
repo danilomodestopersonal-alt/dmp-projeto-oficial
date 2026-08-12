@@ -27,7 +27,7 @@ export type Workout = {
   exercises: Exercise[];
 };
 
-export type SessionSource = "PLANNED" | "FREE" | "ATTENDANCE" | "IMPORTED";
+export type SessionSource = "PLANNED" | "FREE" | "ATTENDANCE" | "ABSENCE" | "IMPORTED";
 
 export type Session = {
   id: string;
@@ -105,4 +105,5 @@ export type CalendarEvent = {
   location?: string;
   matchedStudentId?: string | null;
   matchedStudentIds?: string[];
+  recurrence?: string[];
 };

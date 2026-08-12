@@ -61,6 +61,16 @@ export type KidsReplacement = {
   attendance?:KidsAttendanceStatus;
 };
 
+export type KidsEvent = {
+  id:string;
+  name:string;
+  startDate:string;
+  endDate?:string;
+  description?:string;
+  year:number;
+  driveUrl?:string;
+};
+
 export type KidsData = {
   version:1;
   semesterStart:string;
@@ -68,5 +78,6 @@ export type KidsData = {
   classes:KidsClass[];
   lessons:KidsLesson[];
   replacements?:KidsReplacement[];
+  events?:KidsEvent[];
   updatedAt:string;
 };

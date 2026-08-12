@@ -1,4 +1,4 @@
-import type { KidsCategory, KidsClass, KidsData, KidsLesson } from "@/types/kids";
+import type { KidsCategory, KidsClass, KidsData, KidsEvent, KidsLesson } from "@/types/kids";
 import { formatKidsPlan, getKidsPedagogicalPlan } from "@/lib/kids/pedagogy";
 
 export const KIDS_SEMESTER_START="2026-08-03";
@@ -24,6 +24,15 @@ const seedClasses:SeedClass[]=[
 
 const categoryName:Record<KidsCategory,string>={RED:"Vermelha",ORANGE:"Laranja",GREEN:"Verde",YELLOW:"Amarela"};
 const weekdayName=["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
+const kidsEvents:KidsEvent[]=[
+  {id:"event-clinica-ricardo-2026",name:"Clínica Técnica com Ricardo",startDate:"2026-09-13",description:"Treinamento Técnico-Tático — Situações de Fundo de Quadra.",year:2026},
+  {id:"event-tmc-adulto-2026",name:"TMC Adulto — Torneio de Duplas",startDate:"2026-09-26",endDate:"2026-09-27",description:"Torneio de duplas para atletas adultos.",year:2026},
+  {id:"event-tmc-kids-2026",name:"TMC Kids",startDate:"2026-10-24",endDate:"2026-10-25",year:2026},
+  {id:"event-finals-ranking-2026",name:"Finals do Ranking DS Tennis",startDate:"2026-12-05",endDate:"2026-12-06",year:2026},
+  {id:"event-encerramento-kids-2026",name:"Encerramento das Aulas Kids",startDate:"2026-12-19",year:2026},
+  {id:"event-solidario-etapa-1-2027",name:"Circuito Solidário de Tênis — 1ª Etapa",startDate:"2027-07-31",endDate:"2027-08-01",year:2027},
+  {id:"event-solidario-etapa-2-2027",name:"Circuito Solidário de Tênis — 2ª Etapa",startDate:"2027-08-14",endDate:"2027-08-15",year:2027},
+];
 export function kidsClassName(category:KidsCategory,weekday:number,startTime:string){return `Bola ${categoryName[category]} — ${weekdayName[weekday]}, ${Number(startTime.slice(0,2))}h`;}
 
 function slug(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");}
@@ -45,7 +54,7 @@ export function createKidsSeed():KidsData{
       lessons.push({id:`lesson-${group.id}-${date}`,classId:group.id,date,status:holiday?"HOLIDAY":"SCHEDULED",attendance:{},theme:plan?.theme||"",pedagogicalFocus:plan?.focus||"",objective:plan?.objective||"",stations:plan?.stations||[],teacherTip:plan?.tip||"",plannedPlan:plan?formatKidsPlan(plan):"",actualPlan:"",notes:holiday?"Aula cancelada por feriado.":"",replacementEligible:false,replacementStatus:"NONE",updatedAt:now});
     }
   }
-  return {version:1,semesterStart:KIDS_SEMESTER_START,semesterEnd:KIDS_SEMESTER_END,classes,lessons,replacements:[],updatedAt:now};
+  return {version:1,semesterStart:KIDS_SEMESTER_START,semesterEnd:KIDS_SEMESTER_END,classes,lessons,replacements:[],events:kidsEvents.map(item=>({...item})),updatedAt:now};
 }
 
 export function normalizeKidsData(source:KidsData):KidsData{
@@ -112,7 +121,9 @@ export function normalizeKidsData(source:KidsData):KidsData{
     }
   }
   const uniqueReplacements=[...new Map(replacements.map(item=>[`${item.sourceLessonId}:${item.studentId}`,item])).values()];
-  return {...source,classes,lessons,replacements:uniqueReplacements,updatedAt:source.updatedAt||now};
+  const savedEvents=Array.isArray(source.events)?source.events:[];
+  const events=[...savedEvents,...kidsEvents.filter(item=>!savedEvents.some(saved=>saved.id===item.id))].sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  return {...source,classes,lessons,replacements:uniqueReplacements,events,updatedAt:source.updatedAt||now};
 }
 
 function earliestDate(a?:string,b?:string){if(!a)return b;if(!b)return a;return a<b?a:b;}

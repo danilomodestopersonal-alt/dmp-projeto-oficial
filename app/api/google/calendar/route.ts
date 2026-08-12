@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
       end:event.end?.dateTime || event.end?.date || "",
       allDay:Boolean(event.start?.date),
       htmlLink:event.htmlLink || "",
-      location:event.location || ""
+      location:event.location || "",
+      recurrence:event.recurrence || []
     }));
     const response = NextResponse.json({events,range:{date,days}});
     if (refreshed) setGoogleCookies(response, refreshed);
