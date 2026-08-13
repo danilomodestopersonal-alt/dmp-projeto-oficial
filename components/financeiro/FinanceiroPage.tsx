@@ -47,7 +47,6 @@ const today = () => localDateISO();
 
 type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "closing" | "reports";
 type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
-type DsView = "summary" | "audit";
 
 type Action =
   | { type: "personal-create" }
@@ -77,8 +76,6 @@ export default function FinanceiroPage() {
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const [listFilter, setListFilter] = useState<Filter>("ALL");
   const [undoDeletion, setUndoDeletion] = useState<FinanceData | null>(null);
-  const [kidsSource, setKidsSource] = useState<KidsData | null>(null);
-  const [dsView, setDsView] = useState<DsView>("summary");
   const competence = data.currentCompetence;
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
@@ -99,7 +96,7 @@ export default function FinanceiroPage() {
         if (cancelled) return;
         const base=cloud||local;
         let next=base;
-        try{const kidsResponse=await fetch("/api/kids",{cache:"no-store"});if(kidsResponse.ok){const kidsPayload=await kidsResponse.json();if(kidsPayload.data){setKidsSource(kidsPayload.data);next=mergeKidsFinance(base,kidsPayload.data);}}}catch{}
+        try{const kidsResponse=await fetch("/api/kids",{cache:"no-store"});if(kidsResponse.ok){const kidsPayload=await kidsResponse.json();if(kidsPayload.data)next=mergeKidsFinance(base,kidsPayload.data);}}catch{}
         if (cloud) {
           setData(next);
           saveFinanceData(next);
@@ -378,8 +375,6 @@ export default function FinanceiroPage() {
 
         {tab === "ds" ? (
           <div className="finance-ds-single">
-            <div className={styles.dsInnerTabs}><button className={dsView==="summary"?styles.dsInnerActive:""} onClick={()=>setDsView("summary")}>Resumo DS</button><button className={dsView==="audit"?styles.dsInnerActive:""} onClick={()=>setDsView("audit")}>Conferência de alunos</button></div>
-            {dsView==="audit"?<KidsFinanceAudit kids={kidsSource} financeKids={summary.kids} dsPercent={data.dsPercent}/>:<>
             <section className="panel">
               <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button></div>
               {competence === "2026-08" && summary.ranking === 6500 ? <div className={styles.importNote}><strong>Conferência da planilha</strong><span>O Resumo DS informa Ranking de R$ 6.500,00. Outro quadro da planilha mostra R$ 7.000,00. O DMP está usando R$ 6.500,00; altere aqui se necessário.</span></div> : null}
@@ -391,7 +386,6 @@ export default function FinanceiroPage() {
               <div className="panel-head"><div><h2>Alunos Kids</h2><p className="muted">{summary.kids.length} registros · {money.format(summary.kidsGross)} bruto.</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "kid-create" })}>+ Kids</button></div>
               <div className={`${styles.list} ${styles.scrollList}`}>{summary.kids.slice().sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")).map(kid => <div className={styles.rowShell} key={kid.id}><div className={`${styles.row} ${styles.staticRow} ${styles.rowMain}`}><span><strong><FinanceCategoryDot category={kid.tennisCategory}/>{kid.studentName}</strong><small>{kid.installmentCurrent && kid.installmentTotal ? `${kid.installmentCurrent}/${kid.installmentTotal}` : kid.installmentTotal ? `${kid.installmentTotal} parcelas · atual a configurar` : "Parcelas a configurar"}</small></span><strong>{money.format(kid.amount)}</strong></div><button className={styles.manageButton} disabled={!editable} onClick={() => openAction({ type: "kid-edit", kid })}>Editar</button></div>)}</div>
             </section>
-            </>}
           </div>
         ) : null}
 
@@ -621,50 +615,18 @@ function PaymentHistory({ title, payments, onDelete }: { title: string; payments
   return <div className={styles.paymentHistory}><strong>{title}</strong>{payments.length ? payments.slice().sort((a, b) => b.date.localeCompare(a.date)).map(payment => <div key={payment.id}><span>{formatDate(payment.date)}{payment.note ? ` · ${payment.note}` : ""}</span><strong>{money.format(payment.amount)}</strong><button type="button" onClick={() => onDelete(payment)}>Excluir</button></div>) : <span className="muted">Nenhum pagamento registrado.</span>}</div>;
 }
 
-function normalizeFinanceStudentName(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
-
 function mergeKidsFinance(finance:FinanceData,kids:KidsData):FinanceData{
-  const competence=finance.currentCompetence;
+  const competence=finance.currentCompetence;const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
   const profiles=new Map<string,{student:KidsData["classes"][number]["students"][number];category:KidsData["classes"][number]["category"]}>();
-  for(const group of kids.classes){
-    for(const student of group.students){
-      if(student.active&&!profiles.has(student.id))profiles.set(student.id,{student,category:group.category});
-    }
-  }
-  const previous=finance.dsKids.filter(item=>item.competence===competence);
-  const merged:DsKidEntry[]=[];
+  for(const group of kids.classes)for(const student of group.students)if(student.active&&!profiles.has(student.id))profiles.set(student.id,{student,category:group.category});
+  const merged=[...finance.dsKids.filter(item=>item.competence===competence)];
   for(const {student,category} of profiles.values()){
-    if(student.monthlyAmount===undefined)continue;
-    const generatedId=`kids-${student.id}-${competence}`;
-    const existing=previous.find(item=>item.studentId===student.id||item.id===generatedId||normalizeFinanceStudentName(item.studentName)===normalizeFinanceStudentName(student.name));
+    if(student.monthlyAmount===undefined)continue;const index=merged.findIndex(item=>normalize(item.studentName)===normalize(student.name));
     const billingMode=student.billingMode==="ONE_TIME"?"SINGLE":student.billingMode==="INSTALLMENTS"?"INSTALLMENT":"RECURRING";
-    merged.push({id:existing?.id||generatedId,competence,studentId:student.id,studentName:student.name,amount:student.monthlyAmount||0,dueDay:student.dueDay||null,billingMode,tennisCategory:category==="YELLOW"?"GREEN":category,installmentTotal:student.installmentCount||null,installmentCurrent:existing?.installmentCurrent||null});
+    const next:DsKidEntry={id:index>=0?merged[index].id:`kids-${student.id}-${competence}`,competence,studentName:student.name,amount:student.monthlyAmount||0,dueDay:student.dueDay||null,billingMode,tennisCategory:category==="YELLOW"?"GREEN":category,installmentTotal:student.installmentCount||null,installmentCurrent:index>=0?merged[index].installmentCurrent:null};
+    if(index>=0)merged[index]=next;else merged.push(next);
   }
   return {...finance,dsKids:[...finance.dsKids.filter(item=>item.competence!==competence),...merged]};
-}
-
-function KidsFinanceAudit({kids,financeKids,dsPercent}:{kids:KidsData|null;financeKids:DsKidEntry[];dsPercent:number}){
-  if(!kids)return <section className="panel"><Empty text="Não foi possível carregar a base oficial do Kids para a conferência."/></section>;
-  const profiles=new Map<string,{student:KidsData["classes"][number]["students"][number];category:KidsData["classes"][number]["category"]}>();
-  for(const group of kids.classes)for(const student of group.students)if(student.active&&!profiles.has(student.id)&&student.monthlyAmount!==undefined)profiles.set(student.id,{student,category:group.category});
-  const rows=[...profiles.values()].map(({student,category})=>{
-    const entry=financeKids.find(item=>item.studentId===student.id||normalizeFinanceStudentName(item.studentName)===normalizeFinanceStudentName(student.name));
-    const expectedMode=student.billingMode==="ONE_TIME"?"SINGLE":student.billingMode==="INSTALLMENTS"?"INSTALLMENT":"RECURRING";
-    const ok=Boolean(entry)&&Math.abs((entry?.amount||0)-(student.monthlyAmount||0))<0.005&&entry?.billingMode===expectedMode;
-    return {student,category,entry,expectedMode,status:!entry?"FALTA":ok?"OK":"DIVERGÊNCIA"};
-  }).sort((a,b)=>a.student.name.localeCompare(b.student.name,"pt-BR"));
-  const sourceTotal=rows.reduce((sum,row)=>sum+(row.student.monthlyAmount||0),0);
-  const financeTotal=financeKids.reduce((sum,item)=>sum+item.amount,0);
-  const difference=financeTotal-sourceTotal;
-  const divergences=rows.filter(row=>row.status!=="OK").length;
-  const billingLabel=(mode:string)=>mode==="SINGLE"?"Parcela única":mode==="INSTALLMENT"?"Parcelado":"Recorrente";
-  const catLabel=(category:KidsData["classes"][number]["category"])=>category==="RED"?"Vermelha":category==="ORANGE"?"Laranja":category==="GREEN"?"Verde":"Amarela";
-  return <section className="panel">
-    <div className="panel-head"><div><h2>Conferência de alunos · DS Tênis</h2><p className="muted">Comparação direta entre o cadastro oficial Kids e o Financeiro desta competência.</p></div></div>
-    <div className={styles.auditCards}><div><span>Alunos ativos</span><strong>{rows.length}</strong></div><div><span>Kids bruto</span><strong>{money.format(sourceTotal)}</strong></div><div><span>Sua parte ({Math.round(dsPercent*100)}%)</span><strong>{money.format(sourceTotal*dsPercent)}</strong></div><div className={divergences||Math.abs(difference)>.005?styles.auditWarning:styles.auditOk}><span>Conferência</span><strong>{divergences||Math.abs(difference)>.005?"Revisar":"Tudo certo"}</strong></div></div>
-    <div className={Math.abs(difference)>.005?styles.auditAlert:styles.auditSuccess}>{Math.abs(difference)>.005?<>Diferença entre as bases: <strong>{money.format(difference)}</strong>.</>:<>✓ Financeiro e cadastro Kids estão com o mesmo total: <strong>{money.format(sourceTotal)}</strong>.</>}</div>
-    <div className={styles.auditTableWrap}><table className={styles.auditTable}><thead><tr><th>Aluno</th><th>Categoria</th><th>Cobrança</th><th>Venc.</th><th>Valor Kids</th><th>Valor Financeiro</th><th>Status</th></tr></thead><tbody>{rows.map(row=><tr key={row.student.id}><td><strong>{row.student.name}</strong></td><td>{catLabel(row.category)}</td><td>{billingLabel(row.expectedMode)}{row.expectedMode==="INSTALLMENT"&&row.student.installmentCount?` · ${row.student.installmentCount}x`:""}</td><td>{row.student.dueDay?`Dia ${row.student.dueDay}`:"—"}</td><td>{money.format(row.student.monthlyAmount||0)}</td><td>{row.entry?money.format(row.entry.amount):"—"}</td><td><span className={row.status==="OK"?styles.auditStatusOk:styles.auditStatusBad}>{row.status==="OK"?"OK":row.status==="FALTA"?"Não sincronizado":"Divergência"}</span></td></tr>)}</tbody></table></div>
-  </section>;
 }
 
 function FilterBar({ value, onChange }: { value: Filter; onChange: (value: Filter) => void }) {
