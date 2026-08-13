@@ -981,9 +981,6 @@ function TodayHighlights({events,notes,students,sessions,onAgenda,onStudent,onKi
   const timed=events.filter(event=>!event.allDay).sort((a,b)=>a.start.localeCompare(b.start));
   const programmedStudents=new Map<string,Student>();
   timed.filter(event=>!kidsCalendarRequest(event)).forEach(event=>getCalendarEventStudents(event,students).forEach(student=>programmedStudents.set(student.id,student)));
-  // Quando uma ausência é registrada, o compromisso pode ser removido da Agenda Google.
-  // Ainda assim o aluno precisa continuar no Resumo do dia como programado/ausente.
-  sessions.filter(item=>item.session.source==="ABSENCE").forEach(item=>programmedStudents.set(item.student.id,item.student));
   const attendedIds=new Set(sessions.filter(item=>item.session.source!=="ABSENCE"&&programmedStudents.has(item.student.id)).map(item=>item.student.id));
   const absentIds=new Set(sessions.filter(item=>item.session.source==="ABSENCE"&&programmedStudents.has(item.student.id)).map(item=>item.student.id));
   const attended=[...programmedStudents.values()].filter(student=>attendedIds.has(student.id));
