@@ -47,6 +47,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
 
   const personalExpected = sum(personal.map(item => item.expectedAmount));
   const personalReceived = sum(personal.map(item => paid(item.payments)));
+  // Cada lançamento Kids pertence à competência em que deve ser reconhecido.
+  // SINGLE entra integralmente no mês do pagamento; recorrentes e parcelados entram conforme a competência.
   const kidsGross = sum(kids.map(item => item.amount));
   const kidsNet = roundMoney(kidsGross * data.dsPercent);
   const ranking = data.rankingByCompetence[competence] || 0;
@@ -68,7 +70,9 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   // Gastos extras e saldo da DS não entram neste cálculo.
   const plannedPayable = sum(expenses.map(item => remaining(item.expectedAmount, item.payments)));
   const payable = roundMoney(plannedPayable);
-  const projectedResult = roundMoney(receivable - payable);
+  // Saldo projetado do mês = tudo que está previsto entrar - tudo que está previsto sair.
+  // "A receber - A pagar" mede somente pendências e não o resultado projetado do mês.
+  const projectedResult = roundMoney(projectedRevenue - expensesExpected);
 
   return {
     personal,
