@@ -48,6 +48,15 @@ const formatDate = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 const groupName=(classes:KidsClass[],id:string)=>classes.find(group=>group.id===id)?.name||"Turma";
+const normalizeName=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+function whatsappNumber(phone?:string){
+  const digits=(phone||"").replace(/\D/g,"");
+  if(!digits)return {href:"",missingDdd:false};
+  if(digits.length===8||digits.length===9)return {href:"",missingDdd:true};
+  if((digits.length===12||digits.length===13)&&digits.startsWith("55"))return {href:`https://wa.me/${digits}`,missingDdd:false};
+  if(digits.length===10||digits.length===11)return {href:`https://wa.me/55${digits}`,missingDdd:false};
+  return {href:"",missingDdd:false};
+}
 
 export default function KidsPage({ onBack, openRequest }: { onBack: () => void; openRequest?:KidsLessonOpenRequest|null }) {
   const [data, setData] = useState<KidsData | null>(null);
@@ -119,10 +128,47 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       });
       if (!response.ok) throw new Error();
       setNotice(message);
+      return true;
     } catch {
       setNotice("Erro ao salvar. Tente novamente.");
+      return false;
     } finally {
       setSaving(false);
+    }
+  }
+  async function syncStudentFinance(student:KidsStudent,studentClasses:KidsClass[]){
+    if(student.monthlyAmount===undefined)return;
+    try{
+      const response=await fetch("/api/finance",{cache:"no-store"});
+      if(!response.ok)throw new Error();
+      const payload=await response.json();
+      const finance=payload.data as FinanceData|undefined;
+      if(!finance)throw new Error();
+      const competence=finance.currentCompetence;
+      const nameKey=normalizeName(student.name);
+      const sameStudent=(item:FinanceData["dsKids"][number])=>item.id===student.id||normalizeName(item.studentName)===nameKey;
+      const currentIndex=finance.dsKids.findIndex(item=>item.competence===competence&&sameStudent(item));
+      const previousIndex=finance.dsKids.findIndex(item=>item.competence!==competence&&sameStudent(item));
+      if(student.billingMode==="ONE_TIME"&&currentIndex<0&&previousIndex>=0)return;
+      const category=studentClasses.find(group=>group.students.some(item=>item.id===student.id&&item.active))?.category;
+      const billingMode:FinanceData["dsKids"][number]["billingMode"]=student.billingMode==="ONE_TIME"?"SINGLE":student.billingMode==="INSTALLMENTS"?"INSTALLMENT":"RECURRING";
+      const nextEntry={
+        id:currentIndex>=0?finance.dsKids[currentIndex].id:student.id,
+        competence,
+        studentName:student.name.trim(),
+        amount:Number(student.monthlyAmount)||0,
+        dueDay:student.dueDay||null,
+        billingMode,
+        tennisCategory:category&&category!=="YELLOW"?category:null,
+        installmentCurrent:student.billingMode==="INSTALLMENTS"?(finance.dsKids[currentIndex]?.installmentCurrent||1):null,
+        installmentTotal:student.billingMode==="INSTALLMENTS"?(student.installmentCount||null):null,
+      };
+      const nextKids=[...finance.dsKids];
+      if(currentIndex>=0)nextKids[currentIndex]=nextEntry;else nextKids.push(nextEntry);
+      const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...finance,dsKids:nextKids})});
+      if(!save.ok)throw new Error();
+    }catch{
+      setNotice("Cadastro salvo na DS, mas o Financeiro não atualizou. Tente salvar a criança novamente.");
     }
   }
   function updateEvent(event:KidsEvent){
@@ -331,12 +377,16 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
     );
     setClassId(null);
   }
-  function updateStudentClasses(nextClasses: KidsClass[]) {
+  async function updateStudentClasses(nextClasses: KidsClass[]) {
     if (!data) return;
-    void persist(
+    const saved=await persist(
       { ...data, classes: nextClasses },
       "Cadastro da criança atualizado.",
     );
+    if(saved&&studentId){
+      const student=nextClasses.flatMap(group=>group.students).find(item=>item.id===studentId);
+      if(student)await syncStudentFinance(student,nextClasses);
+    }
     setStudentId(null);
   }
   function createStudent(input:{name:string;classId:string;startDate:string}) {
@@ -466,20 +516,20 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       {tab === "dashboard" ? (
         <>
           <section className={styles.stats}>
+            <button className={styles.stat} onClick={()=>{setVacanciesOnly(false);setTab("classes");}}>
+              <span>🎾</span>
+              <div>
+                <small>Turmas / aulas realizadas</small>
+                <strong>{classes.filter((item)=>item.active).length} turmas</strong>
+                <small>{completed} aulas realizadas</small>
+              </div>
+              <b>›</b>
+            </button>
             <Stat
-              label="Turmas ativas"
-              value={classes.filter((item) => item.active).length}
-              icon="🎾"
-              onClick={() => {
-                setVacanciesOnly(false);
-                setTab("classes");
-              }}
-            />
-            <Stat
-              label="Aulas realizadas"
-              value={completed}
-              icon="✅"
-              onClick={() => openAgenda("COMPLETED")}
+              label="Alunos ativos"
+              value={allKids.length}
+              icon="👥"
+              onClick={() => setTab("students")}
             />
             <Stat
               label="Canceladas"
@@ -1796,18 +1846,13 @@ function StudentEditor({
                 }))
               }
             />
-            {profile.fatherPhone ? (
+            {profile.fatherPhone ? (()=>{const wa=whatsappNumber(profile.fatherPhone);return (
               <span>
-                <a href={`tel:${profile.fatherPhone}`}>Ligar</a> ·{" "}
-                <a
-                  href={`https://wa.me/55${profile.fatherPhone.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp
-                </a>
+                <a href={`tel:${profile.fatherPhone}`}>Ligar</a>
+                {wa.href?<> · <a href={wa.href} target="_blank" rel="noreferrer">WhatsApp</a></>:null}
+                {wa.missingDdd?<> · Falta o DDD para usar o WhatsApp.</>:null}
               </span>
-            ) : null}
+            );})() : null}
           </label>
           <label>
             Nome da mãe
@@ -1836,18 +1881,13 @@ function StudentEditor({
                 }))
               }
             />
-            {profile.motherPhone ? (
+            {profile.motherPhone ? (()=>{const wa=whatsappNumber(profile.motherPhone);return (
               <span>
-                <a href={`tel:${profile.motherPhone}`}>Ligar</a> ·{" "}
-                <a
-                  href={`https://wa.me/55${profile.motherPhone.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp
-                </a>
+                <a href={`tel:${profile.motherPhone}`}>Ligar</a>
+                {wa.href?<> · <a href={wa.href} target="_blank" rel="noreferrer">WhatsApp</a></>:null}
+                {wa.missingDdd?<> · Falta o DDD para usar o WhatsApp.</>:null}
               </span>
-            ) : null}
+            );})() : null}
           </label>
           <label>
             Valor mensal
