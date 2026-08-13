@@ -73,6 +73,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [editingNoteText, setEditingNoteText] = useState("");
   const [kidsLessonRequest,setKidsLessonRequest]=useState<KidsLessonOpenRequest|null>(null);
   const [showMobileActions,setShowMobileActions]=useState(false);
+  const [homeLayoutMode,setHomeLayoutMode]=useState(false);
   const deepLinkHandled = useRef(false);
   const sessionReturnView = useRef<View>("student");
 
@@ -211,6 +212,34 @@ useEffect(()=>{
   },350);
   return()=>window.clearTimeout(timer);
 },[notes,notesLoaded]);
+
+useEffect(()=>{
+  if(view!=="today")return;
+  const cards=[...document.querySelectorAll<HTMLElement>(".home-main-content > *")];
+  const desktop=window.matchMedia("(min-width: 901px)").matches;
+  cards.forEach((card,index)=>{
+    const key=`home-card-${index}`;
+    card.dataset.homeCardKey=key;
+    const saved=desktop?localStorage.getItem(`dmp_${key}_size`):null;
+    if(saved){try{const parsed=JSON.parse(saved);if(parsed.width)card.style.width=`${parsed.width}px`;if(parsed.height)card.style.height=`${parsed.height}px`;}catch{}}
+    if(!desktop){card.style.width="";card.style.height="";}
+  });
+  if(!homeLayoutMode)return;
+  const observers=cards.map((card)=>{
+    const observer=new ResizeObserver(()=>{
+      const rect=card.getBoundingClientRect();
+      localStorage.setItem(`dmp_${card.dataset.homeCardKey}_size`,JSON.stringify({width:Math.round(rect.width),height:Math.round(rect.height)}));
+    });
+    observer.observe(card);
+    return observer;
+  });
+  return()=>observers.forEach(observer=>observer.disconnect());
+},[view,homeLayoutMode]);
+
+function resetHomeLayout(){
+  for(let index=0;index<20;index++)localStorage.removeItem(`dmp_home-card-${index}_size`);
+  document.querySelectorAll<HTMLElement>(".home-main-content > *").forEach(card=>{card.style.width="";card.style.height="";});
+}
 
   function addNote(){const text=newNote.trim();if(!text)return;const now=new Date().toISOString();setNotes(current=>[{id:crypto.randomUUID(),text,done:false,createdAt:now,updatedAt:now},...current]);setNewNote("");}
   function patchNote(id:string,patch:Partial<DmpNote>){setNotes(current=>current.map(note=>note.id===id?{...note,...patch,updatedAt:new Date().toISOString()}:note));}
@@ -377,6 +406,15 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     if (!selectedStudent) return;
     updateStudentRecord({...selectedStudent, status: selectedStudent.status === "ACTIVE" ? "ARCHIVED" : "ACTIVE"});
     goStudents();
+  }
+
+  function deleteSelectedStudent() {
+    if(!selectedStudent)return;
+    if(!confirm(`Excluir definitivamente o cadastro de ${selectedStudent.name}?`))return;
+    if(!confirm("Esta ação apaga o cadastro, treinos, histórico e avaliações deste aluno. Confirmar exclusão definitiva?"))return;
+    setStudents(current=>current.filter(student=>student.id!==selectedStudent.id));
+    setSelectedStudentId(null);
+    setView("students");
   }
 
   function saveWorkout(workout: Workout) {
@@ -644,7 +682,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         <div className="dashboard-main">
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span>▰</span><small>Google</small><strong>Drive</strong></a></div></div></header>
-            <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
+            <div className="home-desktop-layout"><section className={`dashboard-content home-main-content ${homeLayoutMode?"layout-editing":""}`}><div className="home-layout-toolbar"><button className={homeLayoutMode?"filter-active":"secondary"} onClick={()=>setHomeLayoutMode(value=>!value)}>{homeLayoutMode?"✓ Ajustando layout":"↔ Ajustar layout"}</button>{homeLayoutMode?<button className="secondary" onClick={resetHomeLayout}>Restaurar padrão</button>:null}</div>
               <GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}}/>
               <TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onKids={()=>setView("kids")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/>
               <WeeklySmartSummary students={students} events={calendarEvents}/>
@@ -712,6 +750,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
               <button className="secondary" onClick={() => setShowEditStudentForm(true)}>Editar aluno</button>
               <button className="secondary" onClick={()=>void printPersonalStudentReport(selectedStudent)}>🖨️ Relatório</button>
               <button className="secondary" onClick={toggleArchive}>{selectedStudent.status === "ACTIVE" ? "Marcar inativo" : "Reativar"}</button>
+              {whatsappLink(selectedStudent.phone)?<a className="secondary button-link whatsapp-student-link" href={whatsappLink(selectedStudent.phone)!} target="_blank" rel="noreferrer">🟢 WhatsApp</a>:null}
             </div>
           </div>
 
@@ -739,6 +778,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
+          <div className="student-danger-zone"><button className="danger-link" onClick={deleteSelectedStudent}>Excluir cadastro</button><small>Exclusão definitiva do aluno e dos dados vinculados.</small></div>
         </section>
 
         {showEditStudentForm ? <StudentForm title="Editar aluno" initialStudent={selectedStudent} onClose={() => setShowEditStudentForm(false)} onSave={editStudent} /> : null}
@@ -780,9 +820,9 @@ function CalendarAgenda({status,events,loading,sync,students,range,anchor,onRang
   const openEvent=(event:CalendarEvent)=>{const kids=kidsCalendarRequest(event);if(kids){onOpenKids(event);return;}const matched=getCalendarEventStudents(event,students);if(matched.length===1){onOpenStudent(matched[0].id);return;}if(event.htmlLink)window.open(event.htmlLink,"_blank","noopener,noreferrer");};
   return <>
     <section className="agenda-view-toolbar"><div>{(["day","week","month","year","list"] as AgendaRange[]).map(value=><button key={value} className={range===value?"filter-active":"secondary"} onClick={()=>onRange(value)}>{agendaRangeLabel(value)}</button>)}</div><div className="agenda-period-nav"><button className="secondary" onClick={()=>navigate(-1)} aria-label="Período anterior">‹</button><strong>{agendaPeriodLabel(anchor,range)}</strong><button className="secondary" onClick={()=>navigate(1)} aria-label="Próximo período">›</button></div><input type="date" value={anchor} onChange={event=>onAnchor(event.target.value)}/><button className="primary" onClick={onNewEvent}>+ Novo compromisso</button></section>
-    <section className="panel agenda-connect"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Atualiza ao abrir/voltar ao DMP</span><span>✓ Revisa o dia a cada 5 min em uso</span><span>✓ Domingo: pré-carrega 7 dias</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Criar/excluir compromisso pelo DMP</span></div>{status.connected?<div className="agenda-sync-summary"><strong>Sincronização automática ativa</strong><span>Hoje{sync.dailyAt?` atualizado às ${formatSyncTime(sync.dailyAt)}`:" aguardando primeira atualização"}.</span><span>{sync.weeklyAt?`Última revisão semanal: ${formatSyncDateTime(sync.weeklyAt)} · ${sync.weeklyCount} compromissos.`:"A revisão dos próximos 7 dias acontece automaticamente no primeiro uso de domingo."}</span></div>:null}</div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
     {status.connected?<section className="panel agenda-period-panel"><div className="panel-head"><div><h2>{agendaRangeTitle(range)}</h2><p className="muted">{agendaPeriodLabel(anchor,range)}</p></div><span className="status-chip ok">{visible.length} evento{visible.length===1?"":"s"}</span></div>{loading?<div className="calendar-empty">Carregando agenda...</div>:<AgendaRangeContent range={range} anchor={anchor} events={visible} students={students} onOpenEvent={openEvent} onOpenStudent={onOpenStudent} onStartStudent={onStartStudent} onOpenKids={onOpenKids} onAddStudent={setAddingEvent} onRemoveEvent={removeEvent} onSelectDate={date=>{onAnchor(date);onRange("day");}} onSelectMonth={date=>{onAnchor(date);onRange("month");}}/>}</section>:null}
+    <section className="panel agenda-connect agenda-connect-bottom"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Atualiza ao abrir/voltar ao DMP</span><span>✓ Revisa o dia a cada 5 min em uso</span><span>✓ Domingo: pré-carrega 7 dias</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Criar/excluir compromisso pelo DMP</span></div>{status.connected?<div className="agenda-sync-summary"><strong>Sincronização automática ativa</strong><span>Hoje{sync.dailyAt?` atualizado às ${formatSyncTime(sync.dailyAt)}`:" aguardando primeira atualização"}.</span><span>{sync.weeklyAt?`Última revisão semanal: ${formatSyncDateTime(sync.weeklyAt)} · ${sync.weeklyCount} compromissos.`:"A revisão dos próximos 7 dias acontece automaticamente no primeiro uso de domingo."}</span></div>:null}</div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
     {addingEvent?<AddStudentsToCalendarEventModal event={addingEvent} students={students} onClose={()=>setAddingEvent(null)} onSaved={()=>{setAddingEvent(null);onRefresh();}}/>:null}
   </>;
 }
@@ -856,7 +896,7 @@ function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error
 function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View)=>void;logout:()=>void}) {
   const [mobile, setMobile] = useState(false);
   useEffect(() => { setMobile(isPhoneDevice());for(const panel of ["sidebar","rail"]){const saved=localStorage.getItem(`dmp_${panel}_width`);if(saved)document.documentElement.style.setProperty(panel==="sidebar"?"--dmp-sidebar-width":"--dmp-agenda-rail-width",`${saved}px`);}}, []);
-  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"data",icon:"💾",label:"Dados"}];
+  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"}];
   const mobileOrder:View[]=["today","kids","finance","performance","students","workouts-overview","assessments-overview","history-overview","agenda","data"];
   const orderedItems = mobile ? mobileOrder.map(view=>items.find(item=>item.view===view)!).filter(Boolean) : items;
   const renderDays=Math.max(0,Math.ceil((new Date("2026-09-06T23:59:59").getTime()-Date.now())/86400000));
@@ -920,6 +960,8 @@ function WeatherPage({onBack}:{onBack:()=>void}){
 }
 
 
+function whatsappLink(phone?:string){const digits=(phone||"").replace(/\D/g,"");if(digits.length<10)return null;const normalized=digits.startsWith("55")?digits:`55${digits}`;return `https://wa.me/${normalized}`;}
+
 function StudentCategoryDot({category}:{category?:TennisCategory}) { return category?<span className={`tennis-category-dot ${category.toLowerCase()}`} title={`Categoria ${category.toLowerCase()}`}/>:null; }
 function Stat({icon,label,value,onClick}:{icon:string;label:string;value:number;onClick?:()=>void}) { return onClick?<button type="button" className="stat-card stat-card-button" onClick={onClick}><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></button>:<article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
 
@@ -974,7 +1016,7 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent}:{events:
     return new Date(event.end||event.start).getTime()>now;
   }).sort((a,b)=>a.start.localeCompare(b.start));
   let previousDate="";
-  return <aside className="desktop-agenda-rail"><span className="rail-resize-handle" onPointerDown={event=>beginPanelResize(event,"rail")}/><div className="agenda-rail-head"><div><span>📅</span><strong>Próximos compromissos</strong></div><button onClick={()=>onOpenAgenda(todayKey)}>Abrir agenda completa <b>›</b></button></div><div className="agenda-rail-scroll">{upcoming.length?upcoming.map(event=>{const people=getCalendarEventStudents(event,students);const date=calendarEventDate(event);const changed=date!==previousDate;previousDate=date;const dayLabel=date===todayKey?"Hoje":date===tomorrowKey?"Amanhã":"Dia seguinte";return <section className="agenda-rail-group" key={event.id}>{changed?<div className="agenda-rail-day"><span>{dayLabel}</span><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong></div>:null}<article className={`agenda-rail-event ${kidsCalendarRequest(event)?"kids":""}`}><button onClick={()=>onOpenAgenda(date)}><small>{formatCalendarTime(event)}</small><strong>{event.summary}</strong></button>{people.length?<div>{people.map(student=><button key={student.id} onClick={()=>onOpenStudent(student.id)}>{student.name}</button>)}</div>:null}</article></section>}):<p>Nenhum próximo compromisso.</p>}</div></aside>;
+  return <aside className="desktop-agenda-rail"><span className="rail-resize-handle" onPointerDown={event=>beginPanelResize(event,"rail")}/><div className="agenda-rail-head"><div><span>📅</span><strong>Próximos compromissos</strong></div><button onClick={()=>onOpenAgenda(todayKey)}>Abrir agenda completa <b>›</b></button></div><div className="agenda-rail-scroll">{upcoming.length?upcoming.map(event=>{const people=getCalendarEventStudents(event,students);const date=calendarEventDate(event);const changed=date!==previousDate;previousDate=date;const dayLabel=date===todayKey?"Hoje":date===tomorrowKey?"Amanhã":"Dia seguinte";return <section className="agenda-rail-group" key={event.id}>{changed?<div className="agenda-rail-day"><span>{dayLabel}</span><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong></div>:null}<article className={`agenda-rail-event ${kidsCalendarRequest(event)?`kids kids-${kidsCalendarRequest(event)!.category.toLowerCase()}`:""}`}><button onClick={()=>onOpenAgenda(date)}><small>{formatCalendarTime(event)}</small><strong>{event.summary}</strong></button>{people.length?<div>{people.map(student=><button key={student.id} onClick={()=>onOpenStudent(student.id)}>{student.name}</button>)}</div>:null}</article></section>}):<p>Nenhum próximo compromisso.</p>}</div></aside>;
 }
 
 function beginPanelResize(event:any,panel:"sidebar"|"rail"){

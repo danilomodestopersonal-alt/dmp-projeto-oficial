@@ -8,3 +8,6 @@
 .stravaMessage { margin-top:12px !important; font-weight:800; color:#e9f6b8 !important; }
 .stravaMeta { margin-top:8px !important; font-size:.86rem; opacity:.78; }
 .exerciseEditor{display:grid;gap:10px}.exerciseEditorHead{display:flex;justify-content:space-between;align-items:center;gap:12px}.exerciseEditorRow{display:grid;grid-template-columns:minmax(180px,2fr) repeat(3,minmax(80px,1fr)) auto;gap:8px}.exerciseEditorRow input{min-width:0;border:1px solid #d3dbe1;border-radius:12px;padding:10px;background:#fff;font:inherit}.exerciseRemove{border:0;background:#fff0f0;color:#a52e2e;border-radius:10px;width:40px;font-size:1.25rem;font-weight:900;cursor:pointer}.exerciseDetails{display:grid;gap:8px}.exerciseDetails>div{display:flex;justify-content:space-between;gap:14px;padding:10px 12px;background:#f7f9fa;border-radius:12px}.exerciseDetails small{color:#66747f;text-align:right}@media(max-width:760px){.exerciseEditorRow{grid-template-columns:1fr 1fr}.exerciseEditorRow input:first-child{grid-column:1/-1}.exerciseRemove{width:100%}}
+
+.heroImage{height:220px!important;max-height:220px!important;object-fit:cover!important;object-position:center!important;border-radius:20px;box-shadow:0 18px 36px rgba(0,0,0,.22)}
+@media(max-width:760px){.heroImage{height:180px!important;max-height:180px!important}}

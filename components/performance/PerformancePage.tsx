@@ -510,7 +510,7 @@ export default function PerformancePage() {
               <span><strong>{fmtNumber(monthTotals.elevation)}</strong> m de subida</span>
             </div>
           </div>
-          <img src="/performance-cyclist.svg" alt="Ilustração de ciclista em movimento" className={styles.heroImage} />
+          <img src="/performance-mural.png" alt="Mural pessoal de ciclismo" className={styles.heroImage} />
         </div>
 
         <nav className={styles.tabs} aria-label="Áreas do Performance">
