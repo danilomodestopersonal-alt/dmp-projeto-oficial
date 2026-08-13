@@ -516,27 +516,27 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       {tab === "dashboard" ? (
         <>
           <section className={styles.stats}>
-            <button className={styles.stat} onClick={()=>{setVacanciesOnly(false);setTab("classes");}}>
-              <span>🎾</span>
-              <div>
-                <small>Turmas / aulas realizadas</small>
-                <strong>{classes.filter((item)=>item.active).length} turmas</strong>
-                <small>{completed} aulas realizadas</small>
-              </div>
-              <b>›</b>
-            </button>
+            <Stat
+              label="Turmas ativas"
+              value={classes.filter((item) => item.active).length}
+              icon="🎾"
+              onClick={() => { setVacanciesOnly(false); setTab("classes"); }}
+            />
             <Stat
               label="Alunos ativos"
               value={allKids.length}
               icon="👥"
               onClick={() => setTab("students")}
             />
-            <Stat
-              label="Canceladas"
-              value={cancelled}
-              icon="🌧️"
-              onClick={() => openAgenda("CANCELLED")}
-            />
+            <button className={styles.stat} onClick={() => openAgenda("ALL")}>
+              <span>✅</span>
+              <div>
+                <small>Aulas realizadas / canceladas</small>
+                <strong>{completed} realizadas</strong>
+                <small>{cancelled} canceladas</small>
+              </div>
+              <b>›</b>
+            </button>
             <Stat
               label="Ocupação das vagas"
               value={occupancy}
