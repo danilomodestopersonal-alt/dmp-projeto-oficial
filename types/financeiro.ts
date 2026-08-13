@@ -23,6 +23,7 @@ export type DsKidEntry = {
   id: string;
   competence: string;
   studentName: string;
+  studentId?: string | null;
   amount: number;
   dueDay?: number | null;
   billingMode?: DsKidBillingMode;

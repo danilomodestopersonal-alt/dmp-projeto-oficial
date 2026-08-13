@@ -49,6 +49,16 @@ const formatDate = (value: string) =>
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 const groupName=(classes:KidsClass[],id:string)=>classes.find(group=>group.id===id)?.name||"Turma";
 
+function normalizeBrazilWhatsappPhone(value?:string){
+  let digits=(value||"").replace(/\D/g,"");
+  if(digits.startsWith("00"))digits=digits.slice(2);
+  if(digits.startsWith("55"))digits=digits.slice(2);
+  if(digits.startsWith("0")&&(digits.length===11||digits.length===12))digits=digits.slice(1);
+  if(digits.length!==10&&digits.length!==11)return null;
+  return `55${digits}`;
+}
+function kidsWhatsappLink(value?:string){const normalized=normalizeBrazilWhatsappPhone(value);return normalized?`https://wa.me/${normalized}`:null;}
+
 export default function KidsPage({ onBack, openRequest }: { onBack: () => void; openRequest?:KidsLessonOpenRequest|null }) {
   const [data, setData] = useState<KidsData | null>(null);
   const [tab, setTab] = useState<KidsTab>("dashboard");
@@ -1696,199 +1706,87 @@ function StudentEditor({
           </div>
           <button onClick={onClose}>×</button>
         </div>
-        <div className={styles.formGrid}>
-          <label>
-            Nome da criança
-            <input
-              value={profile.name}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label>
-            Data de nascimento
-            {profile.birthDate ? (
-              <small>Idade atual: {ageFromBirth(profile.birthDate)} anos</small>
-            ) : null}
-            <input
-              type="date"
-              value={profile.birthDate || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  birthDate: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label>
-            Situação do cadastro
-            <select value={profile.active?"ACTIVE":"INACTIVE"} onChange={event=>setProfile(current=>({...current,active:event.target.value==="ACTIVE"}))}>
-              <option value="ACTIVE">Aluno ativo</option>
-              <option value="INACTIVE">Aluno inativo</option>
-            </select>
-            <small>Ao inativar, a criança sai de todas as turmas e chamadas futuras, sem apagar o histórico.</small>
-          </label>
-          <label>
-            Nome do pai
-            <input
-              value={profile.fatherName || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  fatherName: event.target.value,
-                }))
-              }
-            />
-            <button onClick={() => void pickContact("father")}>
-              Buscar nos contatos
-            </button>
-          </label>
-          <label>
-            Telefone do pai
-            <input
-              type="tel"
-              value={profile.fatherPhone || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  fatherPhone: event.target.value,
-                }))
-              }
-            />
-            {profile.fatherPhone ? (
-              <span>
-                <a href={`tel:${profile.fatherPhone}`}>Ligar</a> ·{" "}
-                <a
-                  href={`https://wa.me/55${profile.fatherPhone.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp
-                </a>
-              </span>
-            ) : null}
-          </label>
-          <label>
-            Nome da mãe
-            <input
-              value={profile.motherName || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  motherName: event.target.value,
-                }))
-              }
-            />
-            <button onClick={() => void pickContact("mother")}>
-              Buscar nos contatos
-            </button>
-          </label>
-          <label>
-            Telefone da mãe
-            <input
-              type="tel"
-              value={profile.motherPhone || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  motherPhone: event.target.value,
-                }))
-              }
-            />
-            {profile.motherPhone ? (
-              <span>
-                <a href={`tel:${profile.motherPhone}`}>Ligar</a> ·{" "}
-                <a
-                  href={`https://wa.me/55${profile.motherPhone.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  WhatsApp
-                </a>
-              </span>
-            ) : null}
-          </label>
-          <label>
-            Valor mensal
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={profile.monthlyAmount || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  monthlyAmount: Number(event.target.value) || undefined,
-                }))
-              }
-            />
-            <small>{new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(profile.monthlyAmount||0)}</small>
-          </label>
-          <label>
-            Dia do vencimento
-            <input
-              type="number"
-              min="1"
-              max="31"
-              value={profile.dueDay || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  dueDay: Number(event.target.value) || undefined,
-                }))
-              }
-            />
-          </label>
-          <label>
-            Forma de cobrança
-            <select
-              value={profile.billingMode || "RECURRING"}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  billingMode: event.target.value as KidsStudent["billingMode"],
-                }))
-              }
-            >
-              <option value="ONE_TIME">Uma parcela</option>
-              <option value="RECURRING">Recorrente</option>
-              <option value="INSTALLMENTS">Parcelado</option>
-            </select>
-          </label>
-          {profile.billingMode === "INSTALLMENTS" ? (
-            <label>
-              Quantidade de parcelas
-              <input
-                type="number"
-                min="1"
-                value={profile.installmentCount || ""}
-                onChange={(event) =>
-                  setProfile((current) => ({
-                    ...current,
-                    installmentCount: Number(event.target.value) || undefined,
-                  }))
-                }
-              />
-            </label>
-          ) : null}
-          <label>
-            Observações
-            <textarea
-              rows={3}
-              value={profile.notes || ""}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  notes: event.target.value,
-                }))
-              }
-            />
-          </label>
+        <div className={styles.studentProfileSections}>
+          <section className={styles.studentFormSection}>
+            <div className={styles.studentSectionHead}>
+              <div><strong>Dados do aluno</strong><small>Informações principais do cadastro.</small></div>
+            </div>
+            <div className={styles.studentCoreGrid}>
+              <label className={styles.studentNameField}>
+                Nome da criança
+                <input value={profile.name} onChange={(event)=>setProfile((current)=>({...current,name:event.target.value}))}/>
+              </label>
+              <label>
+                Data de nascimento
+                {profile.birthDate?<small>Idade atual: {ageFromBirth(profile.birthDate)} anos</small>:null}
+                <input type="date" value={profile.birthDate||""} onChange={(event)=>setProfile((current)=>({...current,birthDate:event.target.value}))}/>
+              </label>
+              <label>
+                Situação
+                <select value={profile.active?"ACTIVE":"INACTIVE"} onChange={event=>setProfile(current=>({...current,active:event.target.value==="ACTIVE"}))}>
+                  <option value="ACTIVE">Aluno ativo</option>
+                  <option value="INACTIVE">Aluno inativo</option>
+                </select>
+                <small>Inativar preserva todo o histórico.</small>
+              </label>
+            </div>
+          </section>
+
+          <section className={styles.studentFormSection}>
+            <div className={styles.studentSectionHead}>
+              <div><strong>Responsáveis e contatos</strong><small>Nome e telefone ficam juntos para facilitar a conferência.</small></div>
+            </div>
+            <div className={styles.guardianGrid}>
+              {(["father","mother"] as const).map((target)=>{
+                const isFather=target==="father";
+                const name=isFather?profile.fatherName:profile.motherName;
+                const phone=isFather?profile.fatherPhone:profile.motherPhone;
+                const whatsapp=kidsWhatsappLink(phone);
+                return <article className={styles.guardianCard} key={target}>
+                  <div className={styles.guardianTitle}><strong>{isFather?"Pai":"Mãe"}</strong><button type="button" className={styles.contactImportButton} onClick={()=>void pickContact(target)}>＋ Importar contato</button></div>
+                  <div className={styles.guardianFields}>
+                    <label>Nome<input value={name||""} onChange={(event)=>setProfile((current)=>({...current,[isFather?"fatherName":"motherName"]:event.target.value}))}/></label>
+                    <label>Telefone<input type="tel" inputMode="tel" placeholder="(19) 99999-9999" value={phone||""} onChange={(event)=>setProfile((current)=>({...current,[isFather?"fatherPhone":"motherPhone"]:event.target.value}))}/></label>
+                  </div>
+                  {phone?<div className={styles.contactQuickActions}><a href={`tel:${phone}`}>📞 Ligar</a>{whatsapp?<a href={whatsapp} target="_blank" rel="noreferrer">🟢 WhatsApp</a>:<span>Confira o telefone para usar o WhatsApp</span>}</div>:null}
+                </article>;
+              })}
+            </div>
+          </section>
+
+          <section className={styles.studentFormSection}>
+            <div className={styles.studentSectionHead}>
+              <div><strong>Plano e cobrança</strong><small>Os valores abaixo são a fonte oficial usada pelo Financeiro DS Tênis.</small></div>
+            </div>
+            <div className={styles.billingGrid}>
+              <label>
+                Valor
+                <input type="number" min="0" step="0.01" value={profile.monthlyAmount??""} onChange={(event)=>setProfile((current)=>({...current,monthlyAmount:event.target.value===""?undefined:Number(event.target.value)}))}/>
+                <small>{new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(profile.monthlyAmount||0)}</small>
+              </label>
+              <label>
+                Vencimento
+                <input type="number" min="1" max="31" value={profile.dueDay||""} onChange={(event)=>setProfile((current)=>({...current,dueDay:Number(event.target.value)||undefined}))}/>
+              </label>
+              <label>
+                Forma de cobrança
+                <select value={profile.billingMode||"RECURRING"} onChange={(event)=>setProfile((current)=>({...current,billingMode:event.target.value as KidsStudent["billingMode"]}))}>
+                  <option value="ONE_TIME">Parcela única</option>
+                  <option value="RECURRING">Recorrente</option>
+                  <option value="INSTALLMENTS">Parcelado</option>
+                </select>
+              </label>
+              {profile.billingMode==="INSTALLMENTS"?<label>
+                Quantidade de parcelas
+                <input type="number" min="1" value={profile.installmentCount||""} onChange={(event)=>setProfile((current)=>({...current,installmentCount:Number(event.target.value)||undefined}))}/>
+              </label>:null}
+            </div>
+          </section>
+
+          <section className={styles.studentFormSection}>
+            <div className={styles.studentSectionHead}><div><strong>Observações</strong><small>Use somente quando houver algo importante sobre a criança.</small></div></div>
+            <label className={styles.notesField}><textarea rows={3} value={profile.notes||""} onChange={(event)=>setProfile((current)=>({...current,notes:event.target.value}))}/></label>
+          </section>
         </div>
         <h3>
           Reposições da criança (
