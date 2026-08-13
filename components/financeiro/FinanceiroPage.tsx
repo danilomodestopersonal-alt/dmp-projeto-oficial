@@ -96,7 +96,7 @@ export default function FinanceiroPage() {
         if (cancelled) return;
         const base=cloud||local;
         let next=base;
-        try{const kidsResponse=await fetch("/api/kids",{cache:"no-store"});if(kidsResponse.ok){const kidsPayload=await kidsResponse.json();if(kidsPayload.data)next=mergeKidsFinance(base,kidsPayload.data);}}catch{}
+        try{const kidsResponse=await fetch("/api/kids",{cache:"no-store"});if(kidsResponse.ok){const kidsPayload=await kidsResponse.json();if(kidsPayload.data)next=base;}}catch{}
         if (cloud) {
           setData(next);
           saveFinanceData(next);
