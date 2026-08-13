@@ -65,6 +65,7 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
   const [vacanciesOnly, setVacanciesOnly] = useState(false);
   const [showReplacementForm,setShowReplacementForm]=useState(false);
   const [showInactiveStudents,setShowInactiveStudents]=useState(false);
+  const [showNewStudentForm,setShowNewStudentForm]=useState(false);
 
   useEffect(() => {
     void load();
@@ -337,6 +338,21 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       "Cadastro da criança atualizado.",
     );
     setStudentId(null);
+  }
+  function createStudent(input:{name:string;classId:string;startDate:string}) {
+    if (!data) return;
+    const clean=input.name.trim();
+    if(!clean)return;
+    const id=`kid-${crypto.randomUUID()}`;
+    const nextClasses=data.classes.map(group=>group.id===input.classId?{
+      ...group,
+      students:[...group.students,{id,name:clean,active:true,startDate:input.startDate}].sort((a,b)=>localeCompare(a.name,b.name)),
+      updatedAt:new Date().toISOString(),
+    }:group);
+    void persist({...data,classes:nextClasses},"Aluno cadastrado na DS.");
+    setShowNewStudentForm(false);
+    setTab("students");
+    setStudentId(id);
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -684,7 +700,10 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
               <h2>{showInactiveStudents?"Alunos inativos":"Alunos"}</h2>
               <p>{showInactiveStudents?"Cadastros preservados fora das chamadas atuais.":"Cadastro único das crianças e todas as suas turmas."}</p>
             </div>
-            <button onClick={()=>setShowInactiveStudents(current=>!current)}>{showInactiveStudents?"Ver alunos ativos":`Ver alunos inativos (${inactiveKids.length})`}</button>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+              {!showInactiveStudents?<button className={styles.primary} onClick={()=>setShowNewStudentForm(true)}>+ Novo aluno</button>:null}
+              <button onClick={()=>setShowInactiveStudents(current=>!current)}>{showInactiveStudents?"Ver alunos ativos":`Ver alunos inativos (${inactiveKids.length})`}</button>
+            </div>
           </div>
           <div className={styles.kidsRoster}>
             {(showInactiveStudents?inactiveKids:allKids).map((student) => (
@@ -735,6 +754,7 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
         />
       ) : null}
       {showReplacementForm ? <ReplacementLessonForm replacements={data.replacements||[]} students={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)} classes={classes} lessons={lessons} onClose={()=>setShowReplacementForm(false)} onSave={createReplacementLesson}/> : null}
+      {showNewStudentForm?<NewStudentForm classes={classes.filter(item=>item.active)} semesterStart={data.semesterStart} onClose={()=>setShowNewStudentForm(false)} onSave={createStudent}/>:null}
       {classId ? (
         <ClassEditor
           group={group(classId)!}
@@ -758,6 +778,22 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       ) : null}
     </div>
   );
+}
+
+function NewStudentForm({classes,semesterStart,onClose,onSave}:{classes:KidsClass[];semesterStart:string;onClose:()=>void;onSave:(input:{name:string;classId:string;startDate:string})=>void}){
+  const [name,setName]=useState("");
+  const [classId,setClassId]=useState(classes[0]?.id||"");
+  const [startDate,setStartDate]=useState(semesterStart);
+  return <div className={styles.modalBackdrop}><section className={styles.modal}>
+    <div className={styles.modalHead}><div><h2>Novo aluno</h2><p>Cadastre a criança na DS e escolha a turma inicial.</p></div><button onClick={onClose}>×</button></div>
+    <div className={styles.formGrid}>
+      <label>Nome da criança<input value={name} onChange={event=>setName(event.target.value)} autoFocus placeholder="Nome completo"/></label>
+      <label>Turma<select value={classId} onChange={event=>setClassId(event.target.value)}>{classes.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+      <label>Início na turma<input type="date" min={semesterStart} value={startDate} onChange={event=>setStartDate(event.target.value)}/></label>
+    </div>
+    {!classes.length?<p>Nenhuma turma ativa disponível.</p>:null}
+    <div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!name.trim()||!classId} onClick={()=>onSave({name,classId,startDate})}>Cadastrar e completar dados</button></div>
+  </section></div>;
 }
 
 function KidsEvents({events,onSave}:{events:KidsEvent[];onSave:(event:KidsEvent)=>void}){
