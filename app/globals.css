@@ -900,3 +900,149 @@ input:focus,textarea:focus{
   .today-tools .bioimpedance-shortcut img{display:block;max-width:62px;max-height:56px;width:auto;height:auto;object-fit:contain}
 }
 @media(max-width:900px){.assessment-pdf-box{grid-template-columns:1fr}.assessment-pdf-box>p{grid-column:auto}}
+
+
+/* Relógio da Home — ajuste fino desktop */
+@media(min-width:901px){
+  .today-tools .header-clock{
+    gap:7px!important;
+    padding:11px 10px!important;
+    overflow:hidden;
+  }
+  .today-tools .header-clock>span{
+    font-size:1.55rem!important;
+    flex:0 0 auto;
+  }
+  .today-tools .header-clock>div{
+    min-width:0;
+    gap:1px!important;
+  }
+  .today-tools .header-clock small{
+    font-size:.66rem!important;
+    white-space:nowrap;
+  }
+  .today-tools .header-clock strong{
+    display:flex;
+    align-items:baseline;
+    white-space:nowrap;
+    font-size:1.42rem!important;
+    line-height:1;
+    letter-spacing:0!important;
+  }
+  .today-tools .header-clock em{
+    margin-left:1px;
+    font-size:.66rem!important;
+    line-height:1;
+  }
+}
+
+
+/* Avaliações DMP — acabamento visual final */
+.assessment-history-panel .panel-head{
+  margin-bottom:18px;
+}
+.assessment-history-list{
+  gap:16px!important;
+}
+.assessment-card-rich{
+  position:relative;
+  overflow:hidden;
+  padding:18px!important;
+  border-color:#dce5dd!important;
+  background:linear-gradient(135deg,#ffffff 0%,#fbfdf8 100%)!important;
+}
+.assessment-card-rich::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:5px;
+  background:linear-gradient(180deg,var(--dmp-green),#6c8d22);
+}
+.assessment-card-date{
+  padding-left:5px;
+}
+.assessment-card-date strong{
+  font-size:1.12rem!important;
+}
+.assessment-card-metrics span{
+  min-height:64px;
+  align-content:center;
+  padding:10px 12px!important;
+  border-color:#e1e8df!important;
+  background:#fff!important;
+}
+.assessment-card-metrics small{
+  font-size:.66rem!important;
+  text-transform:uppercase;
+  letter-spacing:.035em;
+}
+.assessment-card-metrics b{
+  font-size:1rem!important;
+}
+.assessment-card-actions .primary{
+  min-width:124px;
+  justify-content:center;
+}
+.assessment-card-actions small{
+  max-width:150px;
+  text-align:right;
+  line-height:1.3;
+}
+.assessment-form-section{
+  margin-top:18px!important;
+  padding:18px!important;
+  border-color:#dfe7df!important;
+  background:linear-gradient(180deg,#fcfdfb,#f8faf7)!important;
+}
+.assessment-form-section h3{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:15px!important;
+  padding-bottom:9px;
+  border-bottom:1px solid #e2e9e1;
+  color:#155f7e!important;
+  font-size:1.03rem!important;
+}
+.assessment-form-section h3::before{
+  content:"";
+  width:5px;
+  height:18px;
+  border-radius:99px;
+  background:var(--dmp-green);
+}
+.assessment-pdf-box{
+  box-shadow:0 8px 22px rgba(66,88,24,.06);
+}
+.assessment-pdf-box>div strong{
+  font-size:1rem;
+}
+.assessment-pdf-box .file-button{
+  white-space:nowrap;
+}
+.assessment-source-file{
+  border-left:4px solid var(--dmp-green)!important;
+}
+.assessment-modal{
+  scrollbar-gutter:stable;
+}
+@media(max-width:980px){
+  .assessment-card-actions small{
+    max-width:none;
+    text-align:left;
+  }
+}
+@media(max-width:520px){
+  .assessment-card-rich{
+    padding:14px 12px 14px 16px!important;
+  }
+  .assessment-card-metrics span{
+    min-height:58px;
+    padding:9px!important;
+  }
+  .assessment-form-section{
+    padding:13px!important;
+  }
+}
