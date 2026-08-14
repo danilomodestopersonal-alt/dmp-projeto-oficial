@@ -91,7 +91,10 @@ export async function POST(request:Request){
         const image=screenshot.pages?.[0]?.data;
         if(image){
           const {createWorker}=await import("tesseract.js");
-          const worker=await createWorker("por");
+          const {createRequire}=await import("module");
+          const require=createRequire(import.meta.url);
+          const workerPath=require.resolve("tesseract.js/src/worker-script/node/index.js");
+          const worker=await createWorker("por",{workerPath});
           try{
             const ocr=await worker.recognize(Buffer.from(image));
             combinedText+=`\n${ocr.data.text||""}`;
