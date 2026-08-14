@@ -66,19 +66,12 @@ export async function POST(request:Request){
       return NextResponse.json({message:"O PDF deve ter no máximo 12 MB."},{status:400});
     }
 
-    const pdfjs=await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const {PDFParse}=await import("pdf-parse");
     const bytes=new Uint8Array(await file.arrayBuffer());
-    const pdf=await pdfjs.getDocument({data:bytes,disableWorker:true} as any).promise;
-
-    let extracted="";
-    const pages=Math.min(pdf.numPages,2);
-
-    for(let pageNumber=1;pageNumber<=pages;pageNumber++){
-      const page=await pdf.getPage(pageNumber);
-      const content=await page.getTextContent();
-      const pageText=content.items.map((item:any)=>"str" in item?item.str:"").join(" ");
-      extracted+=pageText+"\n";
-    }
+    const parser=new PDFParse({data:bytes});
+    const result=await parser.getText();
+    await parser.destroy();
+    const extracted=result.text||"";
 
     if(!extracted.trim()){
       return NextResponse.json({message:"Não encontrei texto legível neste PDF."},{status:422});
