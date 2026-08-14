@@ -18,18 +18,18 @@ function parseGalileuText(raw:string){
 
   const weight=pick(/Peso:\s*(\d+[.,]\d+)\s*kg/i) ?? pick(/(\d+[.,]\d+)\s*kg/i);
   const height=pick(/Altura:\s*(\d+[.,]?\d*)\s*cm/i);
-  const bmi=pick(/IMC[\s\S]{0,250}?(\d+[.,]\d+)\s*Kg\/m/i);
-  const basalMetabolicRate=pick(/Taxa Metabolica[\s\S]{0,450}?(\d{1,2}[.]?\d{3})\s*kca/i);
+  const bmi=pick(/IMC[\s\S]{0,250}?(\d+[.,]\d+)\s*(?:Kg\/m|Km)/i);
+  const basalMetabolicRate=pick(/Taxa Metabolica[\s\S]{0,450}?(\d{1,2}[.]?\d{3})\s*kca[i|l]?/i);
 
-  const fatMass=pick(/Massa Gorda[\s\S]{0,250}?(\d+[.,]\d+)\s*Kg/i);
-  const bodyFatPercent=pick(/%\s*Gordura[\s\S]{0,250}?(\d+[.,]\d+)\s*%/i);
+  let fatMass=pick(/Massa Gorda[\s\S]{0,250}?(\d+[.,]\d+)\s*(?:Kg|K9|x9|kg)/i);
+  let bodyFatPercent=pick(/%\s*Gordura[\s\S]{0,250}?(\d+[.,]\d+)\s*%/i);
 
-  const leanMass=pick(/Massa Magra(?:\s+e\s+Muscular)?[\s\S]{0,350}?(\d+[.,]\d+)\s*Kg/i);
-  const leanMassPercent=pick(/Massa Magra(?:\s+e\s+Muscular)?[\s\S]{0,420}?\d+[.,]\d+\s*Kg\s*\/\s*(\d+[.,]\d+)\s*%/i)
+  const leanMass=pick(/Massa Magra(?:\s+e\s+Muscular)?[\s\S]{0,350}?(\d+[.,]\d+)\s*(?:Kg|K9|x9|kg)/i);
+  const leanMassPercent=pick(/Massa Magra(?:\s+e\s+Muscular)?[\s\S]{0,420}?\d+[.,]\d+\s*(?:Kg|K9|x9|kg)\s*\/\s*(\d+[.,]\d+)\s*%/i)
     ?? (bodyFatPercent!==undefined?100-bodyFatPercent:undefined);
 
-  const muscleMass=pick(/Massa Muscular[\s\S]{0,250}?(\d+[.,]\d+)\s*Kg/i);
-  const muscleMassPercent=pick(/Massa Muscular[\s\S]{0,300}?\d+[.,]\d+\s*Kg\s*\/\s*(\d+[.,]\d+)\s*%/i);
+  const muscleMass=pick(/Massa Muscular[\s\S]{0,250}?(\d+[.,]\d+)\s*(?:Kg|K9|x9|kg)/i);
+  const muscleMassPercent=pick(/Massa Muscular[\s\S]{0,300}?\d+[.,]\d+\s*(?:Kg|K9|x9|kg)\s*\/\s*(\d+[.,]\d+)\s*%/i);
 
   const totalBodyWaterLiters=pick(/Agua Corporal Total[\s\S]{0,250}?(\d+[.,]\d+)\s*litros/i);
   const waterPercent=pick(/Agua Corporal Total[\s\S]{0,300}?\d+[.,]\d+\s*litros[\s\S]{0,80}?(\d+[.,]\d+)\s*%/i)
@@ -41,9 +41,11 @@ function parseGalileuText(raw:string){
   const extracellularWaterLiters=pick(/Extracelular[\s\S]{0,180}?(\d+[.,]\d+)\s*litros/i);
   const intracellularWaterPercent=pick(/Agua Intracelular\s*%[\s\S]{0,220}?(\d+[.,]\d+)\s*%/i);
 
-  const muscleFatRatio=pick(/Razao Musculo[\s\S]{0,300}?(\d+[.,]\d+)\s*kg\s*musculo/i);
-  const phaseAngle=pick(/Angulo de Fase[\s\S]{0,250}?(\d+[.,]\d+)\s*graus/i);
+  const muscleFatRatio=pick(/Razao Musculo[\s\S]{0,300}?(\d+[.,]\d+)(?:\s*kg\s*musculo)?/i);
+  const phaseAngle=pick(/Angulo de Fase[\s\S]{0,250}?(\d+[.,]\d+)\s*(?:graus|º|°)/i);
   const cellularAge=pick(/Idade Celular[\s\S]{0,250}?(\d{1,3})\s*anos/i);
+  if(fatMass===undefined&&weight!==undefined&&leanMass!==undefined)fatMass=weight-leanMass;
+  if(bodyFatPercent===undefined&&weight&&fatMass!==undefined)bodyFatPercent=fatMass/weight*100;
 
   return {
     date,weight,height,bmi,bodyFatPercent,fatMass,leanMass,leanMassPercent,
