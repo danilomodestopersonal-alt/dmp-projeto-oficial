@@ -1561,7 +1561,7 @@ function parseGalileuPdfText(raw:string):GalileuPdfImport{
 }
 async function readGalileuPdf(file:File):Promise<GalileuPdfImport>{
   const pdfjs=await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs";
+  pdfjs.GlobalWorkerOptions.workerSrc=new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs",import.meta.url).toString();
   const document=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
   const page=await document.getPage(1);
   const content=await page.getTextContent();
