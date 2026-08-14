@@ -9,7 +9,7 @@ const DEFAULT_PASSWORD="Dmp@2026";
 const hash=(value:string)=>createHash("sha256").update(value,"utf8").digest("hex");
 
 async function readAccess(){
-  try{const result=await pool.query("SELECT payload FROM dmp_data WHERE id = $1",[DATA_ID]);const payload=result.rows[0]?.payload;if(payload?.email&&payload?.passwordHash)return{email:String(payload.email).toLowerCase(),passwordHash:String(payload.passwordHash)};}catch(error){console.error("Erro ao ler credenciais; usando acesso padrão:",error);}
+  try{const result=await pool.query("SELECT payload FROM dmp_data WHERE id = $1",[DATA_ID]);const payload=result.rows[0]?.payload;if(payload?.email&&payload?.passwordHash)return{email:String(payload.email).toLowerCase(),passwordHash:String(payload.passwordHash)};}catch(error){console.error("Erro ao ler credenciais:",error);throw error;}
   return{email:DEFAULT_EMAIL,passwordHash:hash(DEFAULT_PASSWORD)};
 }
 

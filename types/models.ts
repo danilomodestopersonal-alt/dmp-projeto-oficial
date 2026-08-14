@@ -75,7 +75,16 @@ export type Assessment = {
   visceralFat?: number | null;
   bodyCellMass?: number | null;
   hydrationIndex?: number | null;
+  totalBodyWaterLiters?: number | null;
+  waterLeanPercent?: number | null;
+  intracellularWaterLiters?: number | null;
+  extracellularWaterLiters?: number | null;
+  intracellularWaterPercent?: number | null;
+  muscleMassPercent?: number | null;
+  muscleFatRatio?: number | null;
+  cellularAge?: number | null;
   sourceUrl?: string;
+  sourceFileName?: string;
   measurements: Measurements;
   notes: string;
   photos: string[];

@@ -12,7 +12,9 @@
     "next": "15.2.4",
     "pg": "^8.22.0",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "pdfjs-dist": "5.4.296",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@types/node": "22.13.10",

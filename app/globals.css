@@ -887,32 +887,16 @@ input:focus,textarea:focus{
 .access-settings-panel{max-width:760px}.access-settings-message{padding:11px 13px;border-radius:12px;background:#f3f7e7;border:1px solid #dce8b2;color:#40551a;font-weight:800}
 
 
-/* Home desktop: reserva o espaço da agenda lateral no cabeçalho */
+/* 14-08: importação Galileu e correção definitiva do topo da Home */
+.assessment-pdf-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;align-items:center;margin:0 0 18px;padding:16px 18px;border:1px solid #d9e6b8;border-radius:16px;background:linear-gradient(135deg,#f8fce9,#fff)}
+.assessment-pdf-box>div{display:grid;gap:4px}.assessment-pdf-box>div strong{color:#476218}.assessment-pdf-box small{color:var(--dmp-muted);line-height:1.35}.assessment-pdf-box>p{grid-column:1/-1;margin:0;padding:9px 11px;border-radius:10px;background:#eef6d7;color:#50681c;font-size:.82rem;font-weight:800}.assessment-source-file{padding:10px 12px;border:1px solid #dde6d2;border-radius:10px;background:#f8faf5;color:#56636a;font-size:.85rem}
 @media(min-width:901px){
-  .dashboard-topbar:has(.today-heading){
-    padding-right:calc(var(--dmp-agenda-rail-width,310px) + 24px)!important;
-  }
-  .today-heading{
-    width:100%;
-    min-width:0;
-  }
-  .today-tools{
-    flex:1 1 auto;
-    min-width:0;
-    justify-content:flex-end;
-  }
-  .today-tools .header-weather{
-    min-width:220px;
-  }
-  .today-tools .header-clock{
-    min-width:140px;
-  }
-  .today-tools .drive-shortcut{
-    min-width:90px;
-  }
-  .today-tools .bioimpedance-shortcut{
-    flex:0 0 92px;
-    min-width:72px;
-    overflow:hidden;
-  }
+  .dashboard-topbar:has(.today-heading){width:calc(100% - var(--dmp-agenda-rail-width,310px));max-width:calc(100% - var(--dmp-agenda-rail-width,310px));padding:18px 24px!important;box-sizing:border-box}
+  .today-heading{width:100%;display:grid!important;grid-template-columns:minmax(175px,auto) minmax(0,1fr);align-items:center;gap:18px!important}
+  .today-tools{min-width:0!important;width:100%;display:grid!important;grid-template-columns:minmax(215px,1.65fr) minmax(130px,.72fr) minmax(118px,.72fr) 84px;align-items:stretch;gap:10px!important}
+  .today-tools .header-weather,.today-tools .header-clock,.today-tools .drive-shortcut{min-width:0!important;width:100%;box-sizing:border-box}
+  .today-tools .bioimpedance-shortcut{display:grid;place-items:center;padding:8px!important;overflow:hidden}
+  .today-tools .bioimpedance-shortcut .bio-icon{display:grid;place-items:center;width:100%;height:100%;overflow:hidden}
+  .today-tools .bioimpedance-shortcut img{display:block;max-width:62px;max-height:56px;width:auto;height:auto;object-fit:contain}
 }
+@media(max-width:900px){.assessment-pdf-box{grid-template-columns:1fr}.assessment-pdf-box>p{grid-column:auto}}

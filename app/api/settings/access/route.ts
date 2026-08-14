@@ -10,7 +10,7 @@ const hash=(value:string)=>createHash("sha256").update(value,"utf8").digest("hex
 
 type AccessData={email:string;passwordHash:string};
 async function readAccess():Promise<AccessData>{
-  try{const result=await pool.query("SELECT payload FROM dmp_data WHERE id = $1",[DATA_ID]);const payload=result.rows[0]?.payload;if(payload?.email&&payload?.passwordHash)return{email:String(payload.email).toLowerCase(),passwordHash:String(payload.passwordHash)};}catch(error){console.error("Erro ao ler acesso:",error);}
+  try{const result=await pool.query("SELECT payload FROM dmp_data WHERE id = $1",[DATA_ID]);const payload=result.rows[0]?.payload;if(payload?.email&&payload?.passwordHash)return{email:String(payload.email).toLowerCase(),passwordHash:String(payload.passwordHash)};}catch(error){console.error("Erro ao ler acesso:",error);throw error;}
   return{email:DEFAULT_EMAIL,passwordHash:hash(DEFAULT_PASSWORD)};
 }
 
