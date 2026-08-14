@@ -1,0 +1,16 @@
+DMP HOTFIX FINANCEIRO 13-08 — FINAL
+
+Este pacote substitui os hotfixes anteriores.
+
+Regras implementadas:
+- RECURRING: entra em cada competência enquanto o aluno estiver ativo.
+- SINGLE / pagamento único: entra 100% na primeira competência e não é recriado nos meses seguintes.
+- INSTALLMENT / parcelado: entra uma parcela por competência e para ao atingir a quantidade total.
+- O valor cadastrado no Kids não é apagado nem dividido.
+- Registros antigos/duplicados da competência atual são substituídos pela lista oficial sincronizada.
+- Saldo projetado = receitas previstas - despesas previstas.
+- Resumo DS permanece visível e a conferência fica abaixo.
+- Ausências continuam computadas na Home.
+
+Validação local do pacote: npm run typecheck aprovado.
+Antes de publicar: rodar npm run typecheck e npm run build no Windows.

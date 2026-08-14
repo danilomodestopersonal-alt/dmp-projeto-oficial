@@ -66,7 +66,9 @@ export async function POST(request:Request){
       return NextResponse.json({message:"O PDF deve ter no máximo 12 MB."},{status:400});
     }
 
+    const {getData}=await import("pdf-parse/worker");
     const {PDFParse}=await import("pdf-parse");
+    PDFParse.setWorker(getData());
     const bytes=new Uint8Array(await file.arrayBuffer());
     const parser=new PDFParse({data:bytes});
     const result=await parser.getText();

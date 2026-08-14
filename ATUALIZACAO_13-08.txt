@@ -1,0 +1,14 @@
+DMP — Atualização Financeiro / Kids / WhatsApp — 13/08/2026
+
+Conteúdo do pacote:
+- Home: ausência no Resumo do dia.
+- WhatsApp: normalização de telefones brasileiros no DMP e no Kids.
+- Cadastro Kids: layout reorganizado em Dados do aluno, Responsáveis, Plano e cobrança e Observações.
+- Financeiro DS: sincronização passa a usar a lista oficial ativa do Kids como fonte do mês atual, eliminando registros obsoletos da competência atual.
+- Financeiro DS: vínculo estável por studentId para evitar duplicidade quando um nome for alterado.
+- Financeiro DS: nova aba interna Conferência de alunos, com totais e comparação aluno a aluno.
+- Segurança: proteção por sessão nas APIs privadas de Financeiro, Kids, Notes, Performance e Backup.
+
+IMPORTANTE:
+Fazer backup dos dados online antes de copiar este pacote para o projeto.
+Os dados do cadastro Kids não são apagados pelo pacote. A limpeza ocorre somente na lista DS Kids da competência financeira atual, que será reconstruída a partir do cadastro oficial Kids ativo.

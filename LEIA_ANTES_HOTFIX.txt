@@ -1,0 +1,10 @@
+DMP HOTFIX FINANCEIRO 13-08-2026
+
+Correções:
+1. Resumo do dia: ausência continua sendo contada mesmo quando o compromisso é removido da Agenda Google ao registrar a falta.
+2. Financeiro: Saldo projetado passa a ser Receitas previstas - Despesas previstas.
+3. DS Tênis: pagamentos SINGLE (semestre à vista) entram integralmente no mês em que foram recebidos; não são divididos entre competências futuras.
+4. DS Tênis: Resumo de valores permanece sempre visível; a conferência de alunos fica abaixo, sem substituir o resumo.
+
+Validação interna: TypeScript (tsc --noEmit) sem erros.
+O build deve ser executado no Windows antes do commit/push.

@@ -1,0 +1,17 @@
+DMP — Atualização 14/08/2026
+
+Incluído neste pacote:
+- Avaliações: histórico por aluno, botão Ver relatório e relatório interno profissional.
+- Relatório: composição corporal, massa magra kg e %, IMC, água, massa muscular, metabolismo basal, ângulo de fase, gordura visceral, massa celular, comparação com avaliação anterior e gráficos de evolução.
+- Formulário de avaliação ampliado para os novos indicadores, mantendo compatibilidade com avaliações antigas.
+- Recados: campo de título + conteúdo e ajuste de layout/rolagem.
+- Google Calendar: quando a renovação da autorização falhar, o DMP passa a pedir reconexão em vez de parecer travado.
+- Configurações: nova área para alterar login/e-mail e senha do DMP com confirmação da senha atual.
+
+Validação:
+- npm run typecheck: OK.
+- Build de produção não foi concluído no ambiente de preparação porque o Next.js tentou baixar o binário SWC e o ambiente estava sem acesso à registry.npmjs.org. Não houve erro de TypeScript.
+
+Não incluído:
+- Relatório Financeiro DS (mantido para o fim do mês).
+- Importação automática do Galileu (estrutura de dados preparada; integração depende do formato/API/exportação disponível).

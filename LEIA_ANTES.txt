@@ -1,10 +1,16 @@
-DMP — PACOTE DE ATUALIZAÇÃO 2026
+DMP — ATALHO BIOIMPEDÂNCIA — 13/08/2026
 
-1. Feche o VS Code antes de trocar pastas.
-2. Guarde a pasta atual como backup.
-3. Extraia este ZIP na Área de Trabalho.
-4. Abra a nova pasta DMP_Projeto_Oficial no VS Code.
-5. Execute npm install e npm run dev.
-6. Faça login e teste antes de apagar qualquer backup.
+Alteração feita na tela inicial:
+- Novo atalho de Bioimpedância ao lado do Google Drive.
+- Usa o logo b.in recortado da tela do Galileu Online enviada pelo usuário.
+- Botão segue a mesma proporção visual do botão Google Drive.
+- Abre o Galileu Online em nova aba:
+  https://galileuonline.com.br/#/avaliacao
+- No celular, Google Drive e Bioimpedância ficam lado a lado abaixo da previsão do tempo.
 
-Esta versão usa armazenamento local. A sincronização real entre computador e celular depende da conexão com o Supabase e será a próxima etapa.
+Arquivos alterados/adicionados:
+- components/DmpApp.tsx
+- app/globals.css
+- public/bioimpedancia-bin.png
+
+Não altera banco, Financeiro, Kids, Google Calendar, treinos ou dados dos alunos.

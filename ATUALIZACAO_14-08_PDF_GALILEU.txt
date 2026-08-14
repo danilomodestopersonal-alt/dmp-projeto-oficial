@@ -1,0 +1,11 @@
+DMP — Atualização 14/08/2026 — PDF Galileu + Home
+
+Inclui:
+- Importação assistida de PDF do Galileu na Nova Avaliação.
+- OCR da primeira página para preencher automaticamente indicadores corporais.
+- Novos indicadores: água total, água na massa magra, água intra/extra celular, massa muscular %, razão músculo/gordura e idade celular.
+- Relatório DMP ampliado com os novos indicadores.
+- Campo opcional de link do Galileu preservado.
+- Correção definitiva do cabeçalho da Home para reservar a largura da agenda lateral e conter o atalho de bioimpedância.
+
+Após copiar o pacote, execute npm install antes do typecheck, pois esta atualização acrescenta pdfjs-dist e tesseract.js.
