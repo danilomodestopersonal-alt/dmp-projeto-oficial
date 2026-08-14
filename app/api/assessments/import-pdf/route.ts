@@ -72,16 +72,39 @@ export async function POST(request:Request){
     const bytes=new Uint8Array(await file.arrayBuffer());
     const parser=new PDFParse({data:bytes});
     const result=await parser.getText();
-    await parser.destroy();
     const extracted=result.text||"";
 
     if(!extracted.trim()){
+      await parser.destroy();
       return NextResponse.json({message:"Não encontrei texto legível neste PDF."},{status:422});
     }
 
-    const data=parseGalileuText(extracted);
-    const identified=Object.values(data).filter(value=>value!==undefined&&value!==null).length;
+    let combinedText=extracted;
+    let data=parseGalileuText(combinedText);
+    let identified=Object.values(data).filter(value=>value!==undefined&&value!==null).length;
 
+    if(identified<12){
+      try{
+        const screenshot=await parser.getScreenshot({partial:[1],scale:2,imageDataUrl:false,imageBuffer:true});
+        const image=screenshot.pages?.[0]?.data;
+        if(image){
+          const {createWorker}=await import("tesseract.js");
+          const worker=await createWorker("por");
+          try{
+            const ocr=await worker.recognize(Buffer.from(image));
+            combinedText+=`\n${ocr.data.text||""}`;
+            data=parseGalileuText(combinedText);
+            identified=Object.values(data).filter(value=>value!==undefined&&value!==null).length;
+          }finally{
+            await worker.terminate();
+          }
+        }
+      }catch(ocrError){
+        console.error("OCR complementar do Galileu falhou:",ocrError);
+      }
+    }
+
+    await parser.destroy();
     return NextResponse.json({ok:true,data,identified,fileName:file.name});
   }catch(error){
     console.error("Erro ao importar PDF da avaliação:",error);
