@@ -91,10 +91,9 @@ export async function POST(request:Request){
         const image=screenshot.pages?.[0]?.data;
         if(image){
           const {createWorker}=await import("tesseract.js");
-          const {createRequire}=await import("module");
-          const require=createRequire(import.meta.url);
-          const workerPath=require.resolve("tesseract.js/src/worker-script/node/index.js");
-          console.log("GALILEU OCR: criando worker",workerPath); const worker=await createWorker("por",1,{workerPath}); console.log("GALILEU OCR: worker criado");
+          const workerPath="./node_modules/tesseract.js/src/worker-script/node/index.js";
+          console.log("GALILEU OCR: criando worker",workerPath);
+          const worker=await createWorker("por",1,{workerPath}); console.log("GALILEU OCR: worker criado");
           try{
             console.log("GALILEU OCR: iniciando recognize",typeof image,Buffer.isBuffer(image)); const ocr=await worker.recognize(Buffer.from(image)); console.log("GALILEU OCR: recognize concluido");
             combinedText+=`\n${ocr.data.text||""}`;
