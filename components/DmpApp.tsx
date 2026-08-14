@@ -619,7 +619,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
   async function registerAbsence(student:Student,event:CalendarEvent){
     const absence:Session={id:crypto.randomUUID(),date:calendarEventDate(event),workoutName:"Ausência",notes:`Ausência informada para ${event.summary}.`,completedExercises:[],source:"ABSENCE",finishedAt:new Date().toISOString(),calendarEvent:{id:event.id,summary:event.summary,description:event.description,start:event.start,end:event.end,allDay:event.allDay,location:event.location}};
-    const remaining=getCalendarEventStudents(event,students).filter(item=>item.id!==student.id);
+    const alreadyAbsentIds=new Set(students.filter(item=>item.sessions.some(session=>session.source==="ABSENCE"&&session.calendarEvent?.id===event.id)).map(item=>item.id));
+    const remaining=getCalendarEventStudents(event,students).filter(item=>item.id!==student.id&&!alreadyAbsentIds.has(item.id));
     const nextSummary=remaining.map(item=>calendarStudentDisplayName(item)).join(" ");
     const firstName=student.name.trim().split(/\s+/)[0]||student.name;
     const nextDescription=(event.description||"").split(/\r?\n/).filter(line=>!normalizeName(line).includes(normalizeName(student.name))&&!normalizeName(line).includes(normalizeName(firstName))).join("\n");
