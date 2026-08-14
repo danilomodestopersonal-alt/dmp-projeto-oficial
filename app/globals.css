@@ -1046,3 +1046,47 @@ input:focus,textarea:focus{
     padding:13px!important;
   }
 }
+
+
+/* Avaliação — importação por texto */
+.assessment-text-import{
+  grid-template-columns:1fr auto!important;
+  align-items:start!important;
+}
+.assessment-text-import>div{
+  grid-column:1/-1;
+}
+.assessment-text-import textarea{
+  grid-column:1/-1;
+  width:100%;
+  min-height:220px;
+  box-sizing:border-box;
+  resize:vertical;
+  padding:14px 15px;
+  border:1px solid #d8e2cf;
+  border-radius:14px;
+  background:#fff;
+  color:var(--dmp-graphite);
+  font:inherit;
+  line-height:1.45;
+}
+.assessment-text-import textarea:focus{
+  outline:2px solid rgba(82,120,25,.2);
+  border-color:#9bb66a;
+}
+.assessment-text-import>button{
+  grid-column:2;
+  min-width:160px;
+}
+.assessment-text-import>p{
+  grid-column:1/-1!important;
+}
+@media(max-width:700px){
+  .assessment-text-import{
+    grid-template-columns:1fr!important;
+  }
+  .assessment-text-import>button{
+    grid-column:1;
+    width:100%;
+  }
+}
