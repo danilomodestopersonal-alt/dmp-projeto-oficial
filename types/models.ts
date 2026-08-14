@@ -66,6 +66,15 @@ export type Assessment = {
   bodyFatPercent?: number | null;
   fatMass?: number | null;
   leanMass?: number | null;
+  leanMassPercent?: number | null;
+  bmi?: number | null;
+  waterPercent?: number | null;
+  muscleMass?: number | null;
+  basalMetabolicRate?: number | null;
+  phaseAngle?: number | null;
+  visceralFat?: number | null;
+  bodyCellMass?: number | null;
+  hydrationIndex?: number | null;
   measurements: Measurements;
   notes: string;
   photos: string[];

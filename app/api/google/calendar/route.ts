@@ -46,6 +46,13 @@ export async function GET(request: NextRequest) {
     if (refreshed) setGoogleCookies(response, refreshed);
     return response;
   } catch (error) {
-    return NextResponse.json({error:"calendar_failed",message:error instanceof Error?error.message:"Erro desconhecido"},{status:500});
+    const message=error instanceof Error?error.message:"Erro desconhecido";
+    if(message.includes("Falha ao renovar Google")){
+      const response=NextResponse.json({error:"reauth_required",message:"A autorização do Google expirou. Reconecte sua agenda."},{status:401});
+      response.cookies.set("dmp_google_access","",{path:"/",maxAge:0});
+      response.cookies.set("dmp_google_refresh","",{path:"/",maxAge:0});
+      return response;
+    }
+    return NextResponse.json({error:"calendar_failed",message},{status:500});
   }
 }
