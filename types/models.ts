@@ -75,6 +75,7 @@ export type Assessment = {
   visceralFat?: number | null;
   bodyCellMass?: number | null;
   hydrationIndex?: number | null;
+  sourceUrl?: string;
   measurements: Measurements;
   notes: string;
   photos: string[];

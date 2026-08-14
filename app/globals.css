@@ -885,3 +885,34 @@ input:focus,textarea:focus{
 @media(max-width:980px){.assessment-card-main{grid-template-columns:1fr}.assessment-card-actions{justify-items:start}.assessment-card-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.note-create{grid-template-columns:1fr}}
 @media(max-width:520px){.assessment-card-metrics{grid-template-columns:1fr 1fr}.assessment-card-rich{padding:12px}.assessment-form-section{padding:12px}}
 .access-settings-panel{max-width:760px}.access-settings-message{padding:11px 13px;border-radius:12px;background:#f3f7e7;border:1px solid #dce8b2;color:#40551a;font-weight:800}
+
+
+/* Home desktop: reserva o espaço da agenda lateral no cabeçalho */
+@media(min-width:901px){
+  .dashboard-topbar:has(.today-heading){
+    padding-right:calc(var(--dmp-agenda-rail-width,310px) + 24px)!important;
+  }
+  .today-heading{
+    width:100%;
+    min-width:0;
+  }
+  .today-tools{
+    flex:1 1 auto;
+    min-width:0;
+    justify-content:flex-end;
+  }
+  .today-tools .header-weather{
+    min-width:220px;
+  }
+  .today-tools .header-clock{
+    min-width:140px;
+  }
+  .today-tools .drive-shortcut{
+    min-width:90px;
+  }
+  .today-tools .bioimpedance-shortcut{
+    flex:0 0 92px;
+    min-width:72px;
+    overflow:hidden;
+  }
+}
