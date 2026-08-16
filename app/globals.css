@@ -827,6 +827,7 @@ input:focus,textarea:focus{
   .mobile-header-actions .mobile-quick-launch,.mobile-header-actions .mobile-voice-launch{position:static;display:grid;place-items:center;width:43px;height:43px;font-size:1.35rem}
   .dashboard-logout{order:5;grid-column:1/-1;justify-self:end;margin-top:4px!important;font-size:.75rem;opacity:.78}
   .today-tools{grid-template-columns:minmax(0,1fr) minmax(100px,.62fr)!important}
+  .today-tools .header-weather,.today-tools .drive-shortcut,.today-tools .bioimpedance-shortcut{display:none!important}
   .today-tools .header-clock{display:none}
   .drive-shortcut{min-width:0!important}
 }
