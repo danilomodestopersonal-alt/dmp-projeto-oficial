@@ -1932,140 +1932,86 @@ function isSundayInSaoPaulo(){const label=new Intl.DateTimeFormat("en-US",{timeZ
 function formatSyncTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
 function formatSyncDateTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
 function organizeQuickTranscript(rawText:string): Exercise[] {
-  const text=rawText.replace(/\r/g," ").replace(/\s+/g," ").trim();
+  const text=rawText.replace(/\r\n?/g,"\n").trim();
   if(!text) return [];
 
   const numbers:Record<string,string>={
-    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","três":"3",
+    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","tr?s":"3",
     "quatro":"4","cinco":"5","seis":"6","sete":"7","oito":"8","nove":"9",
     "dez":"10","onze":"11","doze":"12","treze":"13","quatorze":"14",
     "catorze":"14","quinze":"15","dezesseis":"16","dezessete":"17",
     "dezoito":"18","dezenove":"19","vinte":"20"
   };
 
-  const toNumber=(value:string)=>{
-    const key=value.toLocaleLowerCase("pt-BR").trim();
-    return numbers[key]||value;
-  };
-
-  const normalizedNumbers=text.replace(
-    /\b(um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
-    m=>toNumber(m)
+  const normalized=text.replace(
+    /\b(um|uma|dois|duas|tr[e?]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
+    value=>numbers[value.toLocaleLowerCase("pt-BR")]||value
   );
 
-  const blockRegex=/\bbloco\s+(\d+)\b/gi;
-  const blockMatches=[...normalizedNumbers.matchAll(blockRegex)];
-  const chunks:{block:string;text:string}[]=[];
-
-  if(blockMatches.length){
-    for(let i=0;i<blockMatches.length;i++){
-      const match=blockMatches[i];
-      const start=(match.index||0)+match[0].length;
-      const end=i+1<blockMatches.length ? (blockMatches[i+1].index||normalizedNumbers.length) : normalizedNumbers.length;
-
-      chunks.push({
-        block:match[1],
-        text:normalizedNumbers.slice(start,end).replace(/^[\s,:;.\-–—]+/,"").trim()
-      });
-    }
-  }else{
-    chunks.push({block:"",text:normalizedNumbers});
-  }
-
   const output:Exercise[]=[];
+  let currentBlock="";
 
-  const cleanName=(value:string)=>
-    value
-      .replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g,"")
-      .replace(/^(?:e|depois|mais)\s+/i,"")
+  for(const rawLine of normalized.split(/\n+/)){
+    let line=rawLine.trim();
+    if(!line) continue;
+
+    const blockMatch=line.match(/^\s*bloco\s+(\d+)\s*[:\-??]?\s*$/i);
+    if(blockMatch){
+      currentBlock=blockMatch[1];
+      continue;
+    }
+
+    line=line
+      .replace(/^\s*(?:\d+\s*[.)\-:]|[-?])\s*/,"")
       .trim();
 
-  const loadAtStart=(value:string)=>{
-    const match=value.match(/^\s*[,;:\-–—]*\s*(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i);
+    if(!line) continue;
 
-    if(!match) return null;
+    const prescription=line.match(/\b(\d+)\s*(?:s[e?]ries?\s*(?:de\s*)?|[x?]\s*|\s+de\s+)(\d+|falha)\b/i);
 
-    return {
-      value:`${match[1].replace(",",".")} kg${/cada\s*lado/i.test(match[0]) ? " de cada lado" : ""}`,
-      length:match[0].length
-    };
-  };
-
-  for(const chunk of chunks){
-    const value=chunk.text.trim();
-    if(!value) continue;
-
-    const prescriptionRegex=/\b(\d+)\s*(?:s[eé]ries?\s*(?:de\s*)?|[x×]\s*|\s+de\s+)(\d+|falha)\b/gi;
-    const prescriptions=[...value.matchAll(prescriptionRegex)];
-
-    if(!prescriptions.length){
+    if(!prescription){
       output.push({
         id:crypto.randomUUID(),
-        block:chunk.block,
-        name:value,
+        block:currentBlock,
+        name:line.replace(/^[\s,;:.\-??]+|[\s,;:.\-??]+$/g,"").trim(),
         sets:"",
         reps:"",
-        load:""
+        load:"",
+        notes:""
       } as Exercise);
       continue;
     }
 
-    let previousPrescriptionEnd=0;
+    const prescriptionIndex=prescription.index||0;
+    const name=line
+      .slice(0,prescriptionIndex)
+      .replace(/^[\s,;:.\-??]+|[\s,;:.\-??]+$/g,"")
+      .trim();
 
-    for(let i=0;i<prescriptions.length;i++){
-      const prescription=prescriptions[i];
-      const prescriptionStart=prescription.index||0;
+    let tail=line.slice(prescriptionIndex+prescription[0].length)
+      .replace(/^[\s,;:.\-??]+/,"")
+      .trim();
 
-      let between=value.slice(previousPrescriptionEnd,prescriptionStart);
+    let load="";
+    let notes="";
 
-      if(i>0){
-        const leadingLoad=loadAtStart(between);
+    const loadMatch=tail.match(/^(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i);
 
-        if(leadingLoad){
-          if(output.length){
-            output[output.length-1]={
-              ...output[output.length-1],
-              load:leadingLoad.value
-            };
-          }
-
-          between=between.slice(leadingLoad.length);
-        }
-      }
-
-      const name=cleanName(between);
-
-      output.push({
-        id:crypto.randomUUID(),
-        block:chunk.block,
-        name:name || `Exercício ${output.length+1}`,
-        sets:prescription[1]||"",
-        reps:prescription[2]||"",
-        load:""
-      } as Exercise);
-
-      previousPrescriptionEnd=prescriptionStart+prescription[0].length;
+    if(loadMatch){
+      load=`${loadMatch[1].replace(",",".")} kg${/cada\s*lado/i.test(loadMatch[0])?" de cada lado":""}`;
+      notes=tail.slice(loadMatch[0].length).replace(/^[\s,;:.\-??]+/,"").trim();
+    }else{
+      notes=tail;
     }
 
-    const tail=value.slice(previousPrescriptionEnd);
-    const finalLoad=loadAtStart(tail);
-
-    if(finalLoad && output.length){
-      output[output.length-1]={
-        ...output[output.length-1],
-        load:finalLoad.value
-      };
-    }
-  }
-
-  if(!output.length){
     output.push({
       id:crypto.randomUUID(),
-      block:"",
-      name:text,
-      sets:"",
-      reps:"",
-      load:""
+      block:currentBlock,
+      name:name||`Exerc?cio ${output.length+1}`,
+      sets:prescription[1]||"",
+      reps:prescription[2]||"",
+      load,
+      notes
     } as Exercise);
   }
 
