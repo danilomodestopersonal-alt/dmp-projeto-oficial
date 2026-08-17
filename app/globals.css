@@ -1214,3 +1214,32 @@ input:focus,textarea:focus{
     padding-top:10px!important;
   }
 }
+
+/* Destaque do aluno na aba de treino */
+.planned-student-identity{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin:0 0 18px;
+  padding:14px 18px;
+  border:2px solid #2563eb;
+  border-radius:16px;
+  background:#eff6ff;
+}
+.planned-student-identity span{
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.12em;
+  color:#2563eb;
+}
+.planned-student-identity strong{
+  font-size:28px;
+  line-height:1.1;
+  font-weight:900;
+  color:#172554;
+}
+.planned-student-identity small{
+  margin-left:auto;
+  font-weight:800;
+  color:#b91c1c;
+}
