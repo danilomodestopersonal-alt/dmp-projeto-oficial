@@ -75,6 +75,13 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [editingNoteText, setEditingNoteText] = useState("");
   const [kidsLessonRequest,setKidsLessonRequest]=useState<KidsLessonOpenRequest|null>(null);
   const [showMobileActions,setShowMobileActions]=useState(false);
+  const [spotifyState,setSpotifyState]=useState<{
+    connected:boolean;
+    active?:boolean;
+    isPlaying?:boolean;
+    track?:{name:string;artist:string;image:string}|null;
+  }>({connected:false});
+  const [spotifyBusy,setSpotifyBusy]=useState(false);
   const deepLinkHandled = useRef(false);
   const sessionReturnView = useRef<View>("student");
 
@@ -216,6 +223,23 @@ useEffect(()=>{
 
 useEffect(()=>{
   if(view!=="today")return;
+  let cancelled=false;
+  const loadSpotify=async()=>{
+    try{
+      const response=await fetch("/api/spotify/player",{cache:"no-store"});
+      const data=await response.json().catch(()=>({connected:false}));
+      if(!cancelled)setSpotifyState(data);
+    }catch{
+      if(!cancelled)setSpotifyState({connected:false});
+    }
+  };
+  void loadSpotify();
+  const timer=window.setInterval(()=>{void loadSpotify();},5000);
+  return()=>{cancelled=true;window.clearInterval(timer);};
+},[view]);
+
+useEffect(()=>{
+  if(view!=="today")return;
   const desktop=window.matchMedia("(min-width: 901px)").matches;
   const cards=[...document.querySelectorAll<HTMLElement>(".home-main-content > [data-home-size-key]")];
   const legacyIndex:Record<string,number>={highlights:2,weekly:3,calendar:4,notes:5,birthdays:8};
@@ -230,6 +254,22 @@ useEffect(()=>{
     if(saved){try{const parsed=JSON.parse(saved);if(parsed.width)card.style.width=`${parsed.width}px`;if(parsed.height)card.style.height=`${parsed.height}px`;}catch{}}
   });
 },[view]);
+
+  async function controlSpotify(action:"play"|"pause"|"next"|"previous"){
+    if(spotifyBusy)return;
+    setSpotifyBusy(true);
+    try{
+      await fetch("/api/spotify/player",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action})
+      });
+      const response=await fetch("/api/spotify/player",{cache:"no-store"});
+      const data=await response.json().catch(()=>({connected:false}));
+      setSpotifyState(data);
+    }catch{}
+    finally{setSpotifyBusy(false);}
+  }
 
   function addNote(){const title=newNoteTitle.trim();const text=newNote.trim();if(!title&&!text)return;const now=new Date().toISOString();setNotes(current=>[{id:crypto.randomUUID(),title,text,done:false,createdAt:now,updatedAt:now},...current]);setNewNoteTitle("");setNewNote("");}
   function patchNote(id:string,patch:Partial<DmpNote>){setNotes(current=>current.map(note=>note.id===id?{...note,...patch,updatedAt:new Date().toISOString()}:note));}
@@ -676,7 +716,19 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         <Sidebar current={view} onNavigate={navigateMain} logout={logout} />
         <div className="dashboard-main">
           {view === "today" ? <>
-            <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon">▰</span><strong>Google Drive</strong></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a></div></div></header>
+            <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon">▰</span><strong>Google Drive</strong></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><div className="spotify-shortcut">
+  {spotifyState.connected ? <>
+    <div className="spotify-track">
+      {spotifyState.track?.image ? <img src={spotifyState.track.image} alt=""/> : <span className="spotify-logo">S</span>}
+      <div><strong>{spotifyState.track?.name || "Spotify"}</strong><small>{spotifyState.track?.artist || (spotifyState.active ? "Pronto para tocar" : "Abra o Spotify")}</small></div>
+    </div>
+    <div className="spotify-controls">
+      <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("previous")} aria-label="Música anterior">◀</button>
+      <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify(spotifyState.isPlaying?"pause":"play")} aria-label={spotifyState.isPlaying?"Pausar":"Tocar"}>{spotifyState.isPlaying?"❚❚":"▶"}</button>
+      <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("next")} aria-label="Próxima música">▶</button>
+    </div>
+  </> : <a className="spotify-connect" href="/api/spotify/login">Conectar Spotify</a>}
+</div></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
               <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={()=>setView("kids")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
