@@ -1263,3 +1263,55 @@ input:focus,textarea:focus{
     height:calc(100vh - 110px)!important;
   }
 }
+
+
+/* Estrutura definitiva: Spotify e agenda na lateral direita */
+@media(min-width:901px){
+  .home-right-rail{
+    position:fixed;
+    z-index:45;
+    top:0;
+    right:0;
+    width:var(--dmp-agenda-rail-width,310px);
+    height:100vh;
+    display:grid;
+    grid-template-rows:110px minmax(0,1fr);
+    background:#f7f9f4;
+    border-left:1px solid var(--dmp-border);
+    box-shadow:-8px 0 24px rgba(37,39,44,.05);
+    overflow:hidden;
+  }
+
+  .home-right-rail .spotify-shortcut{
+    position:static!important;
+    top:auto!important;
+    right:auto!important;
+    left:auto!important;
+    width:100%!important;
+    height:110px!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+    border-radius:0!important;
+    border:0!important;
+    border-bottom:1px solid var(--dmp-border)!important;
+    padding:14px 17px!important;
+    z-index:auto!important;
+  }
+
+  .home-right-rail .desktop-agenda-rail{
+    position:static!important;
+    top:auto!important;
+    right:auto!important;
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    border-left:0!important;
+    box-shadow:none!important;
+  }
+}
+
+@media(max-width:900px){
+  .home-right-rail{
+    display:none;
+  }
+}
