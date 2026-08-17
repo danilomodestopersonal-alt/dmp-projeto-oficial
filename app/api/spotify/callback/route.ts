@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
   const tokenData = await tokenResponse.json();
 
   if (!tokenResponse.ok || !tokenData.access_token) {
+    console.error("SPOTIFY_TOKEN_ERROR",{status:tokenResponse.status,error:tokenData?.error,error_description:tokenData?.error_description});
     return NextResponse.redirect(new URL("/app?spotify=token_error", appUrl));
   }
 
