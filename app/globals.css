@@ -1186,3 +1186,15 @@ input:focus,textarea:focus{
     height:calc(100vh - 104px)!important;
   }
 }
+/* Corrige Spotify para o topo real da barra lateral */
+@media(min-width:901px){
+  .dashboard-topbar{position:relative}
+  .spotify-shortcut{
+    position:absolute!important;
+    top:0!important;
+    left:100%!important;
+    right:auto!important;
+    width:var(--dmp-agenda-rail-width,310px)!important;
+    height:104px!important;
+  }
+}
