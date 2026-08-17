@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
+  const appUrl = process.env.APP_URL || request.nextUrl.origin;
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   const error = request.nextUrl.searchParams.get("error");
   const savedState = request.cookies.get("spotify_oauth_state")?.value;
 
   if (error) {
-    return NextResponse.redirect(new URL("/app?spotify=denied", request.url));
+    return NextResponse.redirect(new URL("/app?spotify=denied", appUrl));
   }
 
   if (!code || !state || !savedState || state !== savedState) {
-    return NextResponse.redirect(new URL("/app?spotify=state_error", request.url));
+    return NextResponse.redirect(new URL("/app?spotify=state_error", appUrl));
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -44,10 +45,10 @@ export async function GET(request: NextRequest) {
   const tokenData = await tokenResponse.json();
 
   if (!tokenResponse.ok || !tokenData.access_token) {
-    return NextResponse.redirect(new URL("/app?spotify=token_error", request.url));
+    return NextResponse.redirect(new URL("/app?spotify=token_error", appUrl));
   }
 
-  const response = NextResponse.redirect(new URL("/app?spotify=connected", request.url));
+  const response = NextResponse.redirect(new URL("/app?spotify=connected", appUrl));
 
   response.cookies.delete("spotify_oauth_state");
 
