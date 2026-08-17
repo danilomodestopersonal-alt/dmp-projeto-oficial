@@ -1198,3 +1198,19 @@ input:focus,textarea:focus{
     height:104px!important;
   }
 }
+/* Ajuste final da lateral: Spotify alinhado e agenda sem cabecalho */
+@media(min-width:901px){
+  .spotify-shortcut{
+    height:110px!important;
+    padding:14px 17px!important;
+    border-radius:18px!important;
+  }
+  .desktop-agenda-rail{
+    top:110px!important;
+    height:calc(100vh - 110px)!important;
+    grid-template-rows:1fr!important;
+  }
+  .agenda-rail-scroll{
+    padding-top:10px!important;
+  }
+}
