@@ -2276,14 +2276,14 @@ function calculateAge(value:string){if(!value)return null;const birth=new Date(`
 function monthsSince(value:string){if(!value)return null;const start=new Date(`${value}T12:00:00`);const now=new Date();return Math.max(0,(now.getFullYear()-start.getFullYear())*12+now.getMonth()-start.getMonth());}
 
 function performanceActivityEmoji(activity:any){
-  if(!activity) return "??";
+  if(!activity) return "\uD83D\uDCCC";
   const type=String(activity.type||"");
-  if(type==="CYCLING") return "??";
-  if(type==="STRENGTH") return "???";
-  if(type==="PILATES") return "??";
-  if(type==="RUNNING") return "??";
-  if(type==="TENNIS") return "??";
-  return "??";
+  if(type==="CYCLING") return "\uD83D\uDEB4";
+  if(type==="STRENGTH") return "\uD83C\uDFCB\uFE0F";
+  if(type==="PILATES") return "\uD83E\uDD38";
+  if(type==="RUNNING") return "\uD83C\uDFC3";
+  if(type==="TENNIS") return "\uD83C\uDFBE";
+  return "\uD83D\uDCCC";
 }
 
 function formatMonths(months:number){const years=Math.floor(months/12);const rest=months%12;return [years?`${years} ano${years>1?"s":""}`:"",rest?`${rest} ${rest===1?"mês":"meses"}`:""].filter(Boolean).join(" e ")||"menos de 1 mês";}
