@@ -2177,3 +2177,199 @@ input:focus,textarea:focus{
   .student-history-smart{grid-template-columns:1fr}
   .assessment-quick-title{align-items:flex-start;flex-direction:column}
 }
+
+
+/* =========================================================
+   DMP - HISTORICO INTELIGENTE E FECHAMENTOS
+   ========================================================= */
+
+.smart-history-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin:16px 0;
+}
+
+.smart-history-grid article{
+  display:grid;
+  gap:4px;
+  padding:14px;
+  border:1px solid var(--dmp-border);
+  border-radius:15px;
+  background:#f8faF3;
+}
+
+.smart-history-grid span,
+.smart-history-grid small{
+  color:var(--dmp-muted);
+  font-size:.75rem;
+}
+
+.smart-history-grid strong{
+  font-size:1.45rem;
+  color:#31522e;
+}
+
+.history-smart-note{
+  display:grid;
+  gap:5px;
+  padding:14px 16px;
+  margin-bottom:18px;
+  border-left:5px solid var(--dmp-green);
+  border-radius:13px;
+  background:#f5f9e8;
+}
+
+.history-smart-note small{color:var(--dmp-muted)}
+.history-timeline-title{margin:20px 0 4px}
+
+.assessment-comparison{
+  padding:16px;
+  margin:14px 0 20px;
+  border:1px solid #dbe6c2;
+  border-radius:18px;
+  background:linear-gradient(135deg,#f7fae9,#fff);
+}
+
+.assessment-comparison-head{
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+
+.assessment-comparison-head>div{
+  display:grid;
+  gap:4px;
+}
+
+.assessment-comparison-head span{
+  font-size:.7rem;
+  font-weight:900;
+  letter-spacing:.06em;
+  color:#789327;
+}
+
+.assessment-comparison-head small{color:var(--dmp-muted)}
+
+.assessment-compare-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.assessment-compare-grid article{
+  display:grid;
+  gap:4px;
+  padding:13px;
+  border:1px solid #e0e6d3;
+  border-radius:13px;
+  background:#fff;
+}
+
+.assessment-compare-grid span,
+.assessment-compare-grid small{
+  color:var(--dmp-muted);
+  font-size:.72rem;
+}
+
+.assessment-compare-grid strong{font-size:1.12rem}
+
+.home-closing-section{
+  margin-top:18px;
+  padding-top:4px;
+}
+
+.home-closing-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+}
+
+.home-closing-card{
+  padding:18px;
+  border:1px solid #dbe4d3;
+  border-radius:20px;
+  background:linear-gradient(145deg,#fff,#f7faef);
+  box-shadow:0 8px 24px rgba(37,39,44,.05);
+}
+
+.home-closing-card.month{
+  background:linear-gradient(145deg,#fff,#edf7fb);
+}
+
+.home-closing-title{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  margin-bottom:15px;
+}
+
+.home-closing-title>span{
+  display:grid;
+  place-items:center;
+  width:38px;
+  height:38px;
+  border-radius:12px;
+  background:#edf4d5;
+  color:#557019;
+  font-size:1.2rem;
+  font-weight:900;
+}
+
+.home-closing-title>div{
+  display:grid;
+  gap:2px;
+}
+
+.home-closing-title small{
+  color:var(--dmp-muted);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.05em;
+}
+
+.home-closing-metrics{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
+
+.home-closing-metrics div{
+  display:grid;
+  gap:3px;
+  padding:10px;
+  border-radius:11px;
+  background:rgba(255,255,255,.78);
+  border:1px solid #e3e8dc;
+}
+
+.home-closing-metrics span{
+  font-size:.68rem;
+  color:var(--dmp-muted);
+}
+
+.home-closing-metrics b{
+  font-size:1.05rem;
+}
+
+@media(max-width:800px){
+  .smart-history-grid,
+  .assessment-compare-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .home-closing-grid{
+    grid-template-columns:1fr;
+  }
+
+  .home-closing-metrics{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .assessment-comparison-head{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}

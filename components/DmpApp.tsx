@@ -235,6 +235,7 @@ useEffect(()=>{
       const activities:PerformanceActivity[]=result?.data?.activities||[];
 
       if(!cancelled){
+        setHomePerformanceActivities(activities);
         setTodayPerformanceActivities(
           activities
             .filter(activity=>activity.date===today())
@@ -763,7 +764,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
               <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>setView("performance")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}>{editingNoteId===note.id?<div className="note-edit-fields"><input aria-label="Editar título" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea aria-label="Editar recado" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)}/></div>:<div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div>}<div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><div className="note-edit-actions">{editingNoteId===note.id?<><button onClick={saveEditedNote}>Salvar</button><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button></>:<button onClick={()=>startEditingNote(note)}>Editar</button>}<button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}</section>
-              <OperationalClosings students={students} performanceActivities={homePerformanceActivities}/>\n              {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
+              <OperationalClosings students={students} performanceActivities={homePerformanceActivities}/>\n              <HomeClosingSummary students={students} performanceActivities={homePerformanceActivities}/>
+              {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
               <div className="home-search-bottom" data-home-size-key="search"><GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}}/></div>
             </section><aside className="home-right-rail"><div className="spotify-shortcut">
   {spotifyState.connected ? <>
@@ -1451,58 +1453,156 @@ function StudentSummary({student}:{student:Student}) {
   return <div className="detail-grid"><article className="panel"><h2>Resumo rápido</h2><dl className="summary-list"><div><dt>Aluno desde</dt><dd>{student.startDate ? formatDate(student.startDate) : "Não informado"}</dd></div><div><dt>Tempo com você</dt><dd>{months === null ? "Não informado" : formatMonths(months)}</dd></div><div><dt>Nascimento</dt><dd>{student.birthDate ? `${formatDate(student.birthDate)}${age !== null ? ` (${age} anos)` : ""}` : "Não informado"}</dd></div><div><dt>Telefone</dt><dd>{student.phone || "Não informado"}</dd></div><div><dt>E-mail</dt><dd>{student.email || "Não informado"}</dd></div><div><dt>Profissão</dt><dd>{student.profession || "Não informado"}</dd></div><div><dt>Modalidade</dt><dd>{student.modality || "Não informado"}</dd></div><div><dt>Frequência</dt><dd>{student.weeklyFrequency || "Não informado"}</dd></div><div><dt>Treinos montados</dt><dd>{slotLabel}</dd></div></dl></article><article className="panel safety-panel"><h2>⚠ Cuidados do aluno</h2><div className="safety-block important"><strong>Restrições / cuidados</strong><p>{student.restrictions || "Nenhuma restrição registrada."}</p></div><div className="safety-block"><strong>Lesões / dores</strong><p>{student.injuries || "Nenhuma lesão ou dor registrada."}</p></div><div className="safety-block"><strong>Medicações / informações relevantes</strong><p>{student.medications || "Nenhuma informação registrada."}</p></div><div className="safety-block"><strong>Observações gerais</strong><p>{student.notes || "Nenhuma observação registrada."}</p></div>{student.emergencyContact||student.emergencyPhone?<div className="safety-block"><strong>Contato de emergência</strong><p>{[student.emergencyContact,student.emergencyPhone].filter(Boolean).join(" · ")}</p></div>:null}</article></div>;
 }
 
+function HomeClosingSummary({students,performanceActivities}:{students:Student[];performanceActivities:PerformanceActivity[]}){
+  const todayKey=today();
+  const monthKey=todayKey.slice(0,7);
+
+  const sessions=students.flatMap(student=>student.sessions.map(session=>({student,session})));
+  const assessments=students.flatMap(student=>student.assessments.map(assessment=>({student,assessment})));
+
+  const previousDates=[
+    ...sessions.map(item=>item.session.date),
+    ...assessments.map(item=>item.assessment.date),
+    ...performanceActivities.map(item=>item.date)
+  ].filter(date=>date<todayKey).sort();
+
+  const lastDate=previousDates.length?previousDates[previousDates.length-1]:null;
+
+  const lastSessions=lastDate?sessions.filter(item=>item.session.date===lastDate):[];
+  const lastAssessments=lastDate?assessments.filter(item=>item.assessment.date===lastDate):[];
+  const lastPerformance=lastDate?performanceActivities.filter(item=>item.date===lastDate):[];
+
+  const monthSessions=sessions.filter(item=>item.session.date.slice(0,7)===monthKey);
+  const monthAssessments=assessments.filter(item=>item.assessment.date.slice(0,7)===monthKey);
+  const monthPerformance=performanceActivities.filter(item=>item.date.slice(0,7)===monthKey);
+
+  const lastAttended=lastSessions.filter(item=>item.session.source!=="ABSENCE").length;
+  const lastAbsent=lastSessions.filter(item=>item.session.source==="ABSENCE").length;
+  const lastDetailed=lastSessions.filter(item=>item.session.source!=="ABSENCE"&&item.session.completedExercises.length>0).length;
+
+  const monthAttended=monthSessions.filter(item=>item.session.source!=="ABSENCE").length;
+  const monthAbsent=monthSessions.filter(item=>item.session.source==="ABSENCE").length;
+  const monthDetailed=monthSessions.filter(item=>item.session.source!=="ABSENCE"&&item.session.completedExercises.length>0).length;
+  const monthDistance=monthPerformance.reduce((total,item)=>total+(item.distanceKm||0),0);
+
+  return <section className="home-closing-section">
+    <div className="panel-head">
+      <div>
+        <h2>Fechamentos</h2>
+        <p className="muted">Uma leitura rápida do trabalho realizado, sem dados financeiros.</p>
+      </div>
+    </div>
+
+    <div className="home-closing-grid">
+      <article className="home-closing-card">
+        <div className="home-closing-title">
+          <span>✓</span>
+          <div>
+            <small>FECHAMENTO DO ÚLTIMO DIA</small>
+            <strong>{lastDate?formatDate(lastDate):"Sem registro anterior"}</strong>
+          </div>
+        </div>
+
+        {lastDate?<div className="home-closing-metrics">
+          <div><span>Atendimentos</span><b>{lastAttended}</b></div>
+          <div><span>Ausências</span><b>{lastAbsent}</b></div>
+          <div><span>Treinos detalhados</span><b>{lastDetailed}</b></div>
+          <div><span>Avaliações</span><b>{lastAssessments.length}</b></div>
+          <div><span>Seu treino</span><b>{lastPerformance.length}</b></div>
+          <div><span>Registros totais</span><b>{lastSessions.length}</b></div>
+        </div>:<p className="muted">Ainda não existe atividade anterior para resumir.</p>}
+      </article>
+
+      <article className="home-closing-card month">
+        <div className="home-closing-title">
+          <span>☰</span>
+          <div>
+            <small>FECHAMENTO DO MÊS</small>
+            <strong>{new Date(todayKey+"T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong>
+          </div>
+        </div>
+
+        <div className="home-closing-metrics">
+          <div><span>Atendimentos</span><b>{monthAttended}</b></div>
+          <div><span>Ausências</span><b>{monthAbsent}</b></div>
+          <div><span>Treinos detalhados</span><b>{monthDetailed}</b></div>
+          <div><span>Avaliações</span><b>{monthAssessments.length}</b></div>
+          <div><span>Seus treinos</span><b>{monthPerformance.length}</b></div>
+          <div><span>Distância pessoal</span><b>{monthDistance?monthDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})+" km":"—"}</b></div>
+        </div>
+      </article>
+    </div>
+  </section>;
+}
+
 function HistoryPanel({student}:{student:Student}) {
+  const ordered=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date));
   const cutoff=new Date();
   cutoff.setDate(cutoff.getDate()-30);
-  const cutoffKey=cutoff.toISOString().slice(0,10);
+  cutoff.setHours(0,0,0,0);
 
-  const recent=student.sessions.filter(session=>session.date>=cutoffKey);
+  const recent=ordered.filter(session=>{
+    const date=new Date(session.date+"T12:00:00");
+    return date>=cutoff;
+  });
+
   const attended=recent.filter(session=>session.source!=="ABSENCE");
   const absences=recent.filter(session=>session.source==="ABSENCE");
-  const detailed=recent.filter(session=>session.completedExercises.length>0);
-  const last=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const detailed=attended.filter(session=>session.completedExercises.length>0);
+  const exercises=new Set(
+    detailed.flatMap(session=>session.completedExercises.map(exercise=>normalizeName(exercise.name))).filter(Boolean)
+  );
 
   return <section className="panel">
     <div className="panel-head">
       <div>
-        <h2>Histórico de sessões</h2>
-        <p className="muted">Resumo dos últimos 30 dias e registros completos do aluno.</p>
+        <h2>Histórico inteligente</h2>
+        <p className="muted">Resumo dos últimos 30 dias e linha do tempo completa.</p>
       </div>
       <button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button>
     </div>
 
-    <div className="student-history-smart">
-      <article><span>Últimos 30 dias</span><strong>{recent.length}</strong><small>registros</small></article>
-      <article><span>Treinos / presenças</span><strong>{attended.length}</strong><small>realizados</small></article>
-      <article><span>Ausências</span><strong>{absences.length}</strong><small>registradas</small></article>
+    <div className="smart-history-grid">
+      <article><span>Atendimentos</span><strong>{attended.length}</strong><small>últimos 30 dias</small></article>
+      <article><span>Ausências</span><strong>{absences.length}</strong><small>registros no período</small></article>
       <article><span>Treinos detalhados</span><strong>{detailed.length}</strong><small>com exercícios</small></article>
-      <article><span>Última sessão</span><strong>{last?formatDate(last.date):"?"}</strong><small>{last?.workoutName||"Sem registro"}</small></article>
+      <article><span>Exercícios realizados</span><strong>{exercises.size}</strong><small>diferentes no período</small></article>
     </div>
 
-    {student.sessions.length ?
-      student.sessions.map(session =>
-        <details className="history-item" key={session.id}>
-          <summary>
-            <span><strong>{formatDate(session.date)}</strong> ? {session.workoutName}</span>
-            <small>{sessionSourceLabel(session)}</small>
-          </summary>
-          {session.completedExercises.length ?
-            <ul className="simple-list">
-              {session.completedExercises.map(exercise =>
-                <li key={exercise.id}>
-                  {exercise.block ? `${exercise.block} ? ` : ""}
-                  {exercise.name}
-                  {exercise.sets || exercise.reps ? ` ? ${exercise.sets}?${exercise.reps}` : ""}
-                  {exercise.load ? ` ? ${exercise.load}` : ""}
-                  {exercise.notes ? ` ? ${exercise.notes}` : ""}
-                </li>
-              )}
-            </ul>
-          : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}
-          <p>{session.notes || "Sem observações."}</p>
-        </details>
-      )
-    : <p className="muted">Nenhuma sessão registrada.</p>}
+    <div className="history-smart-note">
+      <strong>Leitura rápida</strong>
+      <span>
+        {attended.length
+          ? `${attended.length} atendimento${attended.length===1?"":"s"} registrado${attended.length===1?"":"s"} nos últimos 30 dias${absences.length?` · ${absences.length} ausência${absences.length===1?"":"s"}`:""}.`
+          :"Nenhum atendimento registrado nos últimos 30 dias."}
+      </span>
+      {ordered[0]?<small>Último registro: {formatDate(ordered[0].date)} · {ordered[0].workoutName}</small>:null}
+    </div>
+
+    <h3 className="history-timeline-title">Linha do tempo</h3>
+
+    {ordered.length ? ordered.map(session =>
+      <details className="history-item" key={session.id}>
+        <summary>
+          <span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span>
+          <small>{sessionSourceLabel(session)}</small>
+        </summary>
+        {session.completedExercises.length ?
+          <ul className="simple-list">
+            {session.completedExercises.map(exercise =>
+              <li key={exercise.id}>
+                {exercise.block ? `${exercise.block} · ` : ""}
+                {exercise.name}
+                {exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}
+                {exercise.load ? ` — ${exercise.load}` : ""}
+                {exercise.notes ? ` — ${exercise.notes}` : ""}
+              </li>
+            )}
+          </ul>
+        : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}
+        <p>{session.notes || "Sem observações."}</p>
+      </details>
+    ) : <p className="muted">Nenhuma sessão registrada.</p>}
   </section>;
 }
 
@@ -1528,76 +1628,82 @@ const MEASUREMENT_LABELS:Record<string,string>={neck:"Pescoço",shoulders:"Ombro
 
 function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
   const sorted=assessmentSorted(student);
-  const latest=sorted[0];
+  const latest=sorted[0]||null;
   const previous=latest?assessmentPrevious(student,latest):null;
 
-  const comparison=latest&&previous?[
-    ["Peso",latest.weight,previous.weight," kg"],
-    ["Gordura",latest.bodyFatPercent,previous.bodyFatPercent,"%"],
-    ["Massa magra",latest.leanMass,previous.leanMass," kg"],
-    ["Cintura",latest.measurements?.waist?Number(latest.measurements.waist):null,previous.measurements?.waist?Number(previous.measurements.waist):null," cm"]
-  ] as const:[];
+  const comparison=latest?[
+    {label:"Peso",value:assessmentMetric(latest.weight," kg"),delta:previous?assessmentDelta(latest.weight,previous.weight," kg"):null},
+    {label:"Gordura corporal",value:assessmentMetric(latest.bodyFatPercent,"%"),delta:previous?assessmentDelta(latest.bodyFatPercent,previous.bodyFatPercent,"%"):null},
+    {label:"Massa magra",value:assessmentMetric(latest.leanMass," kg"),delta:previous?assessmentDelta(latest.leanMass,previous.leanMass," kg"):null},
+    {label:"Massa magra %",value:assessmentMetric(assessmentLeanPercent(latest),"%"),delta:previous?assessmentDelta(assessmentLeanPercent(latest),assessmentLeanPercent(previous),"%"):null}
+  ]:[];
 
   return <section className="panel assessment-history-panel">
     <div className="panel-head">
       <div>
-        <h2>Avalia\u00e7\u00f5es</h2>
-        <p className="muted">Hist\u00f3rico corporal e evolu\u00e7\u00e3o do aluno.</p>
+        <h2>Avaliações</h2>
+        <p className="muted">Histórico corporal e evolução do aluno.</p>
       </div>
-      <button className="primary" onClick={onNew}>+ Nova avalia\u00e7\u00e3o</button>
+      <button className="primary" onClick={onNew}>+ Nova avaliação</button>
     </div>
 
-    {latest&&previous?
-      <div className="assessment-quick-comparison">
-        <div className="assessment-quick-title">
-          <span>EVOLU\u00c7\u00c3O DESDE A \u00daLTIMA AVALIA\u00c7\u00c3O</span>
-          <strong>{formatDate(previous.date)} ? {formatDate(latest.date)}</strong>
+    {latest?
+      <section className="assessment-comparison">
+        <div className="assessment-comparison-head">
+          <div>
+            <span>COMPARAÇÃO MAIS RECENTE</span>
+            <strong>{formatDate(latest.date)}</strong>
+          </div>
+          <small>{previous?`Comparado com ${formatDate(previous.date)}`:"Primeira avaliação registrada"}</small>
         </div>
-        <div className="assessment-quick-grid">
-          {comparison.map(([label,current,prev,suffix])=>{
-            const delta=current!==null&&current!==undefined&&prev!==null&&prev!==undefined?current-prev:null;
-            return <article key={label}>
-              <span>{label}</span>
-              <strong>{assessmentMetric(current,suffix)}</strong>
-              <small>{delta===null?"Sem compara\u00e7\u00e3o":`${delta>0?"+":""}${delta.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`}</small>
-            </article>;
-          })}
+
+        <div className="assessment-compare-grid">
+          {comparison.map(item=>
+            <article key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.delta?`${item.delta} vs. anterior`:"Sem comparação anterior"}</small>
+            </article>
+          )}
         </div>
-      </div>
+      </section>
     :null}
 
     {sorted.length?
       <div className="assessment-history-list">
-        {sorted.map((assessment,index)=>{
-          const previous=assessmentPrevious(student,assessment);
+        {sorted.map(assessment=>{
+          const previousAssessment=assessmentPrevious(student,assessment);
           return <article className="assessment-card assessment-card-rich" key={assessment.id}>
             <div className="assessment-card-main">
               <div className="assessment-card-date">
-                <small>Avalia\u00e7\u00e3o</small>
+                <small>Avaliação</small>
                 <strong>{formatDate(assessment.date)}</strong>
               </div>
+
               <div className="assessment-card-metrics">
                 <span><small>Peso</small><b>{assessmentMetric(assessment.weight," kg")}</b></span>
                 <span><small>Gordura</small><b>{assessmentMetric(assessment.bodyFatPercent,"%")}</b></span>
                 <span><small>Massa magra</small><b>{assessmentMetric(assessment.leanMass," kg")}</b></span>
                 <span><small>Massa magra</small><b>{assessmentMetric(assessmentLeanPercent(assessment),"%")}</b></span>
               </div>
+
               <div className="assessment-card-actions">
-                <button className="primary" onClick={()=>openAssessmentReport(student,assessment)}>Ver relat?rio</button>
-                {previous?<small>Compara\u00e7\u00e3o com {formatDate(previous.date)}</small>:<small>Primeira avalia\u00e7\u00e3o</small>}
+                <button className="primary" onClick={()=>openAssessmentReport(student,assessment)}>Ver relatório</button>
+                {previousAssessment?<small>Comparação com {formatDate(previousAssessment.date)}</small>:<small>Primeira avaliação</small>}
               </div>
             </div>
+
             {assessment.photos.length?
               <div className="assessment-photos">
                 {assessment.photos.slice(0,4).map((photo,photoIndex)=>
-                  <img key={photoIndex} src={photo} alt={`Avalia\u00e7\u00e3o ${photoIndex+1}`}/>
+                  <img key={photoIndex} src={photo} alt={`Avaliação ${photoIndex+1}`}/>
                 )}
               </div>
             :null}
-          </article>;
+          </article>
         })}
       </div>
-    :<p className="muted">Nenhuma avalia\u00e7\u00e3o registrada.</p>}
+    :<p className="muted">Nenhuma avaliação registrada.</p>}
   </section>;
 }
 

@@ -541,6 +541,53 @@ export default function PerformancePage() {
 
         {tab === "summary" ? (
           <div className={styles.stack}>
+            {(()=>{
+              const now=new Date();
+              const weekday=(now.getDay()+6)%7;
+              const start=new Date(now);
+              start.setHours(0,0,0,0);
+              start.setDate(start.getDate()-weekday);
+
+              const weekActivities=data.activities.filter(activity=>{
+                const date=new Date(activity.date+"T12:00:00");
+                return date>=start&&date<=now;
+              });
+
+              const weekTotals=summarize(weekActivities);
+              const modalities=(Object.keys(ACTIVITY_LABELS) as PerformanceActivityType[])
+                .map(type=>({type,count:weekActivities.filter(activity=>activity.type===type).length}))
+                .filter(item=>item.count>0);
+
+              return <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <span className={styles.kicker}>RESUMO DA SEMANA</span>
+                    <h2>Esta semana</h2>
+                  </div>
+                  <span className={styles.statusChip}>{weekTotals.count} atividade{weekTotals.count===1?"":"s"}</span>
+                </div>
+
+                <div className={styles.measureGrid}>
+                  <div className={styles.measure}><span>Distância</span><strong>{fmtNumber(weekTotals.distance,1)} km</strong></div>
+                  <div className={styles.measure}><span>Tempo</span><strong>{fmtHours(weekTotals.minutes)}</strong></div>
+                  <div className={styles.measure}><span>Altimetria</span><strong>{fmtNumber(weekTotals.elevation)} m</strong></div>
+                  <div className={styles.measure}><span>Treinos</span><strong>{weekTotals.count}</strong></div>
+                </div>
+
+                {modalities.length?<div className={styles.recordBySport}>
+                  {modalities.map(item=>
+                    <div key={item.type}>
+                      <span>{ACTIVITY_ICONS[item.type]}</span>
+                      <div>
+                        <strong>{ACTIVITY_LABELS[item.type]}</strong>
+                        <small>{item.count} atividade{item.count===1?"":"s"} nesta semana</small>
+                      </div>
+                    </div>
+                  )}
+                </div>:null}
+              </section>;
+            })()}
+
             <div className={styles.statsGrid}>
               <Metric label="Distância no mês" value={`${fmtNumber(monthTotals.distance, 1)} km`} detail={`${fmtNumber(yearTotals.distance, 1)} km no ano`} icon="↗" />
               <Metric label="Tempo no mês" value={fmtHours(monthTotals.minutes)} detail={`${fmtHours(yearTotals.minutes)} no ano`} icon="◷" />
