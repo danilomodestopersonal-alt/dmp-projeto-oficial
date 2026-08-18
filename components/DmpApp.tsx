@@ -12,6 +12,7 @@ import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
 import type {KidsCategory} from "@/types/kids";
 import type {FinanceData} from "@/types/financeiro";
+import type { PerformanceActivity } from "@/types/performance";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "workouts" | "history" | "assessments";
@@ -75,6 +76,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [editingNoteText, setEditingNoteText] = useState("");
   const [kidsLessonRequest,setKidsLessonRequest]=useState<KidsLessonOpenRequest|null>(null);
   const [showMobileActions,setShowMobileActions]=useState(false);
+  const [todayPerformanceActivities,setTodayPerformanceActivities]=useState<PerformanceActivity[]>([]);
   const [spotifyState,setSpotifyState]=useState<{
     connected:boolean;
     active?:boolean;
@@ -220,6 +222,40 @@ useEffect(()=>{
   },350);
   return()=>window.clearTimeout(timer);
 },[notes,notesLoaded]);
+
+useEffect(()=>{
+  if(view!=="today")return;
+  let cancelled=false;
+
+  const loadHomePerformance=async()=>{
+    try{
+      const response=await fetch("/api/performance",{cache:"no-store"});
+      const result=await response.json();
+      const activities:PerformanceActivity[]=result?.data?.activities||[];
+
+      if(!cancelled){
+        setTodayPerformanceActivities(
+          activities
+            .filter(activity=>activity.date===today())
+            .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""))
+        );
+      }
+    }catch{
+      if(!cancelled)setTodayPerformanceActivities([]);
+    }
+  };
+
+  void loadHomePerformance();
+  return()=>{cancelled=true;};
+},[view]);
+
+useEffect(()=>{
+  if(view==="student"){
+    window.requestAnimationFrame(()=>{
+      window.scrollTo({top:0,left:0,behavior:"auto"});
+    });
+  }
+},[view,selectedStudentId]);
 
 useEffect(()=>{
   if(view!=="today")return;
@@ -723,7 +759,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon">▰</span><strong>Google Drive</strong></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>setView("performance")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}>{editingNoteId===note.id?<div className="note-edit-fields"><input aria-label="Editar título" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea aria-label="Editar recado" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)}/></div>:<div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div>}<div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><div className="note-edit-actions">{editingNoteId===note.id?<><button onClick={saveEditedNote}>Salvar</button><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button></>:<button onClick={()=>startEditingNote(note)}>Editar</button>}<button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}</section>
               {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
@@ -1027,26 +1063,207 @@ function GlobalSearch({value,onChange,students,events,onStudent,onAgenda}:{value
   return <section className="global-search-box"><div className="global-search-input"><span>⌕</span><input value={value} onChange={event=>onChange(event.target.value)} placeholder="Busca rápida: aluno, compromisso, telefone ou observação..."/>{value?<button onClick={()=>onChange("")} aria-label="Limpar busca">×</button>:null}</div>{query?<div className="global-search-results">{studentResults.map(student=><button key={student.id} onClick={()=>onStudent(student.id)}><span>👤</span><strong>{student.name}</strong><small>Aluno · abrir cadastro</small></button>)}{eventResults.map(event=><button key={event.id} onClick={()=>onAgenda(calendarEventDate(event))}><span>📅</span><strong>{event.summary}</strong><small>{formatDate(calendarEventDate(event))} · {formatCalendarTime(event)}</small></button>)}{!studentResults.length&&!eventResults.length?<p>Nenhum resultado encontrado.</p>:null}</div>:null}</section>;
 }
 
-function TodayHighlights({events,notes,students,sessions,onAgenda,onStudent,onKids,onNotes}:{events:CalendarEvent[];notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onNotes:()=>void}){
+function TodayHighlights({events,notes,students,sessions,performanceActivities,onAgenda,onStudent,onKids,onPerformance,onNotes}:{events:CalendarEvent[];notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onPerformance:()=>void;onNotes:()=>void}){
   const [showSummary,setShowSummary]=useState(false);
-  const timed=events.filter(event=>!event.allDay).sort((a,b)=>a.start.localeCompare(b.start));
+
+  const timed=events
+    .filter(event=>!event.allDay)
+    .sort((a,b)=>a.start.localeCompare(b.start));
+
   const programmedStudents=new Map<string,Student>();
-  timed.filter(event=>!kidsCalendarRequest(event)).forEach(event=>getCalendarEventStudents(event,students).forEach(student=>programmedStudents.set(student.id,student)));
-  // Mantém no resumo os alunos que já tiveram presença, treino ou ausência registrados hoje,
-  // mesmo quando o compromisso deixa de aparecer na Agenda Google após o registro.
+
+  timed
+    .filter(event=>!kidsCalendarRequest(event))
+    .forEach(event=>{
+      getCalendarEventStudents(event,students)
+        .forEach(student=>programmedStudents.set(student.id,student));
+    });
+
   sessions.forEach(item=>programmedStudents.set(item.student.id,item.student));
-  const attendedIds=new Set(sessions.filter(item=>item.session.source!=="ABSENCE"&&programmedStudents.has(item.student.id)).map(item=>item.student.id));
-  const absentIds=new Set(sessions.filter(item=>item.session.source==="ABSENCE"&&programmedStudents.has(item.student.id)).map(item=>item.student.id));
+
+  const attendedIds=new Set(
+    sessions
+      .filter(item=>item.session.source!=="ABSENCE"&&programmedStudents.has(item.student.id))
+      .map(item=>item.student.id)
+  );
+
+  const absentIds=new Set(
+    sessions
+      .filter(item=>item.session.source==="ABSENCE"&&programmedStudents.has(item.student.id))
+      .map(item=>item.student.id)
+  );
+
   const attended=[...programmedStudents.values()].filter(student=>attendedIds.has(student.id));
   const absent=[...programmedStudents.values()].filter(student=>absentIds.has(student.id));
   const remaining=[...programmedStudents.values()].filter(student=>!attendedIds.has(student.id)&&!absentIds.has(student.id));
+
   const programmed=programmedStudents.size;
   const progress=programmed?Math.round(((attended.length+absent.length)/programmed)*100):0;
-  const kids=timed.map(event=>({event,kids:kidsCalendarRequest(event)})).filter((item):item is {event:CalendarEvent;kids:KidsLessonOpenRequest}=>Boolean(item.kids));
+
+  const kids=timed
+    .map(event=>({event,kids:kidsCalendarRequest(event)}))
+    .filter((item):item is {event:CalendarEvent;kids:KidsLessonOpenRequest}=>Boolean(item.kids));
+
   const pending=notes.filter(note=>!note.done);
-  const renderPeople=(title:string,list:Student[],empty:string,statusClass:string)=><section className="today-summary-group"><div><strong>{title}</strong><span>{list.length}</span></div>{list.length?<div className="today-summary-people">{list.map(student=><button key={`${statusClass}-${student.id}`} onClick={()=>onStudent(student.id)}><span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span><strong>{student.name}</strong></button>)}</div>:<small>{empty}</small>}</section>;
-  return <><div className="today-highlight-grid"><MiniMonthCalendar onSelect={onAgenda}/><button className="today-highlight-card" onClick={()=>setShowSummary(value=>!value)} aria-expanded={showSummary}><span className="today-highlight-icon">📊</span><div><strong>Resumo do dia</strong><span className="highlight-lines"><small><b>{programmed}</b> alunos programados</small><small><b>{attended.length}</b> atendidos</small><small><b>{absent.length}</b> ausências</small><small><b>{remaining.length}</b> ainda faltam</small></span><i><b style={{width:`${progress}%`}}/></i></div><em>{showSummary?"⌃":"›"}</em></button><article className="today-highlight-card kids-today-card"><span className="today-highlight-icon">{"\uD83C\uDFBE"}</span><div><strong>Aulas Kids hoje</strong><span className="highlight-lines kids-highlight-lines">{kids.length?kids.map(({event,kids:item})=><button type="button" className="kids-highlight-link" key={event.id} onClick={()=>onKids(event)} title="Abrir esta aula"><span className="kids-racket">{"\uD83C\uDFBE"}</span><b>{formatCalendarTime(event)}</b><span> {"\u00B7"} {kidsCategoryName(item.category)}</span></button>):<small>Nenhuma aula Kids hoje</small>}</span></div><em>{"\u203A"}</em></article><button className="today-highlight-card" onClick={onNotes}><span className="today-highlight-icon">🗒️</span><div><strong>Recados pendentes</strong><span className="highlight-lines"><small><b>{pending.length}</b> pendente{pending.length===1?"":"s"}</small>{pending.slice(0,2).map(note=><small key={note.id}>{note.text}</small>)}</span></div><em>›</em></button></div>{showSummary?<section className="today-summary-detail panel"><div className="panel-head"><div><h2>Atendimentos de hoje</h2><p className="muted">Resumo dos alunos programados, já atendidos, pendentes e ausentes.</p></div><button className="secondary" onClick={()=>setShowSummary(false)}>Fechar</button></div><div className="today-summary-columns">{renderPeople("Atendidos",attended,"Nenhum atendimento concluído ainda.","done")}{renderPeople("Ainda faltam",remaining,"Nenhum atendimento pendente.","pending")}{renderPeople("Ausentes",absent,"Nenhuma ausência registrada.","absent")}</div></section>:null}</>;
+
+  const renderPeople=(title:string,list:Student[],empty:string,statusClass:string)=>
+    <section className="today-summary-group">
+      <div><strong>{title}</strong><span>{list.length}</span></div>
+      {list.length
+        ?<div className="today-summary-people">
+          {list.map(student=>
+            <button key={`${statusClass}-${student.id}`} onClick={()=>onStudent(student.id)}>
+              <span className="student-avatar small">{student.name.slice(0,1).toUpperCase()}</span>
+              <strong>{student.name}</strong>
+            </button>
+          )}
+        </div>
+        :<small>{empty}</small>}
+    </section>;
+
+  const performanceIcon=(type:PerformanceActivity["type"])=>
+    type==="CYCLING"?"Bike":
+    type==="STRENGTH"?"For?a":
+    type==="PILATES"?"Pilates":
+    type==="RUNNING"?"Corrida":
+    type==="TENNIS"?"T?nis":"Atividade";
+
+  const durationText=(minutes:number)=>{
+    const total=Math.round(minutes);
+    const h=Math.floor(total/60);
+    const m=total%60;
+    return h?`${h}h${String(m).padStart(2,"0")}`:`${m} min`;
+  };
+
+  const activitySummary=(activity:PerformanceActivity)=>{
+    const details:string[]=[];
+
+    if(activity.distanceKm){
+      details.push(`${activity.distanceKm.toLocaleString("pt-BR",{maximumFractionDigits:1})} km`);
+    }
+
+    if(activity.durationMinutes){
+      details.push(durationText(activity.durationMinutes));
+    }
+
+    if(activity.averageSpeedKmh){
+      details.push(`${activity.averageSpeedKmh.toLocaleString("pt-BR",{maximumFractionDigits:1})} km/h`);
+    }
+
+    return details.join(" ? ");
+  };
+
+  return <>
+    <div className="today-highlight-grid">
+
+      <MiniMonthCalendar onSelect={onAgenda}/>
+
+      <button
+        className="today-highlight-card today-summary-card"
+        onClick={()=>setShowSummary(value=>!value)}
+        aria-expanded={showSummary}
+      >
+        <span className="today-highlight-icon">{"\uD83D\uDCCA"}</span>
+
+        <div>
+          <strong>Resumo do dia</strong>
+
+          <span className="highlight-lines">
+            <small><b>{programmed}</b> alunos programados</small>
+            <small><b>{attended.length}</b> atendidos</small>
+            <small><b>{absent.length}</b> aus?ncias</small>
+            <small><b>{remaining.length}</b> ainda faltam</small>
+          </span>
+
+          <i><b style={{width:`${progress}%`}}/></i>
+
+          {kids.length?
+            <span className="today-kids-inline">
+              {kids.map(({event,kids:item})=>
+                <span
+                  className="today-kids-inline-row"
+                  key={event.id}
+                  onClick={click=>{
+                    click.stopPropagation();
+                    onKids(event);
+                  }}
+                >
+                  <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
+                  <b>{formatCalendarTime(event)}</b>
+                  <span> ? {kidsCategoryName(item.category)}</span>
+                </span>
+              )}
+            </span>
+          :null}
+        </div>
+
+        <em>{showSummary?"?":"?"}</em>
+      </button>
+
+      <button
+        className="today-highlight-card performance-today-card"
+        onClick={onPerformance}
+      >
+        <span className="today-highlight-icon">{"\uD83D\uDCC8"}</span>
+
+        <div>
+          <strong>Performance do dia</strong>
+
+          {performanceActivities.length?
+            <span className="performance-today-list">
+              {performanceActivities.map(activity=>
+                <span className="performance-today-row" key={activity.id}>
+                  <b>{performanceIcon(activity.type)} ? {activity.title}</b>
+                  {activitySummary(activity)?
+                    <small>{activitySummary(activity)}</small>
+                  :null}
+                </span>
+              )}
+            </span>
+          :null}
+        </div>
+
+        <em>?</em>
+      </button>
+
+      <button className="today-highlight-card" onClick={onNotes}>
+        <span className="today-highlight-icon">{"\uD83D\uDDD2\uFE0F"}</span>
+
+        <div>
+          <strong>Recados pendentes</strong>
+
+          <span className="highlight-lines">
+            <small><b>{pending.length}</b> pendente{pending.length===1?"":"s"}</small>
+            {pending.slice(0,2).map(note=><small key={note.id}>{note.text}</small>)}
+          </span>
+        </div>
+
+        <em>?</em>
+      </button>
+
+    </div>
+
+    {showSummary?
+      <section className="today-summary-detail panel">
+        <div className="panel-head">
+          <div>
+            <h2>Atendimentos de hoje</h2>
+            <p className="muted">Resumo dos alunos programados, j? atendidos, pendentes e ausentes.</p>
+          </div>
+
+          <button className="secondary" onClick={()=>setShowSummary(false)}>Fechar</button>
+        </div>
+
+        <div className="today-summary-columns">
+          {renderPeople("Atendidos",attended,"Nenhum atendimento conclu?do ainda.","done")}
+          {renderPeople("Ainda faltam",remaining,"Nenhum atendimento pendente.","pending")}
+          {renderPeople("Ausentes",absent,"Nenhuma aus?ncia registrada.","absent")}
+        </div>
+      </section>
+    :null}
+  </>;
 }
+
 function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
   const now=new Date();const [cursor,setCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));const year=cursor.getFullYear();const month=cursor.getMonth();const first=new Date(year,month,1).getDay();const days=new Date(year,month+1,0).getDate();
   return <article className="mini-month"><div className="mini-month-nav"><button onClick={()=>setCursor(new Date(year,month-1,1))}>‹</button><strong>{cursor.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong><button onClick={()=>setCursor(new Date(year,month+1,1))}>›</button></div><button className="mini-month-today" onClick={()=>{setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button><div className="mini-month-week"><b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b></div><div className="mini-month-days">{Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}{Array.from({length:days},(_,index)=>{const day=index+1;const value=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <button key={day} className={value===today()?"today":""} onClick={()=>onSelect(value)}>{day}</button>;})}</div></article>;

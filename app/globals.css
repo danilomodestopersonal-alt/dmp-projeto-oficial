@@ -1690,3 +1690,90 @@ input:focus,textarea:focus{
   background:transparent!important;
   color:#496414!important;
 }
+
+
+/* Performance do dia e Kids dentro do resumo */
+
+.today-summary-card > div{
+  min-width:0;
+}
+
+.today-kids-inline{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:2px!important;
+  margin-top:6px!important;
+  padding-top:5px!important;
+  border-top:1px solid #edf1e5!important;
+}
+
+.today-kids-inline-row{
+  display:flex!important;
+  align-items:center!important;
+  gap:4px!important;
+  width:max-content!important;
+  max-width:100%!important;
+  font-size:.67rem!important;
+  line-height:1.15!important;
+  cursor:pointer!important;
+}
+
+.today-kids-inline-row:hover{
+  opacity:.75;
+}
+
+.kids-category-dot{
+  display:inline-block!important;
+  width:7px!important;
+  height:7px!important;
+  flex:0 0 7px!important;
+  border-radius:50%!important;
+}
+
+.kids-category-red{
+  background:#d84e48!important;
+}
+
+.kids-category-orange{
+  background:#ed922a!important;
+}
+
+.kids-category-green{
+  background:#63963b!important;
+}
+
+.kids-category-yellow{
+  background:#d6b52c!important;
+}
+
+.performance-today-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:5px!important;
+  margin-top:5px!important;
+}
+
+.performance-today-row{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:1px!important;
+  text-align:left!important;
+}
+
+.performance-today-row b{
+  font-size:.71rem!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+.performance-today-row small{
+  font-size:.64rem!important;
+  line-height:1.15!important;
+  color:#687169!important;
+}
+
+.performance-today-card{
+  align-items:flex-start!important;
+}
