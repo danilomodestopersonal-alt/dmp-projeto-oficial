@@ -77,6 +77,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [kidsLessonRequest,setKidsLessonRequest]=useState<KidsLessonOpenRequest|null>(null);
   const [showMobileActions,setShowMobileActions]=useState(false);
   const [todayPerformanceActivities,setTodayPerformanceActivities]=useState<PerformanceActivity[]>([]);
+  const [homePerformanceActivities,setHomePerformanceActivities]=useState<PerformanceActivity[]>([]);
   const [spotifyState,setSpotifyState]=useState<{
     connected:boolean;
     active?:boolean;
@@ -241,7 +242,7 @@ useEffect(()=>{
         );
       }
     }catch{
-      if(!cancelled)setTodayPerformanceActivities([]);
+      if(!cancelled){setTodayPerformanceActivities([]);setHomePerformanceActivities([]);}
     }
   };
 
@@ -762,7 +763,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
               <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>setView("performance")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}>{editingNoteId===note.id?<div className="note-edit-fields"><input aria-label="Editar título" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea aria-label="Editar recado" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)}/></div>:<div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div>}<div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><div className="note-edit-actions">{editingNoteId===note.id?<><button onClick={saveEditedNote}>Salvar</button><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button></>:<button onClick={()=>startEditingNote(note)}>Editar</button>}<button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}</section>
-              {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
+              <OperationalClosings students={students} performanceActivities={homePerformanceActivities}/>\n              {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
               <div className="home-search-bottom" data-home-size-key="search"><GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}}/></div>
             </section><aside className="home-right-rail"><div className="spotify-shortcut">
   {spotifyState.connected ? <>
@@ -1055,6 +1056,77 @@ function whatsappLink(phone?:string){const digits=(phone||"").replace(/\D/g,"");
 
 function StudentCategoryDot({category}:{category?:TennisCategory}) { return category?<span className={`tennis-category-dot ${category.toLowerCase()}`} title={`Categoria ${category.toLowerCase()}`}/>:null; }
 function Stat({icon,label,value,onClick}:{icon:string;label:string;value:number;onClick?:()=>void}) { return onClick?<button type="button" className="stat-card stat-card-button" onClick={onClick}><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></button>:<article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
+
+function OperationalClosings({students,performanceActivities}:{students:Student[];performanceActivities:PerformanceActivity[]}){
+  const todayKey=today();
+  const allSessions=students.flatMap(student=>student.sessions.map(session=>({student,session})));
+  const activityDates=[
+    ...allSessions.map(item=>item.session.date),
+    ...performanceActivities.map(item=>item.date)
+  ].filter(date=>date<todayKey).sort((a,b)=>b.localeCompare(a));
+
+  const lastActivityDate=activityDates[0]||null;
+  const monthKey=todayKey.slice(0,7);
+
+  const dailySessions=lastActivityDate?allSessions.filter(item=>item.session.date===lastActivityDate):[];
+  const dailyAssessments=lastActivityDate?students.flatMap(student=>student.assessments.filter(item=>item.date===lastActivityDate)):[];
+  const dailyPerformance=lastActivityDate?performanceActivities.filter(item=>item.date===lastActivityDate):[];
+
+  const monthSessions=allSessions.filter(item=>item.session.date.slice(0,7)===monthKey);
+  const monthAssessments=students.flatMap(student=>student.assessments.filter(item=>item.date.slice(0,7)===monthKey));
+  const monthPerformance=performanceActivities.filter(item=>item.date.slice(0,7)===monthKey);
+
+  const attended=(list:typeof dailySessions)=>list.filter(item=>item.session.source!=="ABSENCE").length;
+  const absent=(list:typeof dailySessions)=>list.filter(item=>item.session.source==="ABSENCE").length;
+  const distance=(list:PerformanceActivity[])=>list.reduce((sum,item)=>sum+(item.distanceKm||0),0);
+
+  return <section className="home-closing-section">
+    <div className="home-closing-heading">
+      <div>
+        <span>RESUMO OPERACIONAL</span>
+        <h2>Fechamentos</h2>
+      </div>
+      <small>Leitura dos dados j{"\u00e1"} registrados no DMP</small>
+    </div>
+
+    <div className="home-closing-grid">
+      <article className="home-closing-card">
+        <div className="home-closing-card-head">
+          <div><span>FECHAMENTO DO DIA</span><strong>{lastActivityDate?formatDate(lastActivityDate):"Sem dia anterior"}</strong></div>
+          <b>{"\u2713"}</b>
+        </div>
+        <div className="home-closing-metrics">
+          <div><span>Atendimentos</span><strong>{attended(dailySessions)}</strong></div>
+          <div><span>Aus{"\u00eancias"}</span><strong>{absent(dailySessions)}</strong></div>
+          <div><span>Avalia{"\u00e7\u00f5es"}</span><strong>{dailyAssessments.length}</strong></div>
+          <div><span>Seu treino</span><strong>{dailyPerformance.length}</strong></div>
+        </div>
+        {dailyPerformance.length?
+          <small className="home-closing-foot">
+            {distance(dailyPerformance)>0?`${distance(dailyPerformance).toLocaleString("pt-BR",{maximumFractionDigits:1})} km \u00b7 `:""}
+            {dailyPerformance.length} atividade{dailyPerformance.length===1?"":"s"}
+          </small>
+        :<small className="home-closing-foot">Nenhuma atividade pessoal registrada nesse dia.</small>}
+      </article>
+
+      <article className="home-closing-card month">
+        <div className="home-closing-card-head">
+          <div><span>FECHAMENTO DO M{"\u00caS"}</span><strong>{new Date(todayKey+"T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong></div>
+          <b>{"\u25a6"}</b>
+        </div>
+        <div className="home-closing-metrics">
+          <div><span>Atendimentos</span><strong>{attended(monthSessions as typeof dailySessions)}</strong></div>
+          <div><span>Aus{"\u00eancias"}</span><strong>{absent(monthSessions as typeof dailySessions)}</strong></div>
+          <div><span>Avalia{"\u00e7\u00f5es"}</span><strong>{monthAssessments.length}</strong></div>
+          <div><span>Seus treinos</span><strong>{monthPerformance.length}</strong></div>
+        </div>
+        <small className="home-closing-foot">
+          {distance(monthPerformance)>0?`${distance(monthPerformance).toLocaleString("pt-BR",{maximumFractionDigits:1})} km registrados no m\u00eas`:"Volume mensal sendo constru\u00eddo."}
+        </small>
+      </article>
+    </div>
+  </section>;
+}
 
 function GlobalSearch({value,onChange,students,events,onStudent,onAgenda}:{value:string;onChange:(value:string)=>void;students:Student[];events:CalendarEvent[];onStudent:(id:string)=>void;onAgenda:(date:string)=>void}){
   const query=normalizeName(value);
@@ -1380,7 +1452,58 @@ function StudentSummary({student}:{student:Student}) {
 }
 
 function HistoryPanel({student}:{student:Student}) {
-  return <section className="panel"><div className="panel-head"><h2>Histórico de sessões</h2><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>{student.sessions.length ? student.sessions.map(session => <details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length ? <ul className="simple-list">{session.completedExercises.map(exercise => <li key={exercise.id}>{exercise.block ? `${exercise.block} · ` : ""}{exercise.name}{exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}{exercise.load ? ` — ${exercise.load}` : ""}{exercise.notes ? ` — ${exercise.notes}` : ""}</li>)}</ul> : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}<p>{session.notes || "Sem observações."}</p></details>) : <p className="muted">Nenhuma sessão registrada.</p>}</section>;
+  const cutoff=new Date();
+  cutoff.setDate(cutoff.getDate()-30);
+  const cutoffKey=cutoff.toISOString().slice(0,10);
+
+  const recent=student.sessions.filter(session=>session.date>=cutoffKey);
+  const attended=recent.filter(session=>session.source!=="ABSENCE");
+  const absences=recent.filter(session=>session.source==="ABSENCE");
+  const detailed=recent.filter(session=>session.completedExercises.length>0);
+  const last=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
+
+  return <section className="panel">
+    <div className="panel-head">
+      <div>
+        <h2>Hist?rico de sess?es</h2>
+        <p className="muted">Resumo dos ?ltimos 30 dias e registros completos do aluno.</p>
+      </div>
+      <button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button>
+    </div>
+
+    <div className="student-history-smart">
+      <article><span>?ltimos 30 dias</span><strong>{recent.length}</strong><small>registros</small></article>
+      <article><span>Treinos / presen?as</span><strong>{attended.length}</strong><small>realizados</small></article>
+      <article><span>Aus?ncias</span><strong>{absences.length}</strong><small>registradas</small></article>
+      <article><span>Treinos detalhados</span><strong>{detailed.length}</strong><small>com exerc?cios</small></article>
+      <article><span>?ltima sess?o</span><strong>{last?formatDate(last.date):"?"}</strong><small>{last?.workoutName||"Sem registro"}</small></article>
+    </div>
+
+    {student.sessions.length ?
+      student.sessions.map(session =>
+        <details className="history-item" key={session.id}>
+          <summary>
+            <span><strong>{formatDate(session.date)}</strong> ? {session.workoutName}</span>
+            <small>{sessionSourceLabel(session)}</small>
+          </summary>
+          {session.completedExercises.length ?
+            <ul className="simple-list">
+              {session.completedExercises.map(exercise =>
+                <li key={exercise.id}>
+                  {exercise.block ? `${exercise.block} ? ` : ""}
+                  {exercise.name}
+                  {exercise.sets || exercise.reps ? ` ? ${exercise.sets}?${exercise.reps}` : ""}
+                  {exercise.load ? ` ? ${exercise.load}` : ""}
+                  {exercise.notes ? ` ? ${exercise.notes}` : ""}
+                </li>
+              )}
+            </ul>
+          : <p className="muted">Presen?a registrada sem detalhamento de exerc?cios.</p>}
+          <p>{session.notes || "Sem observa??es."}</p>
+        </details>
+      )
+    : <p className="muted">Nenhuma sess?o registrada.</p>}
+  </section>;
 }
 
 function assessmentMetric(value:number|null|undefined,suffix=""){return value===null||value===undefined||Number.isNaN(value)?"—":`${value.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`;}
@@ -1405,7 +1528,77 @@ const MEASUREMENT_LABELS:Record<string,string>={neck:"Pescoço",shoulders:"Ombro
 
 function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
   const sorted=assessmentSorted(student);
-  return <section className="panel assessment-history-panel"><div className="panel-head"><div><h2>Avaliações</h2><p className="muted">Histórico corporal e evolução do aluno.</p></div><button className="primary" onClick={onNew}>+ Nova avaliação</button></div>{sorted.length?<div className="assessment-history-list">{sorted.map((assessment,index)=>{const previous=assessmentPrevious(student,assessment);return <article className="assessment-card assessment-card-rich" key={assessment.id}><div className="assessment-card-main"><div className="assessment-card-date"><small>Avaliação</small><strong>{formatDate(assessment.date)}</strong></div><div className="assessment-card-metrics"><span><small>Peso</small><b>{assessmentMetric(assessment.weight," kg")}</b></span><span><small>Gordura</small><b>{assessmentMetric(assessment.bodyFatPercent,"%")}</b></span><span><small>Massa magra</small><b>{assessmentMetric(assessment.leanMass," kg")}</b></span><span><small>Massa magra</small><b>{assessmentMetric(assessmentLeanPercent(assessment),"%")}</b></span></div><div className="assessment-card-actions"><button className="primary" onClick={()=>openAssessmentReport(student,assessment)}>Ver relatório</button>{previous?<small>Comparação com {formatDate(previous.date)}</small>:<small>Primeira avaliação</small>}</div></div>{assessment.photos.length?<div className="assessment-photos">{assessment.photos.slice(0,4).map((photo,photoIndex)=><img key={photoIndex} src={photo} alt={`Avaliação ${photoIndex+1}`}/>)}</div>:null}</article>})}</div>:<p className="muted">Nenhuma avaliação registrada.</p>}</section>;
+  const latest=sorted[0];
+  const previous=latest?assessmentPrevious(student,latest):null;
+
+  const comparison=latest&&previous?[
+    ["Peso",latest.weight,previous.weight," kg"],
+    ["Gordura",latest.bodyFatPercent,previous.bodyFatPercent,"%"],
+    ["Massa magra",latest.leanMass,previous.leanMass," kg"],
+    ["Cintura",latest.measurements?.waist?Number(latest.measurements.waist):null,previous.measurements?.waist?Number(previous.measurements.waist):null," cm"]
+  ] as const:[];
+
+  return <section className="panel assessment-history-panel">
+    <div className="panel-head">
+      <div>
+        <h2>Avalia??es</h2>
+        <p className="muted">Hist?rico corporal e evolu??o do aluno.</p>
+      </div>
+      <button className="primary" onClick={onNew}>+ Nova avalia??o</button>
+    </div>
+
+    {latest&&previous?
+      <div className="assessment-quick-comparison">
+        <div className="assessment-quick-title">
+          <span>EVOLU??O DESDE A ?LTIMA AVALIA??O</span>
+          <strong>{formatDate(previous.date)} ? {formatDate(latest.date)}</strong>
+        </div>
+        <div className="assessment-quick-grid">
+          {comparison.map(([label,current,prev,suffix])=>{
+            const delta=current!==null&&current!==undefined&&prev!==null&&prev!==undefined?current-prev:null;
+            return <article key={label}>
+              <span>{label}</span>
+              <strong>{assessmentMetric(current,suffix)}</strong>
+              <small>{delta===null?"Sem compara??o":`${delta>0?"+":""}${delta.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`}</small>
+            </article>;
+          })}
+        </div>
+      </div>
+    :null}
+
+    {sorted.length?
+      <div className="assessment-history-list">
+        {sorted.map((assessment,index)=>{
+          const previous=assessmentPrevious(student,assessment);
+          return <article className="assessment-card assessment-card-rich" key={assessment.id}>
+            <div className="assessment-card-main">
+              <div className="assessment-card-date">
+                <small>Avalia??o</small>
+                <strong>{formatDate(assessment.date)}</strong>
+              </div>
+              <div className="assessment-card-metrics">
+                <span><small>Peso</small><b>{assessmentMetric(assessment.weight," kg")}</b></span>
+                <span><small>Gordura</small><b>{assessmentMetric(assessment.bodyFatPercent,"%")}</b></span>
+                <span><small>Massa magra</small><b>{assessmentMetric(assessment.leanMass," kg")}</b></span>
+                <span><small>Massa magra</small><b>{assessmentMetric(assessmentLeanPercent(assessment),"%")}</b></span>
+              </div>
+              <div className="assessment-card-actions">
+                <button className="primary" onClick={()=>openAssessmentReport(student,assessment)}>Ver relat?rio</button>
+                {previous?<small>Compara??o com {formatDate(previous.date)}</small>:<small>Primeira avalia??o</small>}
+              </div>
+            </div>
+            {assessment.photos.length?
+              <div className="assessment-photos">
+                {assessment.photos.slice(0,4).map((photo,photoIndex)=>
+                  <img key={photoIndex} src={photo} alt={`Avalia??o ${photoIndex+1}`}/>
+                )}
+              </div>
+            :null}
+          </article>;
+        })}
+      </div>
+    :<p className="muted">Nenhuma avalia??o registrada.</p>}
+  </section>;
 }
 
 type StudentFormPayload = Pick<Student,"name"|"phone"|"email"|"goal"|"profession"|"modality"|"weeklyFrequency"|"notes"|"restrictions"|"injuries"|"medications"|"emergencyContact"|"emergencyPhone"|"startDate"|"birthDate"|"tennisCategory">;

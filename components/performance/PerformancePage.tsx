@@ -479,6 +479,20 @@ export default function PerformancePage() {
     await persist({ ...data, assessments: data.assessments.filter(item => item.id !== id) });
   }
 
+  const weekNow=new Date();
+  const weekStartDate=new Date(weekNow);
+  const weekDay=(weekNow.getDay()+6)%7;
+  weekStartDate.setDate(weekNow.getDate()-weekDay);
+  weekStartDate.setHours(0,0,0,0);
+  const performanceDateKey=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+  const weekStartKey=performanceDateKey(weekStartDate);
+  const weekEndKey=performanceDateKey(weekNow);
+  const weekActivities=data.activities.filter(activity=>activity.date>=weekStartKey&&activity.date<=weekEndKey);
+  const weekTotals=summarize(weekActivities);
+  const weekByType=(Object.keys(ACTIVITY_LABELS) as PerformanceActivityType[])
+    .map(type=>({type,count:weekActivities.filter(activity=>activity.type===type).length}))
+    .filter(item=>item.count>0);
+
   if (loading) {
     return <section className={styles.loading}>Carregando Performance...</section>;
   }
@@ -533,6 +547,32 @@ export default function PerformancePage() {
               <Metric label="Altimetria no mês" value={`${fmtNumber(monthTotals.elevation)} m`} detail={`${fmtNumber(yearTotals.elevation)} m no ano`} icon="△" />
               <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} icon="✓" />
             </div>
+
+            {/* PERFORMANCE SEMANAL DMP */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div><span className={styles.kicker}>ESTA SEMANA</span><h2>Performance semanal</h2></div>
+                <span className={styles.statusChip}>{weekActivities.length} atividade{weekActivities.length===1?"":"s"}</span>
+              </div>
+
+              <div className={styles.measureGrid}>
+                <div className={styles.measure}><span>Dist&acirc;ncia</span><strong>{fmtNumber(weekTotals.distance,1)} km</strong></div>
+                <div className={styles.measure}><span>Tempo</span><strong>{fmtHours(weekTotals.minutes)}</strong></div>
+                <div className={styles.measure}><span>Eleva&ccedil;&atilde;o</span><strong>{fmtNumber(weekTotals.elevation)} m</strong></div>
+                <div className={styles.measure}><span>Treinos</span><strong>{weekTotals.count}</strong></div>
+              </div>
+
+              {weekByType.length?
+                <div className={styles.recordBySport}>
+                  {weekByType.map(item=>
+                    <div key={item.type}>
+                      <span>{ACTIVITY_ICONS[item.type]}</span>
+                      <div><strong>{ACTIVITY_LABELS[item.type]}</strong><small>{item.count} atividade{item.count===1?"":"s"} nesta semana</small></div>
+                    </div>
+                  )}
+                </div>
+              :null}
+            </section>
 
             <div className={styles.twoColumns}>
               <section className={styles.panel}>
