@@ -1465,18 +1465,18 @@ function HistoryPanel({student}:{student:Student}) {
   return <section className="panel">
     <div className="panel-head">
       <div>
-        <h2>Hist?rico de sess?es</h2>
-        <p className="muted">Resumo dos ?ltimos 30 dias e registros completos do aluno.</p>
+        <h2>Histórico de sessões</h2>
+        <p className="muted">Resumo dos últimos 30 dias e registros completos do aluno.</p>
       </div>
       <button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button>
     </div>
 
     <div className="student-history-smart">
-      <article><span>?ltimos 30 dias</span><strong>{recent.length}</strong><small>registros</small></article>
-      <article><span>Treinos / presen?as</span><strong>{attended.length}</strong><small>realizados</small></article>
-      <article><span>Aus?ncias</span><strong>{absences.length}</strong><small>registradas</small></article>
-      <article><span>Treinos detalhados</span><strong>{detailed.length}</strong><small>com exerc?cios</small></article>
-      <article><span>?ltima sess?o</span><strong>{last?formatDate(last.date):"?"}</strong><small>{last?.workoutName||"Sem registro"}</small></article>
+      <article><span>Últimos 30 dias</span><strong>{recent.length}</strong><small>registros</small></article>
+      <article><span>Treinos / presenças</span><strong>{attended.length}</strong><small>realizados</small></article>
+      <article><span>Ausências</span><strong>{absences.length}</strong><small>registradas</small></article>
+      <article><span>Treinos detalhados</span><strong>{detailed.length}</strong><small>com exercícios</small></article>
+      <article><span>Última sessão</span><strong>{last?formatDate(last.date):"?"}</strong><small>{last?.workoutName||"Sem registro"}</small></article>
     </div>
 
     {student.sessions.length ?
@@ -1498,11 +1498,11 @@ function HistoryPanel({student}:{student:Student}) {
                 </li>
               )}
             </ul>
-          : <p className="muted">Presen?a registrada sem detalhamento de exerc?cios.</p>}
-          <p>{session.notes || "Sem observa??es."}</p>
+          : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}
+          <p>{session.notes || "Sem observações."}</p>
         </details>
       )
-    : <p className="muted">Nenhuma sess?o registrada.</p>}
+    : <p className="muted">Nenhuma sessão registrada.</p>}
   </section>;
 }
 
@@ -1541,16 +1541,16 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
   return <section className="panel assessment-history-panel">
     <div className="panel-head">
       <div>
-        <h2>Avalia??es</h2>
-        <p className="muted">Hist?rico corporal e evolu??o do aluno.</p>
+        <h2>Avalia\u00e7\u00f5es</h2>
+        <p className="muted">Hist\u00f3rico corporal e evolu\u00e7\u00e3o do aluno.</p>
       </div>
-      <button className="primary" onClick={onNew}>+ Nova avalia??o</button>
+      <button className="primary" onClick={onNew}>+ Nova avalia\u00e7\u00e3o</button>
     </div>
 
     {latest&&previous?
       <div className="assessment-quick-comparison">
         <div className="assessment-quick-title">
-          <span>EVOLU??O DESDE A ?LTIMA AVALIA??O</span>
+          <span>EVOLU\u00c7\u00c3O DESDE A \u00daLTIMA AVALIA\u00c7\u00c3O</span>
           <strong>{formatDate(previous.date)} ? {formatDate(latest.date)}</strong>
         </div>
         <div className="assessment-quick-grid">
@@ -1559,7 +1559,7 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
             return <article key={label}>
               <span>{label}</span>
               <strong>{assessmentMetric(current,suffix)}</strong>
-              <small>{delta===null?"Sem compara??o":`${delta>0?"+":""}${delta.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`}</small>
+              <small>{delta===null?"Sem compara\u00e7\u00e3o":`${delta>0?"+":""}${delta.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`}</small>
             </article>;
           })}
         </div>
@@ -1573,7 +1573,7 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
           return <article className="assessment-card assessment-card-rich" key={assessment.id}>
             <div className="assessment-card-main">
               <div className="assessment-card-date">
-                <small>Avalia??o</small>
+                <small>Avalia\u00e7\u00e3o</small>
                 <strong>{formatDate(assessment.date)}</strong>
               </div>
               <div className="assessment-card-metrics">
@@ -1584,20 +1584,20 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
               </div>
               <div className="assessment-card-actions">
                 <button className="primary" onClick={()=>openAssessmentReport(student,assessment)}>Ver relat?rio</button>
-                {previous?<small>Compara??o com {formatDate(previous.date)}</small>:<small>Primeira avalia??o</small>}
+                {previous?<small>Compara\u00e7\u00e3o com {formatDate(previous.date)}</small>:<small>Primeira avalia\u00e7\u00e3o</small>}
               </div>
             </div>
             {assessment.photos.length?
               <div className="assessment-photos">
                 {assessment.photos.slice(0,4).map((photo,photoIndex)=>
-                  <img key={photoIndex} src={photo} alt={`Avalia??o ${photoIndex+1}`}/>
+                  <img key={photoIndex} src={photo} alt={`Avalia\u00e7\u00e3o ${photoIndex+1}`}/>
                 )}
               </div>
             :null}
           </article>;
         })}
       </div>
-    :<p className="muted">Nenhuma avalia??o registrada.</p>}
+    :<p className="muted">Nenhuma avalia\u00e7\u00e3o registrada.</p>}
   </section>;
 }
 
