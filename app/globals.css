@@ -1478,3 +1478,92 @@ input:focus,textarea:focus{
 .smart-alert-card.birthday>span{
   font-size:1.65rem!important;
 }
+
+
+/* Home fixa + encaixes + Kids direto */
+
+@media(min-width:901px){
+  .dashboard-topbar:has(.today-heading){
+    position:sticky!important;
+    top:0!important;
+    z-index:44!important;
+    background:rgba(255,255,255,.97)!important;
+    box-shadow:0 7px 18px rgba(28,39,30,.06)!important;
+  }
+}
+
+.kids-today-card{
+  cursor:default!important;
+}
+
+.kids-highlight-lines{
+  gap:3px!important;
+}
+
+.kids-highlight-link{
+  display:block!important;
+  width:max-content!important;
+  max-width:100%!important;
+  padding:2px 5px!important;
+  margin-left:-5px!important;
+  border:0!important;
+  border-radius:7px!important;
+  background:transparent!important;
+  color:inherit!important;
+  text-align:left!important;
+  font:inherit!important;
+  cursor:pointer!important;
+}
+
+.kids-highlight-link:hover{
+  background:#edf6d6!important;
+  transform:translateX(2px);
+}
+
+.kids-highlight-link b{
+  color:#58751a!important;
+}
+
+.agenda-rail-day{
+  flex-wrap:wrap;
+}
+
+.agenda-rail-day strong{
+  margin-left:auto;
+}
+
+.agenda-rail-encaixe{
+  border:0!important;
+  border-radius:999px!important;
+  padding:4px 7px!important;
+  background:#eaf4cc!important;
+  color:#486118!important;
+  font-size:.61rem!important;
+  font-weight:900!important;
+  cursor:pointer!important;
+}
+
+.agenda-rail-encaixe:hover{
+  background:#dcecae!important;
+}
+
+.agenda-rail-add-student{
+  width:100%!important;
+  margin-top:7px!important;
+  padding:6px 8px!important;
+  border:1px dashed #b9cc83!important;
+  border-radius:8px!important;
+  background:#f7faef!important;
+  color:#58711f!important;
+  font-size:.68rem!important;
+  font-weight:900!important;
+  cursor:pointer!important;
+}
+
+.agenda-rail-add-student:hover{
+  background:#edf6d6!important;
+}
+
+.agenda-rail-day-empty{
+  margin-top:0!important;
+}
