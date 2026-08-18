@@ -1197,7 +1197,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
           :null}
         </div>
 
-        <em>{showSummary?"?":"?"}</em>
+        
       </button>
 
       <button
@@ -1207,13 +1207,13 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
         <span className="today-highlight-icon">{"\uD83D\uDCC8"}</span>
 
         <div>
-          <strong>Performance do dia</strong>
+          <strong>Treino do dia</strong>
 
           {performanceActivities.length?
             <span className="performance-today-list">
               {performanceActivities.map(activity=>
                 <span className="performance-today-row" key={activity.id}>
-                  <b>{performanceIcon(activity.type)} ? {activity.title}</b>
+                  <b>{performanceIcon(activity.type)} {"\u00B7"} {activity.title}</b>
                   {activitySummary(activity)?
                     <small>{activitySummary(activity)}</small>
                   :null}
@@ -1223,14 +1223,14 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
           :null}
         </div>
 
-        <em>?</em>
+        
       </button>
 
-      <button className="today-highlight-card" onClick={onNotes}>
+      <button className="today-highlight-card today-notes-card" onClick={onNotes}>
         <span className="today-highlight-icon">{"\uD83D\uDDD2\uFE0F"}</span>
 
         <div>
-          <strong>Recados pendentes</strong>
+          <strong>Recados</strong>
 
           <span className="highlight-lines">
             <small><b>{pending.length}</b> pendente{pending.length===1?"":"s"}</small>
@@ -1238,7 +1238,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
           </span>
         </div>
 
-        <em>?</em>
+        
       </button>
 
     </div>

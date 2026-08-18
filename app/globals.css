@@ -1777,3 +1777,74 @@ input:focus,textarea:focus{
 .performance-today-card{
   align-items:flex-start!important;
 }
+
+
+/* Alinhamento final dos cards Resumo Treino Recados */
+
+.today-summary-card,
+.performance-today-card,
+.today-notes-card{
+  position:relative!important;
+  display:grid!important;
+  grid-template-columns:38px 1fr!important;
+  grid-template-rows:auto 1fr!important;
+  align-items:start!important;
+  min-height:222px!important;
+  padding:13px 14px 15px!important;
+}
+
+.today-summary-card .today-highlight-icon,
+.performance-today-card .today-highlight-icon,
+.today-notes-card .today-highlight-icon{
+  grid-column:1!important;
+  grid-row:1!important;
+  align-self:start!important;
+}
+
+.today-summary-card>div,
+.performance-today-card>div,
+.today-notes-card>div{
+  grid-column:2!important;
+  grid-row:1 / 3!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-self:stretch!important;
+  min-width:0!important;
+}
+
+.today-summary-card>div>strong,
+.performance-today-card>div>strong,
+.today-notes-card>div>strong{
+  display:block!important;
+  min-height:30px!important;
+  padding-top:5px!important;
+  font-weight:900!important;
+}
+
+.today-summary-card .highlight-lines,
+.performance-today-card .performance-today-list,
+.today-notes-card .highlight-lines{
+  margin-top:auto!important;
+  margin-bottom:auto!important;
+}
+
+.today-summary-card>div>i{
+  margin-top:7px!important;
+}
+
+.today-summary-card .today-kids-inline{
+  margin-top:7px!important;
+  margin-bottom:0!important;
+}
+
+.performance-today-card{
+  align-items:start!important;
+}
+
+@media(max-width:900px){
+  .today-summary-card,
+  .performance-today-card,
+  .today-notes-card{
+    min-height:150px!important;
+  }
+}
