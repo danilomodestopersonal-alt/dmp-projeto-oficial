@@ -1536,74 +1536,138 @@ function HomeClosingSummary({students,performanceActivities}:{students:Student[]
 }
 
 function HistoryPanel({student}:{student:Student}) {
-  const ordered=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  const cutoff=new Date();
-  cutoff.setDate(cutoff.getDate()-30);
-  cutoff.setHours(0,0,0,0);
+  const todayKey=today();
+  const cutoffDate=new Date();
+  cutoffDate.setDate(cutoffDate.getDate()-29);
+  const cutoffKey=cutoffDate.toISOString().slice(0,10);
 
-  const recent=ordered.filter(session=>{
-    const date=new Date(session.date+"T12:00:00");
-    return date>=cutoff;
-  });
+  const sortedSessions=student.sessions
+    .slice()
+    .sort((a,b)=>b.date.localeCompare(a.date));
 
-  const attended=recent.filter(session=>session.source!=="ABSENCE");
-  const absences=recent.filter(session=>session.source==="ABSENCE");
-  const detailed=attended.filter(session=>session.completedExercises.length>0);
-  const exercises=new Set(
-    detailed.flatMap(session=>session.completedExercises.map(exercise=>normalizeName(exercise.name))).filter(Boolean)
+  const recentSessions=sortedSessions.filter(
+    session=>session.date>=cutoffKey && session.date<=todayKey
   );
 
-  return <section className="panel">
-    <div className="panel-head">
-      <div>
-        <h2>Histórico inteligente</h2>
-        <p className="muted">Resumo dos últimos 30 dias e linha do tempo completa.</p>
+  const recentAttendances=recentSessions.filter(
+    session=>session.source!=="ABSENCE"
+  );
+
+  const recentAbsences=recentSessions.filter(
+    session=>session.source==="ABSENCE"
+  );
+
+  const recentAssessments=student.assessments.filter(
+    assessment=>assessment.date>=cutoffKey && assessment.date<=todayKey
+  );
+
+  const latestSession=sortedSessions[0]||null;
+  const latestAssessment=assessmentSorted(student)[0]||null;
+
+  const recentNotes=recentSessions
+    .filter(session=>String(session.notes||"").trim())
+    .slice(0,3);
+
+  return <div className="student-history-stack">
+    <section className="panel intelligent-history-panel">
+      <div className="panel-head">
+        <div>
+          <h2>{"Hist\u00F3rico inteligente"}</h2>
+          <p className="muted">{"Vis\u00E3o dos \u00FAltimos 30 dias do aluno."}</p>
+        </div>
       </div>
-      <button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button>
-    </div>
 
-    <div className="smart-history-grid">
-      <article><span>Atendimentos</span><strong>{attended.length}</strong><small>últimos 30 dias</small></article>
-      <article><span>Ausências</span><strong>{absences.length}</strong><small>registros no período</small></article>
-      <article><span>Treinos detalhados</span><strong>{detailed.length}</strong><small>com exercícios</small></article>
-      <article><span>Exercícios realizados</span><strong>{exercises.size}</strong><small>diferentes no período</small></article>
-    </div>
+      <div className="intelligent-history-grid">
+        <article>
+          <span>Registros</span>
+          <strong>{recentSessions.length}</strong>
+          <small>{"\u00DAltimos 30 dias"}</small>
+        </article>
 
-    <div className="history-smart-note">
-      <strong>Leitura rápida</strong>
-      <span>
-        {attended.length
-          ? `${attended.length} atendimento${attended.length===1?"":"s"} registrado${attended.length===1?"":"s"} nos últimos 30 dias${absences.length?` · ${absences.length} ausência${absences.length===1?"":"s"}`:""}.`
-          :"Nenhum atendimento registrado nos últimos 30 dias."}
-      </span>
-      {ordered[0]?<small>Último registro: {formatDate(ordered[0].date)} · {ordered[0].workoutName}</small>:null}
-    </div>
+        <article>
+          <span>Atendimentos</span>
+          <strong>{recentAttendances.length}</strong>
+          <small>{"Treinos e presen\u00E7as"}</small>
+        </article>
 
-    <h3 className="history-timeline-title">Linha do tempo</h3>
+        <article>
+          <span>{"Aus\u00EAncias"}</span>
+          <strong>{recentAbsences.length}</strong>
+          <small>{"No per\u00EDodo"}</small>
+        </article>
 
-    {ordered.length ? ordered.map(session =>
-      <details className="history-item" key={session.id}>
-        <summary>
-          <span><strong>{formatDate(session.date)}</strong> — {session.workoutName}</span>
-          <small>{sessionSourceLabel(session)}</small>
-        </summary>
-        {session.completedExercises.length ?
-          <ul className="simple-list">
-            {session.completedExercises.map(exercise =>
-              <li key={exercise.id}>
-                {exercise.block ? `${exercise.block} · ` : ""}
-                {exercise.name}
-                {exercise.sets || exercise.reps ? ` — ${exercise.sets}×${exercise.reps}` : ""}
-                {exercise.load ? ` — ${exercise.load}` : ""}
-                {exercise.notes ? ` — ${exercise.notes}` : ""}
-              </li>
-            )}
-          </ul>
-        : <p className="muted">Presença registrada sem detalhamento de exercícios.</p>}
-        <p>{session.notes || "Sem observações."}</p>
-      </details>
-    ) : <p className="muted">Nenhuma sessão registrada.</p>}
-  </section>;
+        <article>
+          <span>{"Avalia\u00E7\u00F5es"}</span>
+          <strong>{recentAssessments.length}</strong>
+          <small>{"Nos \u00FAltimos 30 dias"}</small>
+        </article>
+      </div>
+
+      <div className="intelligent-history-details">
+        <div>
+          <span>{"\u00DAltima sess\u00E3o"}</span>
+          <strong>{latestSession?formatDate(latestSession.date):"?"}</strong>
+          <small>{latestSession?.workoutName||"Nenhum registro"}</small>
+        </div>
+
+        <div>
+          <span>{"\u00DAltima avalia\u00E7\u00E3o"}</span>
+          <strong>{latestAssessment?formatDate(latestAssessment.date):"?"}</strong>
+          <small>{latestAssessment?"Avalia\u00E7\u00E3o registrada":"Nenhuma avalia\u00E7\u00E3o"}</small>
+        </div>
+      </div>
+
+      {recentNotes.length?
+        <div className="intelligent-history-notes">
+          <strong>{"Observa\u00E7\u00F5es recentes"}</strong>
+          {recentNotes.map(session=>
+            <div key={session.id}>
+              <b>{formatDate(session.date)}</b>
+              <span>{session.notes}</span>
+            </div>
+          )}
+        </div>
+      :null}
+    </section>
+
+    <section className="panel">
+      <div className="panel-head">
+        <h2>{"Hist\u00F3rico de sess\u00F5es"}</h2>
+        <button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button>
+      </div>
+
+      {student.sessions.length ?
+        student.sessions.map(session =>
+          <details className="history-item" key={session.id}>
+            <summary>
+              <span><strong>{formatDate(session.date)}</strong> ? {session.workoutName}</span>
+              <small>{sessionSourceLabel(session)}</small>
+            </summary>
+
+            {session.completedExercises.length ?
+              <ul className="simple-list">
+                {session.completedExercises.map(exercise =>
+                  <li key={exercise.id}>
+                    {exercise.block ? `${exercise.block} ? ` : ""}
+                    {exercise.name}
+                    {exercise.sets || exercise.reps ? ` ? ${exercise.sets}?${exercise.reps}` : ""}
+                    {exercise.load ? ` ? ${exercise.load}` : ""}
+                    {exercise.notes ? ` ? ${exercise.notes}` : ""}
+                  </li>
+                )}
+              </ul>
+            :
+              <p className="muted">{"Presen\u00E7a registrada sem detalhamento de exerc\u00EDcios."}</p>
+            }
+
+            <p>{session.notes || "Sem observa\u00E7\u00F5es."}</p>
+          </details>
+        )
+      :
+        <p className="muted">{"Nenhuma sess\u00E3o registrada."}</p>
+      }
+    </section>
+  </div>;
 }
 
 function assessmentMetric(value:number|null|undefined,suffix=""){return value===null||value===undefined||Number.isNaN(value)?"—":`${value.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`;}

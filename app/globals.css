@@ -2373,3 +2373,18 @@ input:focus,textarea:focus{
     flex-direction:column;
   }
 }
+
+/* Historico inteligente do aluno */
+.student-history-stack{display:grid;gap:18px}
+.intelligent-history-panel{border-left:5px solid var(--dmp-green)}
+.intelligent-history-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+.intelligent-history-grid article{display:grid;gap:4px;padding:14px;border:1px solid var(--dmp-border);border-radius:14px;background:#f9fbf5}
+.intelligent-history-grid span,.intelligent-history-details span{font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--dmp-muted)}
+.intelligent-history-grid strong{font-size:1.45rem;color:#31552d}
+.intelligent-history-grid small,.intelligent-history-details small{color:var(--dmp-muted)}
+.intelligent-history-details{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.intelligent-history-details>div{display:grid;gap:4px;padding:13px 14px;border:1px solid var(--dmp-border);border-radius:14px;background:#fff}
+.intelligent-history-notes{display:grid;gap:8px;margin-top:12px;padding:14px;border-radius:14px;background:#f7f9f4}
+.intelligent-history-notes>div{display:grid;grid-template-columns:90px 1fr;gap:10px;padding-top:7px;border-top:1px solid #e1e7dc}
+.intelligent-history-notes span{color:var(--dmp-graphite)}
+@media(max-width:800px){.intelligent-history-grid{grid-template-columns:1fr 1fr}.intelligent-history-details{grid-template-columns:1fr}.intelligent-history-notes>div{grid-template-columns:1fr;gap:2px}}
