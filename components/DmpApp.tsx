@@ -1171,7 +1171,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
           <span className="highlight-lines">
             <small><b>{programmed}</b> alunos programados</small>
             <small><b>{attended.length}</b> atendidos</small>
-            <small><b>{absent.length}</b> aus?ncias</small>
+            <small><b>{absent.length}</b> {"aus\u00EAncias"}</small>
             <small><b>{remaining.length}</b> ainda faltam</small>
           </span>
 
@@ -1213,7 +1213,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
             <span className="performance-today-list">
               {performanceActivities.map(activity=>
                 <span className="performance-today-row" key={activity.id}>
-                  <b>{performanceIcon(activity.type)} {"\u00B7"} {activity.title}</b>
+                  <b>{performanceActivityEmoji(activity)} {performanceIcon(activity.type)} {"\u00B7"} {activity.title}</b>
                   {activitySummary(activity)?
                     <small>{activitySummary(activity)}</small>
                   :null}
