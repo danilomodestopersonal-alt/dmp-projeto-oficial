@@ -796,7 +796,95 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
-          {view === "assessments-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Evolução dos alunos</p><h1>Avaliações realizadas</h1><p>Consulte todas as avaliações físicas registradas no DMP.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="📏" label="Avaliações realizadas" value={assessmentCount}/><Stat icon="👥" label="Alunos avaliados" value={students.filter(student=>student.assessments.length>0).length}/><Stat icon="📅" label="Avaliações neste mês" value={allAssessments.filter(({assessment})=>assessment.date.slice(0,7)===todayKey.slice(0,7)).length}/></div><div className="overview-list">{allAssessments.length?allAssessments.map(({student,assessment})=><button className="overview-row" key={`${student.id}-${assessment.id}`} onClick={()=>{setSelectedStudentId(student.id);setTab("assessments");setView("student");}}><span><strong><StudentCategoryDot category={student.tennisCategory}/>{student.name}</strong><small><b className="assessment-date-emphasis">{formatDate(assessment.date)}</b> · Peso: {displayNumber(assessment.weight,"kg")} · Gordura: {displayNumber(assessment.bodyFatPercent,"%")} · Massa magra: {displayNumber(assessment.leanMass,"kg")}</small></span><span className="status-chip ok">Ver avaliação</span></button>):<div className="empty-review"><strong>Nenhuma avaliação realizada</strong><span>As avaliações cadastradas nos alunos aparecerão aqui.</span></div>}</div></section></> : null}
+          {view === "assessments-overview" ? (() => {
+  const activeStudents = students.filter(student => student.status === "ACTIVE");
+
+  const assessmentControl = activeStudents.map(student => {
+    const latest = student.assessments
+      .slice()
+      .sort((a,b) => b.date.localeCompare(a.date))[0];
+
+    if (!latest) {
+      return {student, latest:null, days:null, status:"NONE"};
+    }
+
+    const assessmentDate = new Date(latest.date + "T12:00:00");
+    const todayDate = new Date(todayKey + "T12:00:00");
+    const days = Math.max(0, Math.floor((todayDate.getTime() - assessmentDate.getTime()) / 86400000));
+
+    const status = days > 60 ? "EXPIRED" : days >= 45 ? "SOON" : "OK";
+
+    return {student, latest, days, status};
+  });
+
+  const expired = assessmentControl.filter(item => item.status === "EXPIRED");
+  const soon = assessmentControl.filter(item => item.status === "SOON");
+  const ok = assessmentControl.filter(item => item.status === "OK");
+  const none = assessmentControl.filter(item => item.status === "NONE");
+
+  const priority:Record<string,number> = {EXPIRED:0, SOON:1, NONE:2, OK:3};
+
+  const ordered = assessmentControl.slice().sort((a,b) => {
+    if (priority[a.status] !== priority[b.status]) {
+      return priority[a.status] - priority[b.status];
+    }
+    if (a.days !== null && b.days !== null && a.days !== b.days) {
+      return b.days - a.days;
+    }
+    return a.student.name.localeCompare(b.student.name,"pt-BR");
+  });
+
+  return <><header className="dashboard-topbar"><div>
+    <p className="dashboard-eyebrow">Controle de avaliações</p>
+    <h1>Acompanhamento dos alunos</h1>
+    <p>Veja rapidamente quem está em dia e quem precisa de uma nova avaliação.</p>
+  </div></header>
+
+  <section className="dashboard-content">
+
+    <div className="dashboard-stats four-stats">
+      <Stat icon="🟢" label="Em dia" value={ok.length}/>
+      <Stat icon="🟡" label="Próximas do prazo" value={soon.length}/>
+      <Stat icon="🔴" label="Vencidas" value={expired.length}/>
+      <Stat icon="⚪" label="Sem avaliação" value={none.length}/>
+    </div>
+
+    <div className="assessment-control-summary">
+      <strong>{allAssessments.filter(({assessment})=>assessment.date.slice(0,7)===todayKey.slice(0,7)).length}</strong>
+      <span>avaliações realizadas neste mês</span>
+    </div>
+
+    <div className="overview-list assessment-control-list">
+      {ordered.map(item => {
+        const label =
+          item.status === "EXPIRED" ? "Vencida" :
+          item.status === "SOON" ? "Próxima do prazo" :
+          item.status === "OK" ? "Em dia" :
+          "Sem avaliação";
+
+        return <button
+          className={`overview-row assessment-control-row assessment-${item.status.toLowerCase()}`}
+          key={item.student.id}
+          onClick={()=>{setSelectedStudentId(item.student.id);setTab("assessments");setView("student");}}
+        >
+          <span>
+            <strong><StudentCategoryDot category={item.student.tennisCategory}/>{item.student.name}</strong>
+            <small>
+              {item.latest
+                ? <>Última avaliação: <b>{formatDate(item.latest.date)}</b> · {item.days} dia{item.days===1?"":"s"} atrás</>
+                : <>Nenhuma avaliação cadastrada</>}
+            </small>
+          </span>
+
+          <span className={`assessment-control-status assessment-control-${item.status.toLowerCase()}`}>
+            {label}
+          </span>
+        </button>
+      })}
+    </div>
+
+  </section></>;
+})() : null}
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage /> : null}

@@ -2515,3 +2515,71 @@ input:focus,textarea:focus{
     padding:4px 7px;
   }
 }
+.assessment-control-summary{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  margin:0 0 18px;
+  padding:12px 16px;
+  border:1px solid var(--dmp-border);
+  border-radius:14px;
+  background:#fff;
+}
+
+.assessment-control-summary strong{
+  font-size:1.5rem;
+  color:var(--dmp-green-dark);
+}
+
+.assessment-control-summary span{
+  color:var(--dmp-muted);
+  font-weight:700;
+}
+
+.assessment-control-row{
+  border-left:5px solid transparent;
+}
+
+.assessment-control-row.assessment-expired{
+  border-left-color:#d74337;
+}
+
+.assessment-control-row.assessment-soon{
+  border-left-color:#d7a72c;
+}
+
+.assessment-control-row.assessment-ok{
+  border-left-color:#6e9f36;
+}
+
+.assessment-control-row.assessment-none{
+  border-left-color:#a7afb4;
+}
+
+.assessment-control-status{
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:.75rem;
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.assessment-control-expired{
+  background:#fff0ee;
+  color:#b52b20;
+}
+
+.assessment-control-soon{
+  background:#fff7df;
+  color:#8b6514;
+}
+
+.assessment-control-ok{
+  background:#eef6d7;
+  color:#59672d;
+}
+
+.assessment-control-none{
+  background:#f1f3f4;
+  color:#6d7478;
+}
