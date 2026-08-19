@@ -2470,3 +2470,16 @@ input:focus,textarea:focus{
     margin-top: 12px;
   }
 }
+@media (min-width: 1000px) {
+  .content.narrow .session-exercise {
+    opacity: 1;
+    background: #fff;
+    transition: opacity .18s ease, background .18s ease, border-color .18s ease;
+  }
+
+  .content.narrow .session-exercise.is-done {
+    opacity: .58;
+    background: #f4f6f2;
+    border-color: #dfe5da;
+  }
+}
