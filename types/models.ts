@@ -96,6 +96,7 @@ export type Student = {
   phone: string;
   email?: string;
   birthDate: string;
+  gender?: "MALE" | "FEMALE";
   startDate: string;
   goal: string;
   profession?: string;

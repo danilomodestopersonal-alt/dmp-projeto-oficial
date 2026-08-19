@@ -2583,3 +2583,82 @@ input:focus,textarea:focus{
   background:#f1f3f4;
   color:#6d7478;
 }
+.student-demographic-card{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+.student-demographic-card>div{
+  min-width:0;
+  flex:1;
+}
+
+.student-demographic-card small{
+  display:block;
+  color:var(--dmp-muted);
+  font-weight:800;
+  margin-bottom:5px;
+}
+
+.student-demographic-card>div>strong{
+  display:block;
+  font-size:1.65rem;
+  color:var(--dmp-graphite);
+}
+
+.student-demographic-card em{
+  display:block;
+  margin-top:5px;
+  color:var(--dmp-muted);
+  font-size:.68rem;
+  font-style:normal;
+  font-weight:700;
+}
+
+.age-stat-list{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.age-stat-list span{
+  display:grid;
+  min-width:42px;
+  padding:4px 6px;
+  border-radius:9px;
+  background:#f3f5ef;
+  text-align:center;
+}
+
+.age-stat-list b{
+  font-size:.58rem;
+  color:var(--dmp-muted);
+}
+
+.age-stat-list strong{
+  font-size:.9rem;
+  color:var(--dmp-graphite);
+}
+
+.student-assessment-mini{
+  display:inline-flex;
+  width:max-content;
+  margin-top:3px;
+  padding:4px 7px;
+  border-radius:999px;
+  background:#edf7fb;
+  color:#246781;
+  font-size:.67rem;
+  font-weight:850;
+}
+
+.student-assessment-mini.expired{
+  background:#fff0ee;
+  color:#b52b20;
+}
+
+.student-assessment-mini.none{
+  background:#f1f3f4;
+  color:#737b80;
+}
