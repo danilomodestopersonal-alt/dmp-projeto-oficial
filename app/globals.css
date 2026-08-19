@@ -2483,3 +2483,35 @@ input:focus,textarea:focus{
     border-color: #dfe5da;
   }
 }
+.home-assessment-badge{
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;
+  padding:4px 9px;
+  border-radius:999px;
+  font-size:.72rem;
+  font-weight:800;
+  line-height:1;
+  border:1px solid #c9dfe9;
+  background:#edf7fb;
+  color:#246781;
+}
+
+.home-assessment-badge.expired{
+  border-color:#edb3ad;
+  background:#fff0ee;
+  color:#b52820;
+}
+
+.home-assessment-badge.none{
+  border-color:#d8dddf;
+  background:#f3f5f5;
+  color:#747d80;
+}
+
+@media(max-width:800px){
+  .home-assessment-badge{
+    font-size:.67rem;
+    padding:4px 7px;
+  }
+}
