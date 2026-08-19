@@ -764,7 +764,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
               <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>setView("performance")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}>{editingNoteId===note.id?<div className="note-edit-fields"><input aria-label="Editar título" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea aria-label="Editar recado" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)}/></div>:<div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div>}<div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><div className="note-edit-actions">{editingNoteId===note.id?<><button onClick={saveEditedNote}>Salvar</button><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button></>:<button onClick={()=>startEditingNote(note)}>Editar</button>}<button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}</section>
-              <OperationalClosings students={students} performanceActivities={homePerformanceActivities}/>\n              <HomeClosingSummary students={students} performanceActivities={homePerformanceActivities}/>
+              <OperationalClosings students={students} performanceActivities={homePerformanceActivities}/>
               {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
               <div className="home-search-bottom" data-home-size-key="search"><GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}}/></div>
             </section><aside className="home-right-rail"><div className="spotify-shortcut">
@@ -1224,7 +1224,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
       details.push(`${activity.averageSpeedKmh.toLocaleString("pt-BR",{maximumFractionDigits:1})} km/h`);
     }
 
-    return details.join(" ? ");
+    return details.join(" · ");
   };
 
   return <>
@@ -1264,7 +1264,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
                 >
                   <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
                   <b>{formatCalendarTime(event)}</b>
-                  <span> ? {kidsCategoryName(item.category)}</span>
+                  <span> {"\u00b7"} {kidsCategoryName(item.category)}</span>
                 </span>
               )}
             </span>
@@ -1640,7 +1640,7 @@ function HistoryPanel({student}:{student:Student}) {
         student.sessions.map(session =>
           <details className="history-item" key={session.id}>
             <summary>
-              <span><strong>{formatDate(session.date)}</strong> ? {session.workoutName}</span>
+              <span><strong>{formatDate(session.date)}</strong> {"\u00b7"} {session.workoutName}</span>
               <small>{sessionSourceLabel(session)}</small>
             </summary>
 
@@ -1648,11 +1648,11 @@ function HistoryPanel({student}:{student:Student}) {
               <ul className="simple-list">
                 {session.completedExercises.map(exercise =>
                   <li key={exercise.id}>
-                    {exercise.block ? `${exercise.block} ? ` : ""}
+                    {exercise.block ? `${exercise.block} \u00b7 ` : ""}
                     {exercise.name}
-                    {exercise.sets || exercise.reps ? ` ? ${exercise.sets}?${exercise.reps}` : ""}
-                    {exercise.load ? ` ? ${exercise.load}` : ""}
-                    {exercise.notes ? ` ? ${exercise.notes}` : ""}
+                    {exercise.sets || exercise.reps ? ` \u00b7 ${exercise.sets}\u00d7${exercise.reps}` : ""}
+                    {exercise.load ? ` \u00b7 ${exercise.load}` : ""}
+                    {exercise.notes ? ` \u00b7 ${exercise.notes}` : ""}
                   </li>
                 )}
               </ul>
