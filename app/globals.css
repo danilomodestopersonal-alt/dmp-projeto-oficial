@@ -2662,3 +2662,76 @@ input:focus,textarea:focus{
   background:#f1f3f4;
   color:#737b80;
 }
+.training-attention-banner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin:0 0 18px;
+  padding:14px 16px;
+  border:1px solid #efd39b;
+  border-radius:15px;
+  background:#fff8e9;
+  color:#6d5320;
+}
+
+.training-attention-banner span{
+  font-size:.82rem;
+}
+
+.training-control-row{
+  border-left:5px solid transparent;
+}
+
+.training-control-row.training-never,
+.training-control-row.training-stale{
+  border-left-color:#d74337;
+}
+
+.training-control-row.training-watch{
+  border-left-color:#d7a72c;
+}
+
+.training-control-row.training-recent{
+  border-left-color:#6e9f36;
+}
+
+.training-month-line{
+  margin-top:3px;
+}
+
+.training-status{
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:.75rem;
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.training-status-never,
+.training-status-stale{
+  background:#fff0ee;
+  color:#b52b20;
+}
+
+.training-status-watch{
+  background:#fff7df;
+  color:#8b6514;
+}
+
+.training-status-recent{
+  background:#eef6d7;
+  color:#59672d;
+}
+
+@media(max-width:700px){
+  .training-attention-banner{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .training-status{
+    white-space:normal;
+    text-align:center;
+  }
+}

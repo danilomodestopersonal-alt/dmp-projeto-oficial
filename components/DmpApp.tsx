@@ -814,7 +814,106 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
             </section>
           </> : null}
 
-          {view === "workouts-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Biblioteca por aluno</p><h1>Treinos</h1><p>Veja rapidamente as abas A, B, C e D montadas para cada aluno.</p></div></header><section className="dashboard-content"><div className="dashboard-stats"><Stat icon="📋" label="Com treino montado" value={plannedCount}/><Stat icon="⚡" label="Sem treino montado" value={activeCount-plannedCount}/><Stat icon="👥" label="Alunos ativos" value={activeCount}/></div><div className="overview-list">{students.filter(s=>s.status==="ACTIVE"&&(!workoutsOnly||getStudentWorkoutEntries(s).length>0)).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(student => {const entries=getStudentWorkoutEntries(student);const slots=entries.map(entry=>entry.slot).join(" · ");const exerciseTotal=entries.reduce((sum,entry)=>sum+entry.workout.exercises.length,0);return <button className="overview-row" key={student.id} onClick={()=>{openStudent(student.id);setTab("workouts");}}><span><strong><StudentCategoryDot category={student.tennisCategory}/>{student.name}</strong><small>{entries.length ? `Treinos ${slots} · ${exerciseTotal} exercícios no total` : "Sem treino montado"}</small></span><span className={entries.length?"status-chip ok":"status-chip"}>{entries.length?`${entries.length} aba${entries.length===1?"":"s"}`:"Sem ficha"}</span></button>})}</div></section></> : null}
+          {view === "workouts-overview" ? (() => {
+  const activeStudents = students.filter(student => student.status === "ACTIVE");
+  const monthKey = todayKey.slice(0,7);
+  const todayDate = new Date(todayKey + "T12:00:00");
+
+  const trainingData = activeStudents.map(student => {
+    const sessions = student.sessions
+      .filter(session => session.source !== "ABSENCE" && session.source !== "ATTENDANCE")
+      .slice()
+      .sort((a,b) => b.date.localeCompare(a.date));
+
+    const monthSessions = sessions.filter(session => session.date.slice(0,7) === monthKey);
+    const last = sessions[0] || null;
+    const daysSinceLast = last
+      ? Math.max(0, Math.floor((todayDate.getTime() - new Date(last.date + "T12:00:00").getTime()) / 86400000))
+      : null;
+
+    const entries = getStudentWorkoutEntries(student);
+
+    const status =
+      !last ? "NEVER" :
+      daysSinceLast !== null && daysSinceLast >= 14 ? "STALE" :
+      daysSinceLast !== null && daysSinceLast >= 8 ? "WATCH" :
+      "RECENT";
+
+    return {student,sessions,monthSessions,last,daysSinceLast,entries,status};
+  });
+
+  const monthWorkouts = trainingData.reduce((sum,item)=>sum+item.monthSessions.length,0);
+  const trainedThisMonth = trainingData.filter(item=>item.monthSessions.length>0).length;
+  const average = trainedThisMonth ? Math.round((monthWorkouts/trainedThisMonth)*10)/10 : 0;
+  const withoutRecent = trainingData.filter(item=>item.status==="STALE"||item.status==="NEVER").length;
+
+  const priority:Record<string,number>={NEVER:0,STALE:1,WATCH:2,RECENT:3};
+
+  const ordered = trainingData.slice().sort((a,b)=>{
+    if(priority[a.status]!==priority[b.status]) return priority[a.status]-priority[b.status];
+    if(a.daysSinceLast!==null&&b.daysSinceLast!==null&&a.daysSinceLast!==b.daysSinceLast) return b.daysSinceLast-a.daysSinceLast;
+    return a.student.name.localeCompare(b.student.name,"pt-BR");
+  });
+
+  return <><header className="dashboard-topbar"><div>
+    <p className="dashboard-eyebrow">Acompanhamento dos treinos</p>
+    <h1>Central de Treinos</h1>
+    <p>Veja quem treinou, a frequência do mês e quais alunos estão há mais tempo sem registro.</p>
+  </div></header>
+
+  <section className="dashboard-content">
+
+    <div className="dashboard-stats four-stats">
+      <Stat icon="🏋️" label="Treinos no mês" value={monthWorkouts}/>
+      <Stat icon="👥" label="Alunos treinados" value={trainedThisMonth}/>
+      <Stat icon="📊" label="Média por aluno" value={average}/>
+      <Stat icon="⚠️" label="Sem treino 14+ dias" value={withoutRecent}/>
+    </div>
+
+    {withoutRecent>0?<div className="training-attention-banner">
+      <strong>⚠ {withoutRecent} aluno{withoutRecent===1?"":"s"} precisam de atenção</strong>
+      <span>Sem treino registrado há 14 dias ou mais, ou ainda sem nenhum treino registrado.</span>
+    </div>:null}
+
+    <div className="overview-list training-control-list">
+      {ordered.map(item=>{
+        const statusLabel =
+          item.status==="NEVER" ? "Sem registros" :
+          item.status==="STALE" ? `${item.daysSinceLast} dias sem treino` :
+          item.status==="WATCH" ? `${item.daysSinceLast} dias` :
+          item.daysSinceLast===0 ? "Treinou hoje" :
+          item.daysSinceLast===1 ? "Treinou ontem" :
+          `${item.daysSinceLast} dias`;
+
+        const slots=item.entries.map(entry=>entry.slot).join(" · ");
+
+        return <button
+          className={`overview-row training-control-row training-${item.status.toLowerCase()}`}
+          key={item.student.id}
+          onClick={()=>{setSelectedStudentId(item.student.id);setTab("history");setView("student");}}
+        >
+          <span>
+            <strong><StudentCategoryDot category={item.student.tennisCategory}/>{item.student.name}</strong>
+            <small>
+              {item.last
+                ? <>Último treino: <b>{formatDate(item.last.date)}</b> · {item.last.workoutName||"Treino registrado"}</>
+                : <>Nenhum treino registrado</>}
+            </small>
+            <small className="training-month-line">
+              {item.monthSessions.length} treino{item.monthSessions.length===1?"":"s"} neste mês
+              {item.entries.length?<> · 📋 Ficha {slots}</>:null}
+            </small>
+          </span>
+
+          <span className={`training-status training-status-${item.status.toLowerCase()}`}>
+            {statusLabel}
+          </span>
+        </button>;
+      })}
+    </div>
+
+  </section></>;
+})() : null}
 
           {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
