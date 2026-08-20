@@ -1,4 +1,4 @@
-@media(min-width:801px){.workout-slot-actions-share button:nth-child(3){font-size:0}.workout-slot-actions-share button:nth-child(3)::after{content:"↗ Abrir em nova janela";font-size:14px}}
+﻿@media(min-width:801px){.workout-slot-actions-share button:nth-child(3){font-size:0}.workout-slot-actions-share button:nth-child(3)::after{content:"â†— Abrir em nova janela";font-size:14px}}
 .finance-ds-single{display:block}.finance-ds-single>section:nth-child(2){display:none}
 :root{
   --bg:#eef3f6;
@@ -133,7 +133,7 @@ input:focus,textarea:focus{
 }
 
 
-/* Identidade visual Danilo Modesto — aplicação segura */
+/* Identidade visual Danilo Modesto â€” aplicaÃ§Ã£o segura */
 .login-logo {
   display: block;
   width: min(280px, 100%);
@@ -159,8 +159,8 @@ input:focus,textarea:focus{
 
 
 /* =========================================================
-   DMP — DASHBOARD PREMIUM SEGURO
-   Apenas aparência. Não altera regras de negócio.
+   DMP â€” DASHBOARD PREMIUM SEGURO
+   Apenas aparÃªncia. NÃ£o altera regras de negÃ³cio.
    ========================================================= */
 
 :root {
@@ -572,7 +572,7 @@ input:focus,textarea:focus{
   }
 }
 
-/* DMP V1 — pacote de uso real */
+/* DMP V1 â€” pacote de uso real */
 .dashboard-logo-card{background:#fff;border-radius:18px;padding:10px;margin-bottom:26px;box-shadow:0 10px 25px rgba(0,0,0,.2)}
 .dashboard-logo-card .dashboard-sidebar-logo{margin:0;height:92px}
 .student-profile-page{padding-top:28px}
@@ -589,8 +589,8 @@ input:focus,textarea:focus{
 @media(max-width:800px){.free-session-layout{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}.review-row{grid-template-columns:1fr 1fr}.review-row input:first-child{grid-column:1/-1}.student-profile-hero{align-items:stretch}.history-item summary{flex-direction:column}.summary-list div{flex-direction:column;gap:4px}.summary-list dd{text-align:left}}
 
 /* =========================================================
-   DMP — FLUXO DE ATENDIMENTO V1.2
-   Ficha quando existe; registro rápido quando não existe.
+   DMP â€” FLUXO DE ATENDIMENTO V1.2
+   Ficha quando existe; registro rÃ¡pido quando nÃ£o existe.
    ========================================================= */
 .student-workflow-badge{
   width:max-content;max-width:100%;padding:7px 10px;border-radius:999px;
@@ -655,13 +655,13 @@ input:focus,textarea:focus{
 
 
 /* =========================================================
-   DMP V2.0 — CENTRAL DO DIA + PRESENÇA + NAVEGAÇÃO FUNCIONAL
+   DMP V2.0 â€” CENTRAL DO DIA + PRESENÃ‡A + NAVEGAÃ‡ÃƒO FUNCIONAL
    ========================================================= */
 .today-panel{margin-bottom:18px}.today-session-list,.quick-student-list,.overview-list{display:grid;gap:8px}.today-session-row,.quick-student-row,.overview-row{width:100%;display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid var(--dmp-border);border-radius:15px;background:#fff;text-align:left}.today-session-row:hover,.quick-student-row:hover,.overview-row:hover{border-color:#b8cd72;background:#fbfdf6}.today-session-row>span:nth-child(2),.quick-student-row>span:nth-child(2),.overview-row>span:first-child{display:grid;gap:2px;flex:1}.today-session-row small,.quick-student-row small,.overview-row small{color:var(--dmp-muted)}.student-avatar.small{width:38px;height:38px;flex-basis:38px;border-radius:12px;font-size:16px}.today-session-status,.status-chip{padding:6px 9px;border-radius:999px;background:#f3f4f5;color:#67707a;font-size:.75rem;font-weight:900;white-space:nowrap}.status-chip.ok,.today-session-status{background:#eef6d7;color:#59672d}.overview-row{justify-content:space-between}.restriction-mini{max-height:58px;overflow:hidden;padding:9px 11px;border-radius:12px;background:#fff7e8;border:1px solid #f1dfb8;color:#765a22;font-size:.8rem;font-weight:750}.three-actions{display:grid!important;grid-template-columns:repeat(3,1fr)}.three-actions button{min-width:0;padding-left:9px;padding-right:9px}.safety-panel{border-left:5px solid #f0b24e}.safety-block+ .safety-block{margin-top:16px;padding-top:14px;border-top:1px solid var(--dmp-border)}.safety-block strong{display:block;margin-bottom:6px}.safety-block p{margin:0}.session-alert{display:grid;gap:5px;padding:14px 16px;border:1px solid #efd39b;border-radius:16px;background:#fff8e9;color:#6d5320}.session-alert span{font-size:.9rem}.attendance-panel{max-width:720px;margin:0 auto}.attendance-hero{display:flex;align-items:center;gap:18px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--dmp-border)}.attendance-check{width:64px;height:64px;display:grid;place-items:center;border-radius:20px;background:var(--dmp-green);color:#222;font-size:34px;font-weight:900}.attendance-hero span{color:var(--dmp-green-dark);font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.attendance-hero h1{margin:4px 0}.attendance-hero p{margin:0;color:var(--dmp-muted)}.agenda-connect{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:start}.agenda-icon{width:64px;height:64px;display:grid;place-items:center;border-radius:18px;background:#f1f6df;font-size:30px}.agenda-connect h2{margin-top:0}.agenda-roadmap{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.agenda-roadmap span{padding:7px 10px;border-radius:999px;background:#f4f5f2;color:#5f666d;font-size:.78rem;font-weight:800}
 @media(max-width:900px){.dashboard-sidebar{grid-template-columns:145px 1fr auto}.dashboard-nav{overflow:auto;justify-content:flex-start}.dashboard-nav-item{white-space:nowrap}}
 @media(max-width:700px){.dashboard-sidebar{grid-template-columns:1fr auto}.dashboard-nav{display:flex;grid-column:1/-1;order:3;padding-top:4px}.dashboard-nav-item{display:flex!important;font-size:.78rem;padding:8px 10px}.three-actions{grid-template-columns:1fr}.agenda-connect{grid-template-columns:1fr}.agenda-icon{width:52px;height:52px}.today-session-row,.quick-student-row,.overview-row{padding:11px}.status-chip{white-space:normal;text-align:center}}
 
-/* DMP v2.1 — Central + Agenda + Modo Aula */
+/* DMP v2.1 â€” Central + Agenda + Modo Aula */
 .calendar-today-panel{margin-top:22px}
 .calendar-preview-list,.agenda-event-list{display:grid;gap:10px}
 .calendar-preview-row{width:100%;display:grid;grid-template-columns:80px 1fr auto;gap:14px;align-items:center;text-align:left;border:1px solid #e3e8dd;background:white;border-radius:16px;padding:14px 16px;cursor:pointer}
@@ -680,11 +680,11 @@ input:focus,textarea:focus{
 @media (max-width:760px){.calendar-preview-row{grid-template-columns:64px 1fr}.calendar-preview-row .status-chip{grid-column:2;justify-self:start}.agenda-connect{align-items:flex-start}.agenda-actions{align-items:stretch;width:100%}.agenda-event-row{grid-template-columns:70px 1fr}.lesson-fields{grid-template-columns:1fr}.lesson-actions{flex-direction:column}.lesson-card{padding:20px}.compact-button{margin-left:0;margin-top:10px}}
 
 /* =========================================================
-   DMP V3.0 — CENTRAL OPERACIONAL + PERFIL RÁPIDO
+   DMP V3.0 â€” CENTRAL OPERACIONAL + PERFIL RÃPIDO
    ========================================================= */
 .profile-snapshot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0 18px}.snapshot-card,.snapshot-alert{display:grid;gap:5px;padding:14px 16px;border:1px solid var(--dmp-border);border-radius:16px;background:#fff}.snapshot-card span,.snapshot-alert span{font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--dmp-muted)}.snapshot-card strong{font-size:1rem}.snapshot-alert{grid-column:1/-1;border-color:#ecd7a5;background:#fff8e9;color:#6d5320}.snapshot-alert.clear{border-color:#d9e7b2;background:#f6fae9;color:#526129}.central-row{display:grid;grid-template-columns:74px minmax(0,1fr) auto}.calendar-event-main{display:grid;gap:3px;border:0;background:transparent;text-align:left;padding:0;cursor:pointer;color:inherit}.calendar-event-main strong{font-size:.95rem}.calendar-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.status-chip.waiting{background:#fff4d9;color:#7b5a16}.compact-action{padding:8px 10px!important;font-size:.78rem!important;min-height:auto!important}.event-done{background:#f7faef;border-color:#d7e5b0}.event-done .calendar-event-main{opacity:.76}@media(max-width:900px){.profile-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}.central-row{grid-template-columns:64px 1fr}.calendar-row-actions{grid-column:2;justify-content:flex-start}}@media(max-width:560px){.profile-snapshot{grid-template-columns:1fr 1fr}.snapshot-alert{grid-column:1/-1}.calendar-row-actions{width:100%}.compact-action{flex:1}.central-row{padding:12px}.calendar-event-main strong{font-size:.9rem}}
 
-/* DMP v4 — central profissional */
+/* DMP v4 â€” central profissional */
 .smart-alerts { border-left: 5px solid #a8cf45; }
 .smart-alert-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
 .smart-alert-card { border:1px solid #dce4cf; background:#fbfcf8; border-radius:16px; padding:14px; text-align:left; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; cursor:pointer; }
@@ -700,17 +700,17 @@ input:focus,textarea:focus{
 .file-button input { position:absolute; inset:0; opacity:0; cursor:pointer; }
 @media (max-width:800px){.history-toolbar{grid-template-columns:1fr}.agenda-event-row{align-items:flex-start}.agenda-event-actions{flex-direction:column}.data-grid{grid-template-columns:1fr}}
 
-/* DMP v4.2 — vários alunos no mesmo horário da Agenda */
+/* DMP v4.2 â€” vÃ¡rios alunos no mesmo horÃ¡rio da Agenda */
 .calendar-multi-row{align-items:start}.calendar-slot-main{display:grid;gap:10px}.calendar-slot-students{display:grid;gap:8px;padding:10px;border:1px solid #e2e8d7;border-radius:14px;background:#fbfdf7}.calendar-slot-title{font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#657149}.calendar-slot-student{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.calendar-slot-student-name{border:0;background:transparent;padding:0;font-weight:850;color:#243019;cursor:pointer;text-align:left}.calendar-slot-student-name:hover{text-decoration:underline}.agenda-event-row-multi{grid-template-columns:95px minmax(0,1fr) auto;align-items:start}.slot-workouts{display:grid;gap:8px;margin-top:8px;padding:12px;border:1px solid #dfe8c8;border-radius:14px;background:#f8fbed}.slot-workouts-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.78rem;font-weight:900;color:#55652c}.slot-workouts-head small{margin:0!important;color:#76805d!important}.slot-workout-student{display:grid;grid-template-columns:minmax(150px,1fr) auto auto auto auto;gap:8px;align-items:center;padding-top:8px;border-top:1px solid #e1e8d2}.slot-workout-student:first-of-type{border-top:0;padding-top:0}.slot-ficha-label{font-size:.74rem;font-weight:800;color:#68715f;white-space:nowrap}
 @media(max-width:900px){.agenda-event-row-multi{grid-template-columns:70px minmax(0,1fr)}.agenda-event-row-multi .agenda-event-actions{grid-column:2;flex-direction:row;margin-left:0}.slot-workout-student{grid-template-columns:1fr auto}.slot-workout-student .calendar-student-link{grid-column:1/-1}.slot-workout-student .slot-ficha-label{grid-column:1/-1}.calendar-multi-row>.status-chip{grid-column:2;justify-self:start}}
 @media(max-width:560px){.calendar-slot-student{display:grid;grid-template-columns:1fr 1fr}.calendar-slot-student-name,.calendar-slot-student .status-chip{grid-column:1/-1}.slot-workout-student{grid-template-columns:1fr 1fr}.slot-workout-student .compact-action{width:100%}.agenda-event-row-multi .agenda-event-actions{flex-wrap:wrap}}
 
-/* DMP v4.3 — sincronização automática da Agenda */
+/* DMP v4.3 â€” sincronizaÃ§Ã£o automÃ¡tica da Agenda */
 .calendar-auto-sync{margin:6px 0 0;color:#657149;font-size:.78rem;font-weight:800}
 .agenda-sync-summary{display:grid;gap:4px;margin-top:14px;padding:12px 14px;border:1px solid #dce7c3;border-radius:14px;background:#f8fbed;color:#5d6848;font-size:.82rem}
 .agenda-sync-summary strong{color:#3f4d22}.agenda-sync-summary span{display:block}
 
-/* Correção mobile — formulários longos dentro de modal */
+/* CorreÃ§Ã£o mobile â€” formulÃ¡rios longos dentro de modal */
 .modal-backdrop {
   overflow-y: auto;
 }
@@ -745,7 +745,7 @@ input:focus,textarea:focus{
 }
 
 /* =========================================================
-   DMP v4.5 — TREINOS A/B/C/D + PROTOCOLOS + MODO AULA
+   DMP v4.5 â€” TREINOS A/B/C/D + PROTOCOLOS + MODO AULA
    ========================================================= */
 .workout-library-panel{display:grid;gap:18px}.workout-library-head{align-items:flex-start}.workout-tabs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.workout-slot-card{display:flex;flex-direction:column;gap:12px;min-height:230px;padding:18px;border:1px solid var(--dmp-border);border-radius:18px;background:#fff}.workout-slot-card.filled{box-shadow:inset 4px 0 0 var(--dmp-green)}.workout-slot-card.empty{justify-content:space-between;background:#fafbf8;border-style:dashed}.workout-slot-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.workout-slot-badge{display:inline-flex;width:max-content;padding:7px 11px;border-radius:999px;background:#20242a;color:white;font-size:.78rem;font-weight:900;letter-spacing:.04em}.workout-slot-badge.large{font-size:.86rem;padding:8px 13px}.protocol-chip{padding:6px 9px;border-radius:999px;background:#eef6d7;color:#59672d;font-size:.75rem;font-weight:900}.workout-slot-card h3{margin:0;font-size:1.18rem}.workout-slot-meta,.workout-slot-note{margin:0;color:var(--dmp-muted);font-size:.85rem}.workout-slot-note{padding:9px 11px;border-radius:12px;background:#f6f8f1}.workout-slot-preview{display:grid;gap:5px;margin:0;padding:0;list-style:none}.workout-slot-preview li{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;font-size:.86rem}.workout-slot-preview li small{color:var(--dmp-muted)}.workout-slot-actions{display:grid;grid-template-columns:1fr 1.3fr;gap:8px;margin-top:auto}.workout-slot-empty{display:grid;gap:5px;color:var(--dmp-muted)}.workout-slot-empty strong{color:var(--dmp-graphite)}
 .workout-editor-page{width:min(100% - 36px,1320px);display:grid;gap:18px}.workout-config-panel{display:grid;gap:16px}.workout-editor-title{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.workout-editor-title h1{margin:8px 0 3px}.workout-editor-title p{margin:0;color:var(--dmp-muted)}.workout-config-grid{display:grid;grid-template-columns:2fr .7fr 1.2fr .9fr;gap:10px}.workout-config-grid label{display:grid;gap:6px;font-weight:800}.workout-config-grid select,.workout-config-grid input,.workout-config-panel textarea{width:100%;border:1px solid var(--dmp-border);border-radius:12px;padding:11px 12px;background:#fff;font:inherit}.protocol-help{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid #dce7c3;border-radius:14px;background:#f8fbed}.protocol-help strong{color:#455522}.protocol-help span{color:#69745a;font-size:.86rem}.workout-grid-panel{overflow:hidden}.workout-table{display:grid;gap:7px;margin-top:14px}.workout-table-head,.workout-table-row{display:grid;grid-template-columns:34px .72fr minmax(190px,2.1fr) .65fr .65fr .9fr minmax(150px,1.25fr) 34px;gap:7px;align-items:center}.workout-table-head{padding:0 4px;color:var(--dmp-muted);font-size:.73rem;font-weight:900;text-transform:uppercase}.workout-table-row{padding:8px;border:1px solid var(--dmp-border);border-radius:13px;background:#fbfcfa}.workout-table-row input{min-width:0;width:100%;padding:9px 10px;border:1px solid #d9dee0;border-radius:10px;background:#fff;font:inherit}.workout-exercise-name{font-weight:850}.workout-remove{font-size:20px}.workout-editor-footer{display:flex;justify-content:space-between;gap:10px;margin-top:16px}.planned-title-line{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}.planned-note,.planned-note-inline{display:block;color:#6d5a24;background:#fff7e6;border-radius:12px;padding:9px 11px}.planned-note{margin:0 0 14px}.planned-note-inline{font-size:.8rem}.lesson-exercise-note{display:grid;gap:6px;margin-top:16px;font-weight:800}.lesson-exercise-note input{width:100%;padding:11px 12px;border:1px solid var(--dmp-border);border-radius:12px;background:#fff;font:inherit}
@@ -753,7 +753,7 @@ input:focus,textarea:focus{
 @media(max-width:620px){.workout-editor-page{width:min(100% - 24px,1320px)}.workout-editor-title{flex-direction:column}.workout-editor-title>button{width:100%}.workout-config-grid{grid-template-columns:1fr}.workout-slot-actions{grid-template-columns:1fr}.workout-table-row{grid-template-columns:26px 1fr}.workout-table-row input,.workout-table-row .workout-exercise-name,.workout-table-row input:nth-of-type(6){grid-column:2}.workout-table-row .workout-remove{grid-column:2;justify-self:end}.workout-editor-footer{flex-direction:column}.planned-title-line{grid-template-columns:1fr}.planned-fields{grid-template-columns:1fr 1fr}.workflow-strip-actions{flex-direction:column}}
 
 /* =========================================================
-   DMP v4.5.1 — ARQUIVAMENTO DE FICHAS DE TREINO
+   DMP v4.5.1 â€” ARQUIVAMENTO DE FICHAS DE TREINO
    ========================================================= */
 .workout-section-stack{display:grid;gap:18px}
 .workout-slot-actions.three-actions{grid-template-columns:1fr 1fr 1.3fr}
@@ -791,14 +791,14 @@ input:focus,textarea:focus{
 .note-card p{margin:0;white-space:pre-wrap;line-height:1.45}.note-edit-actions{display:flex;align-items:center;gap:8px}.note-edit-actions button{border:0;background:transparent;color:#116f99;font-weight:800;cursor:pointer}.clear-workout-button{color:#a22920;border-color:#e1b8b4}.tennis-category-picker{display:flex;flex-wrap:wrap;gap:8px;padding:12px;border:1px solid #d9dfcf;border-radius:12px}.tennis-category-picker legend{padding:0 6px;font-weight:800}.tennis-category-picker button{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #d9dfcf;border-radius:999px;background:#fff;cursor:pointer}.tennis-category-picker button.selected{outline:2px solid #92b52d}.tennis-category-dot{display:inline-block;width:13px;height:13px;margin-right:7px;border-radius:50%;vertical-align:-1px;border:1px solid rgba(0,0,0,.18)}.tennis-category-dot.red{background:#df3d35}.tennis-category-dot.orange{background:#f39a28}.tennis-category-dot.green{background:#69a94b}
 .kids-hero-shortcut{display:flex;align-items:center;gap:14px;min-width:270px;padding:12px 16px;border:1px solid #d7e2dc;border-radius:20px;background:linear-gradient(135deg,#fff,#fff6e9);color:#183f38;text-align:left;box-shadow:0 10px 25px rgba(24,63,56,.09);cursor:pointer}.kids-hero-shortcut img{width:78px;height:52px;object-fit:contain}.kids-hero-shortcut span{display:grid;gap:2px;flex:1}.kids-hero-shortcut small{color:#78857f}.kids-hero-shortcut strong{font-size:19px}.kids-hero-shortcut b{font-size:25px;color:#ef801c}
 @media(max-width:700px){.kids-hero-shortcut{display:none}}
-/* Central diária: agenda lateral e atalhos */
+/* Central diÃ¡ria: agenda lateral e atalhos */
 .drive-shortcut{display:grid;grid-template-columns:auto 1fr;align-content:center;column-gap:9px;min-width:104px;padding:11px 14px;border:1px solid #dce5c5;border-radius:18px;background:#fff;color:var(--dmp-graphite);text-decoration:none}.drive-shortcut>span{grid-row:1/3;font-size:1.8rem;color:#4285f4}.drive-shortcut small{color:var(--dmp-muted);font-size:.7rem}.drive-shortcut strong{font-size:.92rem}.home-desktop-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;align-items:start}.home-main-content{width:min(1120px,calc(100% - 42px))}.desktop-agenda-rail{position:fixed;z-index:30;top:0;right:0;width:310px;height:100vh;border-left:1px solid var(--dmp-border);background:#f7f9f4;display:grid;grid-template-rows:auto 1fr;overflow:hidden;box-shadow:-8px 0 24px rgba(37,39,44,.05)}.agenda-rail-head{padding:18px 16px 14px;border-bottom:1px solid var(--dmp-border);display:grid;gap:6px}.agenda-rail-head span{font-weight:900;font-size:1rem}.agenda-rail-head button{border:0;background:transparent;padding:0;text-align:left;color:var(--dmp-blue);font-weight:800}.agenda-rail-scroll{overflow:auto;padding:10px;display:grid;align-content:start;gap:9px}.agenda-rail-event{padding:11px;border-left:5px solid #858b8a;border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(37,39,44,.06)}.agenda-rail-event.kids{border-left-color:#f58220}.agenda-rail-event>button{width:100%;display:grid;gap:3px;border:0;background:transparent;text-align:left;color:inherit;padding:0}.agenda-rail-event small{color:var(--dmp-muted);font-size:.72rem}.agenda-rail-event strong{font-size:.88rem;line-height:1.25}.agenda-rail-event>div{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.agenda-rail-event>div button{border:0;border-radius:999px;padding:4px 7px;background:#eef5d7;color:#45591d;font-size:.68rem;font-weight:800}.today-highlight-grid{grid-template-columns:180px repeat(3,minmax(0,1fr))!important}.today-highlight-card{min-height:82px!important;gap:10px!important;padding:12px 13px!important}.today-highlight-icon{width:36px!important;height:36px!important;font-size:18px!important}.today-highlight-card strong{font-size:14px!important}.today-highlight-card small{font-size:12px}.mini-month{padding:12px;border:1px solid var(--dmp-border);border-radius:18px;background:#fff;box-shadow:0 8px 22px rgba(37,39,44,.06)}.mini-month>button{width:100%;display:flex;justify-content:space-between;border:0;background:transparent;padding:0 0 7px;text-transform:capitalize}.mini-month>button span{font-size:.65rem;color:var(--dmp-blue)}.mini-month-week,.mini-month-days{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}.mini-month-week b{font-size:.58rem;color:var(--dmp-muted)}.mini-month-days button,.mini-month-days i{height:18px;border:0;background:transparent;font-size:.6rem;padding:0}.mini-month-days button.today{border-radius:50%;background:var(--dmp-green);font-weight:900}.absence-action{border:1px solid #f0c6bb!important;background:#fff2ee!important;color:#a53a24!important;font-weight:900}.agenda-view-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px;border:1px solid var(--dmp-border);border-radius:16px;background:#fff}.agenda-view-toolbar>div{display:flex;gap:6px;flex-wrap:wrap}.agenda-view-toolbar input{max-width:170px}.selected-students{display:flex;flex-wrap:wrap;gap:7px}.selected-students button{border:0;border-radius:999px;padding:7px 10px;background:#eef5d7;font-weight:800}.repeat-option{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center!important}.sidebar-kids-special{display:flex;align-items:center;gap:9px;margin-top:auto;padding:8px;border:1px solid rgba(255,255,255,.18);border-radius:14px;background:#fff;color:#19443c;text-align:left}.sidebar-kids-special.active{box-shadow:0 0 0 3px var(--dmp-green)}.sidebar-kids-special img{width:54px;height:40px;object-fit:contain}.sidebar-kids-special span{display:grid}.sidebar-kids-special small{font-size:.62rem;color:#708079}.sidebar-kids-special strong{font-size:.85rem}.dashboard-logout{margin-top:8px}
 @media(max-width:1180px) and (min-width:901px){.home-desktop-layout{grid-template-columns:minmax(0,1fr) 270px}.desktop-agenda-rail{width:270px}.today-highlight-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.mini-month{grid-row:span 2}}
 @media(max-width:900px){.home-desktop-layout{display:block}.desktop-agenda-rail{display:none}.drive-shortcut{min-width:92px}.sidebar-kids-special{display:none}.today-highlight-grid{grid-template-columns:1fr!important}.mini-month{display:none}.agenda-view-toolbar{align-items:stretch;flex-direction:column}.agenda-view-toolbar input{max-width:none}}
 .global-search-box{position:relative;z-index:25;margin-bottom:12px}.global-search-input{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 13px;border:1px solid var(--dmp-border);border-radius:16px;background:#fff;box-shadow:0 7px 20px rgba(37,39,44,.05)}.global-search-input>span{font-size:1.45rem;color:var(--dmp-blue)}.global-search-input input{width:100%;padding:8px 0;border:0;background:transparent;font:inherit}.global-search-input input:focus{outline:0}.global-search-input button{border:0;background:transparent;font-size:1.35rem;color:var(--dmp-muted)}.global-search-results{position:absolute;top:calc(100% + 6px);left:0;right:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:10px;border:1px solid var(--dmp-border);border-radius:16px;background:#fff;box-shadow:0 18px 40px rgba(24,33,41,.18)}.global-search-results button{display:grid;grid-template-columns:auto 1fr;column-gap:9px;padding:10px;border:0;border-radius:11px;background:#f7f9f3;text-align:left}.global-search-results button>span{grid-row:1/3}.global-search-results button small{color:var(--dmp-muted)}.global-search-results>p{padding:10px;margin:0;color:var(--dmp-muted)}.weekly-smart-summary{display:grid;grid-template-columns:minmax(210px,.8fr) 2fr;align-items:center;gap:18px;margin:12px 0;padding:14px 17px;border:1px solid #dbe6c2;border-radius:18px;background:linear-gradient(135deg,#f9fceb,#fff);box-shadow:0 7px 22px rgba(37,39,44,.04)}.weekly-smart-summary>div{display:grid;gap:3px}.weekly-smart-summary>div span{font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#789327}.weekly-smart-summary>div strong{font-size:1rem}.weekly-smart-summary>div small{color:var(--dmp-muted)}.weekly-smart-summary dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0}.weekly-smart-summary dl div{padding:5px 13px;border-left:1px solid #e0e6d2}.weekly-smart-summary dt{font-size:.7rem;color:var(--dmp-muted)}.weekly-smart-summary dd{margin:3px 0 0;font-weight:900;font-size:1.05rem}.compact-card-actions{grid-template-columns:repeat(4,minmax(0,1fr))!important}
 @media(max-width:900px){.global-search-results{grid-template-columns:1fr}.weekly-smart-summary{grid-template-columns:1fr}.weekly-smart-summary dl{grid-template-columns:1fr 1fr}.compact-card-actions{grid-template-columns:1fr 1fr!important}}
 
-/* Acabamento da central diária e integrações */
+/* Acabamento da central diÃ¡ria e integraÃ§Ãµes */
 .today-heading h1{font-size:clamp(2.05rem,2.85vw,3rem)!important;line-height:1.02!important}
 @media(min-width:901px){.dashboard-topbar:has(.today-heading){padding-left:32px;padding-right:24px}.today-heading{gap:22px}.today-tools{gap:10px}}
 .highlight-lines{display:grid;gap:3px;margin-top:4px}.highlight-lines small{display:block;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25}.highlight-lines small b{color:#536c19}.today-highlight-card{align-items:flex-start!important;height:auto!important}.today-highlight-card>div{min-width:0;align-self:center}.today-highlight-card i{display:block;height:4px;margin-top:7px;border-radius:99px;background:#edf2df;overflow:hidden}.today-highlight-card i b{display:block;height:100%;border-radius:inherit;background:var(--dmp-green)}
@@ -807,22 +807,21 @@ input:focus,textarea:focus{
 .mobile-quick-launch,.mobile-actions-backdrop{display:none}.mobile-actions-sheet{display:grid;gap:9px}.mobile-actions-sheet>div{display:flex;align-items:center;justify-content:space-between}.mobile-actions-sheet>div button{border:0;background:transparent;font-size:1.5rem}.mobile-actions-sheet>button{width:100%;padding:13px;border:1px solid var(--dmp-border);border-radius:12px;background:#fff;text-align:left;font-weight:850}.mobile-actions-sheet>button.primary{background:var(--dmp-blue);color:#fff}
 @media(max-width:900px){.today-heading h1{font-size:2.1rem!important}.mobile-quick-launch{display:grid;place-items:center;position:fixed;z-index:85;top:14px;right:14px;width:48px;height:48px;border:0;border-radius:50%;background:var(--dmp-green);color:#1e2710;font-size:1.8rem;font-weight:900;box-shadow:0 8px 25px rgba(33,41,22,.28)}.mobile-actions-backdrop{display:flex;position:fixed;z-index:120;inset:0;align-items:flex-end;padding:14px;background:rgba(18,28,26,.52)}.mobile-actions-sheet{width:100%;padding:17px;border-radius:20px;background:#fff;box-shadow:0 -10px 38px rgba(0,0,0,.2)}.calendar-student-picker{grid-template-columns:1fr}}
 
-/* Agenda completa: dia, semana, mês, ano e lista */
+/* Agenda completa: dia, semana, mÃªs, ano e lista */
 .agenda-period-nav{align-items:center;white-space:nowrap}.agenda-period-nav strong{min-width:150px;text-align:center;text-transform:capitalize}.agenda-period-panel{overflow-x:auto}.agenda-event-title-button{justify-self:start;border:0;background:transparent;padding:0;color:var(--dmp-graphite);font:inherit;font-size:1rem;font-weight:900;text-align:left;cursor:pointer}.agenda-list-row{grid-template-columns:130px minmax(0,1fr) auto}.agenda-week-grid{display:grid;grid-template-columns:repeat(6,minmax(155px,1fr));gap:9px;min-width:960px}.agenda-week-day{min-height:280px;padding:10px;border:1px solid var(--dmp-border);border-radius:14px;background:#fafcf7}.agenda-week-day>header{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid #dfe6d5;text-transform:capitalize}.agenda-week-day>article{display:grid;gap:4px;margin-top:8px;padding:8px;border-left:4px solid #7e8983;border-radius:9px;background:#fff}.agenda-week-day>article.kids{border-left-color:#f58220}.agenda-week-day>article>button{display:grid;gap:2px;border:0;background:transparent;padding:0;text-align:left}.agenda-week-student{border:0;border-radius:7px;background:#eef5d7;padding:4px 6px;color:#44591e;text-align:left;font-size:.72rem;font-weight:800}.agenda-week-day>p{color:var(--dmp-muted);font-size:.8rem}.agenda-month{min-width:860px}.agenda-month-week,.agenda-month-days{display:grid;grid-template-columns:repeat(7,1fr)}.agenda-month-week b{padding:7px;text-align:center;color:var(--dmp-muted)}.agenda-month-days>i,.agenda-month-days>section{min-height:115px;border:1px solid #e2e7dd;background:#fff}.agenda-month-days>section{display:grid;align-content:start;gap:3px;padding:6px}.agenda-month-days>section.today{box-shadow:inset 0 0 0 2px var(--dmp-green)}.agenda-month-number{justify-self:end;width:28px;height:28px;border:0;border-radius:50%;background:#f1f5e7;font-weight:900}.agenda-month-days>section>button:not(.agenda-month-number){overflow:hidden;border:0;border-radius:6px;background:#eef2ea;padding:4px;text-align:left;font-size:.67rem;white-space:nowrap;text-overflow:ellipsis}.agenda-month-days>section>button.kids{background:#fff0df;color:#9a4a05}.agenda-month-more{color:var(--dmp-blue)!important;font-weight:800}.agenda-year-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.agenda-year-grid>button{display:grid;gap:6px;padding:18px;border:1px solid var(--dmp-border);border-radius:14px;background:#fff;text-align:left;text-transform:capitalize}.agenda-year-grid>button strong{font-size:1.25rem;color:#5c7719}
 @media(min-width:901px){.today-heading h1{font-size:clamp(1.85rem,2.35vw,2.55rem)!important}.dashboard-topbar:has(.today-heading){padding-left:24px!important}.today-heading{gap:17px!important}}
 @media(max-width:900px){.agenda-period-nav{justify-content:space-between}.agenda-period-nav strong{min-width:0}.agenda-year-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.agenda-list-row{grid-template-columns:70px minmax(0,1fr)}}
 
-/* Ajustes finais: painéis reguláveis, atalhos móveis e lembretes */
+/* Ajustes finais: painÃ©is regulÃ¡veis, atalhos mÃ³veis e lembretes */
 .home-desktop-layout{grid-template-columns:minmax(0,1fr) var(--dmp-agenda-rail-width,310px)}
 .desktop-agenda-rail{width:var(--dmp-agenda-rail-width,310px)}
 .sidebar-resize-handle,.rail-resize-handle{position:absolute;z-index:60;top:0;bottom:0;width:8px;cursor:col-resize;touch-action:none}
 .sidebar-resize-handle{right:-4px}.rail-resize-handle{left:-4px}
 .sidebar-resize-handle:hover,.rail-resize-handle:hover{background:rgba(168,201,59,.35)}
-.render-reminder{display:grid;gap:3px;margin-top:auto;margin-bottom:8px;padding:9px 11px;border:1px solid #f2c66d;border-radius:12px;background:#fff4d8;color:#6b4a00;text-decoration:none}.render-reminder small{font-size:.68rem}.render-reminder strong{font-size:.8rem}
 .mobile-header-actions{display:none}.mobile-voice-launch{border:0;border-radius:50%;background:#fff;color:#116f99;box-shadow:0 8px 25px rgba(33,41,22,.22)}
 .kids-action-red{background:#db3b35!important;border-color:#db3b35!important}.kids-action-orange{background:#ef821f!important;border-color:#ef821f!important}.kids-action-green{background:#278b52!important;border-color:#278b52!important}.kids-action-yellow{background:#e5b62e!important;border-color:#e5b62e!important;color:#2e2b18!important}
 @media(max-width:900px){
-  .home-desktop-layout{display:block}.desktop-agenda-rail{display:none}.sidebar-resize-handle,.rail-resize-handle,.render-reminder{display:none}
+  .home-desktop-layout{display:block}.desktop-agenda-rail{display:none}.sidebar-resize-handle,.rail-resize-handle{display:none}
   .mobile-header-actions{display:flex;position:fixed;z-index:85;top:14px;right:14px;gap:7px}
   .mobile-header-actions .mobile-quick-launch,.mobile-header-actions .mobile-voice-launch{position:static;display:grid;place-items:center;width:43px;height:43px;font-size:1.35rem}
   .dashboard-logout{order:5;grid-column:1/-1;justify-self:end;margin-top:4px!important;font-size:.75rem;opacity:.78}
@@ -832,7 +831,7 @@ input:focus,textarea:focus{
   .drive-shortcut{min-width:0!important}
 }
 
-/* Próxima atualização 12-08: refinamentos da Home, agenda, alunos e Kids */
+/* PrÃ³xima atualizaÃ§Ã£o 12-08: refinamentos da Home, agenda, alunos e Kids */
 .agenda-rail-event.kids-red{border-left-color:#db3b35!important}
 .agenda-rail-event.kids-orange{border-left-color:#ef821f!important}
 .agenda-rail-event.kids-green{border-left-color:#278b52!important}
@@ -851,7 +850,7 @@ input:focus,textarea:focus{
 }
 
 
-/* Atualização 13-08: Home mais limpa e cabeçalho mobile */
+/* AtualizaÃ§Ã£o 13-08: Home mais limpa e cabeÃ§alho mobile */
 .home-search-bottom{margin-top:18px}
 .today-summary-detail{margin:-8px 0 20px}
 .today-summary-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -880,7 +879,7 @@ input:focus,textarea:focus{
 }
 
 
-/* DMP 14-08 — Avaliações, recados e reconexão Google */
+/* DMP 14-08 â€” AvaliaÃ§Ãµes, recados e reconexÃ£o Google */
 .assessment-history-panel{overflow:hidden}.assessment-history-list{display:grid;gap:14px}.assessment-card-rich{border:1px solid var(--dmp-border);border-radius:18px;padding:16px;background:linear-gradient(135deg,#fff,#fbfcf8);box-shadow:0 8px 22px rgba(37,39,44,.05)}.assessment-card-main{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:18px;align-items:center}.assessment-card-date{display:grid;gap:4px}.assessment-card-date small{color:var(--dmp-muted);font-size:.7rem;text-transform:uppercase;font-weight:900;letter-spacing:.06em}.assessment-card-date strong{font-size:1.05rem;color:var(--dmp-graphite)}.assessment-card-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.assessment-card-metrics span{display:grid;gap:3px;padding:10px 11px;border:1px solid #e2e8e3;border-radius:12px;background:#fff}.assessment-card-metrics small{font-size:.68rem;color:var(--dmp-muted)}.assessment-card-metrics b{font-size:.94rem;color:#183f38}.assessment-card-actions{display:grid;gap:6px;justify-items:end}.assessment-card-actions small{font-size:.66rem;color:var(--dmp-muted)}.assessment-form-section{margin-top:16px;padding:16px;border:1px solid var(--dmp-border);border-radius:16px;background:#fbfcfa}.assessment-form-section h3{margin:0 0 12px;color:#166b91;font-size:1rem}.assessment-modal{max-height:92vh;overflow-y:auto;overscroll-behavior:contain}.assessment-modal .modal-head{position:sticky;top:0;z-index:5;background:#fff;padding-bottom:10px}.assessment-photos{margin-top:12px}.assessment-photos img{width:90px;height:90px}
 .note-create{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(260px,1.3fr) auto;align-items:start}.note-create input,.note-create textarea{width:100%;min-width:0}.note-create textarea{resize:vertical;min-height:78px}.note-title-input{font-weight:800}.note-card-content{flex:1;min-height:0;overflow:auto;display:grid;align-content:start;gap:7px}.note-card-content strong{font-size:1rem;color:#4a3d12}.note-card-content p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.42}.note-edit-fields{display:grid;grid-template-rows:auto 1fr;gap:8px;min-height:0;flex:1}.note-edit-fields input{width:100%;font-weight:800;background:rgba(255,255,255,.38);border:1px solid rgba(110,91,18,.16);border-radius:8px;padding:8px}.note-edit-fields textarea{min-height:90px}.notes-panel{overflow:visible}.note-grid{max-height:none;overflow:visible}
 @media(max-width:980px){.assessment-card-main{grid-template-columns:1fr}.assessment-card-actions{justify-items:start}.assessment-card-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.note-create{grid-template-columns:1fr}}
@@ -888,7 +887,7 @@ input:focus,textarea:focus{
 .access-settings-panel{max-width:760px}.access-settings-message{padding:11px 13px;border-radius:12px;background:#f3f7e7;border:1px solid #dce8b2;color:#40551a;font-weight:800}
 
 
-/* 14-08: importação Galileu e correção definitiva do topo da Home */
+/* 14-08: importaÃ§Ã£o Galileu e correÃ§Ã£o definitiva do topo da Home */
 .assessment-pdf-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;align-items:center;margin:0 0 18px;padding:16px 18px;border:1px solid #d9e6b8;border-radius:16px;background:linear-gradient(135deg,#f8fce9,#fff)}
 .assessment-pdf-box>div{display:grid;gap:4px}.assessment-pdf-box>div strong{color:#476218}.assessment-pdf-box small{color:var(--dmp-muted);line-height:1.35}.assessment-pdf-box>p{grid-column:1/-1;margin:0;padding:9px 11px;border-radius:10px;background:#eef6d7;color:#50681c;font-size:.82rem;font-weight:800}.assessment-source-file{padding:10px 12px;border:1px solid #dde6d2;border-radius:10px;background:#f8faf5;color:#56636a;font-size:.85rem}
 @media(min-width:901px){
@@ -903,7 +902,7 @@ input:focus,textarea:focus{
 @media(max-width:900px){.assessment-pdf-box{grid-template-columns:1fr}.assessment-pdf-box>p{grid-column:auto}}
 
 
-/* Relógio da Home — ajuste fino desktop */
+/* RelÃ³gio da Home â€” ajuste fino desktop */
 @media(min-width:901px){
   .today-tools .header-clock{
     gap:7px!important;
@@ -938,7 +937,7 @@ input:focus,textarea:focus{
 }
 
 
-/* Avaliações DMP — acabamento visual final */
+/* AvaliaÃ§Ãµes DMP â€” acabamento visual final */
 .assessment-history-panel .panel-head{
   margin-bottom:18px;
 }
@@ -1049,7 +1048,7 @@ input:focus,textarea:focus{
 }
 
 
-/* Avaliação — importação por texto */
+/* AvaliaÃ§Ã£o â€” importaÃ§Ã£o por texto */
 .assessment-text-import{
   grid-template-columns:1fr auto!important;
   align-items:start!important;
@@ -2735,3 +2734,4 @@ input:focus,textarea:focus{
     text-align:center;
   }
 }
+
