@@ -821,7 +821,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
   const trainingData = activeStudents.map(student => {
     const sessions = student.sessions
-      .filter(session => session.source !== "ABSENCE" && session.source !== "ATTENDANCE")
+      .filter(session => session.source !== "ABSENCE")
       .slice()
       .sort((a,b) => b.date.localeCompare(a.date));
 
