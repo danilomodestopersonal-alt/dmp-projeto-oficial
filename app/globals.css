@@ -2786,3 +2786,48 @@ input:focus,textarea:focus{
   font-weight:700;
   color:rgba(255,255,255,.72);
 }
+/* Ajuste visual do player Spotify */
+.spotify-shortcut{
+  display:flex;
+  flex-direction:column;
+}
+
+.spotify-track{
+  align-items:center;
+}
+
+.spotify-progress-block{
+  order:2;
+  display:grid;
+  gap:4px;
+  margin:6px 18px 4px;
+}
+
+.spotify-progress-bar{
+  height:3px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(255,255,255,.18);
+}
+
+.spotify-progress-bar i{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#1ed760;
+  transition:width .8s linear;
+}
+
+.spotify-progress-times{
+  display:flex;
+  justify-content:space-between;
+  font-size:.58rem;
+  line-height:1;
+  font-weight:700;
+  color:rgba(255,255,255,.68);
+}
+
+.spotify-controls{
+  order:3;
+  margin-top:3px;
+}
