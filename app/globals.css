@@ -2755,3 +2755,34 @@ input:focus,textarea:focus{
     margin-top:10px;
   }
 }
+
+
+/* Spotify — andamento da música */
+.spotify-progress-block{
+  display:grid;
+  gap:5px;
+  margin:5px 14px 8px;
+}
+
+.spotify-progress-bar{
+  height:5px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(255,255,255,.22);
+}
+
+.spotify-progress-bar i{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#1ed760;
+  transition:width .8s linear;
+}
+
+.spotify-progress-times{
+  display:flex;
+  justify-content:space-between;
+  font-size:.62rem;
+  font-weight:700;
+  color:rgba(255,255,255,.72);
+}

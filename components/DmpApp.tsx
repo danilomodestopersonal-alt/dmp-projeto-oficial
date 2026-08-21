@@ -83,8 +83,11 @@ const [cloudWritable, setCloudWritable] = useState(false);
     active?:boolean;
     isPlaying?:boolean;
     track?:{name:string;artist:string;image:string}|null;
+    progressMs?:number;
+    durationMs?:number;
   }>({connected:false});
   const [spotifyBusy,setSpotifyBusy]=useState(false);
+  const [spotifyProgressMs,setSpotifyProgressMs]=useState(0);
   const deepLinkHandled = useRef(false);
   const sessionReturnView = useRef<View>("student");
 
@@ -266,7 +269,10 @@ useEffect(()=>{
     try{
       const response=await fetch("/api/spotify/player",{cache:"no-store"});
       const data=await response.json().catch(()=>({connected:false}));
-      if(!cancelled)setSpotifyState(data);
+      if(!cancelled){
+        setSpotifyState(data);
+        setSpotifyProgressMs(Number(data.progressMs||0));
+      }
     }catch{
       if(!cancelled)setSpotifyState({connected:false});
     }
@@ -275,6 +281,26 @@ useEffect(()=>{
   const timer=window.setInterval(()=>{void loadSpotify();},5000);
   return()=>{cancelled=true;window.clearInterval(timer);};
 },[view]);
+
+useEffect(()=>{
+  setSpotifyProgressMs(Number(spotifyState.progressMs||0));
+
+  if(view!=="today" || !spotifyState.isPlaying || !spotifyState.durationMs)return;
+
+  const timer=window.setInterval(()=>{
+    setSpotifyProgressMs(current=>
+      Math.min(Number(spotifyState.durationMs||0),current+1000)
+    );
+  },1000);
+
+  return()=>window.clearInterval(timer);
+},[
+  view,
+  spotifyState.progressMs,
+  spotifyState.durationMs,
+  spotifyState.isPlaying,
+  spotifyState.track?.name
+]);
 
 useEffect(()=>{
   if(view!=="today")return;
@@ -293,6 +319,13 @@ useEffect(()=>{
   });
 },[view]);
 
+  function formatSpotifyTime(ms:number){
+    const total=Math.max(0,Math.floor(ms/1000));
+    const minutes=Math.floor(total/60);
+    const seconds=total%60;
+    return `${minutes}:${String(seconds).padStart(2,"0")}`;
+  }
+
   async function controlSpotify(action:"play"|"pause"|"next"|"previous"){
     if(spotifyBusy)return;
     setSpotifyBusy(true);
@@ -305,6 +338,7 @@ useEffect(()=>{
       const response=await fetch("/api/spotify/player",{cache:"no-store"});
       const data=await response.json().catch(()=>({connected:false}));
       setSpotifyState(data);
+      setSpotifyProgressMs(Number(data.progressMs||0));
     }catch{}
     finally{setSpotifyBusy(false);}
   }
@@ -773,6 +807,15 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       {spotifyState.track?.image ? <img src={spotifyState.track.image} alt=""/> : <span className="spotify-logo">S</span>}
       <div><strong>{spotifyState.track?.name || "Spotify"}</strong><small>{spotifyState.track?.artist || (spotifyState.active ? "Pronto para tocar" : "Abra o Spotify")}</small></div>
     </div>
+    {spotifyState.track&&spotifyState.durationMs ? <div className="spotify-progress-block">
+      <div className="spotify-progress-bar">
+        <i style={{width:`${Math.min(100,Math.max(0,(spotifyProgressMs/Number(spotifyState.durationMs))*100))}%`}}/>
+      </div>
+      <div className="spotify-progress-times">
+        <span>{formatSpotifyTime(spotifyProgressMs)}</span>
+        <span>{formatSpotifyTime(Number(spotifyState.durationMs))}</span>
+      </div>
+    </div> : null}
     <div className="spotify-controls">
       <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("previous")} aria-label="Música anterior">◀</button>
       <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify(spotifyState.isPlaying?"pause":"play")} aria-label={spotifyState.isPlaying?"Pausar":"Tocar"}>{spotifyState.isPlaying?"❚❚":"▶"}</button>

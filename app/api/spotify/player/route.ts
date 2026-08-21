@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
     active: true,
     isPlaying: Boolean(data.is_playing),
     progressMs: data.progress_ms ?? 0,
+    durationMs: item?.duration_ms ?? 0,
     track: item
       ? {
           name: item.name ?? "",
