@@ -3029,3 +3029,28 @@ input:focus,textarea:focus{
     flex-shrink:0!important;
   }
 }
+/* Spotify — compactação final */
+@media (min-width:901px){
+  .home-right-rail{
+    grid-template-rows:160px minmax(0,1fr)!important;
+  }
+
+  .home-right-rail .spotify-shortcut{
+    height:160px!important;
+    min-height:160px!important;
+    max-height:160px!important;
+    padding-bottom:6px!important;
+  }
+
+  .home-right-rail .spotify-track{
+    margin-bottom:5px!important;
+  }
+
+  .home-right-rail .spotify-progress-block{
+    margin:2px 0 5px!important;
+  }
+
+  .home-right-rail .spotify-controls{
+    margin-top:0!important;
+  }
+}
