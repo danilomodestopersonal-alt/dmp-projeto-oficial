@@ -2831,3 +2831,76 @@ input:focus,textarea:focus{
   order:3;
   margin-top:3px;
 }
+/* Spotify — layout ampliado e organizado */
+@media (min-width:901px){
+  .spotify-shortcut{
+    min-height:170px;
+    padding:10px 12px 12px;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+  }
+
+  .spotify-track{
+    display:grid;
+    grid-template-columns:58px minmax(0,1fr);
+    align-items:center;
+    gap:12px;
+    margin-bottom:8px;
+  }
+
+  .spotify-track img,
+  .spotify-logo{
+    width:58px;
+    height:58px;
+    border-radius:10px;
+  }
+
+  .spotify-track > div{
+    min-width:0;
+  }
+
+  .spotify-track strong{
+    display:block;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    font-size:.95rem;
+    line-height:1.15;
+  }
+
+  .spotify-track small{
+    display:block;
+    margin-top:4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    font-size:.72rem;
+  }
+
+  .spotify-progress-block{
+    order:2;
+    width:100%;
+    margin:4px 0 8px;
+    gap:5px;
+  }
+
+  .spotify-progress-bar{
+    height:4px;
+  }
+
+  .spotify-progress-times{
+    font-size:.62rem;
+    padding:0 1px;
+  }
+
+  .spotify-controls{
+    order:3;
+    margin-top:auto;
+    padding-top:2px;
+  }
+
+  .home-right-rail{
+    grid-template-rows:auto minmax(0,1fr);
+  }
+}
