@@ -1113,7 +1113,7 @@ function CalendarAgenda({status,events,loading,sync,students,range,anchor,onRang
   async function removeEvent(id:string){if(!confirm("Excluir este compromisso do Google Calendar?"))return;const r=await fetch(`/api/google/events?id=${encodeURIComponent(id)}`,{method:"DELETE"});if(r.ok)onRefresh();else alert("Não foi possível excluir o compromisso.");}
   const visible=events.filter(event=>agendaRangeIncludes(event,anchor,range)).sort((a,b)=>a.start.localeCompare(b.start));
   const navigate=(direction:-1|1)=>onAnchor(shiftAgendaAnchor(anchor,range,direction));
-  const openEvent=(event:CalendarEvent)=>{const kids=kidsCalendarRequest(event);if(kids){onOpenKids(event);return;}const matched=getCalendarEventStudents(event,students);if(matched.length===1){onOpenStudent(matched[0].id);return;}if(event.htmlLink)window.open(event.htmlLink,"_blank","noopener,noreferrer");};
+  const openEvent=(event:CalendarEvent)=>{const kids=kidsCalendarRequest(event);if(kids){onOpenKids(event);return;}if(range==="week"){setAddingEvent(event);return;}const matched=getCalendarEventStudents(event,students);if(matched.length===1){onOpenStudent(matched[0].id);return;}if(event.htmlLink)window.open(event.htmlLink,"_blank","noopener,noreferrer");};
   return <>
     <section className="agenda-view-toolbar"><div>{(["day","week","month","year","list"] as AgendaRange[]).map(value=><button key={value} className={range===value?"filter-active":"secondary"} onClick={()=>onRange(value)}>{agendaRangeLabel(value)}</button>)}</div><div className="agenda-period-nav"><button className="secondary" onClick={()=>navigate(-1)} aria-label="Período anterior">‹</button><strong>{agendaPeriodLabel(anchor,range)}</strong><button className="secondary" onClick={()=>navigate(1)} aria-label="Próximo período">›</button></div><input type="date" value={anchor} onChange={event=>onAnchor(event.target.value)}/><button className="primary" onClick={onNewEvent}>+ Novo compromisso</button></section>
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
@@ -1124,14 +1124,81 @@ function CalendarAgenda({status,events,loading,sync,students,range,anchor,onRang
 }
 
 function AddStudentsToCalendarEventModal({event,students,onClose,onSaved}:{event:CalendarEvent;students:Student[];onClose:()=>void;onSaved:()=>void}){
-  const existingIds=new Set(getCalendarEventStudents(event,students).map(student=>student.id));
+  const existing=getCalendarEventStudents(event,students);
   const [search,setSearch]=useState("");
-  const [selected,setSelected]=useState<string[]>([]);
+  const [selected,setSelected]=useState<string[]>(()=>existing.map(student=>student.id));
   const [saving,setSaving]=useState(false);
-  const available=students.filter(student=>student.status==="ACTIVE"&&!existingIds.has(student.id)&&normalizeName(student.name).includes(normalizeName(search))).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
-  function toggle(id:string){setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);}
-  async function save(){if(!selected.length)return;setSaving(true);const names=students.filter(student=>selected.includes(student.id)).map(calendarStudentDisplayName);const summary=`${event.summary} ${names.join(" ")}`.replace(/\s+/g," ").trim();const response=await fetch("/api/google/events",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:event.id,summary,description:event.description||"",location:event.location||"",start:event.start,end:event.end})});setSaving(false);if(response.ok)onSaved();else alert("Não foi possível adicionar os alunos ao compromisso.");}
-  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Adicionar alunos</h2><p className="muted">{event.summary} · escolha um ou vários alunos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><input className="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar aluno..."/><div className="calendar-student-picker">{available.map(student=><button type="button" key={student.id} className={selected.includes(student.id)?"selected":""} onClick={()=>toggle(student.id)}><span>{selected.includes(student.id)?"✓":"+"}</span><strong>{student.name}</strong></button>)}</div>{!available.length?<div className="calendar-empty">Nenhum aluno disponível nesta busca.</div>:null}<div className="modal-actions"><button onClick={onClose}>Cancelar</button><button className="primary" disabled={!selected.length||saving} onClick={save}>{saving?"Salvando...":`Adicionar ${selected.length||""}`}</button></div></section></div>;
+
+  const activeStudents=students
+    .filter(student=>student.status==="ACTIVE"&&normalizeName(student.name).includes(normalizeName(search)))
+    .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+
+  function toggle(id:string){
+    setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  }
+
+  async function save(){
+    setSaving(true);
+    const oldNames=existing.map(calendarStudentDisplayName).sort((a,b)=>b.length-a.length);
+    let baseSummary=event.summary||"";
+
+    for(const name of oldNames){
+      baseSummary=baseSummary.split(name).join(" ");
+    }
+
+    baseSummary=baseSummary.replace(/\s+/g," ").trim();
+
+    const names=students
+      .filter(student=>selected.includes(student.id))
+      .map(calendarStudentDisplayName);
+
+    const summary=((baseSummary||"Aula")+(names.length?" "+names.join(" "):""))
+      .replace(/\s+/g," ")
+      .trim();
+
+    const response=await fetch("/api/google/events",{
+      method:"PATCH",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        id:event.id,
+        summary,
+        description:event.description||"",
+        location:event.location||"",
+        start:event.start,
+        end:event.end
+      })
+    });
+
+    setSaving(false);
+    if(response.ok)onSaved();
+    else alert("Não foi possível atualizar os alunos deste compromisso.");
+  }
+
+  return <div className="modal-backdrop"><section className="modal">
+    <div className="modal-head">
+      <div>
+        <h2>Editar alunos</h2>
+        <p className="muted">{event.summary} · marque ou desmarque os alunos desta aula.</p>
+      </div>
+      <button className="text-button" onClick={onClose}>Fechar</button>
+    </div>
+
+    <input className="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar aluno..."/>
+
+    <div className="calendar-student-picker">
+      {activeStudents.map(student=><button type="button" key={student.id} className={selected.includes(student.id)?"selected":""} onClick={()=>toggle(student.id)}>
+        <span>{selected.includes(student.id)?"✓":"+"}</span>
+        <strong>{student.name}</strong>
+      </button>)}
+    </div>
+
+    {!activeStudents.length?<div className="calendar-empty">Nenhum aluno encontrado nesta busca.</div>:null}
+
+    <div className="modal-actions">
+      <button onClick={onClose}>Cancelar</button>
+      <button className="primary" disabled={saving} onClick={save}>{saving?"Salvando...":"Salvar alunos"}</button>
+    </div>
+  </section></div>;
 }
 
 function AgendaRangeContent({range,anchor,events,students,onOpenEvent,onOpenStudent,onStartStudent,onOpenKids,onAddStudent,onRemoveEvent,onSelectDate,onSelectMonth}:{range:AgendaRange;anchor:string;events:CalendarEvent[];students:Student[];onOpenEvent:(event:CalendarEvent)=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onOpenKids:(event:CalendarEvent)=>void;onAddStudent:(event:CalendarEvent)=>void;onRemoveEvent:(id:string)=>void;onSelectDate:(date:string)=>void;onSelectMonth:(date:string)=>void}){
@@ -1143,7 +1210,7 @@ function AgendaRangeContent({range,anchor,events,students,onOpenEvent,onOpenStud
 
 function AgendaEventDetails({event,students,compact,onOpenEvent,onOpenStudent,onStartStudent,onOpenKids,onAddStudent,onRemoveEvent}:{event:CalendarEvent;students:Student[];compact:boolean;onOpenEvent:(event:CalendarEvent)=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onOpenKids:(event:CalendarEvent)=>void;onAddStudent:(event:CalendarEvent)=>void;onRemoveEvent:(id:string)=>void}){
   const matchedStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);
-  return <article className={`agenda-event-row agenda-event-row-multi ${compact?"agenda-list-row":""}`}><div className="agenda-event-time">{compact?<><small>{formatRailDate(event)}</small><strong>{formatCalendarTime(event)}</strong></>:formatCalendarTime(event)}</div><div className="agenda-event-body"><button className="agenda-event-title-button" onClick={()=>onOpenEvent(event)}>{event.summary}</button>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{kids?<button className="primary compact-action" onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=>{const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;return <div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><span className="slot-ficha-label">{getStudentWorkoutEntries(student).length>0?"Treino montado":"Sem treino"}</span>{getStudentWorkoutEntries(student).length>0?<button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>▶ Iniciar</button>:null}<button className={getStudentWorkoutEntries(student).length>0?"secondary compact-action":"primary compact-action"} onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>})}</div>:event.allDay?<small className="muted">Evento de dia inteiro.</small>:<small className="muted">Nenhum aluno identificado no DMP.</small>}</div><div className="agenda-event-actions"><button className="secondary compact-action" onClick={()=>onAddStudent(event)}>+ Adicionar aluno</button>{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}<button className="danger-link" onClick={()=>onRemoveEvent(event.id)}>Excluir</button></div></article>;
+  return <article className={`agenda-event-row agenda-event-row-multi ${compact?"agenda-list-row":""}`}><div className="agenda-event-time">{compact?<><small>{formatRailDate(event)}</small><strong>{formatCalendarTime(event)}</strong></>:formatCalendarTime(event)}</div><div className="agenda-event-body"><button className="agenda-event-title-button" onClick={()=>onOpenEvent(event)}>{event.summary}</button>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{kids?<button className="primary compact-action" onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=>{const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;return <div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><span className="slot-ficha-label">{getStudentWorkoutEntries(student).length>0?"Treino montado":"Sem treino"}</span>{getStudentWorkoutEntries(student).length>0?<button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>▶ Iniciar</button>:null}<button className={getStudentWorkoutEntries(student).length>0?"secondary compact-action":"primary compact-action"} onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>})}</div>:event.allDay?<small className="muted">Evento de dia inteiro.</small>:<small className="muted">Nenhum aluno identificado no DMP.</small>}</div><div className="agenda-event-actions"><button className="secondary compact-action" onClick={()=>onAddStudent(event)}>✎ Editar alunos</button>{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}<button className="danger-link" onClick={()=>onRemoveEvent(event.id)}>Excluir</button></div></article>;
 }
 
 function AgendaWeekView({anchor,events,students,onOpenEvent,onOpenStudent}:{anchor:string;events:CalendarEvent[];students:Student[];onOpenEvent:(event:CalendarEvent)=>void;onOpenStudent:(id:string)=>void}){
@@ -1202,8 +1269,7 @@ function Sidebar({current,onNavigate,logout}:{current:View;onNavigate:(view:View
   const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"history-overview",icon:"📋",label:"Histórico"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"},{view:"settings",icon:"⚙️",label:"Configurações"}];
   const mobileOrder:View[]=["today","kids","finance","performance","students","workouts-overview","assessments-overview","history-overview","agenda","data","settings"];
   const orderedItems = mobile ? mobileOrder.map(view=>items.find(item=>item.view===view)!).filter(Boolean) : items;
-  const renderDays=Math.max(0,Math.ceil((new Date("2026-09-06T23:59:59").getTime()-Date.now())/86400000));
-  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav>{!mobile&&renderDays>0?<a className="render-reminder" href="https://dashboard.render.com/billing" target="_blank" rel="noreferrer"><small>⚠ Assinatura do Render</small><strong>{renderDays} dias restantes</strong></a>:null}{!mobile?<button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><small>Gestão pedagógica</small><strong>Aulas Kids</strong></span></button>:null}{!mobile?<button className="dashboard-logout" onClick={logout}>Sair</button>:null}{!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}</aside>;
+  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav>{!mobile?<button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><small>Gestão pedagógica</small><strong>Aulas Kids</strong></span></button>:null}{!mobile?<button className="dashboard-logout" onClick={logout}>Sair</button>:null}{!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}</aside>;
 }
 type WeatherData={temperature:number;wind:number;rainChance:number;code:number;hours:{time:string;rain:number}[]};
 function DigitalClock(){
@@ -2152,7 +2218,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
       <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??false} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
       <div className="planned-exercise-main"><div className="planned-title-line"><span className="status-chip">{ex.block||"—"}</span><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div></div>
     </article>})}</div>
-    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>completed[ex.id])} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,notes,completedExercises:exercises.filter(ex=>completed[ex.id]),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
+    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
 }
 
@@ -2671,7 +2737,15 @@ function isBirthdayToday(value:string){if(!value)return false;const [y,m,d]=valu
 function assessmentDue(student:Student){const last=student.assessments[0];if(!last)return true;const date=new Date(`${last.date}T12:00:00`);return Date.now()-date.getTime()>1000*60*60*24*90;}
 function downloadText(filename:string,content:string,type:string){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);}
 
-function findPreviousExercise(student:Student,name:string){const target=normalizeName(name);for(const session of student.sessions){const found=session.completedExercises.find(ex=>normalizeName(ex.name)===target);if(found)return {...found,date:session.date};}return null;}
+function findPreviousExercise(student:Student,name:string){
+  const target=normalizeName(name);
+  const sessions=[...student.sessions].sort((a,b)=>b.date.localeCompare(a.date));
+  for(const session of sessions){
+    const found=session.completedExercises.find(ex=>normalizeName(ex.name)===target);
+    if(found)return {...found,date:session.date};
+  }
+  return null;
+}
 function normalizeName(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();}
 const CALENDAR_STUDENT_ALIASES:Record<string,string>={bruna:"bruna sickler"};
 function matchCalendarEvents(events:CalendarEvent[],students:Student[]):CalendarEvent[]{
