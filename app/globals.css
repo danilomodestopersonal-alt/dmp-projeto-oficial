@@ -2944,3 +2944,88 @@ input:focus,textarea:focus{
     flex-shrink:0;
   }
 }
+/* =========================================================
+   SPOTIFY — LAYOUT FINAL CONSOLIDADO
+   ========================================================= */
+@media (min-width:901px){
+
+  .home-right-rail{
+    grid-template-rows:190px minmax(0,1fr)!important;
+  }
+
+  .home-right-rail .spotify-shortcut{
+    position:relative!important;
+    width:100%!important;
+    height:190px!important;
+    min-height:190px!important;
+    max-height:190px!important;
+
+    display:flex!important;
+    flex-direction:column!important;
+    justify-content:flex-start!important;
+
+    gap:0!important;
+    box-sizing:border-box!important;
+    overflow:hidden!important;
+
+    padding:27px 16px 10px!important;
+  }
+
+  .home-right-rail .spotify-track{
+    order:1!important;
+    display:grid!important;
+    grid-template-columns:54px minmax(0,1fr)!important;
+    align-items:center!important;
+    gap:11px!important;
+
+    width:100%!important;
+    min-height:54px!important;
+    margin:0 0 8px!important;
+  }
+
+  .home-right-rail .spotify-track img,
+  .home-right-rail .spotify-logo{
+    width:54px!important;
+    height:54px!important;
+    min-width:54px!important;
+    border-radius:10px!important;
+  }
+
+  .home-right-rail .spotify-track > div{
+    min-width:0!important;
+  }
+
+  .home-right-rail .spotify-progress-block{
+    order:2!important;
+    display:grid!important;
+    width:100%!important;
+    gap:4px!important;
+    margin:3px 0 7px!important;
+    flex-shrink:0!important;
+  }
+
+  .home-right-rail .spotify-progress-bar{
+    width:100%!important;
+    height:4px!important;
+  }
+
+  .home-right-rail .spotify-progress-times{
+    display:flex!important;
+    justify-content:space-between!important;
+    width:100%!important;
+    font-size:.61rem!important;
+  }
+
+  .home-right-rail .spotify-controls{
+    order:3!important;
+    display:flex!important;
+    justify-content:center!important;
+    align-items:center!important;
+    gap:10px!important;
+
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+    flex-shrink:0!important;
+  }
+}
