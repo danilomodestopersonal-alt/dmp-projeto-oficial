@@ -2904,3 +2904,43 @@ input:focus,textarea:focus{
     grid-template-rows:auto minmax(0,1fr);
   }
 }
+/* Spotify — ajuste final para manter controles visíveis */
+@media (min-width:901px){
+  .home-right-rail{
+    grid-template-rows:200px minmax(0,1fr);
+  }
+
+  .spotify-shortcut{
+    height:200px;
+    min-height:200px;
+    box-sizing:border-box;
+    overflow:hidden;
+    padding:9px 16px 10px;
+  }
+
+  .spotify-track{
+    grid-template-columns:54px minmax(0,1fr);
+    gap:11px;
+    margin-bottom:7px;
+  }
+
+  .spotify-track img,
+  .spotify-logo{
+    width:54px;
+    height:54px;
+  }
+
+  .spotify-progress-block{
+    margin:3px 0 5px;
+  }
+
+  .spotify-controls{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    margin-top:2px;
+    padding:0;
+    flex-shrink:0;
+  }
+}
