@@ -3054,3 +3054,47 @@ input:focus,textarea:focus{
     margin-top:0!important;
   }
 }
+/* Agenda — escopo de eventos recorrentes */
+.calendar-recurrence-scope{
+  display:grid;
+  gap:8px;
+  padding:12px;
+  margin-top:10px;
+  border:1px solid #dfe5d1;
+  border-radius:14px;
+  background:#f8faF3;
+}
+
+.calendar-recurrence-scope>strong{
+  font-size:.82rem;
+}
+
+.calendar-recurrence-options{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+}
+
+.calendar-recurrence-options button{
+  min-height:42px;
+  padding:7px 8px;
+  font-size:.72rem;
+}
+
+.calendar-recurrence-options button.selected{
+  border-color:#91b52d;
+  background:#eaf5c9;
+  color:#304c12;
+  font-weight:800;
+}
+
+.calendar-recurrence-scope small{
+  color:#68705d;
+  font-size:.7rem;
+}
+
+@media(max-width:700px){
+  .calendar-recurrence-options{
+    grid-template-columns:1fr;
+  }
+}

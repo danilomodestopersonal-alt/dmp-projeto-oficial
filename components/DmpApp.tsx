@@ -1171,6 +1171,7 @@ function AddStudentsToCalendarEventModal({event,students,onClose,onSaved}:{event
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState<string[]>(()=>existing.map(student=>student.id));
   const [saving,setSaving]=useState(false);
+  const [recurrenceScope,setRecurrenceScope]=useState<"single"|"following"|"series">("single");
 
   const activeStudents=students
     .filter(student=>student.status==="ACTIVE"&&normalizeName(student.name).includes(normalizeName(search)))
@@ -1208,7 +1209,10 @@ function AddStudentsToCalendarEventModal({event,students,onClose,onSaved}:{event
         description:event.description||"",
         location:event.location||"",
         start:event.start,
-        end:event.end
+        end:event.end,
+        scope:event.recurringEventId?recurrenceScope:"single",
+        recurringEventId:event.recurringEventId||"",
+        originalStartTime:event.originalStartTime||event.start
       })
     });
 
@@ -1236,6 +1240,16 @@ function AddStudentsToCalendarEventModal({event,students,onClose,onSaved}:{event
     </div>
 
     {!activeStudents.length?<div className="calendar-empty">Nenhum aluno encontrado nesta busca.</div>:null}
+    {event.recurringEventId?<div className="calendar-recurrence-scope">
+      <strong>Aplicar alteração em:</strong>
+      <div className="calendar-recurrence-options">
+        <button type="button" className={recurrenceScope==="single"?"selected":""} onClick={()=>setRecurrenceScope("single")}>Somente esta aula</button>
+        <button type="button" className={recurrenceScope==="following"?"selected":""} onClick={()=>setRecurrenceScope("following")}>Esta e as próximas</button>
+        <button type="button" className={recurrenceScope==="series"?"selected":""} onClick={()=>setRecurrenceScope("series")}>Toda a série</button>
+      </div>
+      {recurrenceScope==="following"?<small>As aulas anteriores permanecem como estão.</small>:null}
+    </div>:null}
+
 
     <div className="modal-actions">
       <button onClick={onClose}>Cancelar</button>

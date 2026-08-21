@@ -127,4 +127,6 @@ export type CalendarEvent = {
   matchedStudentId?: string | null;
   matchedStudentIds?: string[];
   recurrence?: string[];
+  recurringEventId?: string;
+  originalStartTime?: string;
 };

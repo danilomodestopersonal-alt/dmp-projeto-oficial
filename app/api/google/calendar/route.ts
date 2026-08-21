@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
       allDay:Boolean(event.start?.date),
       htmlLink:event.htmlLink || "",
       location:event.location || "",
-      recurrence:event.recurrence || []
+      recurrence:event.recurrence || [],
+      recurringEventId:event.recurringEventId || "",
+      originalStartTime:event.originalStartTime?.dateTime || event.originalStartTime?.date || ""
     }));
     const response = NextResponse.json({events,range:{date,days}});
     if (refreshed) setGoogleCookies(response, refreshed);
