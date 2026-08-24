@@ -16,6 +16,17 @@ export type PerformanceStrengthExercise = {
   load: string;
 };
 
+export type PerformanceStrengthSystem =
+  | "TRADITIONAL"
+  | "B7"
+  | "BISET"
+  | "TRISET"
+  | "CIRCUIT"
+  | "DROP_SET"
+  | "REST_PAUSE"
+  | "PYRAMID"
+  | "OTHER";
+
 export type PerformanceTennisKind = "TRAINING" | "MATCH";
 
 export type PerformanceActivity = {
@@ -48,6 +59,7 @@ export type PerformanceActivity = {
   description?: string | null;
 
   strengthExercises?: PerformanceStrengthExercise[];
+  strengthSystem?: PerformanceStrengthSystem | null;
   tennisKind?: PerformanceTennisKind | null;
   tennisOpponent?: string | null;
   tennisScore?: string | null;

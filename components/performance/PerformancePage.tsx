@@ -8,6 +8,7 @@ import type {
   PerformanceGoalMetric,
   PerformanceGoalPeriod,
   PerformanceStrengthExercise,
+  PerformanceStrengthSystem,
   PerformanceTennisKind,
 } from "@/types/performance";
 import styles from "./PerformancePage.module.css";
@@ -26,6 +27,7 @@ type ActivityForm = {
   elevationMeters: string;
   calories: string;
   strengthExercises: PerformanceStrengthExercise[];
+  strengthSystem: PerformanceStrengthSystem;
   tennisKind: PerformanceTennisKind;
   tennisOpponent: string;
   tennisScore: string;
@@ -81,6 +83,22 @@ const ACTIVITY_ICONS: Record<PerformanceActivityType, string> = {
   TENNIS: "🎾",
   OTHER: "⚡",
 };
+
+const STRENGTH_SYSTEM_OPTIONS: { value: PerformanceStrengthSystem; label: string }[] = [
+  { value: "TRADITIONAL", label: "Tradicional" },
+  { value: "B7", label: "B7" },
+  { value: "BISET", label: "Bi-set" },
+  { value: "TRISET", label: "Tri-set" },
+  { value: "CIRCUIT", label: "Circuito" },
+  { value: "DROP_SET", label: "Drop-set" },
+  { value: "REST_PAUSE", label: "Rest-pause" },
+  { value: "PYRAMID", label: "Pirâmide" },
+  { value: "OTHER", label: "Outro" },
+];
+
+function strengthSystemLabel(value?: PerformanceStrengthSystem | null) {
+  return STRENGTH_SYSTEM_OPTIONS.find(option => option.value === value)?.label || "";
+}
 
 const METRIC_LABELS: Record<PerformanceGoalMetric, string> = {
   DISTANCE_KM: "Distância",
@@ -142,6 +160,7 @@ function emptyActivity(): ActivityForm {
     elevationMeters: "",
     calories: "",
     strengthExercises: [emptyStrengthExercise()],
+    strengthSystem: "TRADITIONAL",
     tennisKind: "TRAINING",
     tennisOpponent: "",
     tennisScore: "",
@@ -333,6 +352,7 @@ export default function PerformancePage() {
       strengthExercises: activity.strengthExercises?.length
         ? activity.strengthExercises.map(item => ({ ...item }))
         : [emptyStrengthExercise()],
+      strengthSystem: activity.strengthSystem || "TRADITIONAL",
       tennisKind: activity.tennisKind || "TRAINING",
       tennisOpponent: activity.tennisOpponent || "",
       tennisScore: activity.tennisScore || "",
@@ -364,6 +384,7 @@ export default function PerformancePage() {
             load: item.load.trim(),
           }))
         : undefined,
+      strengthSystem: activityForm.type === "STRENGTH" ? activityForm.strengthSystem : null,
       tennisKind: activityForm.type === "TENNIS" ? activityForm.tennisKind : null,
       tennisOpponent: activityForm.type === "TENNIS" && activityForm.tennisKind === "MATCH" ? activityForm.tennisOpponent.trim() || null : null,
       tennisScore: activityForm.type === "TENNIS" && activityForm.tennisKind === "MATCH" ? activityForm.tennisScore.trim() || null : null,
@@ -773,6 +794,7 @@ export default function PerformancePage() {
                 <Measure label="Esforço relativo" value={detailActivity.relativeEffort} unit="" />
               </> : null}
             </div>
+            {detailActivity.type === "STRENGTH" && detailActivity.strengthSystem ? <div className={styles.assessmentHeadline}><strong>Sistema de treino</strong><span>{strengthSystemLabel(detailActivity.strengthSystem)}</span></div> : null}
             {detailActivity.type === "STRENGTH" && detailActivity.strengthExercises?.length ? <div className={styles.exerciseDetails}><strong>Exercícios</strong>{detailActivity.strengthExercises.map(item => <div key={item.id}><span>{item.name}</span><small>{[item.sets && `${item.sets} séries`, item.reps && `${item.reps} reps`, item.load && item.load].filter(Boolean).join(" · ")}</small></div>)}</div> : null}
             {detailActivity.type === "TENNIS" ? <div className={styles.exerciseDetails}><strong>{detailActivity.tennisKind === "MATCH" ? "Partida" : "Treino de tênis"}</strong>{detailActivity.tennisOpponent ? <div><span>Adversário</span><small>{detailActivity.tennisOpponent}</small></div> : null}{detailActivity.tennisScore ? <div><span>Placar</span><small>{detailActivity.tennisScore}</small></div> : null}</div> : null}
             {detailActivity.gearName ? <div className={styles.assessmentHeadline}><strong>Equipamento</strong><span>{detailActivity.gearName}</span></div> : null}
@@ -799,6 +821,7 @@ export default function PerformancePage() {
                 <Field label="Altimetria (m)"><input inputMode="numeric" value={activityForm.elevationMeters} onChange={e => setActivityForm({...activityForm,elevationMeters:e.target.value})} placeholder="0" /></Field>
                 <Field label="Calorias"><input inputMode="numeric" value={activityForm.calories} onChange={e => setActivityForm({...activityForm,calories:e.target.value})} placeholder="Opcional" /></Field>
               </> : null}
+              {activityForm.type === "STRENGTH" ? <Field label="Sistema de treino" full><select value={activityForm.strengthSystem} onChange={e => setActivityForm({...activityForm,strengthSystem:e.target.value as PerformanceStrengthSystem})}>{STRENGTH_SYSTEM_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field> : null}
               {activityForm.type === "TENNIS" ? <>
                 <Field label="Tipo"><select value={activityForm.tennisKind} onChange={e => setActivityForm({...activityForm,tennisKind:e.target.value as PerformanceTennisKind})}><option value="TRAINING">Treino</option><option value="MATCH">Partida</option></select></Field>
                 {activityForm.tennisKind === "MATCH" ? <><Field label="Contra quem"><input value={activityForm.tennisOpponent} onChange={e => setActivityForm({...activityForm,tennisOpponent:e.target.value})} placeholder="Nome do adversário" /></Field><Field label="Placar"><input value={activityForm.tennisScore} onChange={e => setActivityForm({...activityForm,tennisScore:e.target.value})} placeholder="Ex.: 6/4 6/3" /></Field></> : null}
@@ -886,7 +909,7 @@ function formatMetric(value:number,metric:PerformanceGoalMetric) {
 }
 
 function ActivityRow({activity,compact=false,onClick}:{activity:PerformanceActivity;compact?:boolean;onClick?:()=>void}) {
-  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.type === "STRENGTH" && activity.strengthExercises?.length ? <span><strong>{activity.strengthExercises.length}</strong> exercício{activity.strengthExercises.length === 1 ? "" : "s"}</span> : null}{activity.type === "TENNIS" ? <span><strong>{activity.tennisKind === "MATCH" ? "Partida" : "Treino"}</strong>{activity.tennisOpponent ? `vs. ${activity.tennisOpponent}` : ""}</span> : null}{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
+  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.type === "STRENGTH" && activity.strengthSystem ? " · " + strengthSystemLabel(activity.strengthSystem) : ""}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.type === "STRENGTH" && activity.strengthExercises?.length ? <span><strong>{activity.strengthExercises.length}</strong> exercício{activity.strengthExercises.length === 1 ? "" : "s"}</span> : null}{activity.type === "TENNIS" ? <span><strong>{activity.tennisKind === "MATCH" ? "Partida" : "Treino"}</strong>{activity.tennisOpponent ? `vs. ${activity.tennisOpponent}` : ""}</span> : null}{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
 }
 
 function AssessmentSummary({item}:{item:PerformanceAssessment}) {
