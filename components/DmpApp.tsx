@@ -1529,7 +1529,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
 
   const performanceIcon=(type:PerformanceActivity["type"])=>
     type==="CYCLING"?"Bike":
-    type==="STRENGTH"?"For?a":
+    type==="STRENGTH"?"Força":
     type==="PILATES"?"Pilates":
     type==="RUNNING"?"Corrida":
     type==="TENNIS"?"T?nis":"Atividade";
@@ -1640,7 +1640,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
 
           <span className="highlight-lines">
             <small><b>{pending.length}</b> pendente{pending.length===1?"":"s"}</small>
-            {pending.slice(0,2).map(note=><small key={note.id}>{note.text}</small>)}
+            {pending.slice(0,4).map(note=><small key={note.id}>{note.title || "Sem título"}</small>)}
           </span>
         </div>
 
@@ -1654,7 +1654,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
         <div className="panel-head">
           <div>
             <h2>Atendimentos de hoje</h2>
-            <p className="muted">Resumo dos alunos programados, j? atendidos, pendentes e ausentes.</p>
+            <p className="muted">Resumo dos alunos programados, já atendidos, pendentes e ausentes.</p>
           </div>
 
           <button className="secondary" onClick={()=>setShowSummary(false)}>Fechar</button>
@@ -1713,7 +1713,7 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
               {people.length?<div>{people.map(student=><button key={student.id} onClick={()=>onOpenStudent(student.id)}>{student.name}</button>)}</div>:null}
             </article>
           </section>
-        }):<p>Nenhum pr?ximo compromisso.</p>}
+        }):<p>Nenhum próximo compromisso.</p>}
       </div>
     </aside>
 
@@ -2286,7 +2286,19 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
   const [sessionDate,setSessionDate]=useState(today());
   const [exercises,setExercises]=useState<Exercise[]>([]);
   const [listening,setListening]=useState(false);
-  function organize(){setExercises(parseTranscript(transcript));}
+  function organize(){
+    const protocol=detectWorkoutProtocol(transcript);
+    let organized=organizeQuickTranscript(transcript);
+
+    if(protocol==="B7"){
+      organized=organized.map((exercise,index)=>({
+        ...exercise,
+        block:exercise.block?.trim() || `Bloco ${Math.floor(index/2)+1}`
+      }));
+    }
+
+    setExercises(organized);
+  }
   function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
   function listen(){
   const SpeechRecognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
@@ -2891,17 +2903,24 @@ function organizeQuickTranscript(rawText:string): Exercise[] {
   if(!text) return [];
 
   const numbers:Record<string,string>={
-    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","tr?s":"3",
+    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","três":"3",
     "quatro":"4","cinco":"5","seis":"6","sete":"7","oito":"8","nove":"9",
     "dez":"10","onze":"11","doze":"12","treze":"13","quatorze":"14",
     "catorze":"14","quinze":"15","dezesseis":"16","dezessete":"17",
     "dezoito":"18","dezenove":"19","vinte":"20"
   };
 
-  const normalized=text.replace(
-    /\b(um|uma|dois|duas|tr[e?]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
+  let normalized=text.replace(
+    /\b(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
     value=>numbers[value.toLocaleLowerCase("pt-BR")]||value
   );
+
+  normalized=normalized
+    .replace(/\s*[;|]+\s*/g,"\n")
+    .replace(/\s*[.!?]+\s+(?=\p{L})/gu,"\n")
+    .replace(/\s+(?=bloco\s+\d+\b)/gi,"\n")
+    .replace(/\b(?:próximo exercício|proximo exercicio|novo exercício|novo exercicio)\b/gi,"\n")
+    .replace(/\n{2,}/g,"\n");
 
   const output:Exercise[]=[];
   let currentBlock="";
@@ -2910,25 +2929,28 @@ function organizeQuickTranscript(rawText:string): Exercise[] {
     let line=rawLine.trim();
     if(!line) continue;
 
-    const blockMatch=line.match(/^\s*bloco\s+(\d+)\s*[:\-??]?\s*$/i);
+    const blockMatch=line.match(/^\s*bloco\s+(\d+)\s*[:\-–—]?\s*(.*)$/i);
     if(blockMatch){
       currentBlock=blockMatch[1];
-      continue;
+      line=(blockMatch[2]||"").trim();
+      if(!line) continue;
     }
 
     line=line
-      .replace(/^\s*(?:\d+\s*[.)\-:]|[-?])\s*/,"")
+      .replace(/^\s*(?:\d+\s*[.)\-:]|[-•])\s*/,"")
       .trim();
 
     if(!line) continue;
 
-    const prescription=line.match(/\b(\d+)\s*(?:s[e?]ries?\s*(?:de\s*)?|[x?]\s*|\s+de\s+)(\d+|falha)\b/i);
+    const prescription=line.match(
+      /\b(\d+)\s*(?:s[eé]ries?\s*(?:de\s*)?|[x×]\s*|\s+de\s+)(\d+|falha)\b/i
+    );
 
     if(!prescription){
       output.push({
         id:crypto.randomUUID(),
         block:currentBlock,
-        name:line.replace(/^[\s,;:.\-??]+|[\s,;:.\-??]+$/g,"").trim(),
+        name:line.replace(/^[\s,;:.\-–—•]+|[\s,;:.\-–—•]+$/g,"").trim(),
         sets:"",
         reps:"",
         load:"",
@@ -2938,23 +2960,30 @@ function organizeQuickTranscript(rawText:string): Exercise[] {
     }
 
     const prescriptionIndex=prescription.index||0;
+
     const name=line
       .slice(0,prescriptionIndex)
-      .replace(/^[\s,;:.\-??]+|[\s,;:.\-??]+$/g,"")
+      .replace(/^[\s,;:.\-–—•]+|[\s,;:.\-–—•]+$/g,"")
       .trim();
 
-    let tail=line.slice(prescriptionIndex+prescription[0].length)
-      .replace(/^[\s,;:.\-??]+/,"")
+    let tail=line
+      .slice(prescriptionIndex+prescription[0].length)
+      .replace(/^[\s,;:.\-–—•]+/,"")
       .trim();
 
     let load="";
     let notes="";
 
-    const loadMatch=tail.match(/^(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i);
+    const loadMatch=tail.match(
+      /^(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i
+    );
 
     if(loadMatch){
       load=`${loadMatch[1].replace(",",".")} kg${/cada\s*lado/i.test(loadMatch[0])?" de cada lado":""}`;
-      notes=tail.slice(loadMatch[0].length).replace(/^[\s,;:.\-??]+/,"").trim();
+      notes=tail
+        .slice(loadMatch[0].length)
+        .replace(/^[\s,;:.\-–—•]+/,"")
+        .trim();
     }else{
       notes=tail;
     }
@@ -2962,7 +2991,7 @@ function organizeQuickTranscript(rawText:string): Exercise[] {
     output.push({
       id:crypto.randomUUID(),
       block:currentBlock,
-      name:name||`Exerc?cio ${output.length+1}`,
+      name:name||`Exercício ${output.length+1}`,
       sets:prescription[1]||"",
       reps:prescription[2]||"",
       load,
