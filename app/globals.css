@@ -3644,3 +3644,19 @@ input:focus,textarea:focus{
 .today-summary-card .today-kids-inline-row span{
   white-space:nowrap!important;
 }
+
+/* Posiciona Aulas Kids mais à esquerda no Resumo */
+@media(min-width:1000px){
+  .today-summary-card .today-kids-inline{
+    width:100%!important;
+    align-items:flex-start!important;
+  }
+
+  .today-summary-card .today-kids-inline-row{
+    justify-content:flex-start!important;
+    width:100%!important;
+    padding-left:8px!important;
+    box-sizing:border-box!important;
+    text-align:left!important;
+  }
+}
