@@ -3680,3 +3680,18 @@ input:focus,textarea:focus{
   transform:scale(1.08);
   background:#dff3e5;
 }
+
+.calendar-whatsapp-icon{
+  width:17px;
+  height:17px;
+  display:block;
+  color:#25D366;
+}
+
+.calendar-whatsapp-button{
+  background:#fff!important;
+}
+
+.calendar-whatsapp-button:hover{
+  background:#edf9f1!important;
+}
