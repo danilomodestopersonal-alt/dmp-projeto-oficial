@@ -1779,14 +1779,15 @@ input:focus,textarea:focus{
 }
 
 
-/* Alinhamento final dos cards Resumo Treino Recados */
+/* Alinhamento dos quatro cards da Home */
 
 .today-summary-card,
 .performance-today-card,
-.today-notes-card{
+.today-notes-card,
+.renewals-today-card{
   position:relative!important;
   display:grid!important;
-  grid-template-columns:38px 1fr!important;
+  grid-template-columns:38px minmax(0,1fr)!important;
   grid-template-rows:auto 1fr!important;
   align-items:start!important;
   min-height:222px!important;
@@ -1795,7 +1796,8 @@ input:focus,textarea:focus{
 
 .today-summary-card .today-highlight-icon,
 .performance-today-card .today-highlight-icon,
-.today-notes-card .today-highlight-icon{
+.today-notes-card .today-highlight-icon,
+.renewals-today-card .today-highlight-icon{
   grid-column:1!important;
   grid-row:1!important;
   align-self:start!important;
@@ -1803,18 +1805,21 @@ input:focus,textarea:focus{
 
 .today-summary-card>div,
 .performance-today-card>div,
-.today-notes-card>div{
+.today-notes-card>div,
+.renewals-today-card>div{
   grid-column:2!important;
   grid-row:1 / 3!important;
   display:flex!important;
   flex-direction:column!important;
   align-self:stretch!important;
+  justify-content:flex-start!important;
   min-width:0!important;
 }
 
 .today-summary-card>div>strong,
 .performance-today-card>div>strong,
-.today-notes-card>div>strong{
+.today-notes-card>div>strong,
+.renewals-today-card>div>strong{
   display:block!important;
   min-height:30px!important;
   padding-top:5px!important;
@@ -1823,17 +1828,20 @@ input:focus,textarea:focus{
 
 .today-summary-card .highlight-lines,
 .performance-today-card .performance-today-list,
-.today-notes-card .highlight-lines{
-  margin-top:auto!important;
-  margin-bottom:auto!important;
+.today-notes-card .highlight-lines,
+.renewals-today-card .highlight-lines{
+  margin-top:10px!important;
+  margin-bottom:0!important;
+  align-items:flex-start!important;
+  text-align:left!important;
 }
 
 .today-summary-card>div>i{
-  margin-top:7px!important;
+  margin-top:auto!important;
 }
 
 .today-summary-card .today-kids-inline{
-  margin-top:7px!important;
+  margin-top:8px!important;
   margin-bottom:0!important;
 }
 
@@ -3392,5 +3400,225 @@ input:focus,textarea:focus{
     bottom:0;
     background:#fffdf2;
     padding-bottom:4px;
+  }
+}
+
+/* Home - cinco cards em uma linha */
+@media(min-width:1000px){
+  .today-highlight-grid{
+    display:grid!important;
+    grid-template-columns:240px repeat(4,minmax(0,1fr))!important;
+    gap:14px!important;
+    align-items:stretch!important;
+  }
+
+  .today-highlight-grid > *{
+    min-width:0!important;
+    width:auto!important;
+  }
+
+  .mini-month{
+    min-height:250px!important;
+  }
+
+  .today-highlight-card{
+    min-height:250px!important;
+  }
+}
+
+
+/* Conteudo dos cards ocupa largura inteira */
+@media(min-width:1000px){
+  .today-summary-card,
+  .performance-today-card,
+  .today-notes-card,
+  .renewals-today-card{
+    grid-template-columns:38px minmax(0,1fr)!important;
+    grid-template-rows:auto 1fr!important;
+  }
+
+  .today-summary-card>div,
+  .performance-today-card>div,
+  .today-notes-card>div,
+  .renewals-today-card>div{
+    grid-column:1 / -1!important;
+    grid-row:1 / span 2!important;
+    padding-left:51px!important;
+    box-sizing:border-box!important;
+  }
+
+  .today-summary-card>div>strong,
+  .performance-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .renewals-today-card>div>strong{
+    padding-left:0!important;
+    margin-bottom:0!important;
+  }
+
+  .today-summary-card .highlight-lines,
+  .performance-today-card .performance-today-list,
+  .today-notes-card .highlight-lines,
+  .renewals-today-card .highlight-lines{
+    width:calc(100% + 51px)!important;
+    margin-left:-51px!important;
+    padding-left:0!important;
+    text-align:center!important;
+    align-items:center!important;
+  }
+
+  .today-summary-card>div>i{
+    width:calc(100% + 51px)!important;
+    margin-left:-51px!important;
+  }
+}
+
+/* Títulos dos cards em uma linha */
+@media(min-width:1000px){
+  .today-summary-card>div>strong,
+  .performance-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .renewals-today-card>div>strong{
+    white-space:nowrap!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+    font-size:14px!important;
+    letter-spacing:-0.2px!important;
+  }
+
+  .today-summary-card>div,
+  .performance-today-card>div,
+  .today-notes-card>div,
+  .renewals-today-card>div{
+    padding-left:46px!important;
+  }
+}
+
+/* Ajuste dos titulos e icones dos cards */
+@media(min-width:1000px){
+  .today-highlight-icon{
+    width:32px!important;
+    height:32px!important;
+    font-size:16px!important;
+  }
+
+  .today-summary-card>div,
+  .performance-today-card>div,
+  .today-notes-card>div,
+  .renewals-today-card>div{
+    padding-left:40px!important;
+  }
+
+  .today-summary-card>div>strong,
+  .performance-today-card>div>strong,
+  .today-notes-card>div>strong{
+    white-space:nowrap!important;
+    font-size:14px!important;
+  }
+
+  .renewals-today-card>div>strong{
+    white-space:normal!important;
+    font-size:14px!important;
+    line-height:1.15!important;
+    max-width:110px!important;
+  }
+}
+
+/* Acabamento final dos cards da Home */
+@media(min-width:1000px){
+  .today-summary-card,
+  .performance-today-card,
+  .today-notes-card,
+  .renewals-today-card{
+    padding:14px 14px 16px!important;
+  }
+
+  .today-highlight-icon{
+    width:32px!important;
+    height:32px!important;
+    font-size:16px!important;
+    margin-top:0!important;
+  }
+
+  .today-summary-card>div,
+  .performance-today-card>div,
+  .today-notes-card>div,
+  .renewals-today-card>div{
+    padding-left:40px!important;
+  }
+
+  .today-summary-card>div>strong,
+  .performance-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .renewals-today-card>div>strong{
+    display:flex!important;
+    align-items:center!important;
+    min-height:32px!important;
+    padding:0!important;
+    margin:0!important;
+    font-size:14px!important;
+    line-height:1.15!important;
+  }
+
+  .today-summary-card>div>strong,
+  .performance-today-card>div>strong,
+  .today-notes-card>div>strong{
+    white-space:nowrap!important;
+  }
+
+  .renewals-today-card>div>strong{
+    white-space:normal!important;
+    max-width:105px!important;
+  }
+
+  .today-summary-card .highlight-lines,
+  .performance-today-card .performance-today-list,
+  .today-notes-card .highlight-lines,
+  .renewals-today-card .highlight-lines{
+    width:calc(100% + 40px)!important;
+    margin-left:-40px!important;
+    margin-top:14px!important;
+    padding:0!important;
+    text-align:center!important;
+    align-items:center!important;
+  }
+
+  .today-summary-card>div>i{
+    width:calc(100% + 40px)!important;
+    margin-left:-40px!important;
+    margin-top:auto!important;
+  }
+}
+
+/* Microajuste dos ícones da Home */
+@media(min-width:1000px){
+  .today-summary-card .today-highlight-icon,
+  .performance-today-card .today-highlight-icon,
+  .today-notes-card .today-highlight-icon,
+  .renewals-today-card .today-highlight-icon{
+    transform:translateX(-4px)!important;
+  }
+}
+
+/* Ajuste específico do Resumo do dia */
+@media(min-width:1000px){
+  .today-summary-card>div{
+    padding-left:36px!important;
+  }
+
+  .today-summary-card .highlight-lines{
+    width:calc(100% + 36px)!important;
+    margin-left:-36px!important;
+    padding-left:0!important;
+    text-align:center!important;
+    align-items:center!important;
+  }
+
+  .today-summary-card .highlight-lines small{
+    white-space:nowrap!important;
+  }
+
+  .today-summary-card>div>i{
+    width:calc(100% + 36px)!important;
+    margin-left:-36px!important;
   }
 }

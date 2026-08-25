@@ -24,6 +24,10 @@ export type Workout = {
   sequenceSize?: number;
   notes?: string;
   archivedAt?: string;
+  validityMode?: "NONE" | "PERIOD" | "SESSIONS";
+  validityStartDate?: string;
+  validityWeeks?: number;
+  validitySessionTarget?: number;
   exercises: Exercise[];
 };
 
@@ -33,6 +37,7 @@ export type Session = {
   id: string;
   date: string;
   workoutName: string;
+  workoutId?: string;
   notes: string;
   completedExercises: Exercise[];
   source?: SessionSource;

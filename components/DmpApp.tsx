@@ -1511,6 +1511,11 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
     .filter((item):item is {event:CalendarEvent;kids:KidsLessonOpenRequest}=>Boolean(item.kids));
 
   const pending=notes.filter(note=>!note.done);
+  const renewals=students.flatMap(student=>
+    getStudentWorkoutEntries(student)
+      .map(({workout,slot})=>({student,workout,slot,validity:workoutValidityInfo(student,workout)}))
+      .filter(item=>item.validity.status==="RENEW"||item.validity.status==="EXPIRED")
+  );
 
   const renderPeople=(title:string,list:Student[],empty:string,statusClass:string)=>
     <section className="today-summary-group">
@@ -1646,6 +1651,18 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
 
         
       </button>
+
+      <button className="today-highlight-card renewals-today-card" onClick={()=>{const first=renewals[0];if(first)onStudent(first.student.id);}}>
+        <span className="today-highlight-icon">{"\u267B\uFE0F"}</span>
+        <div>
+          <strong>Treinos a renovar</strong>
+          <span className="highlight-lines">
+            <small><b>{renewals.length}</b> pendente{renewals.length===1?"":"s"}</small>
+            {renewals.slice(0,3).map(item=><small key={item.student.id+"-"+item.workout.id}>{item.student.name} · Treino {item.slot} · {item.validity.label}</small>)}
+          </span>
+        </div>
+      </button>
+
 
     </div>
 
@@ -2141,9 +2158,10 @@ function WorkoutSlotsPanel({student,onEdit,onStart,onArchive,onClear,onCopy}:{st
       <div className="workout-tabs-grid">{WORKOUT_SLOTS.map(slot=>{
         const entry=entries.find(item=>item.slot===slot);
         const workout=entry?.workout;
+        const validity=workout?workoutValidityInfo(student,workout):null;
         return <article className={`workout-slot-card ${workout?"filled":"empty"}`} key={slot}>
           <div className="workout-slot-head"><span className="workout-slot-badge">Treino {slot}</span>{workout?<span className="protocol-chip">{workoutProtocolLabel(workout.protocol)}</span>:<span className="status-chip">Vazio</span>}</div>
-          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>onCopy(workout)}>Duplicar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="secondary clear-workout-button" onClick={()=>onClear(workout)}>🗑 Limpar treino</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
+          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{validity&&validity.status!=="NONE"?<div className={`workout-validity-badge ${validity.status.toLowerCase()}`}><strong>{validity.label}</strong>{workout.validityMode==="PERIOD"&&validity.endDate?<small>Termina em {formatDate(validity.endDate)}</small>:workout.validityMode==="SESSIONS"?<small>{validity.completed}/{workout.validitySessionTarget||0} sessões realizadas</small>:null}</div>:null}{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>onCopy(workout)}>Duplicar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="secondary clear-workout-button" onClick={()=>onClear(workout)}>🗑 Limpar treino</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
         </article>
       })}</div>
     </section>
@@ -2176,6 +2194,10 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
   const [protocol,setProtocol]=useState<WorkoutProtocol>(initialProtocol);
   const [sequenceSize,setSequenceSize]=useState(workout?.sequenceSize||defaultSequenceSize(initialProtocol));
   const [workoutNotes,setWorkoutNotes]=useState(workout?.notes||"");
+  const [validityMode,setValidityMode]=useState<"NONE"|"PERIOD"|"SESSIONS">(workout?.validityMode||"NONE");
+  const [validityStartDate,setValidityStartDate]=useState(workout?.validityStartDate||today());
+  const [validityWeeks,setValidityWeeks]=useState(workout?.validityWeeks||3);
+  const [validitySessionTarget,setValiditySessionTarget]=useState(workout?.validitySessionTarget||12);
   const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
   const [dictation,setDictation]=useState("");
   const [dictating,setDictating]=useState(false);
@@ -2229,13 +2251,17 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
       protocol,
       sequenceSize:Math.max(1,sequenceSize),
       notes:workoutNotes.trim(),
+      validityMode,
+      validityStartDate:validityMode==="NONE" ? undefined : validityStartDate,
+      validityWeeks:validityMode==="PERIOD" ? Math.max(1,validityWeeks) : undefined,
+      validitySessionTarget:validityMode==="SESSIONS" ? Math.max(1,validitySessionTarget) : undefined,
       exercises:cleanExercises
     });
   };
 
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content workout-editor-page">
     {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
-    <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div><div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
+    <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Validade<select value={validityMode} onChange={e=>setValidityMode(e.target.value as "NONE"|"PERIOD"|"SESSIONS")}><option value="NONE">Sem controle</option><option value="PERIOD">Por período</option><option value="SESSIONS">Por sessões</option></select></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div>{validityMode!=="NONE"?<div className="workout-validity-config"><label>Início<input type="date" value={validityStartDate} onChange={e=>setValidityStartDate(e.target.value)}/></label>{validityMode==="PERIOD"?<label>Duração em semanas<input type="number" min="1" max="52" value={validityWeeks} onChange={e=>setValidityWeeks(Math.max(1,Number(e.target.value)||1))}/></label>:<label>Quantidade de sessões<input type="number" min="1" max="200" value={validitySessionTarget} onChange={e=>setValiditySessionTarget(Math.max(1,Number(e.target.value)||1))}/></label>}</div>:null}<div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
 
     <section className="panel workout-template-panel"><div className="panel-head"><div><h2>Modelos de treino</h2><p className="muted">Use uma estrutura pronta como ponto de partida e revise tudo antes de salvar.</p></div></div><div className="workout-template-grid">{WORKOUT_TEMPLATES.map(template=><button className="secondary" key={template.id} onClick={()=>applyTemplate(template)}><strong>{template.label}</strong><small>{template.description}</small></button>)}</div></section>
 
@@ -2275,7 +2301,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
       <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??false} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
       <div className="planned-exercise-main"><div className="planned-title-line"><span className="status-chip">{ex.block||"—"}</span><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div></div>
     </article>})}</div>
-    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
+    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,workoutId:workout?.id,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
 }
 
@@ -2707,6 +2733,41 @@ function getStudentWorkoutEntries(student:Student):{workout:Workout;slot:Workout
   });
 
   return entries.sort((a,b)=>WORKOUT_SLOTS.indexOf(a.slot)-WORKOUT_SLOTS.indexOf(b.slot)).slice(0,4);
+}
+
+type WorkoutValidityStatus="NONE"|"ACTIVE"|"RENEW"|"EXPIRED";
+
+function workoutValidityInfo(student:Student,workout:Workout){
+  const mode=workout.validityMode||"NONE";
+  const start=workout.validityStartDate||"";
+
+  if(mode==="NONE"){
+    return {status:"NONE" as WorkoutValidityStatus,label:"Sem controle",remaining:null as number|null,endDate:"",completed:0};
+  }
+
+  if(mode==="PERIOD"){
+    const weeks=Math.max(1,workout.validityWeeks||1);
+    if(!start)return {status:"NONE" as WorkoutValidityStatus,label:"Sem data de início",remaining:null as number|null,endDate:"",completed:0};
+    const end=new Date(start+"T12:00:00");
+    end.setDate(end.getDate()+(weeks*7)-1);
+    const current=new Date(today()+"T12:00:00");
+    const daysLeft=Math.ceil((end.getTime()-current.getTime())/86400000);
+    const endDate=end.toISOString().slice(0,10);
+    if(daysLeft<0)return {status:"EXPIRED" as WorkoutValidityStatus,label:"Vencido",remaining:0,endDate,completed:0};
+    if(daysLeft<=6)return {status:"RENEW" as WorkoutValidityStatus,label:"Última semana",remaining:daysLeft+1,endDate,completed:0};
+    return {status:"ACTIVE" as WorkoutValidityStatus,label:"Em andamento",remaining:daysLeft+1,endDate,completed:0};
+  }
+
+  const target=Math.max(1,workout.validitySessionTarget||1);
+  const completed=student.sessions.filter(session=>{
+    if(session.source!=="PLANNED")return false;
+    if(session.workoutId)return session.workoutId===workout.id;
+    return session.workoutName===workout.name&&(!start||session.date>=start);
+  }).length;
+  const remaining=Math.max(0,target-completed);
+  if(remaining===0)return {status:"EXPIRED" as WorkoutValidityStatus,label:"Vencido",remaining,endDate:"",completed};
+  if(remaining<=2)return {status:"RENEW" as WorkoutValidityStatus,label:"Faltam "+remaining+" sessão"+(remaining===1?"":"ões"),remaining,endDate:"",completed};
+  return {status:"ACTIVE" as WorkoutValidityStatus,label:"Em andamento",remaining,endDate:"",completed};
 }
 
 function getArchivedWorkouts(student:Student):Workout[]{
