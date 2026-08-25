@@ -265,19 +265,9 @@ useEffect(()=>{
 useEffect(()=>{
   if(view!=="today")return;
   let cancelled=false;
-  let spotifyUnauthorized=false;
   const loadSpotify=async()=>{
-    if(spotifyUnauthorized)return;
     try{
       const response=await fetch("/api/spotify/player",{cache:"no-store"});
-      if(response.status===401){
-        spotifyUnauthorized=true;
-        if(!cancelled){
-          setSpotifyState({connected:false});
-          setSpotifyProgressMs(0);
-        }
-        return;
-      }
       const data=await response.json().catch(()=>({connected:false}));
       if(!cancelled){
         setSpotifyState(data);
@@ -805,18 +795,15 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon">▰</span><strong>Google Drive</strong></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>setView("performance")} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>setView("performance")} onNotes={()=>document.querySelector(".notes-panel")?.scrollIntoView({behavior:"smooth"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
-              <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anota??es r?pidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="T?tulo do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conte?do do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id} onClick={()=>startEditingNote(note)} role="button" tabIndex={0}><div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div><div className="note-actions" onClick={e=>e.stopPropagation()}><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Conclu?do</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes r?pidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado exclu?do.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}{editingNoteId?<div className="note-modal-backdrop" onMouseDown={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}><section className="note-modal" onMouseDown={e=>e.stopPropagation()}><div className="note-modal-head"><span>Editar recado</span><button className="text-button" onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}} aria-label="Fechar">?</button></div><input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="T?tulo"/><textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Escreva seu recado..."/><div className="note-modal-actions"><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button><button className="primary" onClick={saveEditedNote}>Salvar</button></div></section></div>:null}</section>
+              <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id}>{editingNoteId===note.id?<div className="note-edit-fields"><input aria-label="Editar título" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea aria-label="Editar recado" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)}/></div>:<div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div>}<div className="note-actions"><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><div className="note-edit-actions">{editingNoteId===note.id?<><button onClick={saveEditedNote}>Salvar</button><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button></>:<button onClick={()=>startEditingNote(note)}>Editar</button>}<button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}</section>
               <OperationalClosings students={students} performanceActivities={homePerformanceActivities}/>
               {birthdayStudents.length ? <section className="panel smart-alerts" data-home-size-key="birthdays"><div className="panel-head"><div><h2>Aniversariantes de hoje</h2><p className="muted">Quem está comemorando hoje.</p></div></div><div className="smart-alert-grid">{birthdayStudents.map(student=><button key={`b-${student.id}`} className="smart-alert-card birthday" onClick={()=>openStudent(student.id)}><span>🎂</span><strong>Aniversário: {student.name}</strong><small>{calculateAge(student.birthDate)} anos hoje</small></button>)}</div></section>:null}
               <div className="home-search-bottom" data-home-size-key="search"><GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}}/></div>
             </section><aside className="home-right-rail"><div className="spotify-shortcut">
   {spotifyState.connected ? <>
-    <div className="spotify-track" role="link" title="Abrir Spotify" onClick={()=>{
-      if(!window.matchMedia("(min-width: 901px)").matches)return;
-      window.location.href="spotify:";
-    }}>
+    <div className="spotify-track">
       {spotifyState.track?.image ? <img src={spotifyState.track.image} alt=""/> : <span className="spotify-logo">S</span>}
       <div><strong>{spotifyState.track?.name || "Spotify"}</strong><small>{spotifyState.track?.artist || (spotifyState.active ? "Pronto para tocar" : "Abra o Spotify")}</small></div>
     </div>
@@ -1158,21 +1145,8 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
     else displayEvents.push({...stored,matchedStudentId:student.id,matchedStudentIds:[student.id]});
   });
   displayEvents.sort((a,b)=>a.start.localeCompare(b.start));
-  return <section className="panel calendar-today-panel"><div className="panel-head"><div><h2>Agenda de hoje</h2>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
-    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.slice(0,10).map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}><strong>{event.summary}</strong><small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
-  {student.phone?<button
-    type="button"
-    className="calendar-whatsapp-button"
-    title={`Enviar WhatsApp para ${student.name}`}
-    aria-label={`Enviar WhatsApp para ${student.name}`}
-    onClick={()=>{
-      const phone=student.phone.replace(/\D/g,"");
-      const whatsappPhone=phone.startsWith("55")?phone:`55${phone}`;
-      window.open(`https://wa.me/${whatsappPhone}`,"_blank","noopener,noreferrer");
-    }}
-  >🟢</button>:null}
-  <button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>{student.name}</button>
-</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><span className={done?"status-chip ok":absent?"status-chip absent":"status-chip waiting"}>{done?"✓ Finalizado":absent?"Ausente":getStudentWorkoutEntries(student).length>0?"Com treino":"Sem treino"}</span>{!done&&!absent?<>{getStudentWorkoutEntries(student).length>0?<button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>▶ Iniciar</button>:null}<button className={getStudentWorkoutEntries(student).length>0?"secondary compact-action":"primary compact-action"} onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
+  return <section className="panel calendar-today-panel"><div className="panel-head"><div><h2>Agenda de hoje</h2><p className="muted">Sua agenda oficial do Google, agora ligada ao fluxo do DMP.</p>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
+    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.slice(0,10).map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}><strong>{event.summary}</strong><small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;return <div className="calendar-slot-student" key={student.id}><button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>👤 {student.name}</button><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><span className={done?"status-chip ok":absent?"status-chip absent":"status-chip waiting"}>{done?"✓ Finalizado":absent?"Ausente":getStudentWorkoutEntries(student).length>0?"Com treino":"Sem treino"}</span>{!done&&!absent?<>{getStudentWorkoutEntries(student).length>0?<button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>▶ Iniciar</button>:null}<button className={getStudentWorkoutEntries(student).length>0?"secondary compact-action":"primary compact-action"} onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
@@ -1495,7 +1469,7 @@ function GlobalSearch({value,onChange,students,events,onStudent,onAgenda}:{value
   return <section className="global-search-box"><div className="global-search-input"><span>⌕</span><input value={value} onChange={event=>onChange(event.target.value)} placeholder="Busca rápida: aluno, compromisso, telefone ou observação..."/>{value?<button onClick={()=>onChange("")} aria-label="Limpar busca">×</button>:null}</div>{query?<div className="global-search-results">{studentResults.map(student=><button key={student.id} onClick={()=>onStudent(student.id)}><span>👤</span><strong>{student.name}</strong><small>Aluno · abrir cadastro</small></button>)}{eventResults.map(event=><button key={event.id} onClick={()=>onAgenda(calendarEventDate(event))}><span>📅</span><strong>{event.summary}</strong><small>{formatDate(calendarEventDate(event))} · {formatCalendarTime(event)}</small></button>)}{!studentResults.length&&!eventResults.length?<p>Nenhum resultado encontrado.</p>:null}</div>:null}</section>;
 }
 
-function TodayHighlights({events,notes,students,sessions,performanceActivities,onAgenda,onStudent,onKids,onPerformance,onNotes,onOpenNote}:{events:CalendarEvent[];notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onPerformance:()=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void}){
+function TodayHighlights({events,notes,students,sessions,performanceActivities,onAgenda,onStudent,onKids,onPerformance,onNotes}:{events:CalendarEvent[];notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onPerformance:()=>void;onNotes:()=>void}){
   const [showSummary,setShowSummary]=useState(false);
 
   const timed=events
@@ -1537,11 +1511,6 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
     .filter((item):item is {event:CalendarEvent;kids:KidsLessonOpenRequest}=>Boolean(item.kids));
 
   const pending=notes.filter(note=>!note.done);
-  const renewals=students.flatMap(student=>
-    getStudentWorkoutEntries(student)
-      .map(({workout,slot})=>({student,workout,slot,validity:workoutValidityInfo(student,workout)}))
-      .filter(item=>item.validity.status==="RENEW"||item.validity.status==="EXPIRED")
-  );
 
   const renderPeople=(title:string,list:Student[],empty:string,statusClass:string)=>
     <section className="today-summary-group">
@@ -1563,7 +1532,7 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
     type==="STRENGTH"?"Força":
     type==="PILATES"?"Pilates":
     type==="RUNNING"?"Corrida":
-    type==="TENNIS"?"Tênis":"Atividade";
+    type==="TENNIS"?"T?nis":"Atividade";
 
   const durationText=(minutes:number)=>{
     const total=Math.round(minutes);
@@ -1671,24 +1640,12 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
 
           <span className="highlight-lines">
             <small><b>{pending.length}</b> pendente{pending.length===1?"":"s"}</small>
-            {pending.slice(0,4).map(note=><small key={note.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenNote(note);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenNote(note);}}}>{note.title || "Sem título"}</small>)}
+            {pending.slice(0,4).map(note=><small key={note.id}>{note.title || "Sem título"}</small>)}
           </span>
         </div>
 
         
       </button>
-
-      <button className="today-highlight-card renewals-today-card" onClick={()=>{const first=renewals[0];if(first)onStudent(first.student.id);}}>
-        <span className="today-highlight-icon">{"\u267B\uFE0F"}</span>
-        <div>
-          <strong>Treinos a renovar</strong>
-          <span className="highlight-lines">
-            <small><b>{renewals.length}</b> pendente{renewals.length===1?"":"s"}</small>
-            {renewals.slice(0,3).map(item=><small key={item.student.id+"-"+item.workout.id}>{item.student.name} · Treino {item.slot} · {item.validity.label}</small>)}
-          </span>
-        </div>
-      </button>
-
 
     </div>
 
@@ -1704,9 +1661,9 @@ function TodayHighlights({events,notes,students,sessions,performanceActivities,o
         </div>
 
         <div className="today-summary-columns">
-          {renderPeople("Atendidos",attended,"Nenhum atendimento concluído ainda.","done")}
+          {renderPeople("Atendidos",attended,"Nenhum atendimento conclu?do ainda.","done")}
           {renderPeople("Ainda faltam",remaining,"Nenhum atendimento pendente.","pending")}
-          {renderPeople("Ausentes",absent,"Nenhuma ausência registrada.","absent")}
+          {renderPeople("Ausentes",absent,"Nenhuma aus?ncia registrada.","absent")}
         </div>
       </section>
     :null}
@@ -1746,7 +1703,7 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
           const date=calendarEventDate(event);
           const changed=date!==previousDate;
           previousDate=date;
-          const dayLabel=date===todayKey?"Hoje":date===tomorrowKey?"Amanhã":"Dia seguinte";
+          const dayLabel=date===todayKey?"Hoje":date===tomorrowKey?"Amanh?":"Dia seguinte";
           const kids=kidsCalendarRequest(event);
 
           return <section className="agenda-rail-group" key={event.id}>
@@ -1981,13 +1938,13 @@ function HistoryPanel({student}:{student:Student}) {
       <div className="intelligent-history-details">
         <div>
           <span>{"\u00DAltima sess\u00E3o"}</span>
-          <strong>{latestSession?formatDate(latestSession.date):"—"}</strong>
+          <strong>{latestSession?formatDate(latestSession.date):"?"}</strong>
           <small>{latestSession?.workoutName||"Nenhum registro"}</small>
         </div>
 
         <div>
           <span>{"\u00DAltima avalia\u00E7\u00E3o"}</span>
-          <strong>{latestAssessment?formatDate(latestAssessment.date):"—"}</strong>
+          <strong>{latestAssessment?formatDate(latestAssessment.date):"?"}</strong>
           <small>{latestAssessment?"Avalia\u00E7\u00E3o registrada":"Nenhuma avalia\u00E7\u00E3o"}</small>
         </div>
       </div>
@@ -2184,10 +2141,9 @@ function WorkoutSlotsPanel({student,onEdit,onStart,onArchive,onClear,onCopy}:{st
       <div className="workout-tabs-grid">{WORKOUT_SLOTS.map(slot=>{
         const entry=entries.find(item=>item.slot===slot);
         const workout=entry?.workout;
-        const validity=workout?workoutValidityInfo(student,workout):null;
         return <article className={`workout-slot-card ${workout?"filled":"empty"}`} key={slot}>
           <div className="workout-slot-head"><span className="workout-slot-badge">Treino {slot}</span>{workout?<span className="protocol-chip">{workoutProtocolLabel(workout.protocol)}</span>:<span className="status-chip">Vazio</span>}</div>
-          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{validity&&validity.status!=="NONE"?<div className={`workout-validity-badge ${validity.status.toLowerCase()}`}><strong>{validity.label}</strong>{workout.validityMode==="PERIOD"&&validity.endDate?<small>Termina em {formatDate(validity.endDate)}</small>:workout.validityMode==="SESSIONS"?<small>{validity.completed}/{workout.validitySessionTarget||0} sessões realizadas</small>:null}</div>:null}{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>onCopy(workout)}>Duplicar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="secondary clear-workout-button" onClick={()=>onClear(workout)}>🗑 Limpar treino</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
+          {workout?<><h3>{workout.name||`Treino ${slot}`}</h3><p className="workout-slot-meta">{workout.exercises.length} exercício{workout.exercises.length===1?"":"s"} · {workout.sequenceSize||defaultSequenceSize(workout.protocol||"CONVENTIONAL")} por sequência</p>{workout.notes?<p className="workout-slot-note">{workout.notes}</p>:null}<ul className="workout-slot-preview">{workout.exercises.slice(0,6).map((exercise,index)=><li key={exercise.id}><strong>{index+1}.</strong> {exercise.name}<small>{exercise.sets||exercise.reps?`${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}</small></li>)}</ul>{workout.exercises.length>6?<small className="muted">+ {workout.exercises.length-6} exercícios</small>:null}<div className="workout-slot-actions workout-slot-actions-share"><button className="secondary" onClick={()=>onEdit(slot,workout)}>Editar</button><button className="secondary" onClick={()=>onCopy(workout)}>Duplicar</button><button className="secondary" onClick={()=>openWorkoutSharePreview(student,workout)}>Compartilhar</button><button className="secondary archive-workout-button" onClick={()=>onArchive(workout)}>Arquivar</button><button className="secondary clear-workout-button" onClick={()=>onClear(workout)}>🗑 Limpar treino</button><button className="primary" onClick={()=>onStart(workout)}>▶ Iniciar treino</button></div></>:<><div className="workout-slot-empty"><strong>Treino {slot} ainda não montado</strong><span>Escolha o protocolo e adicione os exercícios.</span></div><button className="primary" onClick={()=>onEdit(slot,null)}>+ Montar Treino {slot}</button></>}
         </article>
       })}</div>
     </section>
@@ -2220,10 +2176,6 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
   const [protocol,setProtocol]=useState<WorkoutProtocol>(initialProtocol);
   const [sequenceSize,setSequenceSize]=useState(workout?.sequenceSize||defaultSequenceSize(initialProtocol));
   const [workoutNotes,setWorkoutNotes]=useState(workout?.notes||"");
-  const [validityMode,setValidityMode]=useState<"NONE"|"PERIOD"|"SESSIONS">(workout?.validityMode||"NONE");
-  const [validityStartDate,setValidityStartDate]=useState(workout?.validityStartDate||today());
-  const [validityWeeks,setValidityWeeks]=useState(workout?.validityWeeks||3);
-  const [validitySessionTarget,setValiditySessionTarget]=useState(workout?.validitySessionTarget||12);
   const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
   const [dictation,setDictation]=useState("");
   const [dictating,setDictating]=useState(false);
@@ -2277,17 +2229,13 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
       protocol,
       sequenceSize:Math.max(1,sequenceSize),
       notes:workoutNotes.trim(),
-      validityMode,
-      validityStartDate:validityMode==="NONE" ? undefined : validityStartDate,
-      validityWeeks:validityMode==="PERIOD" ? Math.max(1,validityWeeks) : undefined,
-      validitySessionTarget:validityMode==="SESSIONS" ? Math.max(1,validitySessionTarget) : undefined,
       exercises:cleanExercises
     });
   };
 
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content workout-editor-page">
     {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
-    <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Validade<select value={validityMode} onChange={e=>setValidityMode(e.target.value as "NONE"|"PERIOD"|"SESSIONS")}><option value="NONE">Sem controle</option><option value="PERIOD">Por período</option><option value="SESSIONS">Por sessões</option></select></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div>{validityMode!=="NONE"?<div className="workout-validity-config"><label>Início<input type="date" value={validityStartDate} onChange={e=>setValidityStartDate(e.target.value)}/></label>{validityMode==="PERIOD"?<label>Duração em semanas<input type="number" min="1" max="52" value={validityWeeks} onChange={e=>setValidityWeeks(Math.max(1,Number(e.target.value)||1))}/></label>:<label>Quantidade de sessões<input type="number" min="1" max="200" value={validitySessionTarget} onChange={e=>setValiditySessionTarget(Math.max(1,Number(e.target.value)||1))}/></label>}</div>:null}<div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
+    <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div><div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
 
     <section className="panel workout-template-panel"><div className="panel-head"><div><h2>Modelos de treino</h2><p className="muted">Use uma estrutura pronta como ponto de partida e revise tudo antes de salvar.</p></div></div><div className="workout-template-grid">{WORKOUT_TEMPLATES.map(template=><button className="secondary" key={template.id} onClick={()=>applyTemplate(template)}><strong>{template.label}</strong><small>{template.description}</small></button>)}</div></section>
 
@@ -2327,7 +2275,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
       <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??false} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
       <div className="planned-exercise-main"><div className="planned-title-line"><span className="status-chip">{ex.block||"—"}</span><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div></div>
     </article>})}</div>
-    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,workoutId:workout?.id,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
+    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
 }
 
@@ -2759,41 +2707,6 @@ function getStudentWorkoutEntries(student:Student):{workout:Workout;slot:Workout
   });
 
   return entries.sort((a,b)=>WORKOUT_SLOTS.indexOf(a.slot)-WORKOUT_SLOTS.indexOf(b.slot)).slice(0,4);
-}
-
-type WorkoutValidityStatus="NONE"|"ACTIVE"|"RENEW"|"EXPIRED";
-
-function workoutValidityInfo(student:Student,workout:Workout){
-  const mode=workout.validityMode||"NONE";
-  const start=workout.validityStartDate||"";
-
-  if(mode==="NONE"){
-    return {status:"NONE" as WorkoutValidityStatus,label:"Sem controle",remaining:null as number|null,endDate:"",completed:0};
-  }
-
-  if(mode==="PERIOD"){
-    const weeks=Math.max(1,workout.validityWeeks||1);
-    if(!start)return {status:"NONE" as WorkoutValidityStatus,label:"Sem data de início",remaining:null as number|null,endDate:"",completed:0};
-    const end=new Date(start+"T12:00:00");
-    end.setDate(end.getDate()+(weeks*7)-1);
-    const current=new Date(today()+"T12:00:00");
-    const daysLeft=Math.ceil((end.getTime()-current.getTime())/86400000);
-    const endDate=end.toISOString().slice(0,10);
-    if(daysLeft<0)return {status:"EXPIRED" as WorkoutValidityStatus,label:"Vencido",remaining:0,endDate,completed:0};
-    if(daysLeft<=6)return {status:"RENEW" as WorkoutValidityStatus,label:"Última semana",remaining:daysLeft+1,endDate,completed:0};
-    return {status:"ACTIVE" as WorkoutValidityStatus,label:"Em andamento",remaining:daysLeft+1,endDate,completed:0};
-  }
-
-  const target=Math.max(1,workout.validitySessionTarget||1);
-  const completed=student.sessions.filter(session=>{
-    if(session.source!=="PLANNED")return false;
-    if(session.workoutId)return session.workoutId===workout.id;
-    return session.workoutName===workout.name&&(!start||session.date>=start);
-  }).length;
-  const remaining=Math.max(0,target-completed);
-  if(remaining===0)return {status:"EXPIRED" as WorkoutValidityStatus,label:"Vencido",remaining,endDate:"",completed};
-  if(remaining<=2)return {status:"RENEW" as WorkoutValidityStatus,label:"Faltam "+remaining+" sessão"+(remaining===1?"":"ões"),remaining,endDate:"",completed};
-  return {status:"ACTIVE" as WorkoutValidityStatus,label:"Em andamento",remaining,endDate:"",completed};
 }
 
 function getArchivedWorkouts(student:Student):Workout[]{
