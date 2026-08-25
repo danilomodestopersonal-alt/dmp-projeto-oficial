@@ -3622,3 +3622,25 @@ input:focus,textarea:focus{
     margin-left:-36px!important;
   }
 }
+
+/* Ajuste Aulas Kids no Resumo do dia */
+.today-summary-card .today-kids-inline{
+  width:100%!important;
+  margin-top:8px!important;
+}
+
+.today-summary-card .today-kids-inline-row{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
+  width:100%!important;
+  white-space:nowrap!important;
+  font-size:12px!important;
+  line-height:1.2!important;
+}
+
+.today-summary-card .today-kids-inline-row b,
+.today-summary-card .today-kids-inline-row span{
+  white-space:nowrap!important;
+}
