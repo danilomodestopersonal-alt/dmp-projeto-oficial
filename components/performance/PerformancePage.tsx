@@ -199,7 +199,7 @@ function emptyAssessment(): AssessmentForm {
   };
 }
 
-export default function PerformancePage() {
+export default function PerformancePage({openActivityId}:{openActivityId?:string|null}) {
   const [data, setData] = useState<PerformanceData>(EMPTY_DATA);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -216,6 +216,15 @@ export default function PerformancePage() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    if(!openActivityId || !data.activities.length)return;
+    const target=data.activities.find(activity=>activity.id===openActivityId);
+    if(target){
+      setTab("activities");
+      setDetailActivity(target);
+    }
+  },[openActivityId,data.activities]);
 
   async function loadData() {
     setLoading(true);

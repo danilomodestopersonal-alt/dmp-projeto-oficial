@@ -1319,7 +1319,7 @@ input:focus,textarea:focus{
 
 /* Visual final Spotify compacto + aniversarios */
 
-/* Spotify ? op??o 3: compacto, escuro e personalizado */
+/* Spotify — opção 3: compacto, escuro e personalizado */
 @media(min-width:901px){
   .home-right-rail{
     grid-template-rows:118px minmax(0,1fr)!important;
@@ -3694,4 +3694,151 @@ input:focus,textarea:focus{
 
 .calendar-whatsapp-button:hover{
   background:#edf9f1!important;
+}
+
+/* DMP — navegação principal da ficha do aluno */
+.student-profile-main-nav{
+  margin:18px 0 20px;
+  padding-top:16px;
+  border-top:1px solid var(--line);
+}
+
+.student-profile-main-nav .profile-tabs{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin:0;
+  padding:0;
+  overflow:visible;
+  background:transparent;
+  border-radius:0;
+}
+
+.student-profile-main-nav .profile-tabs button{
+  min-height:54px;
+  justify-content:center;
+  padding:12px 16px;
+  border-radius:14px;
+  font-weight:850;
+  font-size:.92rem;
+  background:#fff;
+  border:1px solid var(--line);
+  box-shadow:0 5px 15px rgba(37,39,44,.05);
+}
+
+.student-profile-main-nav .profile-tabs button span{
+  font-size:1.05rem;
+}
+
+.student-profile-main-nav .profile-tabs button.active{
+  background:var(--dmp-green);
+  border-color:var(--dmp-green);
+  color:#222;
+  box-shadow:0 7px 18px rgba(112,141,49,.18);
+}
+
+@media(max-width:800px){
+  .student-profile-main-nav .profile-tabs{
+    display:flex;
+    overflow-x:auto;
+    padding-bottom:3px;
+  }
+
+  .student-profile-main-nav .profile-tabs button{
+    min-width:135px;
+    flex:0 0 auto;
+  }
+}
+
+/* DMP — página Alunos em lista horizontal */
+.dashboard-student-grid{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:12px!important;
+}
+
+.dashboard-student-card{
+  display:grid!important;
+  grid-template-columns:minmax(280px,1fr) auto!important;
+  align-items:center!important;
+  gap:18px!important;
+  min-height:0!important;
+  padding:14px 16px!important;
+}
+
+.dashboard-student-card .student-card-open{
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:46px minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  text-align:left!important;
+}
+
+.dashboard-student-card .student-avatar{
+  width:42px!important;
+  height:42px!important;
+  flex:0 0 42px!important;
+}
+
+.dashboard-student-card .student-card-open>span:nth-child(2){
+  min-width:0!important;
+}
+
+.dashboard-student-card .student-card-open strong{
+  display:flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  font-size:.98rem!important;
+}
+
+.dashboard-student-card .student-card-open small{
+  margin-top:3px!important;
+}
+
+.dashboard-student-card .student-assessment-mini{
+  display:inline-flex!important;
+  margin-top:5px!important;
+}
+
+.dashboard-student-card .restriction-mini{
+  grid-column:1/-1!important;
+  margin:0!important;
+}
+
+.dashboard-student-card .compact-card-actions{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  justify-content:flex-end!important;
+  align-items:center!important;
+  gap:7px!important;
+  margin:0!important;
+}
+
+.dashboard-student-card .compact-card-actions button{
+  min-height:36px!important;
+  padding:8px 11px!important;
+  white-space:nowrap!important;
+  font-size:.78rem!important;
+}
+
+@media(max-width:1050px){
+  .dashboard-student-card{
+    grid-template-columns:1fr!important;
+  }
+
+  .dashboard-student-card .compact-card-actions{
+    justify-content:flex-start!important;
+  }
+}
+
+@media(max-width:700px){
+  .dashboard-student-card{
+    padding:13px!important;
+  }
+
+  .dashboard-student-card .compact-card-actions{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+  }
 }
