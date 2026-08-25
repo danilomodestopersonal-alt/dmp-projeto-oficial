@@ -3660,3 +3660,12 @@ input:focus,textarea:focus{
     text-align:left!important;
   }
 }
+
+/* Corrige posição da Aula Kids para a direita */
+@media(min-width:1000px){
+  .today-summary-card .today-kids-inline-row{
+    transform:translateX(18px)!important;
+    padding-left:0!important;
+    justify-content:center!important;
+  }
+}
