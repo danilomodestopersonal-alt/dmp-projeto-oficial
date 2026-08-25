@@ -3669,3 +3669,22 @@ input:focus,textarea:focus{
     justify-content:center!important;
   }
 }
+
+/* Posicao definitiva da Aula Kids */
+@media(min-width:1000px){
+  .today-summary-card .today-kids-inline{
+    width:100%!important;
+    overflow:visible!important;
+  }
+
+  .today-summary-card .today-kids-inline-row{
+    transform:none!important;
+    justify-content:flex-start!important;
+    width:calc(100% - 28px)!important;
+    margin-left:28px!important;
+    padding:0!important;
+    box-sizing:border-box!important;
+    white-space:nowrap!important;
+    text-align:left!important;
+  }
+}
