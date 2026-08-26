@@ -1734,17 +1734,16 @@ function TodayHighlights({events,monthEvents,notes,students,sessions,performance
         
       </button>
 
-      <article className="today-highlight-card month-closing-today-card">
-        <span className="today-highlight-icon month-closing-icon" aria-hidden="true">📊</span>
+      <article className="today-highlight-card">
+        <span className="today-highlight-icon" aria-hidden="true">{"\uD83D\uDCCA"}</span>
         <div>
-          <strong>Fechamento do mês</strong>
-          <span className="highlight-lines month-closing-lines">
+          <strong>Fechamento do m?s</strong>
+          <span className="highlight-lines">
             <small><b>{monthAttended}</b> atendimentos</small>
-            <small><b>{monthAssessments}</b> avaliações</small>
+            <small><b>{monthAssessments}</b> avalia??es</small>
             <small><b>{monthKids}</b> aulas Kids</small>
-            <small className="month-closing-personal-title"><b>Meus treinos:</b></small>
-            <small>🚴 <b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
-            <small>🏋️ <b>{monthStrength.length}</b> musculação</small>
+            <small>{"\uD83D\uDEB4"} <b>{monthCycling.length}</b> ciclismo ? <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
+            <small>{"\uD83C\uDFCB\uFE0F"} <b>{monthStrength.length}</b> muscula??o</small>
           </span>
         </div>
       </article>
