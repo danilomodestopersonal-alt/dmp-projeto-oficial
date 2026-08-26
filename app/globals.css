@@ -5124,3 +5124,100 @@ input:focus,textarea:focus{
   }
 }
 
+
+/* DMP — V5: padronizacao real dos cards superiores */
+@media(min-width:1000px){
+  .today-highlight-card{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    height:214px!important;
+    min-height:214px!important;
+    padding:10px 12px!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+    overflow:hidden!important;
+  }
+
+  .today-highlight-card>.today-highlight-icon{
+    position:static!important;
+    flex:0 0 32px!important;
+    width:32px!important;
+    height:32px!important;
+    margin:0 0 4px!important;
+    transform:none!important;
+    display:grid!important;
+    place-items:center!important;
+    font-size:16px!important;
+  }
+
+  .today-highlight-card>div{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    flex:1 1 auto!important;
+    width:100%!important;
+    height:auto!important;
+    min-width:0!important;
+    margin:0!important;
+    padding:0!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+  }
+
+  .today-highlight-card>div>strong{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:100%!important;
+    min-height:0!important;
+    margin:0 0 7px!important;
+    padding:0!important;
+    font-size:14px!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+    text-align:center!important;
+  }
+
+  .today-highlight-card .highlight-lines,
+  .today-highlight-card .performance-today-list,
+  .month-closing-today-card .month-closing-lines{
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+    display:grid!important;
+    justify-items:center!important;
+    align-items:center!important;
+    gap:3px!important;
+    text-align:center!important;
+  }
+
+  .today-summary-card>div>i{
+    width:100%!important;
+    margin:8px 0 6px!important;
+  }
+
+  .today-summary-card .today-kids-inline{
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+  }
+
+  .month-closing-today-card .month-closing-lines small{
+    font-size:11.5px!important;
+    line-height:1.18!important;
+  }
+
+  .month-closing-today-card .month-closing-personal-title{
+    margin-top:3px!important;
+    padding:0!important;
+    border:0!important;
+  }
+
+  .performance-today-card .performance-today-list,
+  .today-notes-card .highlight-lines{
+    margin-top:0!important;
+  }
+}
