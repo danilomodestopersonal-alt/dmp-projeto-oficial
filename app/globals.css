@@ -4808,4 +4808,195 @@ input:focus,textarea:focus{
   .month-closing-today-card .month-closing-lines small{font-size:11px!important;line-height:1.18!important}
   .month-closing-today-card .month-closing-personal-title{margin-top:3px!important;color:#687169!important;font-size:10px!important;font-weight:900!important;text-transform:uppercase;letter-spacing:.04em}
 }
-\n\n/* DMP — acabamento compacto do fechamento mensal e pendencias */\n@media(min-width:1000px){\n  .month-closing-today-card{\n    display:flex!important;\n    flex-direction:column!important;\n    gap:8px!important;\n    padding:11px 12px!important;\n  }\n  .month-closing-today-card>div{\n    grid-column:auto!important;\n    grid-row:auto!important;\n    padding-left:0!important;\n    width:100%!important;\n    margin:0!important;\n  }\n  .month-closing-head{\n    display:flex!important;\n    align-items:center!important;\n    justify-content:flex-start!important;\n    gap:8px!important;\n    min-height:30px!important;\n  }\n  .month-closing-head strong{\n    min-height:0!important;\n    font-size:13px!important;\n    white-space:nowrap!important;\n    margin:0!important;\n  }\n  .month-closing-icon{\n    flex:0 0 28px;\n    width:28px;\n    height:28px;\n    display:grid;\n    place-items:center;\n    border-radius:9px;\n    background:#eef5d9;\n    color:#547116;\n    font-size:14px;\n    font-weight:900;\n  }\n  .month-closing-metrics{\n    display:grid!important;\n    grid-template-columns:1fr 1fr!important;\n    gap:6px!important;\n  }\n  .month-closing-metrics>span{\n    display:grid;\n    grid-template-columns:auto 1fr;\n    align-items:baseline;\n    column-gap:5px;\n    padding:5px 7px;\n    border:1px solid #e1e7d7;\n    border-radius:9px;\n    background:#fbfcf8;\n    text-align:left;\n  }\n  .month-closing-metrics b{font-size:13px;color:#536c19}\n  .month-closing-metrics small{font-size:9.5px;color:var(--dmp-muted);white-space:nowrap}\n  .month-closing-personal{\n    display:grid!important;\n    gap:3px!important;\n    padding-top:2px!important;\n    border-top:1px solid #e5eadc;\n    text-align:left!important;\n  }\n  .month-closing-personal-title{\n    margin:0!important;\n    font-size:9px!important;\n    line-height:1.1!important;\n    color:#6b746d!important;\n    letter-spacing:.06em!important;\n    font-weight:900!important;\n  }\n  .month-closing-personal>span{\n    display:flex;\n    align-items:center;\n    gap:4px;\n    font-size:10px;\n    line-height:1.15;\n    color:#5e6662;\n    white-space:nowrap;\n  }\n  .month-closing-personal>span b{font-size:10.5px;color:#3f4e36}\n  .month-closing-personal>span em{margin-left:auto;font-style:normal;font-weight:900;color:#536c19}\n}\n\n.home-pending-section{\n  height:auto!important;\n  min-height:0!important;\n  max-height:none!important;\n  resize:none!important;\n}\n.home-pending-section>summary{min-height:0!important}\n.home-pending-section:not([open]) .home-pending-grid{display:none!important}\n.home-pending-section[open] .home-pending-grid{\n  display:grid!important;\n  grid-auto-rows:max-content!important;\n  align-items:start!important;\n}\n.home-pending-grid>section{\n  min-height:0!important;\n  height:auto!important;\n  align-self:start!important;\n}\n.home-pending-list{max-height:180px!important}\n\n\n/* DMP — fechamento mensal 6 linhas + Drive alinhado */\n.drive-shortcut-premium{\n  grid-template-columns:34px minmax(0,1fr)!important;\n  grid-template-rows:auto!important;\n  align-items:center!important;\n  column-gap:12px!important;\n  padding:10px 13px!important;\n}\n.drive-shortcut-premium>.drive-icon{\n  grid-column:1!important;\n  grid-row:1!important;\n  width:32px!important;\n  height:32px!important;\n  margin:0!important;\n}\n.drive-shortcut-premium>.drive-icon svg{width:30px!important;height:30px!important}\n.drive-shortcut-premium>.drive-shortcut-copy{\n  grid-column:2!important;\n  grid-row:1!important;\n  display:grid!important;\n  align-content:center!important;\n  gap:2px!important;\n  min-width:0!important;\n  margin:0!important;\n  color:inherit!important;\n  font-size:inherit!important;\n}\n.drive-shortcut-premium>.drive-shortcut-copy strong,\n.drive-shortcut-premium>.drive-shortcut-copy small{\n  display:block!important;\n  margin:0!important;\n  line-height:1.15!important;\n}\n\n@media(min-width:1000px){\n  .month-closing-today-card{\n    grid-template-columns:38px minmax(0,1fr)!important;\n    grid-template-rows:auto 1fr!important;\n    padding:11px 12px!important;\n  }\n  .month-closing-today-card>.today-highlight-icon{\n    grid-column:1!important;\n    grid-row:1!important;\n    width:32px!important;\n    height:32px!important;\n    margin:0!important;\n    transform:translateX(-2px)!important;\n  }\n  .month-closing-today-card>div{\n    grid-column:1 / -1!important;\n    grid-row:1 / span 2!important;\n    padding-left:38px!important;\n    min-width:0!important;\n  }\n  .month-closing-today-card>div>strong{\n    min-height:32px!important;\n    font-size:14px!important;\n    white-space:nowrap!important;\n  }\n  .month-closing-today-card .month-closing-lines{\n    width:calc(100% + 38px)!important;\n    margin-left:-38px!important;\n    margin-top:7px!important;\n    display:grid!important;\n    gap:4px!important;\n    text-align:center!important;\n    align-items:center!important;\n  }\n  .month-closing-today-card .month-closing-lines small{\n    display:block!important;\n    margin:0!important;\n    font-size:11.5px!important;\n    line-height:1.2!important;\n    white-space:nowrap!important;\n  }\n  .month-closing-today-card .month-closing-lines b{color:#536c19!important}\n  .month-closing-today-card .month-closing-personal-title{\n    margin-top:3px!important;\n    padding-top:5px!important;\n    border-top:1px solid #e5eadb!important;\n    color:#687169!important;\n  }\n}\n
+
+
+/* DMP — acabamento compacto do fechamento mensal e pendencias */
+@media(min-width:1000px){
+  .month-closing-today-card{
+    display:flex!important;
+    flex-direction:column!important;
+    gap:8px!important;
+    padding:11px 12px!important;
+  }
+  .month-closing-today-card>div{
+    grid-column:auto!important;
+    grid-row:auto!important;
+    padding-left:0!important;
+    width:100%!important;
+    margin:0!important;
+  }
+  .month-closing-head{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    gap:8px!important;
+    min-height:30px!important;
+  }
+  .month-closing-head strong{
+    min-height:0!important;
+    font-size:13px!important;
+    white-space:nowrap!important;
+    margin:0!important;
+  }
+  .month-closing-icon{
+    flex:0 0 28px;
+    width:28px;
+    height:28px;
+    display:grid;
+    place-items:center;
+    border-radius:9px;
+    background:#eef5d9;
+    color:#547116;
+    font-size:14px;
+    font-weight:900;
+  }
+  .month-closing-metrics{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:6px!important;
+  }
+  .month-closing-metrics>span{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    align-items:baseline;
+    column-gap:5px;
+    padding:5px 7px;
+    border:1px solid #e1e7d7;
+    border-radius:9px;
+    background:#fbfcf8;
+    text-align:left;
+  }
+  .month-closing-metrics b{font-size:13px;color:#536c19}
+  .month-closing-metrics small{font-size:9.5px;color:var(--dmp-muted);white-space:nowrap}
+  .month-closing-personal{
+    display:grid!important;
+    gap:3px!important;
+    padding-top:2px!important;
+    border-top:1px solid #e5eadc;
+    text-align:left!important;
+  }
+  .month-closing-personal-title{
+    margin:0!important;
+    font-size:9px!important;
+    line-height:1.1!important;
+    color:#6b746d!important;
+    letter-spacing:.06em!important;
+    font-weight:900!important;
+  }
+  .month-closing-personal>span{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-size:10px;
+    line-height:1.15;
+    color:#5e6662;
+    white-space:nowrap;
+  }
+  .month-closing-personal>span b{font-size:10.5px;color:#3f4e36}
+  .month-closing-personal>span em{margin-left:auto;font-style:normal;font-weight:900;color:#536c19}
+}
+
+.home-pending-section{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  resize:none!important;
+}
+.home-pending-section>summary{min-height:0!important}
+.home-pending-section:not([open]) .home-pending-grid{display:none!important}
+.home-pending-section[open] .home-pending-grid{
+  display:grid!important;
+  grid-auto-rows:max-content!important;
+  align-items:start!important;
+}
+.home-pending-grid>section{
+  min-height:0!important;
+  height:auto!important;
+  align-self:start!important;
+}
+.home-pending-list{max-height:180px!important}
+
+
+/* DMP — fechamento mensal 6 linhas + Drive alinhado */
+.drive-shortcut-premium{
+  grid-template-columns:34px minmax(0,1fr)!important;
+  grid-template-rows:auto!important;
+  align-items:center!important;
+  column-gap:12px!important;
+  padding:10px 13px!important;
+}
+.drive-shortcut-premium>.drive-icon{
+  grid-column:1!important;
+  grid-row:1!important;
+  width:32px!important;
+  height:32px!important;
+  margin:0!important;
+}
+.drive-shortcut-premium>.drive-icon svg{width:30px!important;height:30px!important}
+.drive-shortcut-premium>.drive-shortcut-copy{
+  grid-column:2!important;
+  grid-row:1!important;
+  display:grid!important;
+  align-content:center!important;
+  gap:2px!important;
+  min-width:0!important;
+  margin:0!important;
+  color:inherit!important;
+  font-size:inherit!important;
+}
+.drive-shortcut-premium>.drive-shortcut-copy strong,
+.drive-shortcut-premium>.drive-shortcut-copy small{
+  display:block!important;
+  margin:0!important;
+  line-height:1.15!important;
+}
+
+@media(min-width:1000px){
+  .month-closing-today-card{
+    grid-template-columns:38px minmax(0,1fr)!important;
+    grid-template-rows:auto 1fr!important;
+    padding:11px 12px!important;
+  }
+  .month-closing-today-card>.today-highlight-icon{
+    grid-column:1!important;
+    grid-row:1!important;
+    width:32px!important;
+    height:32px!important;
+    margin:0!important;
+    transform:translateX(-2px)!important;
+  }
+  .month-closing-today-card>div{
+    grid-column:1 / -1!important;
+    grid-row:1 / span 2!important;
+    padding-left:38px!important;
+    min-width:0!important;
+  }
+  .month-closing-today-card>div>strong{
+    min-height:32px!important;
+    font-size:14px!important;
+    white-space:nowrap!important;
+  }
+  .month-closing-today-card .month-closing-lines{
+    width:calc(100% + 38px)!important;
+    margin-left:-38px!important;
+    margin-top:7px!important;
+    display:grid!important;
+    gap:4px!important;
+    text-align:center!important;
+    align-items:center!important;
+  }
+  .month-closing-today-card .month-closing-lines small{
+    display:block!important;
+    margin:0!important;
+    font-size:11.5px!important;
+    line-height:1.2!important;
+    white-space:nowrap!important;
+  }
+  .month-closing-today-card .month-closing-lines b{color:#536c19!important}
+  .month-closing-today-card .month-closing-personal-title{
+    margin-top:3px!important;
+    padding-top:5px!important;
+    border-top:1px solid #e5eadb!important;
+    color:#687169!important;
+  }
+}
