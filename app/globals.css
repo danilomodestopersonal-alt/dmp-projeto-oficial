@@ -5000,3 +5000,127 @@ input:focus,textarea:focus{
     color:#687169!important;
   }
 }
+
+/* DMP — V4 padronizacao visual dos cards superiores */
+@media(min-width:1000px){
+  .today-highlight-card{
+    position:relative!important;
+    display:block!important;
+    height:214px!important;
+    min-height:0!important;
+    padding:14px 14px 13px!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+    overflow:hidden!important;
+  }
+
+  .today-highlight-card>.today-highlight-icon{
+    position:absolute!important;
+    top:14px!important;
+    left:14px!important;
+    width:32px!important;
+    height:32px!important;
+    display:grid!important;
+    place-items:center!important;
+    margin:0!important;
+    transform:none!important;
+    font-size:16px!important;
+    z-index:2!important;
+  }
+
+  .today-highlight-card>div{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    width:100%!important;
+    height:100%!important;
+    min-width:0!important;
+    margin:0!important;
+    padding:0!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+  }
+
+  .today-highlight-card>div>strong{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:100%!important;
+    min-height:32px!important;
+    margin:0 0 8px!important;
+    padding:0 34px!important;
+    box-sizing:border-box!important;
+    font-size:14px!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+    text-align:center!important;
+  }
+
+  .today-highlight-card .highlight-lines,
+  .today-highlight-card .performance-today-list{
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+    display:grid!important;
+    justify-items:center!important;
+    align-items:center!important;
+    gap:4px!important;
+    text-align:center!important;
+  }
+
+  .today-highlight-card .highlight-lines small,
+  .today-highlight-card .performance-today-row,
+  .today-highlight-card .performance-today-row small,
+  .today-highlight-card .performance-today-row b{
+    text-align:center!important;
+  }
+
+  .today-summary-card>div>i{
+    width:100%!important;
+    margin:11px 0 8px!important;
+  }
+
+  .today-summary-card .today-kids-inline{
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+    display:grid!important;
+    justify-items:center!important;
+  }
+
+  .today-summary-card .today-kids-inline-row{
+    justify-content:center!important;
+  }
+
+  .month-closing-today-card .month-closing-lines{
+    gap:4px!important;
+  }
+
+  .month-closing-today-card .month-closing-lines small{
+    display:block!important;
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+    font-size:11.5px!important;
+    line-height:1.22!important;
+    white-space:nowrap!important;
+    text-align:center!important;
+  }
+
+  .month-closing-today-card .month-closing-personal-title{
+    margin-top:4px!important;
+    padding-top:0!important;
+    border-top:0!important;
+    color:#536c19!important;
+    font-size:10.5px!important;
+    letter-spacing:.06em!important;
+    text-transform:uppercase!important;
+  }
+
+  .today-notes-card .highlight-lines,
+  .performance-today-card .performance-today-list,
+  .performance-today-card .highlight-lines{
+    margin-top:2px!important;
+  }
+}
+
