@@ -533,7 +533,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }, [students, search, studentFilter]);
 
-  const exerciseCatalog = useMemo(() => buildExerciseCatalog(students), [students]);
+  const exerciseCatalog = useMemo(() => buildExerciseCatalog(students,personalWorkoutTemplates), [students,personalWorkoutTemplates]);
 
   function updateStudentRecord(nextStudent: Student) {
     setStudents(current => current.map(student => student.id === nextStudent.id ? nextStudent : student));
@@ -2623,6 +2623,7 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
       ...exercise,
       id:crypto.randomUUID(),
       block:exercise.block||sequenceBlockLabel(template.protocol,index,template.sequenceSize),
+      name:cleanExerciseCatalogName(exercise.name)||exercise.name.trim(),
       load:"",
       notes:exercise.notes||""
     })));
@@ -2652,6 +2653,11 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
 
     if(!templateName)return;
 
+    if(personalTemplates.some(item=>normalizeName(item.name)===normalizeName(templateName))){
+      alert("Já existe um modelo com esse nome. Escolha outro nome para evitar duplicidade na biblioteca.");
+      return;
+    }
+
     const description=prompt(
       "Descrição curta do modelo:",
       `${workoutProtocolLabel(protocol)} · ${cleanExercises.length} exercícios`
@@ -2678,6 +2684,10 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
   function renamePersonalTemplate(template:PersonalWorkoutTemplate){
     const nextName=prompt("Novo nome do modelo:",template.name)?.trim();
     if(!nextName||nextName===template.name)return;
+    if(personalTemplates.some(item=>item.id!==template.id&&normalizeName(item.name)===normalizeName(nextName))){
+      alert("Já existe outro modelo com esse nome.");
+      return;
+    }
 
     onTemplatesChange(personalTemplates.map(item=>
       item.id===template.id
@@ -2703,7 +2713,7 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
     const cleanExercises=exercises.filter(exercise=>exercise.name.trim()).map((exercise,index)=>({
       ...exercise,
       block:exercise.block?.trim()||sequenceBlockLabel(protocol,index,sequenceSize),
-      name:exercise.name.trim(),
+      name:cleanExerciseCatalogName(exercise.name)||exercise.name.trim(),
       sets:exercise.sets.trim(),
       reps:exercise.reps.trim(),
       load:exercise.load.trim(),
@@ -3573,7 +3583,7 @@ function splitExerciseCatalogNames(value:string){
   // Se um histórico antigo juntou dois exercícios, transforma em duas sugestões.
   return base.split(/\s+(?:\+|&|e)\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/).map(cleanExerciseCatalogName).filter(Boolean);
 }
-function buildExerciseCatalog(students:Student[]){
+function buildExerciseCatalog(students:Student[],templates:PersonalWorkoutTemplate[]=[]){
   const names=new Map<string,string>();
   const addName=(value:string)=>{
     for(const cleanName of splitExerciseCatalogNames(value)){
@@ -3586,6 +3596,7 @@ function buildExerciseCatalog(students:Student[]){
     // Isso evita sugestões duplicadas com séries, repetições ou cargas gravadas no nome.
     for(const workout of student.workouts)for(const exercise of workout.exercises)addName(exercise.name);
   }
+  for(const template of templates)for(const exercise of template.exercises)addName(exercise.name);
   return [...names.values()].sort((a,b)=>a.localeCompare(b,"pt-BR"));
 }
 
