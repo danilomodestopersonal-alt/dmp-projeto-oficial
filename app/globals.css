@@ -4367,3 +4367,15 @@ input:focus,textarea:focus{
     justify-content:center;
   }
 }
+
+/* DMP — resumo do treino diretamente na lista de alunos */
+.student-workout-summary{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.student-workout-chip{display:inline-grid;grid-template-columns:auto auto;align-items:center;gap:2px 5px;max-width:100%;padding:5px 8px;border:1px solid #dfe6d2;border-radius:10px;background:#f7f9f3;font-size:.72rem;line-height:1.1;color:#30363b}
+.student-workout-chip>b{display:grid;place-items:center;width:20px;height:20px;border-radius:7px;background:#a8c93b;color:#26310e;font-size:.72rem}
+.student-workout-chip>em{grid-column:1/-1;font-style:normal;font-size:.64rem;font-weight:800;color:#69716f}
+.student-workout-chip.renew{border-color:#efd58b;background:#fff9e8}.student-workout-chip.renew>em{color:#956600}
+.student-workout-chip.expired{border-color:#efb5aa;background:#fff3f0}.student-workout-chip.expired>em{color:#a23c2d}
+.student-workout-chip.empty{border-style:dashed;background:#fafafa;color:#737a80}
+.student-workout-chip.empty>b{background:#e8ebed;color:#737a80}
+.dashboard-student-card.workout-needs-renewal{border-left-color:#d99a22!important}
+@media(max-width:700px){.student-workout-summary{display:grid;grid-template-columns:1fr 1fr}.student-workout-chip{min-width:0}.student-workout-chip:nth-child(odd):last-child{grid-column:1/-1}}
