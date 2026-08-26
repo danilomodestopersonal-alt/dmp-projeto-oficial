@@ -5067,3 +5067,39 @@ input:focus,textarea:focus{
     font-weight:900!important;
   }
 }
+
+/* DMP - fechamento mensal simplificado */
+@media(min-width:1000px){
+  .month-closing-today-card .month-closing-personal-title{
+    display:none!important;
+  }
+
+  .month-closing-today-card .month-closing-lines{
+    display:grid!important;
+    justify-items:center!important;
+    gap:4px!important;
+    margin-top:6px!important;
+    text-align:center!important;
+  }
+
+  .month-closing-today-card .month-closing-lines small{
+    display:block!important;
+    margin:0!important;
+    padding:0!important;
+    font-size:11.5px!important;
+    line-height:1.2!important;
+    white-space:nowrap!important;
+  }
+
+  .month-closing-today-card .month-closing-lines small:nth-of-type(4){
+    margin-top:2px!important;
+  }
+
+  .month-closing-today-card .month-closing-lines small:nth-of-type(4)::before{
+    content:"?? ";
+  }
+
+  .month-closing-today-card .month-closing-lines small:nth-of-type(5)::before{
+    content:"??? ";
+  }
+}
