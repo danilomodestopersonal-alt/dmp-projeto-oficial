@@ -4647,48 +4647,164 @@ input:focus,textarea:focus{
   outline-offset:2px;
 }
 
+/* DMP — pacote consolidado Home: cards, pendências e atalhos */
+.drive-shortcut-premium{
+  position:relative;
+  grid-template-columns:42px minmax(0,1fr)!important;
+  grid-template-rows:1fr!important;
+  align-items:center!important;
+  gap:10px!important;
+  overflow:hidden;
+  background:linear-gradient(145deg,#ffffff,#fbfdf7)!important;
+  box-shadow:0 7px 18px rgba(37,39,44,.05);
+  transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;
+}
+.drive-shortcut-premium:hover{transform:translateY(-1px);border-color:#c8d7a1!important;box-shadow:0 10px 24px rgba(37,39,44,.09)}
+.drive-shortcut-premium .drive-icon{grid-row:auto!important;width:38px;height:38px;display:grid;place-items:center;font-size:0!important;color:inherit!important}
+.drive-shortcut-premium .drive-icon svg{width:34px;height:34px;display:block}
+.drive-shortcut-copy{display:grid;gap:2px;min-width:0}
+.drive-shortcut-copy strong{font-size:.92rem!important;white-space:nowrap}
+.drive-shortcut-copy small{font-size:.68rem!important;color:var(--dmp-muted)!important;white-space:nowrap}
 
-/* DMP ? compactacao suave dos cards superiores */
 @media(min-width:1000px){
   .today-highlight-grid{
+    grid-template-columns:240px repeat(4,minmax(0,1fr))!important;
     align-items:stretch!important;
   }
 
   .mini-month,
   .today-summary-card,
-  .performance-today-card,
+  .month-closing-today-card,
   .today-notes-card,
-  .renewals-today-card{
+  .performance-today-card{
     min-height:0!important;
     height:214px!important;
     box-sizing:border-box!important;
   }
 
+  .mini-month{padding:10px 12px!important}
+  .mini-month>button{padding-bottom:5px!important}
+  .mini-month-days button,.mini-month-days i{height:17px!important}
+
   .today-summary-card,
-  .performance-today-card,
+  .month-closing-today-card,
   .today-notes-card,
-  .renewals-today-card{
-    padding-top:11px!important;
-    padding-bottom:11px!important;
+  .performance-today-card{
+    position:relative!important;
+    display:grid!important;
+    grid-template-columns:38px minmax(0,1fr)!important;
+    grid-template-rows:auto 1fr!important;
+    align-items:start!important;
+    padding:11px 14px!important;
+  }
+
+  .today-summary-card>div,
+  .month-closing-today-card>div,
+  .today-notes-card>div,
+  .performance-today-card>div{
+    grid-column:1 / -1!important;
+    grid-row:1 / span 2!important;
+    padding-left:40px!important;
+    box-sizing:border-box!important;
+    min-width:0!important;
+  }
+
+  .today-summary-card>div>strong,
+  .month-closing-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .performance-today-card>div>strong{
+    display:flex!important;
+    align-items:center!important;
+    min-height:32px!important;
+    padding:0!important;
+    margin:0!important;
+    white-space:nowrap!important;
+    font-size:14px!important;
+    line-height:1.15!important;
+  }
+
+  .today-summary-card .today-highlight-icon,
+  .month-closing-today-card .today-highlight-icon,
+  .today-notes-card .today-highlight-icon,
+  .performance-today-card .today-highlight-icon{
+    width:32px!important;
+    height:32px!important;
+    font-size:16px!important;
+    margin-top:0!important;
+    transform:translateX(-4px)!important;
   }
 
   .today-summary-card .highlight-lines,
-  .performance-today-card .performance-today-list,
+  .month-closing-today-card .highlight-lines,
   .today-notes-card .highlight-lines,
-  .renewals-today-card .highlight-lines{
+  .performance-today-card .performance-today-list,
+  .performance-today-card .highlight-lines{
+    width:calc(100% + 40px)!important;
+    margin-left:-40px!important;
     margin-top:8px!important;
+    padding:0!important;
+    text-align:center!important;
+    align-items:center!important;
   }
 
-  .mini-month{
-    padding:10px 12px!important;
-  }
+  .month-closing-lines{gap:5px!important}
+  .month-closing-lines small{line-height:1.25!important}
+  .month-closing-lines small b{color:#536c19}
 
-  .mini-month>button{
-    padding-bottom:5px!important;
-  }
+  .today-summary-card>div{padding-left:36px!important}
+  .today-summary-card .highlight-lines,
+  .today-summary-card>div>i{width:calc(100% + 36px)!important;margin-left:-36px!important}
+}
 
-  .mini-month-days button,
-  .mini-month-days i{
-    height:17px!important;
-  }
+.home-pending-section{
+  margin:28px 0 8px;
+  border:1px solid #dbe4ce;
+  border-radius:20px;
+  background:rgba(255,255,255,.72);
+  box-shadow:0 8px 24px rgba(37,39,44,.04);
+  overflow:hidden;
+}
+.home-pending-section>summary{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:15px 18px;
+  cursor:pointer;
+  user-select:none;
+}
+.home-pending-section>summary::-webkit-details-marker{display:none}
+.home-pending-section>summary:after{content:"⌄";display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#eff5df;color:#567119;font-weight:900;transition:transform .15s ease}
+.home-pending-section[open]>summary:after{transform:rotate(180deg)}
+.home-pending-section>summary>div{display:grid;gap:2px}
+.home-pending-section>summary>div span{font-size:.68rem;font-weight:900;letter-spacing:.08em;color:#6f8824}
+.home-pending-section>summary>div strong{font-size:1rem;color:var(--dmp-graphite)}
+.home-pending-section>summary>small{margin-left:auto;color:var(--dmp-muted)}
+.home-pending-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 14px 14px;border-top:1px solid #e4ead9}
+.home-pending-grid>section{min-width:0;padding:14px;border:1px solid #e0e6d8;border-radius:15px;background:#fff}
+.home-pending-grid header{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.home-pending-grid header>span{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#f1f6e4}
+.home-pending-grid header>div{display:grid;gap:1px}
+.home-pending-grid header strong{font-size:.9rem}
+.home-pending-grid header small{color:var(--dmp-muted);font-size:.72rem}
+.home-pending-grid>section>p{margin:8px 0 0;color:var(--dmp-muted);font-size:.8rem}
+.home-pending-list{display:grid;gap:6px;max-height:260px;overflow:auto}
+.home-pending-list article{display:grid;gap:2px;padding:7px 8px;border-radius:9px;background:#f8faf5}
+.home-pending-list b{font-size:.78rem}
+.home-pending-list span{font-size:.7rem;color:var(--dmp-muted)}
+
+@media(max-width:900px){
+  .home-pending-section{margin-top:18px}
+  .home-pending-section>summary{align-items:flex-start;flex-wrap:wrap;padding:13px 14px}
+  .home-pending-section>summary>small{order:3;width:100%;margin:0}
+  .home-pending-grid{grid-template-columns:1fr;padding:0 10px 10px}
+}
+
+
+/* Fechamento mensal detalhado */
+@media(min-width:1000px){
+  .month-closing-today-card .month-closing-lines{gap:3px!important;margin-top:7px!important}
+  .month-closing-today-card .month-closing-lines small{font-size:11px!important;line-height:1.18!important}
+  .month-closing-today-card .month-closing-personal-title{margin-top:3px!important;color:#687169!important;font-size:10px!important;font-weight:900!important;text-transform:uppercase;letter-spacing:.04em}
 }
