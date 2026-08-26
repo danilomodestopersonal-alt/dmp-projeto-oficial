@@ -5103,3 +5103,87 @@ input:focus,textarea:focus{
     content:"??? ";
   }
 }
+
+/* DMP - limpeza definitiva do Fechamento do mes */
+@media(min-width:1000px){
+
+  /* remove de verdade a linha "MEUS TREINOS" */
+  .month-closing-today-card
+  .month-closing-lines
+  .month-closing-personal-title{
+    display:none!important;
+  }
+
+  /* remove os caracteres/emoji extras criados por CSS antigo */
+  .month-closing-today-card .month-closing-lines small::before,
+  .month-closing-today-card .month-closing-lines small::after{
+    content:none!important;
+    display:none!important;
+  }
+
+  /* mantém o mesmo cabeçalho dos outros cards */
+  .month-closing-today-card{
+    position:relative!important;
+    display:grid!important;
+    grid-template-columns:38px minmax(0,1fr)!important;
+    grid-template-rows:auto 1fr!important;
+    padding:14px!important;
+  }
+
+  .month-closing-today-card>.today-highlight-icon{
+    grid-column:1!important;
+    grid-row:1!important;
+    position:static!important;
+    width:32px!important;
+    height:32px!important;
+    margin:0!important;
+    transform:none!important;
+  }
+
+  .month-closing-today-card>div{
+    grid-column:1 / -1!important;
+    grid-row:1 / span 2!important;
+    width:auto!important;
+    margin:0!important;
+    padding-left:40px!important;
+  }
+
+  .month-closing-today-card>div>strong{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    min-height:32px!important;
+    margin:0!important;
+    padding:0!important;
+    font-size:14px!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+  }
+
+  /* dados ocupam toda a largura abaixo do titulo */
+  .month-closing-today-card .month-closing-lines{
+    width:calc(100% + 40px)!important;
+    margin:12px 0 0 -40px!important;
+    padding:0!important;
+    display:grid!important;
+    justify-items:center!important;
+    gap:5px!important;
+    text-align:center!important;
+  }
+
+  .month-closing-today-card .month-closing-lines small{
+    display:block!important;
+    margin:0!important;
+    padding:0!important;
+    font-size:11.5px!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+  }
+
+  /* esta regra vem por ultimo para vencer o display:block acima */
+  .month-closing-today-card
+  .month-closing-lines
+  .month-closing-personal-title{
+    display:none!important;
+  }
+}
