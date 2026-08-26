@@ -19,6 +19,19 @@ type StudentTab = "summary" | "workouts" | "history" | "assessments";
 type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string };
 type AgendaRange = "day" | "week" | "month" | "year" | "list";
 
+type PersonalWorkoutTemplate = {
+  id:string;
+  name:string;
+  description:string;
+  protocol:WorkoutProtocol;
+  sequenceSize:number;
+  notes:string;
+  exercises:Exercise[];
+  createdAt:string;
+  updatedAt:string;
+};
+
+
 const FINANCE_UNLOCK_KEY = "dmp_finance_unlocked_until";
 const FINANCE_UNLOCK_MS = 10 * 60 * 1000;
 const FINANCE_PIN_SHA256 = "6249017f9372350bfc9cf3456c324bbb3661e1bb5a7a10d61912fd1be650d52f";
@@ -52,6 +65,9 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [showEditStudentForm, setShowEditStudentForm] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
   const [workoutToCopy, setWorkoutToCopy] = useState<Workout | null>(null);
+  const [personalWorkoutTemplates,setPersonalWorkoutTemplates]=useState<PersonalWorkoutTemplate[]>([]);
+  const [workoutTemplatesLoaded,setWorkoutTemplatesLoaded]=useState(false);
+
   const [calendarStatus, setCalendarStatus] = useState<{configured:boolean;connected:boolean}>({configured:false,connected:false});
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarRange,setCalendarRange]=useState<AgendaRange>("week");
@@ -114,6 +130,42 @@ const [cloudWritable, setCloudWritable] = useState(false);
     window.addEventListener("popstate",onPopState);
     return()=>window.removeEventListener("popstate",onPopState);
   },[view,showFinancePin,showStudentForm,showEditStudentForm,showAssessmentForm,showGoogleEventForm]);
+
+
+  useEffect(()=>{
+    let cancelled=false;
+
+    fetch("/api/workout-templates",{cache:"no-store"})
+      .then(response=>response.json())
+      .then(result=>{
+        if(cancelled)return;
+        setPersonalWorkoutTemplates(Array.isArray(result.data)?result.data:[]);
+      })
+      .catch(error=>{
+        console.error("Erro ao carregar biblioteca de treinos:",error);
+      })
+      .finally(()=>{
+        if(!cancelled)setWorkoutTemplatesLoaded(true);
+      });
+
+    return()=>{cancelled=true;};
+  },[]);
+
+  useEffect(()=>{
+    if(!workoutTemplatesLoaded)return;
+
+    const timer=window.setTimeout(()=>{
+      void fetch("/api/workout-templates",{
+        method:"PUT",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(personalWorkoutTemplates)
+      }).catch(error=>{
+        console.error("Erro ao salvar biblioteca de treinos:",error);
+      });
+    },350);
+
+    return()=>window.clearTimeout(timer);
+  },[personalWorkoutTemplates,workoutTemplatesLoaded]);
 
   useEffect(() => setStudents(loadStudents(importedStudents2026)), []);
 useEffect(() => {
@@ -1139,7 +1191,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     );
   }
 
-  if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
+  if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} personalTemplates={personalWorkoutTemplates} onTemplatesChange={setPersonalWorkoutTemplates} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
   if (view === "planned-session") return <PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} />;
   if (view === "attendance-session") return <AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
   return <FreeSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
@@ -2210,7 +2262,7 @@ function WorkoutSlotsPanel({student,onEdit,onStart,onArchive,onClear,onCopy}:{st
   </div>;
 }
 
-function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{student:Student;workout:Workout|null;slot:WorkoutSlot;exerciseCatalog:string[];onBack:()=>void;onSave:(workout:Workout)=>void}) {
+function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,onTemplatesChange,onBack,onSave}:{student:Student;workout:Workout|null;slot:WorkoutSlot;exerciseCatalog:string[];personalTemplates:PersonalWorkoutTemplate[];onTemplatesChange:(templates:PersonalWorkoutTemplate[])=>void;onBack:()=>void;onSave:(workout:Workout)=>void}) {
   const initialProtocol=workout?.protocol||"CONVENTIONAL";
   const [name,setName]=useState(workout?.name||`Treino ${slot}`);
   const [week,setWeek]=useState(workout?.week||1);
@@ -2246,6 +2298,86 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
   function undoExerciseRemoval(){if(!removedExercise)return;setExercises(current=>{const next=[...current];next.splice(Math.min(removedExercise.index,next.length),0,removedExercise.exercise);return next;});setRemovedExercise(null);}
   function changeProtocol(next:WorkoutProtocol){setProtocol(next);setSequenceSize(defaultSequenceSize(next));}
   function organizeSequences(){setExercises(current=>current.map((exercise,index)=>({...exercise,block:sequenceBlockLabel(protocol,index,sequenceSize)})));}
+  function applyPersonalTemplate(template:PersonalWorkoutTemplate){
+    if(exercises.some(exercise=>exercise.name.trim())&&!confirm(`Substituir os exercícios atuais pelo modelo “${template.name}”?`))return;
+
+    setName(template.name);
+    setProtocol(template.protocol);
+    setSequenceSize(template.sequenceSize);
+    setWorkoutNotes(template.notes||"");
+
+    setExercises(template.exercises.map((exercise,index)=>({
+      ...exercise,
+      id:crypto.randomUUID(),
+      block:exercise.block||sequenceBlockLabel(template.protocol,index,template.sequenceSize),
+      load:"",
+      notes:exercise.notes||""
+    })));
+  }
+
+  function saveAsPersonalTemplate(){
+    const cleanExercises=exercises
+      .filter(exercise=>exercise.name.trim())
+      .map((exercise,index)=>({
+        ...exercise,
+        id:crypto.randomUUID(),
+        block:exercise.block?.trim()||sequenceBlockLabel(protocol,index,sequenceSize),
+        name:exercise.name.trim(),
+        sets:exercise.sets.trim(),
+        reps:exercise.reps.trim(),
+        load:"",
+        notes:exercise.notes?.trim()||""
+      }));
+
+    if(!cleanExercises.length){
+      alert("Adicione pelo menos um exercício antes de salvar como modelo.");
+      return;
+    }
+
+    const suggested=name.trim()||`Treino ${slot}`;
+    const templateName=prompt("Nome do modelo:",suggested)?.trim();
+
+    if(!templateName)return;
+
+    const description=prompt(
+      "Descrição curta do modelo:",
+      `${workoutProtocolLabel(protocol)} · ${cleanExercises.length} exercícios`
+    )?.trim()||"";
+
+    const now=new Date().toISOString();
+
+    const template:PersonalWorkoutTemplate={
+      id:crypto.randomUUID(),
+      name:templateName,
+      description,
+      protocol,
+      sequenceSize:Math.max(1,sequenceSize),
+      notes:workoutNotes.trim(),
+      exercises:cleanExercises,
+      createdAt:now,
+      updatedAt:now
+    };
+
+    onTemplatesChange([template,...personalTemplates]);
+    alert(`Modelo “${templateName}” salvo na Biblioteca de Treinos.`);
+  }
+
+  function renamePersonalTemplate(template:PersonalWorkoutTemplate){
+    const nextName=prompt("Novo nome do modelo:",template.name)?.trim();
+    if(!nextName||nextName===template.name)return;
+
+    onTemplatesChange(personalTemplates.map(item=>
+      item.id===template.id
+        ?{...item,name:nextName,updatedAt:new Date().toISOString()}
+        :item
+    ));
+  }
+
+  function deletePersonalTemplate(template:PersonalWorkoutTemplate){
+    if(!confirm(`Excluir o modelo “${template.name}” da biblioteca?`))return;
+    onTemplatesChange(personalTemplates.filter(item=>item.id!==template.id));
+  }
+
   function applyTemplate(template:WorkoutTemplate){
     if(exercises.some(exercise=>exercise.name.trim())&&!confirm(`Substituir os exercícios atuais pelo modelo “${template.label}”?`))return;
     setProtocol(template.protocol);
@@ -2282,11 +2414,284 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,onBack,onSave}:{stu
     });
   };
 
+  const validityEndPreview=(()=>{
+    if(validityMode!=="PERIOD"||!validityStartDate)return "";
+    const end=new Date(validityStartDate+"T12:00:00");
+    end.setDate(end.getDate()+(Math.max(1,validityWeeks)*7)-1);
+    return end.toISOString().slice(0,10);
+  })();
+
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content workout-editor-page">
     {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
-    <section className="panel workout-config-panel"><div className="workout-editor-title"><div><span className="workout-slot-badge large">Treino {slot}</span><h1>Montagem da ficha</h1><p>Defina o protocolo desta aba e monte a sequência do jeito que você trabalha.</p></div><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div><div className="workout-config-grid"><label>Nome / foco<input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/></label><label>Semana<input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/></label><label>Validade<select value={validityMode} onChange={e=>setValidityMode(e.target.value as "NONE"|"PERIOD"|"SESSIONS")}><option value="NONE">Sem controle</option><option value="PERIOD">Por período</option><option value="SESSIONS">Por sessões</option></select></label><label>Protocolo<select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>{WORKOUT_PROTOCOL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label>Exercícios por sequência<input type="number" min="1" max="12" value={sequenceSize} onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}/></label></div>{validityMode!=="NONE"?<div className="workout-validity-config"><label>Início<input type="date" value={validityStartDate} onChange={e=>setValidityStartDate(e.target.value)}/></label>{validityMode==="PERIOD"?<label>Duração em semanas<input type="number" min="1" max="52" value={validityWeeks} onChange={e=>setValidityWeeks(Math.max(1,Number(e.target.value)||1))}/></label>:<label>Quantidade de sessões<input type="number" min="1" max="200" value={validitySessionTarget} onChange={e=>setValiditySessionTarget(Math.max(1,Number(e.target.value)||1))}/></label>}</div>:null}<div className="protocol-help"><strong>{workoutProtocolLabel(protocol)}</strong><span>{protocolDescription(protocol,sequenceSize)}</span><button className="secondary compact-action" onClick={organizeSequences}>Organizar blocos automaticamente</button></div><label>Observações da ficha<textarea rows={3} value={workoutNotes} onChange={e=>setWorkoutNotes(e.target.value)} placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."/></label></section>
+    <section className="panel workout-config-panel">
 
-    <section className="panel workout-template-panel"><div className="panel-head"><div><h2>Modelos de treino</h2><p className="muted">Use uma estrutura pronta como ponto de partida e revise tudo antes de salvar.</p></div></div><div className="workout-template-grid">{WORKOUT_TEMPLATES.map(template=><button className="secondary" key={template.id} onClick={()=>applyTemplate(template)}><strong>{template.label}</strong><small>{template.description}</small></button>)}</div></section>
+      <div className="workout-editor-title">
+        <div>
+          <span className="workout-slot-badge large">Treino {slot}</span>
+          <h1>Montagem da ficha</h1>
+          <p>Monte o treino e defina por quanto tempo esta ficha ficará ativa para o aluno.</p>
+        </div>
+
+        <button
+          className="primary"
+          disabled={!exercises.some(ex=>ex.name.trim())}
+          onClick={save}
+        >
+          Salvar Treino {slot}
+        </button>
+      </div>
+
+      <section className="workout-validity-main">
+        <div className="workout-validity-main-head">
+          <div>
+            <span className="workout-validity-kicker">VIGÊNCIA DO TREINO</span>
+            <h2>Por quanto tempo este treino será utilizado?</h2>
+            <p>Defina agora para o DMP avisar quando estiver perto da renovação.</p>
+          </div>
+        </div>
+
+        <div className="workout-validity-options">
+          <button
+            type="button"
+            className={`workout-validity-choice ${validityMode==="NONE"?"active":""}`}
+            onClick={()=>setValidityMode("NONE")}
+          >
+            <span>∞</span>
+            <strong>Sem controle</strong>
+            <small>O treino permanece ativo até você trocar ou arquivar.</small>
+          </button>
+
+          <button
+            type="button"
+            className={`workout-validity-choice ${validityMode==="PERIOD"?"active":""}`}
+            onClick={()=>setValidityMode("PERIOD")}
+          >
+            <span>📅</span>
+            <strong>Por período</strong>
+            <small>Defina a quantidade de semanas do treino.</small>
+          </button>
+
+          <button
+            type="button"
+            className={`workout-validity-choice ${validityMode==="SESSIONS"?"active":""}`}
+            onClick={()=>setValidityMode("SESSIONS")}
+          >
+            <span>🏋️</span>
+            <strong>Por quantidade de treinos</strong>
+            <small>O DMP conta as sessões realizadas até a renovação.</small>
+          </button>
+        </div>
+
+        {validityMode!=="NONE"?
+          <div className="workout-validity-details">
+            <label>
+              Data de início
+              <input
+                type="date"
+                value={validityStartDate}
+                onChange={e=>setValidityStartDate(e.target.value)}
+              />
+            </label>
+
+            {validityMode==="PERIOD"?
+              <label>
+                Duração
+                <div className="workout-validity-number">
+                  <input
+                    type="number"
+                    min="1"
+                    max="52"
+                    value={validityWeeks}
+                    onChange={e=>setValidityWeeks(Math.max(1,Number(e.target.value)||1))}
+                  />
+                  <span>semanas</span>
+                </div>
+              </label>
+            :
+              <label>
+                Quantidade prevista
+                <div className="workout-validity-number">
+                  <input
+                    type="number"
+                    min="1"
+                    max="200"
+                    value={validitySessionTarget}
+                    onChange={e=>setValiditySessionTarget(Math.max(1,Number(e.target.value)||1))}
+                  />
+                  <span>treinos</span>
+                </div>
+              </label>
+            }
+
+            <div className="workout-validity-preview">
+              <span>RESUMO DA VIGÊNCIA</span>
+
+              {validityMode==="PERIOD"?
+                <>
+                  <strong>{validityWeeks} semana{validityWeeks===1?"":"s"}</strong>
+                  <small>
+                    {validityEndPreview
+                      ?`Treino válido até ${formatDate(validityEndPreview)}`
+                      :"Informe a data de início"}
+                  </small>
+                </>
+              :
+                <>
+                  <strong>{validitySessionTarget} treino{validitySessionTarget===1?"":"s"}</strong>
+                  <small>O DMP avisará quando restarem somente 2 sessões.</small>
+                </>
+              }
+            </div>
+          </div>
+        :
+          <div className="workout-validity-no-control">
+            <strong>Sem prazo de renovação definido</strong>
+            <span>Você poderá alterar a vigência deste treino depois.</span>
+          </div>
+        }
+      </section>
+
+      <div className="workout-config-grid">
+        <label>
+          Nome / foco
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder={`Treino ${slot}`}/>
+        </label>
+
+        <label>
+          Semana
+          <input type="number" min="1" value={week} onChange={e=>setWeek(Number(e.target.value))}/>
+        </label>
+
+        <label>
+          Protocolo
+          <select value={protocol} onChange={e=>changeProtocol(e.target.value as WorkoutProtocol)}>
+            {WORKOUT_PROTOCOL_OPTIONS.map(option=>
+              <option key={option.value} value={option.value}>{option.label}</option>
+            )}
+          </select>
+        </label>
+
+        <label>
+          Exercícios por sequência
+          <input
+            type="number"
+            min="1"
+            max="12"
+            value={sequenceSize}
+            onChange={e=>setSequenceSize(Math.max(1,Number(e.target.value)||1))}
+          />
+        </label>
+      </div>
+
+      <div className="protocol-help">
+        <strong>{workoutProtocolLabel(protocol)}</strong>
+        <span>{protocolDescription(protocol,sequenceSize)}</span>
+        <button className="secondary compact-action" onClick={organizeSequences}>
+          Organizar blocos automaticamente
+        </button>
+      </div>
+
+      <label>
+        Observações da ficha
+        <textarea
+          rows={3}
+          value={workoutNotes}
+          onChange={e=>setWorkoutNotes(e.target.value)}
+          placeholder="Ex.: atenção ao intervalo, progressão planejada, ordem especial..."
+        />
+      </label>
+
+    </section>
+
+    <section className="panel workout-template-panel">
+      <div className="panel-head">
+        <div>
+          <h2>🧩 Biblioteca de Treinos</h2>
+          <p className="muted">Reaproveite fichas prontas ou transforme o treino atual em um modelo para outros alunos.</p>
+        </div>
+
+        <button
+          type="button"
+          className="primary"
+          disabled={!exercises.some(ex=>ex.name.trim())}
+          onClick={saveAsPersonalTemplate}
+        >
+          ⭐ Salvar como modelo
+        </button>
+      </div>
+
+      <div className="personal-workout-library">
+        <div className="personal-workout-library-title">
+          <strong>Meus modelos</strong>
+          <span>{personalTemplates.length} salvo{personalTemplates.length===1?"":"s"}</span>
+        </div>
+
+        {personalTemplates.length?
+          <div className="personal-workout-template-grid">
+            {personalTemplates.map(template=>
+              <article className="personal-workout-template-card" key={template.id}>
+                <div>
+                  <span className="workout-slot-badge">{workoutProtocolLabel(template.protocol)}</span>
+                  <h3>{template.name}</h3>
+                  <p>{template.description||`${template.exercises.length} exercícios`}</p>
+                  <small>{template.exercises.length} exercício{template.exercises.length===1?"":"s"}</small>
+                </div>
+
+                <div className="personal-workout-template-actions">
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={()=>applyPersonalTemplate(template)}
+                  >
+                    Usar modelo
+                  </button>
+
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={()=>renamePersonalTemplate(template)}
+                  >
+                    Renomear
+                  </button>
+
+                  <button
+                    type="button"
+                    className="danger-link"
+                    onClick={()=>deletePersonalTemplate(template)}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </article>
+            )}
+          </div>
+        :
+          <div className="empty-review compact-empty">
+            <strong>Nenhum modelo pessoal ainda</strong>
+            <span>Monte uma ficha e toque em “Salvar como modelo”.</span>
+          </div>
+        }
+      </div>
+
+      <div className="workout-template-divider">
+        <strong>Modelos rápidos do DMP</strong>
+        <span>Estruturas prontas para começar do zero.</span>
+      </div>
+
+      <div className="workout-template-grid">
+        {WORKOUT_TEMPLATES.map(template=>
+          <button
+            type="button"
+            className="secondary"
+            key={template.id}
+            onClick={()=>applyTemplate(template)}
+          >
+            <strong>{template.label}</strong>
+            <small>{template.description}</small>
+          </button>
+        )}
+      </div>
+    </section>
 
     <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>📋 Importar treino por texto</h2><p className="muted">Cole aqui o treino organizado e transforme em ficha para revisão. Nada é salvo automaticamente.</p></div></div><textarea rows={8} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7\n\nBloco 1\nSupino reto — 3x15 — 30 kg\nAgachamento livre — 3x15\n\nBloco 2\nSupino inclinado — 3x12 — 12 kg de cada lado\nCadeira extensora — 3x15'}/><div className="hero-actions"><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Interpretar texto</button><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar (experimental)"}</button></div><small className="muted">Depois de interpretar, confira protocolo, blocos, séries, repetições e cargas na tabela abaixo. O microfone continua disponível, mas é experimental.</small></section>
 

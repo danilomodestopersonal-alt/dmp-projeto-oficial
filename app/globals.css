@@ -3842,3 +3842,261 @@ input:focus,textarea:focus{
     grid-template-columns:1fr 1fr!important;
   }
 }
+
+
+/* DMP — VIGENCIA PRINCIPAL DO TREINO */
+
+.workout-validity-main{
+  margin:22px 0;
+  padding:22px;
+  border:2px solid #dbe7b6;
+  border-radius:20px;
+  background:linear-gradient(180deg,#fbfdf5 0%,#f5f9e9 100%);
+}
+
+.workout-validity-main-head{
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:16px;
+}
+
+.workout-validity-main-head h2{
+  margin:4px 0 5px;
+  font-size:1.25rem;
+}
+
+.workout-validity-main-head p{
+  margin:0;
+  color:var(--muted);
+}
+
+.workout-validity-kicker{
+  color:#718b2f;
+  font-size:.72rem;
+  letter-spacing:.1em;
+  font-weight:900;
+}
+
+.workout-validity-options{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:11px;
+}
+
+.workout-validity-choice{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  column-gap:10px;
+  row-gap:3px;
+  align-items:center;
+  text-align:left;
+  min-height:92px;
+  padding:15px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+}
+
+.workout-validity-choice>span{
+  grid-row:1/3;
+  font-size:1.55rem;
+}
+
+.workout-validity-choice strong{
+  font-size:.95rem;
+}
+
+.workout-validity-choice small{
+  color:var(--muted);
+  line-height:1.3;
+}
+
+.workout-validity-choice.active{
+  border:2px solid var(--dmp-green);
+  background:#f2f8dc;
+  box-shadow:0 7px 18px rgba(112,141,49,.14);
+}
+
+.workout-validity-details{
+  display:grid;
+  grid-template-columns:minmax(170px,.7fr) minmax(170px,.7fr) minmax(260px,1.2fr);
+  gap:12px;
+  align-items:end;
+  margin-top:16px;
+}
+
+.workout-validity-details label{
+  display:grid;
+  gap:7px;
+  font-weight:800;
+}
+
+.workout-validity-number{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.workout-validity-number input{
+  width:100%;
+}
+
+.workout-validity-number span{
+  white-space:nowrap;
+  color:var(--muted);
+  font-size:.85rem;
+}
+
+.workout-validity-preview{
+  display:grid;
+  gap:3px;
+  min-height:72px;
+  padding:12px 15px;
+  border-radius:14px;
+  background:#26352f;
+  color:#fff;
+}
+
+.workout-validity-preview>span{
+  color:#cadb8c;
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.08em;
+}
+
+.workout-validity-preview strong{
+  font-size:1.08rem;
+}
+
+.workout-validity-preview small{
+  color:#e0e8e4;
+}
+
+.workout-validity-no-control{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:14px;
+  padding:11px 14px;
+  border-radius:12px;
+  background:#fff;
+  color:var(--muted);
+}
+
+.workout-validity-no-control strong{
+  color:#49535a;
+}
+
+@media(max-width:800px){
+  .workout-validity-main{
+    padding:16px;
+  }
+
+  .workout-validity-options{
+    grid-template-columns:1fr;
+  }
+
+  .workout-validity-choice{
+    min-height:76px;
+  }
+
+  .workout-validity-details{
+    grid-template-columns:1fr;
+  }
+
+  .workout-validity-no-control{
+    flex-direction:column;
+  }
+}
+
+/* DMP — Biblioteca de Treinos */
+.personal-workout-library{
+  margin-top:18px;
+}
+
+.personal-workout-library-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.personal-workout-library-title strong{
+  font-size:1rem;
+}
+
+.personal-workout-library-title span{
+  color:var(--muted);
+  font-size:.82rem;
+}
+
+.personal-workout-template-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+
+.personal-workout-template-card{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+}
+
+.personal-workout-template-card h3{
+  margin:7px 0 4px;
+  font-size:1rem;
+}
+
+.personal-workout-template-card p{
+  margin:0 0 5px;
+  color:var(--muted);
+}
+
+.personal-workout-template-card small{
+  color:var(--muted);
+}
+
+.personal-workout-template-actions{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  align-items:stretch;
+  min-width:118px;
+}
+
+.workout-template-divider{
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:12px;
+  margin:22px 0 10px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+}
+
+.workout-template-divider span{
+  color:var(--muted);
+  font-size:.82rem;
+}
+
+@media(max-width:800px){
+  .personal-workout-template-grid{
+    grid-template-columns:1fr;
+  }
+
+  .personal-workout-template-card{
+    flex-direction:column;
+  }
+
+  .personal-workout-template-actions{
+    flex-direction:row;
+    flex-wrap:wrap;
+    min-width:0;
+  }
+}
