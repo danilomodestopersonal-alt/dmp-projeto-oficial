@@ -4629,3 +4629,20 @@ input:focus,textarea:focus{
   .student-profile-primary-tabs button{padding:6px 1px!important}
   .student-profile-tab-text strong{font-size:.57rem!important}
 }
+
+
+/* DMP — treino clicavel na Home */
+.home-workout-badge-button{
+  appearance:none;
+  font:inherit;
+  cursor:pointer;
+  text-align:left;
+}
+.home-workout-badge-button:hover{
+  border-color:#b8cd71;
+  background:#eef5dc;
+}
+.home-workout-badge-button:focus-visible{
+  outline:2px solid var(--dmp-green);
+  outline-offset:2px;
+}
