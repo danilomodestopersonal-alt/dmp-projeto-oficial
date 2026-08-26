@@ -4646,3 +4646,49 @@ input:focus,textarea:focus{
   outline:2px solid var(--dmp-green);
   outline-offset:2px;
 }
+
+
+/* DMP ? compactacao suave dos cards superiores */
+@media(min-width:1000px){
+  .today-highlight-grid{
+    align-items:stretch!important;
+  }
+
+  .mini-month,
+  .today-summary-card,
+  .performance-today-card,
+  .today-notes-card,
+  .renewals-today-card{
+    min-height:0!important;
+    height:214px!important;
+    box-sizing:border-box!important;
+  }
+
+  .today-summary-card,
+  .performance-today-card,
+  .today-notes-card,
+  .renewals-today-card{
+    padding-top:11px!important;
+    padding-bottom:11px!important;
+  }
+
+  .today-summary-card .highlight-lines,
+  .performance-today-card .performance-today-list,
+  .today-notes-card .highlight-lines,
+  .renewals-today-card .highlight-lines{
+    margin-top:8px!important;
+  }
+
+  .mini-month{
+    padding:10px 12px!important;
+  }
+
+  .mini-month>button{
+    padding-bottom:5px!important;
+  }
+
+  .mini-month-days button,
+  .mini-month-days i{
+    height:17px!important;
+  }
+}
