@@ -15,7 +15,7 @@ import type {FinanceData} from "@/types/financeiro";
 import type { PerformanceActivity } from "@/types/performance";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
-type StudentTab = "summary" | "workouts" | "history" | "assessments";
+type StudentTab = "summary" | "workouts" | "history" | "assessments" | "files";
 type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string };
 type AgendaRange = "day" | "week" | "month" | "year" | "list";
 
@@ -1139,28 +1139,101 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       <main className="app-page">
         <Header title={selectedStudent.name} back={goStudents} />
         <section className="content student-profile-page">
-          <div className="hero student-profile-hero">
-            <div>
-              <span className={`status-pill ${selectedStudent.status === "ARCHIVED" ? "archived" : ""}`}>{selectedStudent.status === "ACTIVE" ? "Ativo" : "Inativo"}</span>
-              <h1>{selectedStudent.name}</h1>
-              <p>{selectedStudent.goal || "Objetivo não informado"}</p>
-            </div>
-            <div className="hero-actions">
-              {workoutEntries.length ? <button className="primary" onClick={() => setTab("workouts")}>▶ Usar treino montado</button> : null}
-              <button className={workoutEntries.length ? "secondary" : "primary"} onClick={() => setView("free-session")}>🎤 Registrar o que fez</button>
-              <button className="secondary" onClick={() => setView("attendance-session")}>✓ Só presença</button>
-              <button className="secondary" onClick={() => setShowEditStudentForm(true)}>Editar aluno</button>
-              <button className="secondary" onClick={()=>void printPersonalStudentReport(selectedStudent)}>🖨️ Relatório</button>
-              <button className="secondary" onClick={toggleArchive}>{selectedStudent.status === "ACTIVE" ? "Marcar inativo" : "Reativar"}</button>
-              {whatsappLink(selectedStudent.phone)?<a className="secondary button-link whatsapp-student-link" href={whatsappLink(selectedStudent.phone)!} target="_blank" rel="noreferrer">🟢 WhatsApp</a>:null}
-            </div>
-          </div>
+          <section className="student-profile-command">
+            <div className="student-profile-command-main">
+              <div className="student-profile-command-identity">
+                <span className={`status-pill ${selectedStudent.status === "ARCHIVED" ? "archived" : ""}`}>
+                  {selectedStudent.status === "ACTIVE" ? "Ativo" : "Inativo"}
+                </span>
 
-          <div className="student-profile-main-nav"><nav className="profile-tabs">
-            {(["summary","workouts","history","assessments"] as StudentTab[]).map(item => (
-              <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}><span>{item==="summary"?"📋":item==="workouts"?"🏋️":item==="history"?"🕘":"📏"}</span>{tabLabel(item)}</button>
-            ))}
-          </nav></div>
+                <div>
+                  <span className="student-profile-command-kicker">CADERNO DO ALUNO</span>
+                  <h1>{selectedStudent.name}</h1>
+                  <p>{selectedStudent.goal || "Objetivo não informado"}</p>
+                </div>
+              </div>
+
+              <nav className="student-profile-primary-tabs" aria-label="Áreas do aluno">
+                {(["summary","workouts","history","assessments","files"] as StudentTab[]).map(item => (
+                  <button
+                    key={item}
+                    className={tab === item ? "active" : ""}
+                    onClick={() => setTab(item)}
+                  >
+                    <span className="student-profile-tab-icon">
+                      {item==="summary"?"📋":
+                       item==="workouts"?"🏋️":
+                       item==="history"?"🕘":
+                       item==="assessments"?"📏":"📁"}
+                    </span>
+
+                    <span className="student-profile-tab-text">
+                      <strong>{tabLabel(item)}</strong>
+                      <small>
+                        {item==="summary"?"Visão geral":
+                         item==="workouts"?"Fichas e montagem":
+                         item==="history"?"Sessões realizadas":
+                         item==="assessments"?"Evolução física":
+                         "Documentos"}
+                      </small>
+                    </span>
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            <div className="student-profile-secondary-actions">
+              {workoutEntries.length ?
+                <button className="primary" onClick={() => setTab("workouts")}>
+                  ▶ Usar treino
+                </button>
+              :null}
+
+              <button
+                className={workoutEntries.length ? "secondary" : "primary"}
+                onClick={() => setView("free-session")}
+              >
+                🎤 Registrar treino
+              </button>
+
+              <button
+                className="secondary"
+                onClick={() => setView("attendance-session")}
+              >
+                ✓ Presença
+              </button>
+
+              <button
+                className="secondary"
+                onClick={() => setShowEditStudentForm(true)}
+              >
+                Editar
+              </button>
+
+              <button
+                className="secondary"
+                onClick={()=>void printPersonalStudentReport(selectedStudent)}
+              >
+                🖨️ Relatório
+              </button>
+
+              {whatsappLink(selectedStudent.phone)?
+                <a
+                  className="secondary button-link whatsapp-student-link"
+                  href={whatsappLink(selectedStudent.phone)!}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  🟢 WhatsApp
+                </a>
+              :null}
+
+              <button className="secondary" onClick={toggleArchive}>
+                {selectedStudent.status === "ACTIVE" ? "Marcar inativo" : "Reativar"}
+              </button>
+            </div>
+          </section>
+
           <StudentProfileSnapshot student={selectedStudent} />
 
           
@@ -1181,6 +1254,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
+          {tab === "files" ? <StudentFilesPanel student={selectedStudent} /> : null}
           <div className="student-danger-zone"><button className="danger-link" onClick={deleteSelectedStudent}>Excluir cadastro</button><small>Exclusão definitiva do aluno e dos dados vinculados.</small></div>
         </section>
 
@@ -2191,6 +2265,245 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
         })}
       </div>
     :<p className="muted">Nenhuma avaliação registrada.</p>}
+  </section>;
+}
+
+
+type StudentFileCategory =
+  | "MEDICAL_CERTIFICATE"
+  | "EXAM"
+  | "ASSESSMENT"
+  | "REPORT"
+  | "DOCUMENT"
+  | "OTHER";
+
+type StudentFileRecord = {
+  id:string;
+  studentId:string;
+  name:string;
+  category:StudentFileCategory;
+  date:string;
+  notes:string;
+  mimeType:string;
+  size:number;
+  dataUrl:string;
+  createdAt:string;
+};
+
+function studentFileCategoryLabel(category:StudentFileCategory){
+  if(category==="MEDICAL_CERTIFICATE")return "Atestado médico";
+  if(category==="EXAM")return "Exame";
+  if(category==="ASSESSMENT")return "Avaliação";
+  if(category==="REPORT")return "Laudo";
+  if(category==="DOCUMENT")return "Documento";
+  return "Outro";
+}
+
+function StudentFilesPanel({student}:{student:Student}) {
+  const [files,setFiles]=useState<StudentFileRecord[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [selectedFile,setSelectedFile]=useState<File|null>(null);
+  const [category,setCategory]=useState<StudentFileCategory>("DOCUMENT");
+  const [date,setDate]=useState(today());
+  const [notes,setNotes]=useState("");
+
+  async function loadFiles(){
+    setLoading(true);
+    try{
+      const response=await fetch(`/api/student-files?studentId=${encodeURIComponent(student.id)}`,{cache:"no-store"});
+      const result=await response.json();
+      setFiles(Array.isArray(result.data)?result.data:[]);
+    }catch{
+      setFiles([]);
+    }finally{
+      setLoading(false);
+    }
+  }
+
+  useEffect(()=>{
+    void loadFiles();
+  },[student.id]);
+
+  async function saveFile(){
+    if(!selectedFile)return;
+
+    if(selectedFile.size>5*1024*1024){
+      alert("O arquivo deve ter no máximo 5 MB.");
+      return;
+    }
+
+    const allowed=
+      selectedFile.type==="application/pdf"||
+      selectedFile.type.startsWith("image/");
+
+    if(!allowed){
+      alert("Envie um arquivo PDF ou uma imagem.");
+      return;
+    }
+
+    setSaving(true);
+
+    try{
+      const dataUrl=await fileToDataUrl(selectedFile);
+
+      const response=await fetch("/api/student-files",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          studentId:student.id,
+          name:selectedFile.name,
+          category,
+          date,
+          notes:notes.trim(),
+          mimeType:selectedFile.type,
+          size:selectedFile.size,
+          dataUrl
+        })
+      });
+
+      const result=await response.json();
+
+      if(!response.ok||!result.ok){
+        throw new Error(result.error||"Erro ao salvar arquivo");
+      }
+
+      setSelectedFile(null);
+      setNotes("");
+      setDate(today());
+      await loadFiles();
+    }catch(error){
+      console.error(error);
+      alert("Não foi possível salvar o arquivo.");
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  async function removeFile(file:StudentFileRecord){
+    if(!confirm(`Excluir “${file.name}”?`))return;
+
+    try{
+      const response=await fetch(`/api/student-files?id=${encodeURIComponent(file.id)}`,{
+        method:"DELETE"
+      });
+
+      if(!response.ok)throw new Error();
+      setFiles(current=>current.filter(item=>item.id!==file.id));
+    }catch{
+      alert("Não foi possível excluir o arquivo.");
+    }
+  }
+
+  return <section className="panel student-files-panel">
+    <div className="panel-head">
+      <div>
+        <h2>📁 Arquivos do aluno</h2>
+        <p className="muted">Atestados, exames, avaliações, laudos e outros documentos vinculados a {student.name}.</p>
+      </div>
+    </div>
+
+    <div className="student-file-upload">
+      <label className="student-file-picker">
+        <span>Arquivo</span>
+        <input
+          type="file"
+          accept="application/pdf,image/*"
+          onChange={event=>setSelectedFile(event.target.files?.[0]||null)}
+        />
+        <strong>{selectedFile?.name||"Selecionar PDF ou imagem"}</strong>
+      </label>
+
+      <label>
+        Categoria
+        <select
+          value={category}
+          onChange={event=>setCategory(event.target.value as StudentFileCategory)}
+        >
+          <option value="MEDICAL_CERTIFICATE">Atestado médico</option>
+          <option value="EXAM">Exame</option>
+          <option value="ASSESSMENT">Avaliação</option>
+          <option value="REPORT">Laudo</option>
+          <option value="DOCUMENT">Documento</option>
+          <option value="OTHER">Outro</option>
+        </select>
+      </label>
+
+      <label>
+        Data
+        <input
+          type="date"
+          value={date}
+          onChange={event=>setDate(event.target.value)}
+        />
+      </label>
+
+      <label className="student-file-notes">
+        Observação
+        <input
+          value={notes}
+          onChange={event=>setNotes(event.target.value)}
+          placeholder="Ex.: retorno médico, exame de joelho..."
+        />
+      </label>
+
+      <button
+        className="primary"
+        disabled={!selectedFile||saving}
+        onClick={()=>void saveFile()}
+      >
+        {saving?"Enviando...":"+ Adicionar arquivo"}
+      </button>
+    </div>
+
+    {loading?
+      <div className="empty-review">
+        <span>Carregando arquivos...</span>
+      </div>
+    :files.length?
+      <div className="student-file-list">
+        {files.map(file=>
+          <article className="student-file-row" key={file.id}>
+            <div className="student-file-icon">
+              {file.mimeType==="application/pdf"?"PDF":"IMG"}
+            </div>
+
+            <div className="student-file-info">
+              <strong>{file.name}</strong>
+              <span>
+                {studentFileCategoryLabel(file.category)}
+                {" · "}
+                {formatDate(file.date)}
+              </span>
+              {file.notes?<small>{file.notes}</small>:null}
+            </div>
+
+            <div className="student-file-actions">
+              <a
+                className="secondary button-link"
+                href={file.dataUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir
+              </a>
+
+              <button
+                className="danger-link"
+                onClick={()=>void removeFile(file)}
+              >
+                Excluir
+              </button>
+            </div>
+          </article>
+        )}
+      </div>
+    :
+      <div className="empty-review">
+        <strong>Nenhum arquivo</strong>
+        <span>Use esta área para organizar documentos importantes deste aluno.</span>
+      </div>
+    }
   </section>;
 }
 
@@ -3508,4 +3821,4 @@ function performanceActivityEmoji(activity:any){
 
 function formatMonths(months:number){const years=Math.floor(months/12);const rest=months%12;return [years?`${years} ano${years>1?"s":""}`:"",rest?`${rest} ${rest===1?"mês":"meses"}`:""].filter(Boolean).join(" e ")||"menos de 1 mês";}
 function displayNumber(value:number|null|undefined,suffix:string){return value===null||value===undefined?"—":`${Number(value).toLocaleString("pt-BR",{maximumFractionDigits:1})} ${suffix}`;}
-function tabLabel(tab:StudentTab){return({summary:"Resumo",workouts:"Treinos",history:"Histórico",assessments:"Avaliações"})[tab];}
+function tabLabel(tab:StudentTab){return({summary:"Resumo",workouts:"Treinos",history:"Histórico",assessments:"Avaliações",files:"Arquivos"})[tab];}
