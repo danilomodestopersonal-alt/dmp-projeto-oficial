@@ -1558,7 +1558,7 @@ function HomePendingSection({students}:{students:Student[]}){
   const withoutWorkout=active.filter(student=>getStudentWorkoutEntries(student).length===0);
   const total=renewals.length+assessmentAlerts.length+withoutWorkout.length;
 
-  return <details className="home-pending-section" data-home-size-key="pending">
+  return <details className="home-pending-section">
     <summary>
       <div><span>PENDÊNCIAS</span><strong>{total?`${total} itens para revisar`:"Tudo em dia"}</strong></div>
       <small>{renewals.length} treinos · {assessmentAlerts.length} avaliações · {withoutWorkout.length} sem ficha</small>
@@ -1735,15 +1735,16 @@ function TodayHighlights({events,monthEvents,notes,students,sessions,performance
       </button>
 
       <article className="today-highlight-card month-closing-today-card">
-        <span className="today-highlight-icon">▦</span>
+        <span className="today-highlight-icon month-closing-icon" aria-hidden="true">📊</span>
         <div>
           <strong>Fechamento do mês</strong>
           <span className="highlight-lines month-closing-lines">
-            <small><b>{monthAttended}</b> Atendimentos · <b>{monthAbsent}</b> Ausências</small>
-            <small><b>{monthAssessments}</b> Avaliações · <b>{monthKids}</b> Aulas Kids (Tênis)</small>
-            <small className="month-closing-personal-title">Meus treinos</small>
-            <small>🚴 <b>{monthCycling.length}</b> Ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b> acumulados</small>
-            <small>🏋️ <b>{monthStrength.length}</b> Musculação</small>
+            <small><b>{monthAttended}</b> atendimentos</small>
+            <small><b>{monthAssessments}</b> avaliações</small>
+            <small><b>{monthKids}</b> aulas Kids</small>
+            <small className="month-closing-personal-title"><b>Meus treinos:</b></small>
+            <small>🚴 <b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
+            <small>🏋️ <b>{monthStrength.length}</b> musculação</small>
           </span>
         </div>
       </article>
