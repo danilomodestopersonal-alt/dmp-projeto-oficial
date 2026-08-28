@@ -712,6 +712,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     }
   }
 
+
+
   useEffect(()=>{
     if(view!=="agenda"||!calendarStatus.connected)return;
     const request=agendaRequestRange(calendarAnchor,calendarRange);
@@ -1150,7 +1152,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
                 <div>
                   <span className="student-profile-command-kicker">CADERNO DO ALUNO</span>
                   <h1>{selectedStudent.name}</h1>
-                  <p>{selectedStudent.goal || "Objetivo não informado"}</p>
+
                 </div>
               </div>
 
@@ -1285,7 +1287,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
   });
   displayEvents.sort((a,b)=>a.start.localeCompare(b.start));
   return <section className="panel calendar-today-panel"><div className="panel-head"><div><h2>Agenda de hoje</h2>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
-    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.slice(0,10).map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}><strong>{event.summary}</strong><small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;const workoutEntry=getStudentWorkoutEntries(student)[0];const workoutValidity=workoutEntry?workoutValidityInfo(student,workoutEntry.workout):null;return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
+    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}><strong>{event.summary}</strong><small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;const workoutEntry=getStudentWorkoutEntries(student)[0];const workoutValidity=workoutEntry?workoutValidityInfo(student,workoutEntry.workout):null;return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
   {student.phone?<button
     type="button"
     className="calendar-whatsapp-button"
@@ -1734,16 +1736,17 @@ function TodayHighlights({events,monthEvents,notes,students,sessions,performance
         
       </button>
 
-      <article className="today-highlight-card">
-        <span className="today-highlight-icon" aria-hidden="true">{"\uD83D\uDCCA"}</span>
+      
+
+      <article className="today-highlight-card month-closing-today-card">
         <div>
-          <strong>Fechamento do m?s</strong>
+          <strong>Fechamento do mês</strong>
           <span className="highlight-lines">
             <small><b>{monthAttended}</b> atendimentos</small>
-            <small><b>{monthAssessments}</b> avalia??es</small>
+            <small><b>{monthAssessments}</b> avaliações</small>
             <small><b>{monthKids}</b> aulas Kids</small>
-            <small>{"\uD83D\uDEB4"} <b>{monthCycling.length}</b> ciclismo ? <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
-            <small>{"\uD83C\uDFCB\uFE0F"} <b>{monthStrength.length}</b> muscula??o</small>
+            <small>{"\uD83D\uDEB4"} <b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
+            <small>{"\uD83C\uDFCB\uFE0F"} <b>{monthStrength.length}</b> musculação</small>
           </span>
         </div>
       </article>
@@ -1870,11 +1873,11 @@ function Header({title,back}:{title:string;back?:()=>void}) { return <header cla
 
 function StudentProfileSnapshot({student}:{student:Student}) {
   const age=calculateAge(student.birthDate);
-  const lastSession=student.sessions[0];
+  const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
   const alerts=[student.restrictions,student.injuries].filter(Boolean);
   const workouts=getStudentWorkoutEntries(student);
   const slotLabel=workouts.length?workouts.map(entry=>entry.slot).join(" · "):"Sem ficha";
-  return <section className="profile-snapshot"><div className="snapshot-card"><span>Idade</span><strong>{age!==null?`${age} anos`:"—"}</strong></div><div className="snapshot-card"><span>Modalidade</span><strong>{student.modality||"—"}</strong></div><div className="snapshot-card"><span>Treinos montados</span><strong>{slotLabel}</strong></div><div className="snapshot-card"><span>Última sessão</span><strong>{lastSession?formatDate(lastSession.date):"—"}</strong></div>{alerts.length?<div className="snapshot-alert"><span>⚠ Lembretes importantes</span><strong>{alerts.join(" · ")}</strong></div>:<div className="snapshot-alert clear"><span>✓ Cuidados</span><strong>Nenhuma restrição ou dor registrada</strong></div>}</section>;
+  return <section className="profile-snapshot"><div className="snapshot-card"><span>Idade</span><strong>{age!==null?`${age} anos`:"—"}</strong></div><div className="snapshot-card"><span>Modalidade</span><strong>{student.modality||"—"}</strong></div><div className="snapshot-card"><span>Treinos montados</span><strong>{slotLabel}</strong></div><div className="snapshot-card"><span>Última avaliação</span><strong>{latestAssessment?formatDate(latestAssessment.date):"Sem avaliação"}</strong></div>{alerts.length?<div className="snapshot-alert"><span>⚠ Lembretes importantes</span><strong>{alerts.join(" · ")}</strong></div>:<div className="snapshot-alert clear"><span>✓ Cuidados</span><strong>Nenhuma restrição ou dor registrada</strong></div>}</section>;
 }
 
 function kidsCalendarRequest(event:CalendarEvent):KidsLessonOpenRequest|null{

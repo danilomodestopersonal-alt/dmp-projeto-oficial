@@ -5121,7 +5121,7 @@ input:focus,textarea:focus{
     display:none!important;
   }
 
-  /* mantém o mesmo cabeçalho dos outros cards */
+  /* mantem o mesmo cabecalho dos outros cards */
   .month-closing-today-card{
     position:relative!important;
     display:grid!important;
@@ -5185,5 +5185,43 @@ input:focus,textarea:focus{
   .month-closing-lines
   .month-closing-personal-title{
     display:none!important;
+  }
+}
+
+@media(min-width:1000px){
+  .month-closing-today-card>div>strong{
+    white-space:normal!important;
+    text-align:center!important;
+    justify-content:center!important;
+    line-height:1.15!important;
+  }
+}
+
+@media(min-width:1000px){
+  .month-closing-today-card>div>strong{
+    font-size:14px!important;
+    font-weight:700!important;
+    line-height:1.15!important;
+    font-family:inherit!important;
+    letter-spacing:normal!important;
+  }
+}
+
+
+@media(min-width:1000px){
+  .month-closing-today-card>div{
+    padding-left:0!important;
+  }
+
+  .month-closing-today-card>div>strong{
+    white-space:nowrap!important;
+    justify-content:center!important;
+    text-align:center!important;
+  }
+}
+
+@media(min-width:1000px){
+  .month-closing-today-card>div{
+    align-self:start!important;
   }
 }
