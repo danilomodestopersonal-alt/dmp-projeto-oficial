@@ -78,6 +78,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [calendarSync, setCalendarSync] = useState<{dailyAt:string;weeklyAt:string;weeklyCount:number}>({dailyAt:"",weeklyAt:"",weeklyCount:0});
   const [historySearch, setHistorySearch] = useState("");
   const [historySource, setHistorySource] = useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
+  const [historyPeriod, setHistoryPeriod] = useState<"ALL"|"30"|"90"|"YEAR">("ALL");
   const [workoutsOnly, setWorkoutsOnly] = useState(false);
   const [showGoogleEventForm, setShowGoogleEventForm] = useState(false);
   const [showFinancePin, setShowFinancePin] = useState(false);
@@ -742,6 +743,53 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     }
   }
 
+  async function updateHistoricalSession(studentId:string, session:Session) {
+    try {
+      const response=await fetch("/api/data",{cache:"no-store"});
+      if(!response.ok)throw new Error();
+      const result=await response.json();
+      if(!Array.isArray(result.data))throw new Error();
+      const latest=result.data as Student[];
+      const target=latest.find(student=>student.id===studentId);
+      if(!target)throw new Error();
+      const updated={...target,sessions:target.sessions.map(item=>item.id===session.id?{...item,...session}:item)};
+      const next=latest.map(student=>student.id===studentId?updated:student);
+      const saveResponse=await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});
+      if(!saveResponse.ok)throw new Error();
+      setStudents(next);
+      saveStudents(next);
+      const channel=new BroadcastChannel(STUDENTS_CHANNEL);
+      channel.postMessage({type:"refresh"});
+      channel.close();
+    } catch {
+      alert("Não foi possível atualizar esta sessão. Confira a conexão e tente novamente.");
+      throw new Error("historical_session_update_failed");
+    }
+  }
+
+  async function deleteHistoricalSession(studentId:string, sessionId:string) {
+    try {
+      const response=await fetch("/api/data",{cache:"no-store"});
+      if(!response.ok)throw new Error();
+      const result=await response.json();
+      if(!Array.isArray(result.data))throw new Error();
+      const latest=result.data as Student[];
+      const target=latest.find(student=>student.id===studentId);
+      if(!target)throw new Error();
+      const updated={...target,sessions:target.sessions.filter(item=>item.id!==sessionId)};
+      const next=latest.map(student=>student.id===studentId?updated:student);
+      const saveResponse=await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});
+      if(!saveResponse.ok)throw new Error();
+      setStudents(next);
+      saveStudents(next);
+      const channel=new BroadcastChannel(STUDENTS_CHANNEL);
+      channel.postMessage({type:"refresh"});
+      channel.close();
+    } catch {
+      alert("Não foi possível excluir esta sessão. Confira a conexão e tente novamente.");
+      throw new Error("historical_session_delete_failed");
+    }
+  }
 
 
   useEffect(()=>{
@@ -882,7 +930,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
     const allHistory = students.flatMap(student=>student.sessions.map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
     const allAssessments = students.flatMap(student=>student.assessments.map(assessment=>({student,assessment}))).sort((a,b)=>a.student.name.localeCompare(b.student.name,"pt-BR")||b.assessment.date.localeCompare(a.assessment.date));
-    const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${session.date} ${student.name} ${session.workoutName} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; return matchText&&matchSource; });
+    const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${session.date} ${student.name} ${session.workoutName} ${session.focus||""} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; const now=today(); const cutoff=historyPeriod==="30"?dateOffset(now,-29):historyPeriod==="90"?dateOffset(now,-89):historyPeriod==="YEAR"?`${now.slice(0,4)}-01-01`:""; const matchPeriod=!cutoff||session.date>=cutoff; return matchText&&matchSource&&matchPeriod; });
 
     return (
       <main className="dashboard-shell">
@@ -891,7 +939,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id} onClick={()=>startEditingNote(note)} role="button" tabIndex={0}><div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div><div className="note-actions" onClick={e=>e.stopPropagation()}><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}{editingNoteId?<div className="note-modal-backdrop" onMouseDown={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}><section className="note-modal" onMouseDown={e=>e.stopPropagation()}><div className="note-modal-head"><span>Editar recado</span><button className="text-button" onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}} aria-label="Fechar">×</button></div><input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Escreva seu recado..."/><div className="note-modal-actions"><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button><button className="primary" onClick={saveEditedNote}>Salvar</button></div></section></div>:null}</section>
               <HomePendingSection students={students}/>
@@ -1054,7 +1102,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
   </section></>;
 })() : null}
 
-          {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
+          {view === "history-overview" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Linha do tempo</p><h1>Histórico</h1><p>Pesquise qualquer sessão por aluno, exercício, observação ou tipo de registro.</p></div></header><section className="dashboard-content"><div className="history-toolbar"><input className="search" placeholder="Buscar aluno, exercício, foco ou observação..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)}/><select value={historySource} onChange={e=>setHistorySource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><select value={historyPeriod} onChange={e=>setHistoryPeriod(e.target.value as any)}><option value="ALL">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="YEAR">Este ano</option></select><span className="status-chip ok">{filteredHistory.length} registro{filteredHistory.length===1?"":"s"}</span></div><div className="overview-list">{filteredHistory.slice(0,500).map(({student,session})=><button className="overview-row" key={session.id} onClick={()=>openStudent(student.id)}><span><strong>{formatDate(session.date)} · {student.name}</strong><small>{session.focus?`Foco: ${session.focus}`:session.workoutName}{session.notes?` — ${session.notes}`:""}</small></span><span className="status-chip ok">{sessionSourceLabel(session)}</span></button>)}</div></section></> : null}
 
           {view === "assessments-overview" ? (() => {
   const activeStudents = students.filter(student => student.status === "ACTIVE");
@@ -1285,7 +1333,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           {tab === "summary" ? <StudentSummary student={selectedStudent} /> : null}
           {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
-          {tab === "history" ? <HistoryPanel student={selectedStudent} /> : null}
+          {tab === "history" ? <HistoryPanel student={selectedStudent} onSave={session=>updateHistoricalSession(selectedStudent.id,session)} onDelete={sessionId=>deleteHistoricalSession(selectedStudent.id,sessionId)} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
           {tab === "files" ? <StudentFilesPanel student={selectedStudent} /> : null}
           <div className="student-danger-zone"><button className="danger-link" onClick={deleteSelectedStudent}>Excluir cadastro</button><small>Exclusão definitiva do aluno e dos dados vinculados.</small></div>
@@ -1619,8 +1667,9 @@ function GlobalSearch({value,onChange,students,events,onStudent,onAgenda}:{value
   return <section className="global-search-box"><div className="global-search-input"><span>⌕</span><input value={value} onChange={event=>onChange(event.target.value)} placeholder="Busca rápida: aluno, compromisso, telefone ou observação..."/>{value?<button onClick={()=>onChange("")} aria-label="Limpar busca">×</button>:null}</div>{query?<div className="global-search-results">{studentResults.map(student=><button key={student.id} onClick={()=>onStudent(student.id)}><span>👤</span><strong>{student.name}</strong><small>Aluno · abrir cadastro</small></button>)}{eventResults.map(event=><button key={event.id} onClick={()=>onAgenda(calendarEventDate(event))}><span>📅</span><strong>{event.summary}</strong><small>{formatDate(calendarEventDate(event))} · {formatCalendarTime(event)}</small></button>)}{!studentResults.length&&!eventResults.length?<p>Nenhum resultado encontrado.</p>:null}</div>:null}</section>;
 }
 
-function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void}){
+function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void}){
   const [showSummary,setShowSummary]=useState(false);
+  const [showMonthClosing,setShowMonthClosing]=useState(false);
 
   const timed=events
     .filter(event=>!event.allDay)
@@ -1662,10 +1711,12 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
 
   const pending=notes.filter(note=>!note.done);
   const monthKey=today().slice(0,7);
-  const monthSessions=students.flatMap(student=>student.sessions.filter(session=>session.date.slice(0,7)===monthKey));
+  const monthSessionRows=students.flatMap(student=>student.sessions.filter(session=>session.date.slice(0,7)===monthKey).map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
+  const monthSessions=monthSessionRows.map(item=>item.session);
   const monthAttended=monthSessions.filter(session=>session.source!=="ABSENCE").length;
   const monthAbsent=monthSessions.filter(session=>session.source==="ABSENCE").length;
-  const monthAssessments=students.reduce((sum,student)=>sum+student.assessments.filter(item=>item.date.slice(0,7)===monthKey).length,0);
+  const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(item=>item.date.slice(0,7)===monthKey).map(assessment=>({student,assessment}))).sort((a,b)=>b.assessment.date.localeCompare(a.assessment.date));
+  const monthAssessments=monthAssessmentRows.length;
   const monthPerformance=monthPerformanceActivities.filter(item=>item.date.slice(0,7)===monthKey);
   const monthKids=monthKidsCount??monthEvents.filter(event=>Boolean(kidsCalendarRequest(event))).length;
   const monthCycling=monthPerformance.filter(item=>item.type==="CYCLING");
@@ -1768,7 +1819,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
 
       
 
-      <article className="today-highlight-card month-closing-today-card">
+      <button className="today-highlight-card month-closing-today-card" onClick={()=>setShowMonthClosing(value=>!value)} aria-expanded={showMonthClosing}>
         <div>
           <strong>Fechamento do mês</strong>
           <span className="highlight-lines">
@@ -1779,7 +1830,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
             <small>{"\uD83C\uDFCB\uFE0F"} <b>{monthStrength.length}</b> musculação</small>
           </span>
         </div>
-      </article>
+      </button>
 
       <button className="today-highlight-card today-notes-card" onClick={onNotes}>
         <span className="today-highlight-icon">{"\uD83D\uDDD2\uFE0F"}</span>
@@ -1814,6 +1865,46 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
 
 
     </div>
+
+    {showMonthClosing?
+      <section className="month-closing-detail panel">
+        <div className="panel-head">
+          <div>
+            <h2>Fechamento do mês</h2>
+            <p className="muted">Detalhes dos registros de {new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}.</p>
+          </div>
+          <button className="secondary" onClick={()=>setShowMonthClosing(false)}>Fechar</button>
+        </div>
+        <div className="month-closing-detail-grid">
+          <article>
+            <header><strong>Atendimentos</strong><b>{monthAttended}</b></header>
+            <div className="month-closing-detail-list">{monthSessionRows.filter(item=>item.session.source!=="ABSENCE").slice(0,6).map(({student,session})=><button key={student.id+session.id} onClick={()=>onStudent(student.id)}><span>{formatDate(session.date)}</span><strong>{student.name}</strong></button>)}</div>
+            <button className="secondary compact-action" onClick={onHistory}>Abrir Histórico</button>
+          </article>
+          <article>
+            <header><strong>Avaliações</strong><b>{monthAssessments}</b></header>
+            <div className="month-closing-detail-list">{monthAssessmentRows.slice(0,6).map(({student,assessment})=><button key={student.id+assessment.id} onClick={()=>onStudent(student.id)}><span>{formatDate(assessment.date)}</span><strong>{student.name}</strong></button>)}</div>
+            <button className="secondary compact-action" onClick={onAssessments}>Abrir Avaliações</button>
+          </article>
+          <article>
+            <header><strong>Aulas Kids</strong><b>{monthKids}</b></header>
+            <p className="muted">Aulas realizadas no mês pelo histórico oficial do módulo Kids.</p>
+            <button className="secondary compact-action" onClick={onKidsModule}>Abrir Aulas Kids</button>
+          </article>
+          <article>
+            <header><strong>Ciclismo</strong><b>{monthCycling.length}</b></header>
+            <p className="muted">{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km registrados no mês.</p>
+            <div className="month-closing-detail-list">{monthCycling.slice(0,5).map(activity=><button key={activity.id} onClick={()=>onOpenPerformanceActivity(activity)}><span>{formatDate(activity.date)}</span><strong>{activity.title}</strong></button>)}</div>
+            <button className="secondary compact-action" onClick={onPerformance}>Abrir Performance</button>
+          </article>
+          <article>
+            <header><strong>Musculação</strong><b>{monthStrength.length}</b></header>
+            <div className="month-closing-detail-list">{monthStrength.slice(0,5).map(activity=><button key={activity.id} onClick={()=>onOpenPerformanceActivity(activity)}><span>{formatDate(activity.date)}</span><strong>{activity.title}</strong></button>)}</div>
+            <button className="secondary compact-action" onClick={onPerformance}>Abrir Performance</button>
+          </article>
+        </div>
+      </section>
+    :null}
 
     {showSummary?
       <section className="today-summary-detail panel">
@@ -2033,137 +2124,64 @@ function HomeClosingSummary({students,performanceActivities}:{students:Student[]
   </section>;
 }
 
-function HistoryPanel({student}:{student:Student}) {
+function HistoryPanel({student,onSave,onDelete}:{student:Student;onSave:(session:Session)=>Promise<void>;onDelete:(sessionId:string)=>Promise<void>}) {
+  const [query,setQuery]=useState("");
+  const [source,setSource]=useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
+  const [period,setPeriod]=useState<"ALL"|"30"|"90"|"YEAR">("ALL");
+  const [editing,setEditing]=useState<Session|null>(null);
+  const [saving,setSaving]=useState(false);
   const todayKey=today();
   const cutoffDate=new Date();
   cutoffDate.setDate(cutoffDate.getDate()-29);
   const cutoffKey=cutoffDate.toISOString().slice(0,10);
 
-  const sortedSessions=student.sessions
-    .slice()
-    .sort((a,b)=>b.date.localeCompare(a.date));
-
-  const recentSessions=sortedSessions.filter(
-    session=>session.date>=cutoffKey && session.date<=todayKey
-  );
-
-  const recentAttendances=recentSessions.filter(
-    session=>session.source!=="ABSENCE"
-  );
-
-  const recentAbsences=recentSessions.filter(
-    session=>session.source==="ABSENCE"
-  );
-
-  const recentAssessments=student.assessments.filter(
-    assessment=>assessment.date>=cutoffKey && assessment.date<=todayKey
-  );
-
+  const sortedSessions=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const recentSessions=sortedSessions.filter(session=>session.date>=cutoffKey && session.date<=todayKey);
+  const recentAttendances=recentSessions.filter(session=>session.source!=="ABSENCE");
+  const recentAbsences=recentSessions.filter(session=>session.source==="ABSENCE");
+  const recentAssessments=student.assessments.filter(assessment=>assessment.date>=cutoffKey && assessment.date<=todayKey);
   const latestSession=sortedSessions[0]||null;
   const latestAssessment=assessmentSorted(student)[0]||null;
+  const recentNotes=recentSessions.filter(session=>String(session.notes||"").trim()).slice(0,3);
+  const visibleSessions=sortedSessions.filter(session=>{
+    if(session.source==="ABSENCE")return false;
+    const q=normalizeName(query);
+    const matchesText=!q||normalizeName(`${session.date} ${session.workoutName} ${session.focus||""} ${session.notes} ${session.completedExercises.map(ex=>`${ex.name} ${ex.load} ${ex.notes||""}`).join(" ")}`).includes(q);
+    const matchesSource=source==="ALL"||(session.source||"PLANNED")===source;
+    const cutoff=period==="30"?dateOffset(todayKey,-29):period==="90"?dateOffset(todayKey,-89):period==="YEAR"?`${todayKey.slice(0,4)}-01-01`:"";
+    return matchesText&&matchesSource&&(!cutoff||session.date>=cutoff);
+  });
 
-  const recentNotes=recentSessions
-    .filter(session=>String(session.notes||"").trim())
-    .slice(0,3);
+  function patchEditing(patch:Partial<Session>){setEditing(current=>current?{...current,...patch}:current);}
+  function patchExercise(id:string,patch:Partial<Exercise>){setEditing(current=>current?{...current,completedExercises:current.completedExercises.map(ex=>ex.id===id?{...ex,...patch}:ex)}:current);}
+  function addExercise(){setEditing(current=>current?{...current,completedExercises:[...current.completedExercises,{id:crypto.randomUUID(),block:"",name:"",sets:"",reps:"",load:"",notes:""}]}:current);}
+  function removeExercise(id:string){setEditing(current=>current?{...current,completedExercises:current.completedExercises.filter(ex=>ex.id!==id)}:current);}
+  async function saveEdit(){if(!editing)return;setSaving(true);try{await onSave({...editing,completedExercises:editing.completedExercises.filter(ex=>ex.name.trim())});setEditing(null);}finally{setSaving(false);}}
+  async function removeSession(session:Session){if(!confirm(`Excluir definitivamente a sessão de ${formatDate(session.date)}?\n\nEsta ação remove somente este registro do histórico e não altera a ficha de treino do aluno.`))return;setSaving(true);try{await onDelete(session.id);if(editing?.id===session.id)setEditing(null);}finally{setSaving(false);}}
 
   return <div className="student-history-stack">
     <section className="panel intelligent-history-panel">
-      <div className="panel-head">
-        <div>
-          <h2>{"Hist\u00F3rico inteligente"}</h2>
-          <p className="muted">{"Vis\u00E3o dos \u00FAltimos 30 dias do aluno."}</p>
-        </div>
-      </div>
-
+      <div className="panel-head"><div><h2>{"Histórico inteligente"}</h2><p className="muted">{"Visão dos últimos 30 dias do aluno."}</p></div></div>
       <div className="intelligent-history-grid">
-        <article>
-          <span>Registros</span>
-          <strong>{recentSessions.length}</strong>
-          <small>{"\u00DAltimos 30 dias"}</small>
-        </article>
-
-        <article>
-          <span>Atendimentos</span>
-          <strong>{recentAttendances.length}</strong>
-          <small>{"Treinos e presen\u00E7as"}</small>
-        </article>
-
-        <article>
-          <span>{"Aus\u00EAncias"}</span>
-          <strong>{recentAbsences.length}</strong>
-          <small>{"No per\u00EDodo"}</small>
-        </article>
-
-        <article>
-          <span>{"Avalia\u00E7\u00F5es"}</span>
-          <strong>{recentAssessments.length}</strong>
-          <small>{"Nos \u00FAltimos 30 dias"}</small>
-        </article>
+        <article><span>Registros</span><strong>{recentSessions.length}</strong><small>{"Últimos 30 dias"}</small></article>
+        <article><span>Atendimentos</span><strong>{recentAttendances.length}</strong><small>{"Treinos e presenças"}</small></article>
+        <article><span>{"Ausências"}</span><strong>{recentAbsences.length}</strong><small>{"No período"}</small></article>
+        <article><span>{"Avaliações"}</span><strong>{recentAssessments.length}</strong><small>{"Nos últimos 30 dias"}</small></article>
       </div>
-
       <div className="intelligent-history-details">
-        <div>
-          <span>{"\u00DAltima sess\u00E3o"}</span>
-          <strong>{latestSession?formatDate(latestSession.date):"—"}</strong>
-          <small>{latestSession?.workoutName||"Nenhum registro"}</small>
-        </div>
-
-        <div>
-          <span>{"\u00DAltima avalia\u00E7\u00E3o"}</span>
-          <strong>{latestAssessment?formatDate(latestAssessment.date):"—"}</strong>
-          <small>{latestAssessment?"Avalia\u00E7\u00E3o registrada":"Nenhuma avalia\u00E7\u00E3o"}</small>
-        </div>
+        <div><span>{"Última sessão"}</span><strong>{latestSession?formatDate(latestSession.date):"—"}</strong><small>{latestSession?.focus?`Foco: ${latestSession.focus}`:latestSession?.workoutName||"Nenhum registro"}</small></div>
+        <div><span>{"Última avaliação"}</span><strong>{latestAssessment?formatDate(latestAssessment.date):"—"}</strong><small>{latestAssessment?"Avaliação registrada":"Nenhuma avaliação"}</small></div>
       </div>
-
-      {recentNotes.length?
-        <div className="intelligent-history-notes">
-          <strong>{"Observa\u00E7\u00F5es recentes"}</strong>
-          {recentNotes.map(session=>
-            <div key={session.id}>
-              <b>{formatDate(session.date)}</b>
-              <span>{session.notes}</span>
-            </div>
-          )}
-        </div>
-      :null}
+      {recentNotes.length?<div className="intelligent-history-notes"><strong>{"Observações recentes"}</strong>{recentNotes.map(session=><div key={session.id}><b>{formatDate(session.date)}</b><span>{session.notes}</span></div>)}</div>:null}
     </section>
 
     <section className="panel">
-      <div className="panel-head">
-        <h2>{"Hist\u00F3rico de sess\u00F5es"}</h2>
-        <button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button>
-      </div>
-
-      {student.sessions.filter(session=>session.source!=="ABSENCE").length ? student.sessions.filter(session=>session.source!=="ABSENCE").map(session =>
-          <details className="history-item" key={session.id}>
-            <summary>
-              <span><strong>{formatDate(session.date)}</strong> {"\u00b7"} {session.workoutName}</span>
-              <small>{sessionSourceLabel(session)}</small>
-            </summary>
-
-            {session.completedExercises.length ?
-              <ul className="simple-list">
-                {session.completedExercises.map(exercise =>
-                  <li key={exercise.id}>
-                    {exercise.block ? `${exercise.block} \u00b7 ` : ""}
-                    {exercise.name}
-                    {exercise.sets || exercise.reps ? ` \u00b7 ${exercise.sets}\u00d7${exercise.reps}` : ""}
-                    {exercise.load ? ` \u00b7 ${exercise.load}` : ""}
-                    {exercise.notes ? ` \u00b7 ${exercise.notes}` : ""}
-                  </li>
-                )}
-              </ul>
-            :
-              <p className="muted">{"Presen\u00E7a registrada sem detalhamento de exerc\u00EDcios."}</p>
-            }
-
-            <p>{session.notes || "Sem observa\u00E7\u00F5es."}</p>
-          </details>
-        )
-      :
-        <p className="muted">{"Nenhuma sess\u00E3o registrada."}</p>
-      }
+      <div className="panel-head"><div><h2>{"Histórico de sessões"}</h2><p className="muted">Pesquise, filtre e corrija registros sem alterar a ficha original.</p></div><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>
+      <div className="student-history-toolbar"><input className="search" placeholder="Buscar exercício, foco ou observação..." value={query} onChange={e=>setQuery(e.target.value)}/><select value={source} onChange={e=>setSource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><select value={period} onChange={e=>setPeriod(e.target.value as any)}><option value="ALL">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="YEAR">Este ano</option></select><span className="status-chip ok">{visibleSessions.length}</span></div>
+      {visibleSessions.length?visibleSessions.map(session=><details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> {"·"} {session.focus?"Treino realizado":session.workoutName}</span><small>{sessionSourceLabel(session)}</small></summary>{session.focus?<p className="history-focus"><strong>Foco:</strong> {session.focus}</p>:null}{session.completedExercises.length?<ul className="simple-list">{session.completedExercises.map(exercise=><li key={exercise.id}>{exercise.block?`${exercise.block} · `:""}{exercise.name}{exercise.sets||exercise.reps?` · ${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}{exercise.notes?` · ${exercise.notes}`:""}</li>)}</ul>:<p className="muted">{"Presença registrada sem detalhamento de exercícios."}</p>}<p>{session.notes||"Sem observações."}</p><div className="history-item-actions"><button className="secondary compact-button" onClick={e=>{e.preventDefault();setEditing({...session,completedExercises:session.completedExercises.map(ex=>({...ex}))});}}>Editar</button><button className="danger-link" disabled={saving} onClick={e=>{e.preventDefault();void removeSession(session);}}>Excluir registro</button></div></details>):<p className="muted">{"Nenhuma sessão encontrada com estes filtros."}</p>}
     </section>
+
+    {editing?<div className="modal-backdrop" onMouseDown={()=>!saving&&setEditing(null)}><section className="modal history-edit-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>Editar sessão</h2><p className="muted">A ficha original do aluno não será alterada.</p></div><button className="text-button" disabled={saving} onClick={()=>setEditing(null)}>Fechar</button></div><div className="form-grid"><label>Data<input type="date" value={editing.date} onChange={e=>patchEditing({date:e.target.value})}/></label><label>Foco da sessão<input value={editing.focus||""} onChange={e=>patchEditing({focus:e.target.value})} placeholder="Ex.: Pernas, Dorsal + core..."/></label><label className="full">Nome do registro<input value={editing.workoutName} onChange={e=>patchEditing({workoutName:e.target.value})}/></label><label>Início<input type="datetime-local" value={isoToLocalInput(editing.startedAt)} onChange={e=>patchEditing({startedAt:localInputToIso(e.target.value)})}/></label><label>Fim<input type="datetime-local" value={isoToLocalInput(editing.finishedAt)} onChange={e=>patchEditing({finishedAt:localInputToIso(e.target.value)})}/></label></div><div className="panel-head history-edit-exercises-head"><div><h3>Exercícios realizados</h3><p className="muted">Corrija bloco, exercício, séries, repetições, carga e observação.</p></div><button className="secondary compact-button" onClick={addExercise}>+ Exercício</button></div><div className="history-edit-exercises">{editing.completedExercises.map(ex=><div className="history-edit-row" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>patchExercise(ex.id,{block:e.target.value})}/><input className="history-edit-name" placeholder="Exercício" value={ex.name} onChange={e=>patchExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>patchExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>patchExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>patchExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação" value={ex.notes||""} onChange={e=>patchExercise(ex.id,{notes:e.target.value})}/><button className="danger-link" onClick={()=>removeExercise(ex.id)}>×</button></div>)}</div><label className="form-stack">Observações da sessão<textarea rows={4} value={editing.notes} onChange={e=>patchEditing({notes:e.target.value})}/></label><div className="history-edit-actions"><button className="danger-link" disabled={saving} onClick={()=>void removeSession(editing)}>Excluir registro</button><span/><button className="secondary" disabled={saving} onClick={()=>setEditing(null)}>Cancelar</button><button className="primary" disabled={saving} onClick={()=>void saveEdit()}>{saving?"Salvando...":"Salvar alterações"}</button></div></section></div>:null}
   </div>;
 }
 
@@ -3064,8 +3082,10 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
   const [exercises,setExercises]=useState<Exercise[]>([]);
   const [listening,setListening]=useState(false);
   function organize(){
-    const protocol=detectWorkoutProtocol(transcript);
-    let organized=organizeQuickTranscript(transcript);
+    const extracted=extractSessionFocus(transcript);
+    if(extracted.focus)setFocus(extracted.focus);
+    const protocol=detectWorkoutProtocol(extracted.text);
+    let organized=organizeQuickTranscript(extracted.text);
 
     if(protocol==="B7"){
       organized=organized.map((exercise,index)=>({
@@ -3284,7 +3304,9 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
       return;
     }
 
-    const organized=organizeQuickTranscript(transcript);
+    const extracted=extractSessionFocus(transcript);
+    if(extracted.focus)setFocus(extracted.focus);
+    const organized=organizeQuickTranscript(extracted.text);
 
     if(!organized.length){
       alert("Fale ou escreva o treino antes de organizar.");
@@ -3296,7 +3318,7 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
 >
   Organizar para revisão
 </button></div></article>
-    <article className="panel"><div className="panel-head"><div><h2>Revise antes de salvar</h2><p className="muted">Você pode corrigir bloco, exercício, séries, repetições e carga.</p></div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"",reps:"",load:""}])}>+ Exercício</button></div>{exercises.length? <div className="review-list">{exercises.map(ex=><div className="review-row enhanced" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input className="review-name" placeholder="Exercício" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==ex.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Ainda não organizado</strong><span>Escreva ou fale o treino e toque em “Organizar para revisão”.</span></div>}<label className="form-stack">Observações / próximos ajustes<textarea rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: não fizemos bloco 4; trocar exercício no próximo treino..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:focus||"Treino realizado",notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"FREE"})}>✓ Salvar no histórico</button></article>
+    <article className="panel"><div className="panel-head"><div><h2>Revise antes de salvar</h2><p className="muted">Você pode corrigir bloco, exercício, séries, repetições e carga.</p></div><button className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"",reps:"",load:""}])}>+ Exercício</button></div>{exercises.length? <div className="review-list">{exercises.map(ex=><div className="review-row enhanced" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})}/><input className="review-name" placeholder="Exercício" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><button className="danger-link" onClick={()=>setExercises(current=>current.filter(item=>item.id!==ex.id))}>×</button></div>)}</div>:<div className="empty-review"><strong>Ainda não organizado</strong><span>Escreva ou fale o treino e toque em “Organizar para revisão”.</span></div>}<label className="form-stack">Observações / próximos ajustes<textarea rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: não fizemos bloco 4; trocar exercício no próximo treino..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:"Treino realizado",focus:focus&&focus!=="Treino realizado"?focus:"",notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"FREE"})}>✓ Salvar no histórico</button></article>
   </section></main>;
 }
 
@@ -3707,11 +3729,22 @@ function readLocalStorage(key:string){try{return localStorage.getItem(key)||"";}
 function writeLocalStorage(key:string,value:string){try{localStorage.setItem(key,value);}catch{}}
 function localDateKey(value:Date){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(value);}
 function today(){return localDateKey(new Date());}
+function dateOffset(value:string,days:number){const date=new Date(`${value}T12:00:00`);date.setDate(date.getDate()+days);return localDateKey(date);}
+function isoToLocalInput(value?:string){if(!value)return"";const date=new Date(value);if(Number.isNaN(date.getTime()))return"";const local=new Date(date.getTime()-date.getTimezoneOffset()*60000);return local.toISOString().slice(0,16);}
+function localInputToIso(value:string){return value?new Date(value).toISOString():undefined;}
 function saoPauloDateFromIso(value:string){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value));}
 function sameSaoPauloDate(a:string,b:string){try{return saoPauloDateFromIso(a)===saoPauloDateFromIso(b);}catch{return false;}}
 function isSundayInSaoPaulo(){const label=new Intl.DateTimeFormat("en-US",{timeZone:"America/Sao_Paulo",weekday:"short"}).format(new Date());return label==="Sun";}
 function formatSyncTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
 function formatSyncDateTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
+function extractSessionFocus(rawText:string){
+  const match=rawText.match(/\bobjetivo\s*:\s*(.+?)(?=(?:\r?\n|[.;])|(?:\s*[,;\-–—]?\s*(?:sistema|protocolo|bloco)\b)|$)/i);
+  if(!match)return{focus:"",text:rawText};
+  const focus=match[1].trim().replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g,"");
+  const text=(rawText.slice(0,match.index)+rawText.slice((match.index||0)+match[0].length)).replace(/^[\s,;:.\-–—]+/,"").trim();
+  return{focus,text};
+}
+
 function organizeQuickTranscript(rawText:string): Exercise[] {
   const text=rawText.replace(/\r\n?/g,"\n").trim();
   if(!text) return [];

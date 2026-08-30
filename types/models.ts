@@ -38,6 +38,7 @@ export type Session = {
   date: string;
   workoutName: string;
   workoutId?: string;
+  focus?: string;
   notes: string;
   completedExercises: Exercise[];
   source?: SessionSource;
