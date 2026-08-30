@@ -5253,11 +5253,5 @@ input:focus,textarea:focus{
 .month-closing-detail-list>button strong{min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:1100px){.month-closing-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){
-  .today-highlight-grid .mini-month{display:block!important;padding:10px 12px!important;border-radius:16px!important}
-  .today-highlight-grid .mini-month-nav{grid-template-columns:1fr!important;margin-bottom:6px}
-  .today-highlight-grid .mini-month-nav button,.today-highlight-grid .mini-month-today{display:none!important}
-  .today-highlight-grid .mini-month-nav strong{font-size:.76rem!important;text-align:left!important}
-  .today-highlight-grid .mini-month-week b{font-size:.62rem!important}
-  .today-highlight-grid .mini-month-days button,.today-highlight-grid .mini-month-days i{height:25px!important;font-size:.7rem!important}
   .month-closing-detail-grid{grid-template-columns:1fr}
 }
