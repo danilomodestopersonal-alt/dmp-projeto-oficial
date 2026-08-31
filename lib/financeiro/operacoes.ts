@@ -78,7 +78,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
   }
 
   const sourcePersonal = data.personalInvoices.filter(item => item.competence === fromCompetence);
-  const sourceKids = data.dsKids.filter(item => item.competence === fromCompetence).filter(item=>item.billingMode!=="SINGLE");
+  const sourceKids = data.dsKids.filter(item => item.competence === fromCompetence).filter(item=>!item.excludedFromTotals).filter(item=>item.billingMode!=="SINGLE");
   const sourceExpenses = data.expenses.filter(item => item.competence === fromCompetence);
 
   const personalInvoices: PersonalInvoice[] = sourcePersonal.map(item => ({

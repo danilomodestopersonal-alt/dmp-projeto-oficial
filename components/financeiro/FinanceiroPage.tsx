@@ -41,6 +41,7 @@ import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud, saveFinanceData }
 import { parseFinanceVoice, parseMoney, suggestCategory, type VoicePreview } from "@/lib/financeiro/voz";
 import styles from "./FinanceiroPage.module.css";
 import type { KidsData } from "@/types/kids";
+import { reconcileKidsFinance, type KidsFinanceAudit } from "@/lib/financeiro/kids-sync";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => localDateISO();
@@ -76,6 +77,7 @@ export default function FinanceiroPage() {
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const [listFilter, setListFilter] = useState<Filter>("ALL");
   const [undoDeletion, setUndoDeletion] = useState<FinanceData | null>(null);
+  const [kidsAudit, setKidsAudit] = useState<KidsFinanceAudit | null>(null);
   const competence = data.currentCompetence;
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
@@ -96,7 +98,21 @@ export default function FinanceiroPage() {
         if (cancelled) return;
         const base=cloud||local;
         let next=base;
-        try{const kidsResponse=await fetch("/api/kids",{cache:"no-store"});if(kidsResponse.ok){const kidsPayload=await kidsResponse.json();if(kidsPayload.data)next=base;}}catch{}
+        try{
+          const kidsResponse=await fetch("/api/kids",{cache:"no-store"});
+          if(kidsResponse.ok){
+            const kidsPayload=await kidsResponse.json();
+            if(kidsPayload.data){
+              const reconciled=reconcileKidsFinance(base,kidsPayload.data as KidsData);
+              next=reconciled.data;
+              setKidsAudit(reconciled.audit);
+              if(reconciled.changed){
+                const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
+                if(!save.ok)throw new Error("Falha ao persistir auditoria Kids.");
+              }
+            }
+          }
+        }catch(error){console.error("Financeiro: não foi possível conferir o Kids.",error);}
         if (cloud) {
           setData(next);
           saveFinanceData(next);
@@ -383,7 +399,7 @@ export default function FinanceiroPage() {
               <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{receipt.sourceName || "DS"}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
             </section>
             <section className="panel">
-              <div className="panel-head"><div><h2>Alunos Kids</h2><p className="muted">{summary.kids.length} registros · {money.format(summary.kidsGross)} bruto.</p></div></div>
+              <div className="panel-head"><div><h2>Alunos Kids</h2><p className="muted">{summary.kids.length} registros válidos · {money.format(summary.kidsGross)} bruto.{kidsAudit?.excluded?` · ${kidsAudit.excluded} registro(s) antigo(s) preservado(s) fora da soma.`:""}{kidsAudit?.legacyIncluded?` · ${kidsAudit.legacyIncluded} registro(s) ainda sem vínculo.`:""}</p></div></div>
               <div className={`${styles.list} ${styles.scrollList}`}>{summary.kids.slice().sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")).map(kid => <div className={styles.rowShell} key={kid.id}><div className={`${styles.row} ${styles.staticRow} ${styles.rowMain}`}><span><strong><FinanceCategoryDot category={kid.tennisCategory}/>{kid.studentName}</strong><small>{kid.installmentCurrent && kid.installmentTotal ? `${kid.installmentCurrent}/${kid.installmentTotal}` : kid.installmentTotal ? `${kid.installmentTotal} parcelas · atual a configurar` : "Parcelas a configurar"}</small></span><strong>{money.format(kid.amount)}</strong></div><button className={styles.manageButton} disabled={!editable} onClick={() => openAction({ type: "kid-edit", kid })}>Editar</button></div>)}</div>
             </section>
           </div>

@@ -93,6 +93,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [editingNoteTitle, setEditingNoteTitle] = useState("");
   const [editingNoteText, setEditingNoteText] = useState("");
   const [kidsLessonRequest,setKidsLessonRequest]=useState<KidsLessonOpenRequest|null>(null);
+  const [kidsEntryKey,setKidsEntryKey]=useState(0);
   const [homeMonthKidsCount,setHomeMonthKidsCount]=useState<number|null>(null);
   const [showMobileActions,setShowMobileActions]=useState(false);
   const [todayPerformanceActivities,setTodayPerformanceActivities]=useState<PerformanceActivity[]>([]);
@@ -875,6 +876,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       return;
     }
     if(target==="workouts-overview")setWorkoutsOnly(false);
+    if(target==="kids"){setKidsLessonRequest(null);setKidsEntryKey(current=>current+1);}
     setView(target);
   }
 
@@ -1196,7 +1198,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage /> : null}
-          {view === "kids" ? <KidsPage openRequest={kidsLessonRequest} onBack={()=>{setKidsLessonRequest(null);setView("today");}} /> : null}
+          {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} onBack={()=>{setKidsLessonRequest(null);setView("today");}} /> : null}
           {view === "performance" ? <PerformancePage openActivityId={selectedPerformanceActivityId} /> : null}
           {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
           {view === "settings" ? <AccessSettings /> : null}

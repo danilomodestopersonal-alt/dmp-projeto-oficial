@@ -22,6 +22,8 @@ export type DsKidBillingMode = "SINGLE" | "INSTALLMENT" | "RECURRING";
 export type DsKidEntry = {
   id: string;
   competence: string;
+  studentId?: string | null;
+  excludedFromTotals?: boolean;
   studentName: string;
   amount: number;
   dueDay?: number | null;
