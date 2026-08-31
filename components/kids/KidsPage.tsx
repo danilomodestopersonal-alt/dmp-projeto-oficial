@@ -1496,7 +1496,7 @@ function ClassEditor({
         </div>
         <h3>Crianças</h3>
         <div className={styles.studentEdit}>
-          {draft.students.map((student) => (
+          {draft.students.filter((student) => student.active).map((student) => (
             <div key={student.id}>
               <input
                 value={student.name}

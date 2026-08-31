@@ -5255,3 +5255,12 @@ input:focus,textarea:focus{
 @media(max-width:900px){
   .month-closing-detail-grid{grid-template-columns:1fr}
 }
+
+
+/* DMP 31-08-2026 — pacote de ajustes rápidos */
+.student-profile-care-bottom{width:100%;margin:22px 0 10px}
+@media(min-width:701px){
+  .calendar-preview-row.calendar-multi-row .calendar-slot-main{gap:6px}
+  .calendar-preview-row.calendar-multi-row .calendar-slot-students{padding:8px 10px}
+  .calendar-preview-row.calendar-multi-row .calendar-event-main small{margin:0}
+}
