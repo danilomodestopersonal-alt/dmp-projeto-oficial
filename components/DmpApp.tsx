@@ -1763,8 +1763,6 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
         onClick={()=>setShowSummary(value=>!value)}
         aria-expanded={showSummary}
       >
-        <span className="today-highlight-icon">{"\uD83D\uDCCA"}</span>
-
         <div>
           <strong>Resumo do dia</strong>
 
@@ -1809,14 +1807,13 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
             <small><b>{monthAttended}</b> atendimentos</small>
             <small><b>{monthAssessments}</b> avaliações</small>
             <small><b>{monthKids}</b> aulas Kids</small>
-            <small>{"\uD83D\uDEB4"} <b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
-            <small>{"\uD83C\uDFCB\uFE0F"} <b>{monthStrength.length}</b> musculação</small>
+            <small><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
+            <small><b>{monthStrength.length}</b> musculação</small>
           </span>
         </div>
       </button>
 
       <button className="today-highlight-card today-notes-card" onClick={onNotes}>
-        <span className="today-highlight-icon">{"\uD83D\uDDD2\uFE0F"}</span>
         <div>
           <strong>Recados</strong>
           <span className="highlight-lines">
@@ -1830,14 +1827,13 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
         className="today-highlight-card performance-today-card"
         onClick={onPerformance}
       >
-        <span className="today-highlight-icon">{"\uD83D\uDCC8"}</span>
         <div>
           <strong>Treino do dia</strong>
           {performanceActivities.length?
             <span className="performance-today-list">
               {performanceActivities.map(activity=>
                 <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
-                  <b>{performanceActivityEmoji(activity)} {performanceIcon(activity.type)} {"\u00B7"} {activity.title}</b>
+                  <b>{activity.title}</b>
                   {activitySummary(activity)?<small>{activitySummary(activity)}</small>:null}
                 </span>
               )}

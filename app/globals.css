@@ -5615,3 +5615,154 @@ input:focus,textarea:focus{
 }
 
 .student-finance-summary-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+
+/* DMP 01-09-2026 — alinhamento central uniforme dos cards da Home */
+@media(min-width:1000px){
+  .today-summary-card,
+  .month-closing-today-card,
+  .today-notes-card,
+  .performance-today-card{
+    position:relative!important;
+  }
+
+  .today-summary-card>div,
+  .month-closing-today-card>div,
+  .today-notes-card>div,
+  .performance-today-card>div{
+    grid-column:1 / -1!important;
+    grid-row:1 / span 2!important;
+    width:100%!important;
+    padding-left:0!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    text-align:center!important;
+    box-sizing:border-box!important;
+  }
+
+  .today-summary-card>div>strong,
+  .month-closing-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .performance-today-card>div>strong{
+    width:100%!important;
+    justify-content:center!important;
+    text-align:center!important;
+  }
+
+  .today-summary-card .today-highlight-icon,
+  .today-notes-card .today-highlight-icon,
+  .performance-today-card .today-highlight-icon{
+    position:absolute!important;
+    left:14px!important;
+    top:14px!important;
+    margin:0!important;
+    transform:none!important;
+  }
+
+  .today-summary-card .highlight-lines,
+  .month-closing-today-card .highlight-lines,
+  .today-notes-card .highlight-lines,
+  .performance-today-card .performance-today-list,
+  .performance-today-card .highlight-lines{
+    width:100%!important;
+    margin-left:0!important;
+    align-items:center!important;
+    text-align:center!important;
+  }
+
+  .performance-today-card .performance-today-list,
+  .performance-today-card .performance-today-row{
+    align-items:center!important;
+    text-align:center!important;
+  }
+
+  .performance-today-card .performance-today-row b,
+  .performance-today-card .performance-today-row small{
+    text-align:center!important;
+  }
+
+  .today-summary-card>div>i,
+  .today-summary-card .today-kids-inline{
+    width:100%!important;
+    margin-left:0!important;
+  }
+}
+
+/* DMP 01-09-2026 — Home sem emojis e títulos uniformes */
+@media(min-width:1000px){
+  .today-summary-card .today-highlight-icon,
+  .today-notes-card .today-highlight-icon,
+  .performance-today-card .today-highlight-icon{
+    display:none!important;
+  }
+
+  .today-summary-card,
+  .month-closing-today-card,
+  .today-notes-card,
+  .performance-today-card{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    text-align:center!important;
+  }
+
+  .today-summary-card>div,
+  .month-closing-today-card>div,
+  .today-notes-card>div,
+  .performance-today-card>div{
+    width:100%!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    text-align:center!important;
+    padding:0!important;
+  }
+
+  .today-summary-card>div>strong,
+  .month-closing-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .performance-today-card>div>strong{
+    display:block!important;
+    width:100%!important;
+    min-height:0!important;
+    padding:0!important;
+    margin:0!important;
+    font-family:inherit!important;
+    font-size:16px!important;
+    font-weight:900!important;
+    line-height:1.2!important;
+    letter-spacing:0!important;
+    text-align:center!important;
+  }
+
+  .today-summary-card .highlight-lines,
+  .month-closing-today-card .highlight-lines,
+  .today-notes-card .highlight-lines,
+  .performance-today-card .performance-today-list,
+  .performance-today-card .highlight-lines{
+    width:100%!important;
+    align-items:center!important;
+    text-align:center!important;
+  }
+
+  .performance-today-card .performance-today-row,
+  .performance-today-card .performance-today-row b,
+  .performance-today-card .performance-today-row small{
+    width:100%!important;
+    align-items:center!important;
+    text-align:center!important;
+  }
+
+  .today-summary-card>div>i,
+  .today-summary-card .today-kids-inline{
+    width:100%!important;
+  }
+}
+
+/* DMP ajuste cirurgico - somente titulo Fechamento do mes */
+@media(min-width:1000px){.month-closing-today-card>div>strong{font-size:15px!important;}}
+
+/* DMP ajuste final - Fechamento do mes 14px */
+@media(min-width:1000px){.month-closing-today-card>div>strong{font-size:14px!important;}}
