@@ -159,7 +159,11 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       const payload=await response.json();
       const finance=payload.data as FinanceData|undefined;
       if(!finance||!data)throw new Error();
-      const reconciled=reconcileKidsFinance(finance,{...data,classes:studentClasses},{createMissing:true,updateFromProfile:true});
+      const reconciled=reconcileKidsFinance(
+         finance,
+         {...data,classes:studentClasses},
+         {createMissing:true,updateFromProfile:true,onlyStudentId:student.id},
+       );
       setFinanceData(reconciled.data);
       if(reconciled.changed){
         await createFinanceSafetyBackup();

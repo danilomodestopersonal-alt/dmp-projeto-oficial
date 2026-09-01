@@ -16,6 +16,7 @@ type KidsProfile = {
 type ReconcileOptions = {
   createMissing?: boolean;
   updateFromProfile?: boolean;
+  onlyStudentId?: string;
 };
 
 const normalizeName = (value: string) =>
@@ -139,7 +140,10 @@ export function reconcileKidsFinance(
   options: ReconcileOptions = {},
 ) {
   const competence = finance.currentCompetence;
-  const profiles = activeProfiles(kids);
+  const profiles = activeProfiles(kids).filter(
+    (profile) =>
+      !options.onlyStudentId || profile.student.id === options.onlyStudentId,
+  );
   const nextKids = finance.dsKids.map((item) => ({ ...item }));
   const claimed = new Set<number>();
   let created = 0;
@@ -157,6 +161,28 @@ export function reconcileKidsFinance(
         (a, b) =>
           candidateScore(b.item, profile) - candidateScore(a.item, profile),
       );
+
+    const historicalSingle = nextKids.some(
+      (item) =>
+        item.competence < competence &&
+        !item.excludedFromTotals &&
+        item.billingMode === "SINGLE" &&
+        matchesProfile(item, profile),
+    );
+
+    if (historicalSingle) {
+      for (const candidate of candidates) {
+        claimed.add(candidate.index);
+        nextKids[candidate.index] = {
+          ...nextKids[candidate.index],
+          studentId: profile.student.id,
+          studentName: profile.student.name.trim(),
+          billingMode: "SINGLE",
+          excludedFromTotals: true,
+        };
+      }
+      continue;
+    }
 
     const winner = candidates[0];
 
