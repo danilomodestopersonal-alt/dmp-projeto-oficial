@@ -995,7 +995,39 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 })()}
 </div>
               <div className="student-toolbar dashboard-toolbar"><input className="search" placeholder="Pesquisar por nome, telefone ou objetivo..." value={search} onChange={event => setSearch(event.target.value)} /><div className="student-filters"><button className={studentFilter === "ACTIVE" ? "filter-active" : "secondary"} onClick={() => setStudentFilter("ACTIVE")}>Ativos</button><button className={studentFilter === "ARCHIVED" ? "filter-active" : "secondary"} onClick={() => setStudentFilter("ARCHIVED")}>Inativos</button></div></div>
-              <div className="student-grid dashboard-student-grid compact-student-grid">{visibleStudents.map(student => { const lastSession=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date))[0]; const entries=getStudentWorkoutEntries(student); const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0]; const assessmentDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null; const assessmentExpired=assessmentDays!==null&&assessmentDays>60; const workoutStates=entries.map(({workout,slot})=>({workout,slot,validity:workoutValidityInfo(student,workout)})); const needsRenewal=workoutStates.some(item=>item.validity.status==="RENEW"||item.validity.status==="EXPIRED"); return <article className={`student-card dashboard-student-card compact-student-card ${needsRenewal?"workout-needs-renewal":""}`} key={student.id}><button className="student-card-open" onClick={() => openStudent(student.id)}><span className="student-avatar">{student.name.slice(0,1).toUpperCase()}</span><span><strong><StudentCategoryDot category={student.tennisCategory}/>{student.name}</strong><span className={latestAssessment?(assessmentExpired?"student-assessment-mini expired":"student-assessment-mini"):"student-assessment-mini none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><small>{lastSession?`Último atendimento: ${formatDate(lastSession.date)}`:(student.goal||"Sem atendimentos")}</small>{workoutStates.length?<span className="student-workout-summary">{workoutStates.map(({workout,slot,validity})=><span key={workout.id} className={`student-workout-chip ${validity.status.toLowerCase()}`}><b>{slot}</b> {workout.name||`Treino ${slot}`}<em>{validity.status==="NONE"?`${workout.exercises.length} exercícios`:validity.label}</em></span>)}</span>:<span className="student-workout-summary"><span className="student-workout-chip empty"><b>—</b> Sem treino montado<em>Montar ficha</em></span></span>}</span><b>›</b></button>{student.restrictions ? <div className="restriction-mini">⚠ {student.restrictions}</div> : null}<div className="card-actions compact-card-actions"><button className="primary" onClick={()=>{setSelectedStudentId(student.id);setView("free-session");}}>✍ Registrar treino</button>{entries.length?<button className="secondary" onClick={() => startStudentFlow(student.id,"session")}>▶ Acompanhar treino</button>:<button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setWorkoutEditorSlot("A");setSelectedWorkoutId(null);setView("workout-editor");}}>+ Montar treino</button>}<button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setView("attendance-session");}}>✓ Presença</button><button className="absence-action" onClick={()=>void registerStudentAbsence(student)}>Ausência</button></div></article>;})}</div>
+              <div className="student-grid dashboard-student-grid compact-student-grid">{visibleStudents.map(student => {
+                const lastSession=student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
+                const entries=getStudentWorkoutEntries(student);
+                const sequence=studentWorkoutSequence(student,entries);
+                const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
+                const assessmentDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;
+                const assessmentExpired=assessmentDays!==null&&assessmentDays>60;
+                const workoutStates=entries.map(({workout,slot})=>({workout,slot,validity:workoutValidityInfo(student,workout)}));
+                const needsRenewal=workoutStates.some(item=>item.validity.status==="RENEW"||item.validity.status==="EXPIRED");
+                return <article className={`student-card dashboard-student-card compact-student-card ${needsRenewal?"workout-needs-renewal":""}`} key={student.id}>
+                  <button className="student-card-open" onClick={() => openStudent(student.id)}>
+                    <span className="student-avatar">{student.name.slice(0,1).toUpperCase()}</span>
+                    <span className="student-card-main">
+                      <span className="student-card-headline">
+                        <strong><StudentCategoryDot category={student.tennisCategory}/>{student.name}</strong>
+                        <span className={latestAssessment?(assessmentExpired?"student-assessment-mini expired":"student-assessment-mini"):"student-assessment-mini none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>
+                      </span>
+                      <span className="student-card-meta-line">
+                        <small>{lastSession?`Último atendimento: ${formatDate(lastSession.date)}`:(student.goal||"Sem atendimentos")}</small>
+                        {workoutStates.length?<span className="student-workout-summary">{workoutStates.map(({workout,slot,validity})=>{const suggested=entries.length>1&&sequence.suggested?.workout.id===workout.id;return <span key={workout.id} title={`${workout.name||`Treino ${slot}`} · ${validity.status==="NONE"?`${workout.exercises.length} exercícios`:validity.label}`} className={`student-workout-chip ${validity.status.toLowerCase()} ${suggested?"suggested":""}`}><b>{slot}</b><span>{suggested?"PRÓXIMO":`${workout.exercises.length} ex`}</span></span>})}</span>:<span className="student-workout-summary"><span className="student-workout-chip empty"><b>—</b><span>Sem treino</span></span></span>}
+                        {student.restrictions?<span className="student-row-care" title={student.restrictions}>⚠ Cuidados</span>:null}
+                      </span>
+                    </span>
+                    <b className="student-open-arrow">›</b>
+                  </button>
+                  <div className="card-actions compact-card-actions">
+                    <button className="primary" onClick={()=>{setSelectedStudentId(student.id);setView("free-session");}}>✍ Registrar</button>
+                    {entries.length?<button className="secondary" onClick={() => startStudentFlow(student.id,"session")}>▶ Acompanhar</button>:<button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setWorkoutEditorSlot("A");setSelectedWorkoutId(null);setView("workout-editor");}}>+ Montar treino</button>}
+                    <button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setView("attendance-session");}}>✓ Presença</button>
+                    <button className="absence-action" onClick={()=>void registerStudentAbsence(student)}>Ausência</button>
+                  </div>
+                </article>;
+              })}</div>
             </section>
           </> : null}
 
@@ -1976,11 +2008,17 @@ function normalizeStudentFinanceName(value:string){
 
 function studentFinanceInvoices(finance:FinanceData|null,student:Student){
   if(!finance)return [] as FinanceData["personalInvoices"];
-  const linked=finance.personalInvoices.filter(invoice=>!invoice.excludedFromTotals&&invoice.studentId===student.id);
-  const byName=finance.personalInvoices.filter(invoice=>!invoice.excludedFromTotals&&!invoice.studentId&&normalizeStudentFinanceName(invoice.studentName)===normalizeStudentFinanceName(student.name));
-  const combined=[...linked,...byName];
+  const normalizedName=normalizeStudentFinanceName(student.name);
+  const matches=finance.personalInvoices.filter(invoice=>
+    invoice.studentId===student.id||(!invoice.studentId&&normalizeStudentFinanceName(invoice.studentName)===normalizedName)
+  );
+  const visible=matches.filter(invoice=>{
+    if(!invoice.excludedFromTotals)return true;
+    if(!invoice.payments?.length)return false;
+    return !matches.some(other=>other.id!==invoice.id&&!other.excludedFromTotals&&other.competence===invoice.competence);
+  });
   const seen=new Set<string>();
-  return combined.filter(invoice=>{if(seen.has(invoice.id))return false;seen.add(invoice.id);return true;}).sort((a,b)=>b.competence.localeCompare(a.competence));
+  return visible.filter(invoice=>{if(seen.has(invoice.id))return false;seen.add(invoice.id);return true;}).sort((a,b)=>b.competence.localeCompare(a.competence));
 }
 
 function useStudentFinanceSnapshot(student:Student){
@@ -2132,6 +2170,8 @@ function StudentFinancePanel({student,onEditProfile}:{student:Student;onEditProf
   const referenceInvoice=current||latest;
   const hasFinanceReference=student.financialActive===true||Boolean(referenceInvoice);
   const totalExpected=state.invoices.reduce((sum,invoice)=>sum+invoice.expectedAmount,0);const totalPaid=state.invoices.reduce((sum,invoice)=>sum+financePaid(invoice),0);
+  const paymentHistory=state.invoices.flatMap(invoice=>invoice.payments.map(payment=>({invoice,payment}))).sort((a,b)=>b.payment.date.localeCompare(a.payment.date));
+  const latestPayment=paymentHistory[0]||null;
   async function deletePayment(invoice:FinanceData["personalInvoices"][number],payment:FinanceData["personalInvoices"][number]["payments"][number]){
     if(!state.finance)return;if(state.finance.competences[invoice.competence]?.status==="CLOSED"){alert("Esta competência está fechada. Reabra o mês no Financeiro geral antes de excluir um pagamento histórico.");return;}if(!confirm(`Excluir o recebimento de ${formatStudentMoney(payment.amount)} em ${formatDate(payment.date)}?`))return;
     const next={...state.finance,personalInvoices:state.finance.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:item.payments.filter(value=>value.id!==payment.id)}:item),history:[...(state.finance.history||[]),{id:`history-${crypto.randomUUID()}`,occurredAt:new Date().toISOString(),competence:invoice.competence,kind:"PERSONAL_PAYMENT_DELETED" as const,description:`Recebimento de ${invoice.studentName} removido.`,amount:payment.amount,entityId:invoice.id}]};
@@ -2139,7 +2179,7 @@ function StudentFinancePanel({student,onEditProfile}:{student:Student;onEditProf
   }
   return <section className="student-finance-panel"><div className="student-section-title"><div><span>FINANCEIRO DO ALUNO</span><h2>Mensalidade e pagamentos</h2></div><button className="secondary" onClick={onEditProfile}>✎ Editar valor e vencimento</button></div>
     {state.loading?<div className="student-empty-soft">Carregando histórico financeiro...</div>:state.error?<div className="student-empty-soft">{state.error}</div>:<>
-      <div className="student-finance-summary-grid"><article><span>Valor mensal</span><strong>{student.financialActive===true&&Number.isFinite(student.monthlyAmount)?formatStudentMoney(Number(student.monthlyAmount)):referenceInvoice?formatStudentMoney(referenceInvoice.expectedAmount):"Não informado"}</strong><small>{student.financeDueDay?`Vencimento dia ${student.financeDueDay}`:referenceInvoice?`Vencimento dia ${referenceInvoice.dueDay}`:"Vencimento não informado"}</small></article><article><span>Competência atual</span><strong>{financeMonthLabel(calendarCompetence)}</strong><small>{current?financeRemaining(current)>0?`${formatStudentMoney(financeRemaining(current))} em aberto`:"✓ Quitada":hasFinanceReference?"Sem lançamento vinculado nesta competência":"Financeiro não ativado"}</small></article><article><span>Histórico vinculado</span><strong>{state.invoices.length} mês{state.invoices.length===1?"":"es"}</strong><small>{formatStudentMoney(totalPaid)} recebido de {formatStudentMoney(totalExpected)} previsto</small></article></div>
+      <div className="student-finance-summary-grid"><article><span>Valor mensal</span><strong>{student.financialActive===true&&Number.isFinite(student.monthlyAmount)?formatStudentMoney(Number(student.monthlyAmount)):referenceInvoice?formatStudentMoney(referenceInvoice.expectedAmount):"Não informado"}</strong><small>{student.financeDueDay?`Vencimento dia ${student.financeDueDay}`:referenceInvoice?`Vencimento dia ${referenceInvoice.dueDay}`:"Vencimento não informado"}</small></article><article><span>Competência atual</span><strong>{financeMonthLabel(calendarCompetence)}</strong><small>{current?financeRemaining(current)>0?`${formatStudentMoney(financeRemaining(current))} em aberto`:"✓ Quitada":hasFinanceReference?"Sem lançamento vinculado nesta competência":"Financeiro não ativado"}</small></article><article><span>Histórico financeiro</span><strong>{state.invoices.length} mês{state.invoices.length===1?"":"es"}</strong><small>{formatStudentMoney(totalPaid)} recebido de {formatStudentMoney(totalExpected)} previsto</small></article><article><span>Último pagamento</span><strong>{latestPayment?formatStudentMoney(latestPayment.payment.amount):"Nenhum"}</strong><small>{latestPayment?`${formatDate(latestPayment.payment.date)} · ${financeMonthLabel(latestPayment.invoice.competence)}`:"Ainda não há pagamento registrado"}</small></article></div>
       {state.invoices.length?<div className="student-finance-history">{state.invoices.map(invoice=>{const paid=financePaid(invoice),remaining=financeRemaining(invoice),closed=state.finance?.competences[invoice.competence]?.status==="CLOSED";return <article key={invoice.id} className="student-finance-month"><header><div><span>{financeMonthLabel(invoice.competence)}</span><strong>{formatStudentMoney(invoice.expectedAmount)}</strong><small>Vence dia {invoice.dueDay}{closed?" · competência fechada":""}</small></div><div><strong>{remaining>0?`${formatStudentMoney(remaining)} em aberto`:"✓ Quitada"}</strong><small>{formatStudentMoney(paid)} recebido</small>{remaining>0?<button className="primary compact-action" disabled={closed} onClick={()=>setPaymentTarget({invoice})}>+ Pagamento</button>:null}</div></header><div className="student-payment-history">{invoice.payments.length?invoice.payments.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(payment=><div key={payment.id}><span><b>{formatDate(payment.date)}</b>{payment.note?<small>{payment.note}</small>:null}</span><strong>{formatStudentMoney(payment.amount)}</strong><button className="text-button" disabled={closed} onClick={()=>setPaymentTarget({invoice,payment})}>Editar</button><button className="danger-link" disabled={closed} onClick={()=>void deletePayment(invoice,payment)}>Excluir</button></div>):<span className="muted">Nenhum pagamento registrado nesta competência.</span>}</div></article>;})}</div>:<div className="student-empty-soft">Nenhuma mensalidade financeira está vinculada a este aluno. Use “Editar valor e vencimento” para conferir o cadastro financeiro.</div>}
     </>}
     {paymentTarget?<StudentFinancePaymentModal invoice={paymentTarget.invoice} payment={paymentTarget.payment} onClose={()=>setPaymentTarget(null)} onSaved={next=>state.setFinance(next)}/>:null}
@@ -3709,6 +3749,24 @@ function getStudentWorkoutEntries(student:Student):{workout:Workout;slot:Workout
   });
 
   return entries.sort((a,b)=>WORKOUT_SLOTS.indexOf(a.slot)-WORKOUT_SLOTS.indexOf(b.slot)).slice(0,4);
+}
+
+function studentWorkoutSequence(student:Student,entries:{workout:Workout;slot:WorkoutSlot}[]){
+  if(!entries.length)return {last:null as {workout:Workout;slot:WorkoutSlot}|null,suggested:null as {workout:Workout;slot:WorkoutSlot}|null};
+  const planned=student.sessions.filter(session=>session.source==="PLANNED").slice().sort((a,b)=>
+    (b.finishedAt||b.startedAt||`${b.date}T12:00:00`).localeCompare(a.finishedAt||a.startedAt||`${a.date}T12:00:00`)
+  );
+  let last:{workout:Workout;slot:WorkoutSlot}|null=null;
+  for(const session of planned){
+    const match=entries.find(entry=>
+      (session.workoutId&&session.workoutId===entry.workout.id)||
+      (!session.workoutId&&(normalizeName(session.workoutName)===normalizeName(entry.workout.name)||normalizeName(session.workoutName)===normalizeName(`Treino ${entry.slot}`)))
+    );
+    if(match){last=match;break;}
+  }
+  if(!last)return {last:null,suggested:entries[0]};
+  const index=entries.findIndex(entry=>entry.workout.id===last?.workout.id);
+  return {last,suggested:entries[(index+1)%entries.length]||entries[0]};
 }
 
 type WorkoutValidityStatus="NONE"|"ACTIVE"|"RENEW"|"EXPIRED";

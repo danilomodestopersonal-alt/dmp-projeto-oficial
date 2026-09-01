@@ -5566,3 +5566,52 @@ input:focus,textarea:focus{
   .student-training-chart,.student-trend-card{padding:10px}
   .student-training-bars{height:120px;gap:4px}
 }
+
+/* DMP — lista de alunos ultracompacta + próximo treino sugerido */
+@media(min-width:1051px){
+  .student-toolbar.dashboard-toolbar{margin-bottom:10px!important}
+  .student-toolbar.dashboard-toolbar .search{min-height:38px!important;padding-top:7px!important;padding-bottom:7px!important}
+  .student-toolbar.dashboard-toolbar .student-filters button{min-height:36px!important;padding:7px 13px!important}
+  .dashboard-student-grid.compact-student-grid{gap:7px!important}
+  .dashboard-student-card.compact-student-card{
+    grid-template-columns:minmax(0,1fr) auto!important;
+    gap:10px!important;
+    padding:7px 11px!important;
+    border-radius:13px!important;
+  }
+  .compact-student-card .student-card-open{
+    grid-template-columns:34px minmax(0,1fr) 16px!important;
+    gap:8px!important;
+    align-items:center!important;
+  }
+  .compact-student-card .student-avatar{
+    width:34px!important;height:34px!important;flex-basis:34px!important;
+    border-radius:10px!important;font-size:14px!important;
+  }
+  .compact-student-card .student-card-main{display:grid!important;gap:3px!important;min-width:0!important}
+  .compact-student-card .student-card-headline{display:flex!important;align-items:center!important;gap:7px!important;min-width:0!important}
+  .compact-student-card .student-card-headline>strong{font-size:.9rem!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .compact-student-card .student-assessment-mini{margin:0!important;padding:3px 6px!important;font-size:.63rem!important;white-space:nowrap!important;flex:0 0 auto!important}
+  .compact-student-card .student-card-meta-line{display:flex!important;align-items:center!important;gap:7px!important;min-width:0!important;white-space:nowrap!important}
+  .compact-student-card .student-card-meta-line>small{margin:0!important;font-size:.67rem!important;flex:0 1 auto!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .compact-student-card .student-workout-summary{display:inline-flex!important;flex-wrap:nowrap!important;gap:3px!important;margin:0!important;flex:0 0 auto!important}
+  .compact-student-card .student-workout-chip{display:inline-flex!important;align-items:center!important;gap:3px!important;padding:2px 5px!important;border-radius:7px!important;font-size:.61rem!important;line-height:1!important}
+  .compact-student-card .student-workout-chip>b{width:17px!important;height:17px!important;border-radius:6px!important;font-size:.6rem!important}
+  .compact-student-card .student-workout-chip>span{font-size:.57rem!important;font-weight:900!important;color:#66706d!important}
+  .compact-student-card .student-workout-chip.suggested{box-shadow:inset 0 0 0 2px #8faf16!important;background:#eff8d4!important;border-color:#9dbd27!important}
+  .compact-student-card .student-workout-chip.suggested>span{color:#587000!important;letter-spacing:.02em!important}
+  .compact-student-card .student-row-care{display:inline-flex!important;align-items:center!important;max-width:95px!important;overflow:hidden!important;text-overflow:ellipsis!important;padding:3px 6px!important;border-radius:7px!important;background:#fff5dd!important;color:#8a6200!important;font-size:.59rem!important;font-weight:900!important;flex:0 0 auto!important}
+  .compact-student-card .student-open-arrow{font-size:18px!important;line-height:1!important;color:var(--dmp-green-dark)!important}
+  .compact-student-card .compact-card-actions{display:flex!important;flex-wrap:nowrap!important;gap:5px!important;margin:0!important;align-items:center!important}
+  .compact-student-card .compact-card-actions button{min-height:31px!important;padding:5px 8px!important;border-radius:8px!important;font-size:.68rem!important;line-height:1!important;white-space:nowrap!important}
+  .compact-student-card .restriction-mini{display:none!important}
+}
+
+@media(max-width:1050px) and (min-width:701px){
+  .dashboard-student-card.compact-student-card{padding:9px 11px!important;gap:7px!important}
+  .compact-student-card .student-card-meta-line{display:flex!important;align-items:center!important;gap:6px!important;flex-wrap:wrap!important}
+  .compact-student-card .student-workout-summary{margin-top:0!important}
+  .compact-student-card .student-row-care{font-size:.62rem!important}
+}
+
+.student-finance-summary-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
