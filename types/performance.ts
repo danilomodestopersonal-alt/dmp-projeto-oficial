@@ -8,6 +8,12 @@ export type PerformanceActivityType =
 
 export type PerformanceActivitySource = "MANUAL" | "STRAVA";
 
+export type PerformanceCyclingKind =
+  | "SPEED"
+  | "MTB"
+  | "INDOOR"
+  | "OTHER";
+
 export type PerformanceStrengthExercise = {
   id: string;
   block?: string;
@@ -59,6 +65,8 @@ export type PerformanceActivity = {
 
   gearName?: string | null;
   description?: string | null;
+
+  cyclingKind?: PerformanceCyclingKind | null;
 
   strengthExercises?: PerformanceStrengthExercise[];
   strengthSystem?: PerformanceStrengthSystem | null;

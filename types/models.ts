@@ -108,10 +108,12 @@ export type Student = {
   profession?: string;
   modality?: string;
   weeklyFrequency?: string;
+  trainingSchedule?: string;
   financialActive?: boolean;
   monthlyAmount?: number;
   financeDueDay?: number;
   notes: string;
+  notesUpdatedAt?: string;
   restrictions: string;
   injuries?: string;
   medications?: string;

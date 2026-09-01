@@ -2,6 +2,7 @@ import { pool } from "@/lib/db";
 import type {
   PerformanceActivity,
   PerformanceActivityType,
+  PerformanceCyclingKind,
   PerformanceData,
 } from "@/types/performance";
 
@@ -297,6 +298,55 @@ function activityType(
   return "OTHER";
 }
 
+
+function cyclingKind(
+  sportType: string,
+  title?: string | null,
+  gearName?: string | null,
+): PerformanceCyclingKind | null {
+  const value = `${sportType} ${title || ""} ${gearName || ""}`
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    value.includes("virtualride") ||
+    value.includes("virtual ride") ||
+    value.includes("indoor") ||
+    value.includes("spinning") ||
+    value.includes("spin bike") ||
+    value.includes("bike indoor") ||
+    value.includes("zwift") ||
+    value.includes("rolo") ||
+    value.includes("trainer")
+  ) {
+    return "INDOOR";
+  }
+
+  if (
+    value.includes("mountainbikeride") ||
+    value.includes("mountain bike") ||
+    value.includes("mountainbike") ||
+    value.includes(" mtb") ||
+    value.startsWith("mtb") ||
+    value.includes("trilha")
+  ) {
+    return "MTB";
+  }
+
+  if (
+    value.includes("roadbike") ||
+    value.includes("road bike") ||
+    value.includes("road cycling") ||
+    value.includes("speed") ||
+    value.includes("estrada")
+  ) {
+    return "SPEED";
+  }
+
+  return activityType(sportType) === "CYCLING" ? "OTHER" : null;
+}
+
 function round(value: number, decimals = 1) {
   const f = 10 ** decimals;
   return Math.round(value * f) / f;
@@ -339,6 +389,11 @@ function convertActivity(
 
   const timestamp =
     new Date().toISOString();
+
+  const gearName =
+    detailed.gear?.name ||
+    detailed.gear_id ||
+    null;
 
   return {
     id: `strava-${item.id}`,
@@ -412,10 +467,12 @@ function convertActivity(
         ? round(detailed.suffer_score, 0)
         : null,
 
-    gearName:
-      detailed.gear?.name ||
-      detailed.gear_id ||
-      null,
+    gearName,
+
+    cyclingKind:
+      activityType(sport) === "CYCLING"
+        ? cyclingKind(sport, item.name, gearName)
+        : null,
 
     description:
       detailed.description || null,
@@ -727,6 +784,9 @@ export async function syncStrava() {
         calories:
           old.calories ??
           incoming.calories,
+        cyclingKind:
+          old.cyclingKind ??
+          incoming.cyclingKind,
         notes:
           old.notes?.includes(
             "Importado da planilha histórica",

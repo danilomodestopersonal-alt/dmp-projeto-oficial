@@ -13,10 +13,12 @@ import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
 import type {KidsCategory,KidsData} from "@/types/kids";
 import type {FinanceData} from "@/types/financeiro";
+import { financeSeedAugust2026 } from "@/lib/financeiro/agosto2026";
+import { fetchFinanceCloud, loadFinanceData } from "@/lib/financeiro/storage";
 import type { PerformanceActivity } from "@/types/performance";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
-type StudentTab = "summary" | "workouts" | "history" | "assessments" | "files";
+type StudentTab = "summary" | "workouts" | "history" | "assessments" | "finance" | "files";
 type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string };
 type AgendaRange = "day" | "week" | "month" | "year" | "list";
 
@@ -237,7 +239,7 @@ useEffect(() => {
   }, 300);
 
   return () => window.clearTimeout(timer);
-}, [students, studentsLoaded, cloudWritable]);    
+}, [students, studentsLoaded, cloudWritable]);
 
 useEffect(() => {
   if (!studentsLoaded || deepLinkHandled.current) return;
@@ -602,12 +604,6 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     if (!selectedStudent) return;
     updateStudentRecord({...selectedStudent, ...payload});
     setShowEditStudentForm(false);
-  }
-
-  function toggleArchive() {
-    if (!selectedStudent) return;
-    updateStudentRecord({...selectedStudent, status: selectedStudent.status === "ACTIVE" ? "ARCHIVED" : "ACTIVE"});
-    goStudents();
   }
 
   function deleteSelectedStudent() {
@@ -1224,30 +1220,21 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         <section className="content student-profile-page">
           <section className="student-profile-command">
             <div className="student-profile-command-main">
-              <div className="student-profile-command-identity">
-                <span className={`status-pill ${selectedStudent.status === "ARCHIVED" ? "archived" : ""}`}>
-                  {selectedStudent.status === "ACTIVE" ? "Ativo" : "Inativo"}
-                </span>
-
-                <div>
-                  <span className="student-profile-command-kicker">CADERNO DO ALUNO</span>
-                  <h1>{selectedStudent.name}</h1>
-
-                </div>
-              </div>
+              <StudentProfileIdentity student={selectedStudent} onEdit={() => setShowEditStudentForm(true)} />
 
               <nav className="student-profile-primary-tabs" aria-label="Áreas do aluno">
-                {(["summary","workouts","history","assessments","files"] as StudentTab[]).map(item => (
+                {(["summary","workouts","history","assessments","finance","files"] as StudentTab[]).map(item => (
                   <button
                     key={item}
                     className={tab === item ? "active" : ""}
                     onClick={() => setTab(item)}
                   >
                     <span className="student-profile-tab-icon">
-                      {item==="summary"?"📋":
+                      {item==="summary"?"📊":
                        item==="workouts"?"🏋️":
                        item==="history"?"🕘":
-                       item==="assessments"?"📏":"📁"}
+                       item==="assessments"?"📏":
+                       item==="finance"?"💰":"📁"}
                     </span>
 
                     <span className="student-profile-tab-text">
@@ -1257,6 +1244,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
                          item==="workouts"?"Fichas e montagem":
                          item==="history"?"Sessões realizadas":
                          item==="assessments"?"Evolução física":
+                         item==="finance"?"Mensalidade e histórico":
                          "Documentos"}
                       </small>
                     </span>
@@ -1265,15 +1253,14 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
               </nav>
             </div>
 
-            <div className="student-profile-secondary-actions">
-              {workoutEntries.length ?
-                <button className="primary" onClick={() => setTab("workouts")}>
-                  ▶ Usar treino
-                </button>
-              :null}
+          </section>
 
+          {tab === "summary" ? <StudentDashboardComplete student={selectedStudent} onOpen={setTab} onEdit={() => setShowEditStudentForm(true)} onReport={()=>void printPersonalStudentReport(selectedStudent)} onStudentUpdate={updateStudentRecord} /> : null}
+
+          {tab === "workouts" ? <>
+            <div className="student-profile-secondary-actions">
               <button
-                className={workoutEntries.length ? "secondary" : "primary"}
+                className="secondary"
                 onClick={() => setView("free-session")}
               >
                 🎤 Registrar treino
@@ -1285,60 +1272,21 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
               >
                 ✓ Presença
               </button>
-
-              <button
-                className="secondary"
-                onClick={() => setShowEditStudentForm(true)}
-              >
-                Editar
-              </button>
-
-              <button
-                className="secondary"
-                onClick={()=>void printPersonalStudentReport(selectedStudent)}
-              >
-                🖨️ Relatório
-              </button>
-
-              {whatsappLink(selectedStudent.phone)?
-                <a
-                  className="secondary button-link whatsapp-student-link"
-                  href={whatsappLink(selectedStudent.phone)!}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  🟢 WhatsApp
-                </a>
-              :null}
-
-              <button className="secondary" onClick={toggleArchive}>
-                {selectedStudent.status === "ACTIVE" ? "Marcar inativo" : "Reativar"}
-              </button>
             </div>
-          </section>
 
-          <StudentProfileSnapshot student={selectedStudent} />
-
-          
-
-          <section className={`workflow-strip ${workoutEntries.length ? "has-workout" : "no-workout"}`}>
-            <div>
-              <strong>{workoutEntries.length ? `Treinos montados: ${workoutSlots}` : "Aluno sem treino montado"}</strong>
-              <span>{workoutEntries.length ? "Escolha A, B, C ou D para acompanhar a aula. Você também pode registrar por voz/texto ou somente presença." : "Monte uma aba de treino ou registre a aula por voz/texto sem ficha."}</span>
-            </div>
-            <div className="workflow-strip-actions">
-              {workoutEntries.length ? <button className="primary" onClick={() => setTab("workouts")}>Escolher treino</button> : <button className="primary" onClick={() => {setWorkoutEditorSlot("A");setSelectedWorkoutId(null);setTab("workouts");setView("workout-editor");}}>Montar Treino A</button>}
-              <button className="secondary" onClick={() => setView("free-session")}>Registrar depois</button>
-              <button className="secondary" onClick={() => setView("attendance-session")}>Só presença</button>
-            </div>
-          </section>
-
-          {tab === "summary" ? <StudentSummary student={selectedStudent} /> : null}
+            <section className={`workflow-strip ${workoutEntries.length ? "has-workout" : "no-workout"}`}>
+              <div>
+                <strong>{workoutEntries.length ? `Treinos montados: ${workoutSlots}` : "Aluno sem treino montado"}</strong>
+                <span>{workoutEntries.length ? "Escolha abaixo a ficha A, B, C ou D para editar, consultar ou iniciar a aula." : "Monte uma ficha abaixo ou registre a aula por voz/texto sem ficha."}</span>
+              </div>
+              {!workoutEntries.length ? <div className="workflow-strip-actions"><button className="primary" onClick={() => {setWorkoutEditorSlot("A");setSelectedWorkoutId(null);setTab("workouts");setView("workout-editor");}}>Montar Treino A</button></div> : null}
+            </section>
+          </> : null}
           {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
           {tab === "history" ? <HistoryPanel student={selectedStudent} onSave={session=>updateHistoricalSession(selectedStudent.id,session)} onDelete={sessionId=>deleteHistoricalSession(selectedStudent.id,sessionId)} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
+          {tab === "finance" ? <StudentFinancePanel student={selectedStudent} onEditProfile={() => setShowEditStudentForm(true)} /> : null}
           {tab === "files" ? <StudentFilesPanel student={selectedStudent} /> : null}
-          <StudentProfileCare student={selectedStudent} />
           <div className="student-danger-zone"><button className="danger-link" onClick={deleteSelectedStudent}>Excluir cadastro</button><small>Exclusão definitiva do aluno e dos dados vinculados.</small></div>
         </section>
 
@@ -1817,10 +1765,10 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
           :null}
         </div>
 
-        
+
       </button>
 
-      
+
 
       <button className="today-highlight-card month-closing-today-card" onClick={()=>setShowMonthClosing(value=>!value)} aria-expanded={showMonthClosing}>
         <div>
@@ -1995,19 +1943,209 @@ function MobileQuickActions({onClose,onNavigate}:{onClose:()=>void;onNavigate:(t
 function kidsCategoryName(category:KidsCategory){return category==="RED"?"Bola vermelha":category==="ORANGE"?"Bola laranja":category==="GREEN"?"Bola verde":"Bola amarela";}
 function Header({title,back}:{title:string;back?:()=>void}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong>{title}</strong></div></header>; }
 
-function StudentProfileSnapshot({student}:{student:Student}) {
+function StudentProfileIdentity({student,onEdit}:{student:Student;onEdit:()=>void}) {
   const age=calculateAge(student.birthDate);
-  const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const workouts=getStudentWorkoutEntries(student);
-  const slotLabel=workouts.length?workouts.map(entry=>entry.slot).join(" · "):"Sem ficha";
-  return <section className="profile-snapshot"><div className="snapshot-card"><span>Idade</span><strong>{age!==null?`${age} anos`:"—"}</strong></div><div className="snapshot-card"><span>Modalidade</span><strong>{student.modality||"—"}</strong></div><div className="snapshot-card"><span>Treinos montados</span><strong>{slotLabel}</strong></div><div className="snapshot-card"><span>Última avaliação</span><strong>{latestAssessment?formatDate(latestAssessment.date):"Sem avaliação"}</strong></div></section>;
+  const months=monthsSince(student.startDate);
+  const wa=whatsappLink(student.phone);
+  return <div className="student-profile-command-head">
+    <div className="student-profile-command-identity">
+      <span className={`status-pill ${student.status === "ARCHIVED" ? "archived" : ""}`}>
+        {student.status === "ACTIVE" ? "Ativo" : "Inativo"}
+      </span>
+      <div className="student-profile-identity-content">
+        <span className="student-profile-command-kicker">CADERNO DO ALUNO</span>
+        <h1>{student.name}</h1>
+        <div className="student-profile-identity-meta">
+          <span><small>Idade</small><strong>{age!==null?`${age} anos`:"Não informada"}</strong></span>
+          <span><small>Aluno há</small><strong>{months===null?"Não informado":formatMonths(months)}</strong></span>
+          <span><small>Frequência</small><strong>{student.weeklyFrequency||"Não informada"}</strong></span>
+          <span className="student-profile-schedule-meta"><small>Dias e horários</small><strong>{student.trainingSchedule||"Não informado"}</strong></span>
+        </div>
+      </div>
+    </div>
+    <div className="student-profile-command-contact">
+      {wa?<a className="primary button-link student-profile-whatsapp-main" href={wa} target="_blank" rel="noreferrer">🟢 WhatsApp</a>:null}
+      <button className="secondary" onClick={onEdit}>Editar cadastro</button>
+    </div>
+  </div>;
 }
+
+function normalizeStudentFinanceName(value:string){
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+}
+
+function studentFinanceInvoices(finance:FinanceData|null,student:Student){
+  if(!finance)return [] as FinanceData["personalInvoices"];
+  const linked=finance.personalInvoices.filter(invoice=>!invoice.excludedFromTotals&&invoice.studentId===student.id);
+  const byName=finance.personalInvoices.filter(invoice=>!invoice.excludedFromTotals&&!invoice.studentId&&normalizeStudentFinanceName(invoice.studentName)===normalizeStudentFinanceName(student.name));
+  const combined=[...linked,...byName];
+  const seen=new Set<string>();
+  return combined.filter(invoice=>{if(seen.has(invoice.id))return false;seen.add(invoice.id);return true;}).sort((a,b)=>b.competence.localeCompare(a.competence));
+}
+
+function useStudentFinanceSnapshot(student:Student){
+  const [finance,setFinance]=useState<FinanceData|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  async function reload(){
+    setLoading(true);setError("");
+    const local=loadFinanceData(financeSeedAugust2026);
+    setFinance(local);
+    try{
+      const cloud=await fetchFinanceCloud(financeSeedAugust2026);
+      if(cloud)setFinance(cloud);
+    }catch{
+      // No localhost, a API pode não ter acesso ao banco da produção.
+      // Mantém o mesmo fallback local já usado pelo Financeiro geral.
+      setFinance(local);
+    }finally{setLoading(false);}
+  }
+  useEffect(()=>{void reload();},[student.id,student.name]);
+  return {finance,setFinance,loading,error,reload,invoices:studentFinanceInvoices(finance,student)};
+}
+
+function formatStudentMoney(value:number){return Number(value||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});}
+function financePaid(invoice:FinanceData["personalInvoices"][number]){return invoice.payments.reduce((sum,payment)=>sum+Number(payment.amount||0),0);}
+function financeRemaining(invoice:FinanceData["personalInvoices"][number]){return Math.max(0,Number(invoice.expectedAmount||0)-financePaid(invoice));}
+function financeMonthLabel(value:string){if(!/^\d{4}-\d{2}$/.test(value))return value;return new Date(`${value}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});}
+function financeCalendarCompetence(){return today().slice(0,7);}
+function daysSinceDate(value:string){if(!value)return null;return Math.max(0,Math.floor((new Date(`${today()}T12:00:00`).getTime()-new Date(`${value}T12:00:00`).getTime())/86400000));}
+function studentMonthKeys(count=6){const [year,month]=today().slice(0,7).split("-").map(Number);return Array.from({length:count},(_,index)=>{const date=new Date(year,month-1-(count-1-index),1);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;});}
+function shortMonthLabel(value:string){return new Date(`${value}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"short"}).replace(".","");}
+function assessmentNumber(value:number|null|undefined){return value===null||value===undefined||!Number.isFinite(Number(value))?null:Number(value);}
+function signedAssessmentDelta(current:number|null|undefined,previous:number|null|undefined,suffix:string){const a=assessmentNumber(current),b=assessmentNumber(previous);if(a===null||b===null)return null;const diff=a-b;return `${diff>0?"+":""}${diff.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`;}
+
+function StudentMiniLineChart({title,unit,series}:{title:string;unit:string;series:{label:string;value:number}[]}){
+  if(series.length<2)return <article className="student-trend-card student-trend-empty"><div><span>{title}</span><strong>Histórico insuficiente</strong></div><small>São necessárias pelo menos 2 avaliações.</small></article>;
+  const values=series.map(item=>item.value);const min=Math.min(...values),max=Math.max(...values);const range=Math.max(.0001,max-min);
+  const points=series.map((item,index)=>{const x=series.length===1?50:(index/(series.length-1))*100;const y=84-((item.value-min)/range)*64;return `${x},${y}`;}).join(" ");
+  const latest=series[series.length-1];
+  return <article className="student-trend-card"><div className="student-trend-card-head"><span>{title}</span><strong>{latest.value.toLocaleString("pt-BR",{maximumFractionDigits:1})}{unit}</strong></div><svg className="student-mini-line" viewBox="0 0 100 92" preserveAspectRatio="none" aria-hidden="true"><polyline points={points}/>{series.map((item,index)=>{const x=series.length===1?50:(index/(series.length-1))*100;const y=84-((item.value-min)/range)*64;return <circle key={item.label} cx={x} cy={y} r="2.1"/>;})}</svg><div className="student-trend-labels"><small>{series[0].label}</small><small>{latest.label}</small></div></article>;
+}
+
+function StudentTrainingBars({student}:{student:Student}){
+  const keys=studentMonthKeys(6);
+  const data=keys.map(key=>({key,label:shortMonthLabel(key),value:student.sessions.filter(session=>session.source!=="ABSENCE"&&session.date.slice(0,7)===key).length}));
+  const max=Math.max(1,...data.map(item=>item.value));
+  return <article className="student-training-chart"><div className="student-chart-head"><div><span>Ritmo de treinamento</span><strong>Últimos 6 meses</strong></div><small>{data.reduce((sum,item)=>sum+item.value,0)} sessões</small></div><div className="student-training-bars">{data.map(item=><div key={item.key}><b>{item.value}</b><span><i style={{height:`${Math.max(6,(item.value/max)*100)}%`}}/></span><small>{item.label}</small></div>)}</div></article>;
+}
+
+function StudentQuickNotes({student,onStudentUpdate}:{student:Student;onStudentUpdate:(student:Student)=>void}){
+  const [editing,setEditing]=useState(false);const [value,setValue]=useState(student.notes||"");
+  useEffect(()=>{if(!editing)setValue(student.notes||"");},[student.id,student.notes,editing]);
+  function save(){onStudentUpdate({...student,notes:value.trim(),notesUpdatedAt:new Date().toISOString()});setEditing(false);}
+  return <section className="student-quick-notes"><div className="student-section-title"><div><span>OBSERVAÇÕES RÁPIDAS</span><h3>O que eu preciso lembrar sobre este aluno?</h3></div>{editing?<div><button className="secondary" onClick={()=>{setValue(student.notes||"");setEditing(false);}}>Cancelar</button><button className="primary" onClick={save}>Salvar</button></div>:<button className="secondary" onClick={()=>setEditing(true)}>✎ Editar</button>}</div>{editing?<textarea autoFocus rows={4} value={value} onChange={event=>setValue(event.target.value)} placeholder="Ex.: viaja na próxima semana, objetivo de prova, preferência de exercício, recado para o próximo atendimento..."/>:<div className={`student-quick-note-body ${student.notes?"":"empty"}`}><strong>{student.notes||"Nenhuma observação rápida registrada."}</strong><small>{student.notesUpdatedAt?`Atualizado em ${new Date(student.notesUpdatedAt).toLocaleString("pt-BR")}`:"Use este espaço para recados operacionais do dia a dia."}</small></div>}</section>;
+}
+
+function StudentDashboardTimeline({student,invoices}:{student:Student;invoices:FinanceData["personalInvoices"]}){
+  const items=[
+    ...student.sessions.map(session=>({id:`session-${session.id}`,date:session.date,at:session.finishedAt||session.startedAt||`${session.date}T12:00:00`,icon:session.source==="ABSENCE"?"○":"🏋️",title:session.source==="ABSENCE"?"Ausência registrada":session.workoutName||"Treino registrado",detail:session.focus||session.notes||"Sessão de treinamento"})),
+    ...student.assessments.map(assessment=>({id:`assessment-${assessment.id}`,date:assessment.date,at:`${assessment.date}T13:00:00`,icon:"📏",title:"Avaliação física",detail:assessment.weight?`Peso ${Number(assessment.weight).toLocaleString("pt-BR",{maximumFractionDigits:1})} kg`:"Avaliação registrada"})),
+    ...invoices.flatMap(invoice=>invoice.payments.map(payment=>({id:`payment-${invoice.id}-${payment.id}`,date:payment.date,at:`${payment.date}T14:00:00`,icon:"💰",title:"Pagamento recebido",detail:`${formatStudentMoney(payment.amount)} · ${financeMonthLabel(invoice.competence)}`})))
+  ].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,8);
+  return <section className="student-timeline-panel"><div className="student-section-title"><div><span>LINHA DO TEMPO</span><h3>Últimas movimentações</h3></div></div>{items.length?<div className="student-timeline-list">{items.map(item=><article key={item.id}><span>{item.icon}</span><div><strong>{item.title}</strong><small>{formatDate(item.date)} · {item.detail}</small></div></article>)}</div>:<div className="student-empty-soft">Ainda não há movimentações registradas para este aluno.</div>}</section>;
+}
+
+function StudentDashboardComplete({student,onOpen,onEdit,onReport,onStudentUpdate}:{student:Student;onOpen:(tab:StudentTab)=>void;onEdit:()=>void;onReport:()=>void;onStudentUpdate:(student:Student)=>void}) {
+  const monthKey=today().slice(0,7);
+  const monthSessions=student.sessions.filter(session=>session.date.slice(0,7)===monthKey&&session.source!=="ABSENCE");
+  const monthAbsences=student.sessions.filter(session=>session.date.slice(0,7)===monthKey&&session.source==="ABSENCE");
+  const latestSession=student.sessions.filter(session=>session.source!=="ABSENCE").slice().sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const sortedAssessments=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  const latestAssessment=sortedAssessments[0];const previousAssessment=sortedAssessments[1];
+  const workouts=getStudentWorkoutEntries(student);
+  const workoutLabel=workouts.length?workouts.map(entry=>entry.slot).join(" · "):"Sem ficha";
+  const workoutDetail=workouts.length?`${workouts.reduce((total,entry)=>total+entry.workout.exercises.length,0)} exercícios nas fichas ativas`:"Nenhum treino montado";
+  const attendanceBase=monthSessions.length+monthAbsences.length;
+  const attendanceRate=attendanceBase?Math.round((monthSessions.length/attendanceBase)*100):null;
+  const assessmentAge=latestAssessment?daysSinceDate(latestAssessment.date):null;
+  const financeState=useStudentFinanceSnapshot(student);
+  const calendarCompetence=financeCalendarCompetence();
+  const currentInvoice=financeState.invoices.find(invoice=>invoice.competence===calendarCompetence)||null;
+  const latestFinanceInvoice=financeState.invoices[0]||null;
+  const hasFinanceReference=student.financialActive===true||Boolean(latestFinanceInvoice);
+  const paidCurrent=currentInvoice?financePaid(currentInvoice):0;const remainingCurrent=currentInvoice?financeRemaining(currentInvoice):0;
+  const assessmentChronological=student.assessments.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-6);
+  const weightSeries=assessmentChronological.flatMap(item=>{const value=assessmentNumber(item.weight);return value===null?[]:[{label:formatDate(item.date),value}];});
+  const fatSeries=assessmentChronological.flatMap(item=>{const value=assessmentNumber(item.bodyFatPercent);return value===null?[]:[{label:formatDate(item.date),value}];});
+  const leanSeries=assessmentChronological.flatMap(item=>{const value=assessmentNumber(item.leanMass);return value===null?[]:[{label:formatDate(item.date),value}];});
+  return <section className="student-dashboard-stage-one student-dashboard-complete">
+    <div className="student-dashboard-stage-head"><div><span>DASHBOARD DO ALUNO</span><h2>Visão geral</h2></div><button type="button" className="secondary" onClick={onReport}>🖨️ Relatório</button></div>
+    <div className="student-dashboard-quick-grid">
+      <button type="button" className="student-dashboard-quick-card" onClick={()=>onOpen("history")}><span>Treinos no mês</span><strong>{monthSessions.length}</strong><small>{latestSession?`Último: ${formatDate(latestSession.date)}`:"Nenhum treino registrado"}</small></button>
+      <button type="button" className="student-dashboard-quick-card" onClick={()=>onOpen("workouts")}><span>Treino atual</span><strong>{workoutLabel}</strong><small>{workoutDetail}</small></button>
+      <button type="button" className="student-dashboard-quick-card" onClick={()=>onOpen("assessments")}><span>Última avaliação</span><strong>{latestAssessment?formatDate(latestAssessment.date):"Sem avaliação"}</strong><small>{latestAssessment?`${assessmentAge} dias atrás · ${student.assessments.length} no histórico`:"Clique para abrir Avaliações"}</small></button>
+      <button type="button" className="student-dashboard-quick-card student-dashboard-goal-card" onClick={onEdit}><span>Objetivo atual</span><strong>{student.goal||"Não informado"}</strong><small>Clique para editar o cadastro</small></button>
+    </div>
+
+    <StudentProfileCare student={student}/>
+
+    <div className="student-dashboard-status-grid">
+      <button className="student-status-card" onClick={()=>onOpen("history")}><span>CONSISTÊNCIA DO MÊS</span><strong>{attendanceRate===null?"Sem base":`${attendanceRate}%`}</strong><small>{monthSessions.length} treino{monthSessions.length===1?"":"s"}{monthAbsences.length?` · ${monthAbsences.length} ausência${monthAbsences.length===1?"":"s"}`:" · sem ausência registrada"}</small></button>
+      <button className="student-status-card" onClick={()=>onOpen("assessments")}><span>EVOLUÇÃO DA AVALIAÇÃO</span><strong>{latestAssessment?`${assessmentAge} dias desde a última`:"Sem avaliação"}</strong><small>{latestAssessment&&previousAssessment?[signedAssessmentDelta(latestAssessment.weight,previousAssessment.weight," kg")&&`Peso ${signedAssessmentDelta(latestAssessment.weight,previousAssessment.weight," kg")}`,signedAssessmentDelta(latestAssessment.bodyFatPercent,previousAssessment.bodyFatPercent," pp")&&`Gordura ${signedAssessmentDelta(latestAssessment.bodyFatPercent,previousAssessment.bodyFatPercent," pp")}`].filter(Boolean).join(" · ")||"Sem métricas comparáveis":"Clique para consultar o histórico"}</small></button>
+      <button className="student-status-card" onClick={()=>onOpen("finance")}><span>FINANCEIRO ATUAL</span><strong>{financeState.loading?"Carregando...":currentInvoice?remainingCurrent>0?`${formatStudentMoney(remainingCurrent)} em aberto`:"Pago":hasFinanceReference?"Sem lançamento no mês":"Sem cobrança"}</strong><small>{currentInvoice?`${financeMonthLabel(currentInvoice.competence)} · ${formatStudentMoney(paidCurrent)} recebido`:latestFinanceInvoice?`Último vínculo: ${financeMonthLabel(latestFinanceInvoice.competence)} · ${formatStudentMoney(latestFinanceInvoice.expectedAmount)}`:student.financialActive?`${financeMonthLabel(calendarCompetence)} · sem lançamento vinculado`:"Financeiro não ativado no cadastro"}</small></button>
+    </div>
+
+    <StudentQuickNotes student={student} onStudentUpdate={onStudentUpdate}/>
+
+    <section className="student-dashboard-analytics"><div className="student-section-title"><div><span>ESTATÍSTICAS E EVOLUÇÃO</span><h3>Treinamento e avaliações</h3></div></div><div className="student-analytics-grid"><StudentTrainingBars student={student}/><div className="student-assessment-trends"><StudentMiniLineChart title="Peso" unit=" kg" series={weightSeries}/><StudentMiniLineChart title="Gordura corporal" unit="%" series={fatSeries}/><StudentMiniLineChart title="Massa magra" unit=" kg" series={leanSeries}/></div></div></section>
+
+    <StudentDashboardTimeline student={student} invoices={financeState.invoices}/>
+  </section>;
+}
+
 function StudentProfileCare({student}:{student:Student}) {
   const alerts=[student.restrictions,student.injuries].filter(Boolean);
   return alerts.length
     ? <section className="snapshot-alert student-profile-care-bottom"><span>⚠ Lembretes importantes</span><strong>{alerts.join(" · ")}</strong></section>
     : <section className="snapshot-alert clear student-profile-care-bottom"><span>✓ Cuidados</span><strong>Nenhuma restrição ou dor registrada</strong></section>;
 }
+
+function StudentFinancePaymentModal({invoice,payment,onClose,onSaved}:{invoice:FinanceData["personalInvoices"][number];payment?:FinanceData["personalInvoices"][number]["payments"][number];onClose:()=>void;onSaved:(next:FinanceData)=>void}){
+  const [date,setDate]=useState(payment?.date||today());const [amount,setAmount]=useState(String(payment?.amount??financeRemaining(invoice)));const [note,setNote]=useState(payment?.note||"");const [saving,setSaving]=useState(false);
+  async function save(){
+    const numeric=Number(String(amount).replace(",","."));if(!Number.isFinite(numeric)||numeric<=0){alert("Informe um valor válido.");return;}
+    const available=financeRemaining(invoice)+(payment?Number(payment.amount||0):0);
+    if(!payment&&available<=0){alert("Esta competência já está quitada. Não há saldo para registrar outro pagamento.");return;}
+    if(numeric>available+0.005){alert(`O valor informado ultrapassa o saldo disponível de ${formatStudentMoney(available)}.`);return;}
+    setSaving(true);
+    try{
+      const response=await fetch("/api/finance",{cache:"no-store"});if(!response.ok)throw new Error();const payload=await response.json();let finance=payload.data as FinanceData;
+      if(finance.competences[invoice.competence]?.status==="CLOSED"){alert("Esta competência está fechada. Reabra o mês no Financeiro geral antes de alterar pagamentos históricos.");return;}
+      const occurredAt=new Date().toISOString();
+      if(payment){
+        finance={...finance,personalInvoices:finance.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:item.payments.filter(value=>value.id!==payment.id)}:item),history:[...(finance.history||[]),{id:`history-${crypto.randomUUID()}`,occurredAt,competence:invoice.competence,kind:"PERSONAL_PAYMENT_DELETED",description:`Recebimento de ${invoice.studentName} removido para edição.`,amount:payment.amount,entityId:invoice.id}]};
+      }
+      const newPayment={id:`payment-${crypto.randomUUID()}`,date,amount:numeric,note:note.trim()||undefined};
+      finance={...finance,personalInvoices:finance.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:[...item.payments,newPayment]}:item),history:[...(finance.history||[]),{id:`history-${crypto.randomUUID()}`,occurredAt:new Date().toISOString(),competence:invoice.competence,kind:"PERSONAL_PAYMENT_ADDED",description:`Recebimento de ${invoice.studentName} ${payment?"atualizado":"registrado"}.`,amount:numeric,entityId:invoice.id}]};
+      const put=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(finance)});if(!put.ok)throw new Error();onSaved(finance);onClose();
+    }catch{alert("Não foi possível salvar o pagamento. Nenhum outro dado do aluno foi alterado.");}finally{setSaving(false);}
+  }
+  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>{payment?"Editar pagamento":"Registrar pagamento"}</h2><p className="muted">{invoice.studentName} · {financeMonthLabel(invoice.competence)}</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><div className="form-grid"><label>Valor recebido<input autoFocus inputMode="decimal" value={amount} onChange={event=>setAmount(event.target.value)}/></label><label>Data<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label className="full">Observação<input value={note} onChange={event=>setNote(event.target.value)} placeholder="Opcional"/></label><button className="primary full" disabled={saving} onClick={()=>void save()}>{saving?"Salvando...":"Salvar pagamento"}</button></div></section></div>;
+}
+
+function StudentFinancePanel({student,onEditProfile}:{student:Student;onEditProfile:()=>void}){
+  const state=useStudentFinanceSnapshot(student);const [paymentTarget,setPaymentTarget]=useState<{invoice:FinanceData["personalInvoices"][number];payment?:FinanceData["personalInvoices"][number]["payments"][number]}|null>(null);
+  const calendarCompetence=financeCalendarCompetence();
+  const current=state.invoices.find(invoice=>invoice.competence===calendarCompetence)||null;
+  const latest=state.invoices[0]||null;
+  const referenceInvoice=current||latest;
+  const hasFinanceReference=student.financialActive===true||Boolean(referenceInvoice);
+  const totalExpected=state.invoices.reduce((sum,invoice)=>sum+invoice.expectedAmount,0);const totalPaid=state.invoices.reduce((sum,invoice)=>sum+financePaid(invoice),0);
+  async function deletePayment(invoice:FinanceData["personalInvoices"][number],payment:FinanceData["personalInvoices"][number]["payments"][number]){
+    if(!state.finance)return;if(state.finance.competences[invoice.competence]?.status==="CLOSED"){alert("Esta competência está fechada. Reabra o mês no Financeiro geral antes de excluir um pagamento histórico.");return;}if(!confirm(`Excluir o recebimento de ${formatStudentMoney(payment.amount)} em ${formatDate(payment.date)}?`))return;
+    const next={...state.finance,personalInvoices:state.finance.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:item.payments.filter(value=>value.id!==payment.id)}:item),history:[...(state.finance.history||[]),{id:`history-${crypto.randomUUID()}`,occurredAt:new Date().toISOString(),competence:invoice.competence,kind:"PERSONAL_PAYMENT_DELETED" as const,description:`Recebimento de ${invoice.studentName} removido.`,amount:payment.amount,entityId:invoice.id}]};
+    try{const response=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});if(!response.ok)throw new Error();state.setFinance(next);}catch{alert("Não foi possível excluir o pagamento.");}
+  }
+  return <section className="student-finance-panel"><div className="student-section-title"><div><span>FINANCEIRO DO ALUNO</span><h2>Mensalidade e pagamentos</h2></div><button className="secondary" onClick={onEditProfile}>✎ Editar valor e vencimento</button></div>
+    {state.loading?<div className="student-empty-soft">Carregando histórico financeiro...</div>:state.error?<div className="student-empty-soft">{state.error}</div>:<>
+      <div className="student-finance-summary-grid"><article><span>Valor mensal</span><strong>{student.financialActive===true&&Number.isFinite(student.monthlyAmount)?formatStudentMoney(Number(student.monthlyAmount)):referenceInvoice?formatStudentMoney(referenceInvoice.expectedAmount):"Não informado"}</strong><small>{student.financeDueDay?`Vencimento dia ${student.financeDueDay}`:referenceInvoice?`Vencimento dia ${referenceInvoice.dueDay}`:"Vencimento não informado"}</small></article><article><span>Competência atual</span><strong>{financeMonthLabel(calendarCompetence)}</strong><small>{current?financeRemaining(current)>0?`${formatStudentMoney(financeRemaining(current))} em aberto`:"✓ Quitada":hasFinanceReference?"Sem lançamento vinculado nesta competência":"Financeiro não ativado"}</small></article><article><span>Histórico vinculado</span><strong>{state.invoices.length} mês{state.invoices.length===1?"":"es"}</strong><small>{formatStudentMoney(totalPaid)} recebido de {formatStudentMoney(totalExpected)} previsto</small></article></div>
+      {state.invoices.length?<div className="student-finance-history">{state.invoices.map(invoice=>{const paid=financePaid(invoice),remaining=financeRemaining(invoice),closed=state.finance?.competences[invoice.competence]?.status==="CLOSED";return <article key={invoice.id} className="student-finance-month"><header><div><span>{financeMonthLabel(invoice.competence)}</span><strong>{formatStudentMoney(invoice.expectedAmount)}</strong><small>Vence dia {invoice.dueDay}{closed?" · competência fechada":""}</small></div><div><strong>{remaining>0?`${formatStudentMoney(remaining)} em aberto`:"✓ Quitada"}</strong><small>{formatStudentMoney(paid)} recebido</small>{remaining>0?<button className="primary compact-action" disabled={closed} onClick={()=>setPaymentTarget({invoice})}>+ Pagamento</button>:null}</div></header><div className="student-payment-history">{invoice.payments.length?invoice.payments.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(payment=><div key={payment.id}><span><b>{formatDate(payment.date)}</b>{payment.note?<small>{payment.note}</small>:null}</span><strong>{formatStudentMoney(payment.amount)}</strong><button className="text-button" disabled={closed} onClick={()=>setPaymentTarget({invoice,payment})}>Editar</button><button className="danger-link" disabled={closed} onClick={()=>void deletePayment(invoice,payment)}>Excluir</button></div>):<span className="muted">Nenhum pagamento registrado nesta competência.</span>}</div></article>;})}</div>:<div className="student-empty-soft">Nenhuma mensalidade financeira está vinculada a este aluno. Use “Editar valor e vencimento” para conferir o cadastro financeiro.</div>}
+    </>}
+    {paymentTarget?<StudentFinancePaymentModal invoice={paymentTarget.invoice} payment={paymentTarget.payment} onClose={()=>setPaymentTarget(null)} onSaved={next=>state.setFinance(next)}/>:null}
+  </section>;
+}
+
 function kidsCalendarRequest(event:CalendarEvent):KidsLessonOpenRequest|null{
   if(event.allDay)return null;
   const name=normalizeName(event.summary);
@@ -2532,9 +2670,9 @@ function StudentFilesPanel({student}:{student:Student}) {
   </section>;
 }
 
-type StudentFormPayload = Pick<Student,"name"|"phone"|"email"|"goal"|"profession"|"modality"|"weeklyFrequency"|"financialActive"|"monthlyAmount"|"financeDueDay"|"notes"|"restrictions"|"injuries"|"medications"|"emergencyContact"|"emergencyPhone"|"startDate"|"birthDate"|"gender"|"tennisCategory">;
+type StudentFormPayload = Pick<Student,"name"|"phone"|"email"|"goal"|"profession"|"modality"|"weeklyFrequency"|"trainingSchedule"|"financialActive"|"monthlyAmount"|"financeDueDay"|"notes"|"restrictions"|"injuries"|"medications"|"emergencyContact"|"emergencyPhone"|"startDate"|"birthDate"|"gender"|"tennisCategory"> & {status?: Student["status"]};
 function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initialStudent?:Student;onClose:()=>void;onSave:(payload:StudentFormPayload)=>void}) {
-  const [form,setForm]=useState<StudentFormPayload>({name:initialStudent?.name||"",phone:initialStudent?.phone||"",email:initialStudent?.email||"",goal:initialStudent?.goal||"",profession:initialStudent?.profession||"",modality:initialStudent?.modality||"",weeklyFrequency:initialStudent?.weeklyFrequency||"",financialActive:initialStudent?.financialActive,monthlyAmount:initialStudent?.monthlyAmount,financeDueDay:initialStudent?.financeDueDay,notes:initialStudent?.notes||"",restrictions:initialStudent?.restrictions||"",injuries:initialStudent?.injuries||"",medications:initialStudent?.medications||"",emergencyContact:initialStudent?.emergencyContact||"",emergencyPhone:initialStudent?.emergencyPhone||"",startDate:initialStudent?.startDate||"",birthDate:initialStudent?.birthDate||"",gender:initialStudent?.gender,tennisCategory:initialStudent?.tennisCategory||null});
+  const [form,setForm]=useState<StudentFormPayload>({name:initialStudent?.name||"",phone:initialStudent?.phone||"",email:initialStudent?.email||"",goal:initialStudent?.goal||"",profession:initialStudent?.profession||"",modality:initialStudent?.modality||"",weeklyFrequency:initialStudent?.weeklyFrequency||"",trainingSchedule:initialStudent?.trainingSchedule||"",financialActive:initialStudent?.financialActive,monthlyAmount:initialStudent?.monthlyAmount,financeDueDay:initialStudent?.financeDueDay,notes:initialStudent?.notes||"",restrictions:initialStudent?.restrictions||"",injuries:initialStudent?.injuries||"",medications:initialStudent?.medications||"",emergencyContact:initialStudent?.emergencyContact||"",emergencyPhone:initialStudent?.emergencyPhone||"",startDate:initialStudent?.startDate||"",birthDate:initialStudent?.birthDate||"",gender:initialStudent?.gender,tennisCategory:initialStudent?.tennisCategory||null,status:initialStudent?.status});
   const age=calculateAge(form.birthDate);
   useEffect(()=>{
     if(!initialStudent||initialStudent.financialActive!==undefined)return;
@@ -2565,7 +2703,9 @@ function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initial
     <label>Nome<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required /></label><label>Telefone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></label>
     <label>E-mail<input type="email" value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} /></label><label>Profissão<input value={form.profession||""} onChange={e=>setForm({...form,profession:e.target.value})} /></label>
     <label>Data de início<input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} /></label><label>Data de nascimento<input type="date" value={form.birthDate} onChange={e=>setForm({...form,birthDate:e.target.value})} />{age!==null?<small>Idade atual: {age} anos</small>:null}</label><label>Sexo<select value={form.gender||""} onChange={e=>setForm({...form,gender:(e.target.value||undefined) as Student["gender"]})}><option value="">Não informado</option><option value="MALE">Masculino</option><option value="FEMALE">Feminino</option></select></label>
+    {initialStudent?<label>Situação do cadastro<select value={form.status||"ACTIVE"} onChange={e=>setForm({...form,status:e.target.value as Student["status"]})}><option value="ACTIVE">Ativo</option><option value="ARCHIVED">Inativo</option></select><small>Use aqui quando quiser inativar ou reativar o aluno.</small></label>:null}
     <label>Modalidade<input value={form.modality||""} onChange={e=>setForm({...form,modality:e.target.value})} placeholder="Ex.: musculação, tênis, corrida" /></label><label>Frequência semanal<input value={form.weeklyFrequency||""} onChange={e=>setForm({...form,weeklyFrequency:e.target.value})} placeholder="Ex.: 2x por semana" /></label>
+    <label className="full">Dias e horários fixos<input value={form.trainingSchedule||""} onChange={e=>setForm({...form,trainingSchedule:e.target.value})} placeholder="Ex.: segunda 7h · quarta 7h" /><small>Informação exibida no topo do Dashboard do Aluno.</small></label>
     <fieldset className="full student-finance-box"><legend>Financeiro do Personal</legend><label className="student-finance-toggle"><input type="checkbox" checked={form.financialActive===true} onChange={e=>setForm({...form,financialActive:e.target.checked})}/><span><strong>Ativar no Financeiro</strong><small>Alunos antigos entram preenchidos com a mensalidade e o vencimento já existentes quando o vínculo é seguro.</small></span></label>{form.financialActive===true?<div className="student-finance-grid"><label>Mensalidade (R$)<input type="number" min="0" step="0.01" value={form.monthlyAmount??""} onChange={e=>setForm({...form,monthlyAmount:e.target.value===""?undefined:Number(e.target.value)})} required /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={form.financeDueDay??""} onChange={e=>setForm({...form,financeDueDay:e.target.value===""?undefined:Number(e.target.value)})} required /></label><small className="full">O cadastro passa a comandar as próximas mensalidades. Pagamentos e competências anteriores continuam preservados.</small></div>:<small className="student-finance-off">Desativado: não cria novas cobranças automáticas. O histórico existente não é apagado.</small>}</fieldset>
     <fieldset className="full tennis-category-picker"><legend>Categoria DS Tênis</legend>{([null,"RED","ORANGE","GREEN"] as const).map(category=><button type="button" key={category||"NONE"} className={form.tennisCategory===category?"selected":""} onClick={()=>setForm({...form,tennisCategory:category})}><StudentCategoryDot category={category}/>{category===null?"Sem categoria":category==="RED"?"Vermelha":category==="ORANGE"?"Laranja":"Verde"}</button>)}</fieldset>
     <label className="full">Objetivo<input value={form.goal} onChange={e=>setForm({...form,goal:e.target.value})} /></label>
@@ -3932,4 +4072,4 @@ function performanceActivityEmoji(activity:any){
 
 function formatMonths(months:number){const years=Math.floor(months/12);const rest=months%12;return [years?`${years} ano${years>1?"s":""}`:"",rest?`${rest} ${rest===1?"mês":"meses"}`:""].filter(Boolean).join(" e ")||"menos de 1 mês";}
 function displayNumber(value:number|null|undefined,suffix:string){return value===null||value===undefined?"—":`${Number(value).toLocaleString("pt-BR",{maximumFractionDigits:1})} ${suffix}`;}
-function tabLabel(tab:StudentTab){return({summary:"Resumo",workouts:"Treinos",history:"Histórico",assessments:"Avaliações",files:"Arquivos"})[tab];}
+function tabLabel(tab:StudentTab){return({summary:"Dashboard",workouts:"Treinos",history:"Histórico",assessments:"Avaliações",finance:"Financeiro",files:"Arquivos"})[tab];}

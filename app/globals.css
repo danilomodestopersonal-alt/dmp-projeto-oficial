@@ -5347,3 +5347,222 @@ input:focus,textarea:focus{
 @media(max-width:700px){
   .student-finance-grid{grid-template-columns:1fr!important}
 }
+
+/* DMP — Dashboard do Aluno · Etapa 1 */
+.student-profile-command-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+}
+.student-profile-identity-content{min-width:0;flex:1}
+.student-profile-identity-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+.student-profile-identity-meta>span{
+  display:grid;
+  gap:2px;
+  min-width:118px;
+  padding:8px 10px;
+  border:1px solid #e3e8d9;
+  border-radius:11px;
+  background:rgba(255,255,255,.82);
+}
+.student-profile-identity-meta small{
+  color:var(--muted);
+  font-size:.68rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.student-profile-identity-meta strong{font-size:.84rem;line-height:1.2}
+.student-profile-schedule-meta{min-width:210px!important}
+.student-profile-command-contact{
+  display:flex;
+  gap:8px;
+  flex:0 0 auto;
+}
+.student-profile-command-contact .button-link,
+.student-profile-command-contact button{
+  min-height:40px;
+  padding:9px 13px;
+  white-space:nowrap;
+}
+.student-profile-whatsapp-main{box-shadow:0 6px 14px rgba(66,111,37,.12)}
+.student-dashboard-stage-one{
+  display:grid;
+  gap:12px;
+  margin-bottom:18px;
+}
+.student-dashboard-stage-head{
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:16px;
+}
+.student-dashboard-stage-head>div{display:grid;gap:2px}
+.student-dashboard-stage-head span{
+  color:#718b2f;
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.1em;
+}
+.student-dashboard-stage-head h2{margin:0;font-size:1.25rem}
+.student-dashboard-stage-head>small{color:var(--muted);text-align:right}
+.student-dashboard-quick-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+.student-dashboard-quick-card{
+  display:grid;
+  align-content:start;
+  gap:5px;
+  min-height:118px;
+  padding:15px;
+  border:1px solid var(--line);
+  border-radius:15px;
+  background:#fff;
+  text-align:left;
+  transition:.16s ease;
+}
+.student-dashboard-quick-card:hover{
+  border-color:#b8cd71;
+  background:#fbfdf4;
+  transform:translateY(-1px);
+}
+.student-dashboard-quick-card>span{
+  color:var(--muted);
+  font-size:.73rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.student-dashboard-quick-card>strong{
+  font-size:1.18rem;
+  line-height:1.15;
+  color:var(--text);
+  overflow-wrap:anywhere;
+}
+.student-dashboard-quick-card>small{color:var(--muted);line-height:1.3}
+.student-dashboard-goal-card>strong{font-size:1rem}
+
+@media(max-width:980px){
+  .student-profile-command-head{flex-direction:column}
+  .student-profile-command-contact{width:100%}
+  .student-dashboard-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:600px){
+  .student-profile-command-head{gap:10px!important}
+  .student-profile-command-identity{width:100%!important}
+  .student-profile-identity-content{width:100%}
+  .student-profile-identity-meta{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px!important;margin-top:8px!important}
+  .student-profile-identity-meta>span{min-width:0!important;padding:7px 8px!important;border-radius:9px!important}
+  .student-profile-schedule-meta{grid-column:1/-1!important;min-width:0!important}
+  .student-profile-command-contact{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px!important}
+  .student-profile-command-contact .button-link,.student-profile-command-contact button{width:100%!important;justify-content:center!important;min-height:32px!important;padding:6px 8px!important;font-size:.67rem!important}
+  .student-dashboard-stage-one{gap:8px!important;margin-bottom:10px!important}
+  .student-dashboard-stage-head{align-items:start!important}
+  .student-dashboard-stage-head>small{display:none!important}
+  .student-dashboard-stage-head h2{font-size:1.05rem!important}
+  .student-dashboard-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}
+  .student-dashboard-quick-card{min-height:94px!important;padding:10px!important;border-radius:11px!important}
+  .student-dashboard-quick-card>span{font-size:.61rem!important}
+  .student-dashboard-quick-card>strong{font-size:.88rem!important}
+  .student-dashboard-quick-card>small{font-size:.64rem!important}
+}
+
+
+/* DMP — Dashboard do Aluno · pacote completo de consulta */
+@media(min-width:901px){
+  .student-profile-primary-tabs{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:8px!important}
+  .student-profile-primary-tabs button{padding:12px!important;min-height:82px!important}
+  .student-profile-tab-icon{font-size:1.32rem!important}
+  .student-profile-tab-text strong{font-size:.87rem!important}
+  .student-profile-tab-text small{font-size:.7rem!important}
+}
+@media(max-width:900px){
+  .student-profile-primary-tabs button:last-child{grid-column:auto!important}
+}
+
+.student-dashboard-complete{gap:16px!important}
+.student-dashboard-complete .student-profile-care-bottom{margin:0!important}
+.student-dashboard-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.student-status-card{display:grid;align-content:start;gap:5px;min-height:112px;padding:15px;border:1px solid var(--line);border-radius:15px;background:#fff;text-align:left}
+.student-status-card:hover{border-color:#b8cd71;background:#fbfdf4}
+.student-status-card>span,.student-section-title span,.student-chart-head span{color:#718b2f;font-size:.68rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.student-status-card>strong{font-size:1.05rem;line-height:1.2;color:var(--text)}
+.student-status-card>small{color:var(--muted);line-height:1.35}
+.student-section-title{display:flex;align-items:end;justify-content:space-between;gap:12px}
+.student-section-title>div:first-child{display:grid;gap:3px}
+.student-section-title h2,.student-section-title h3{margin:0;font-size:1.12rem}
+.student-section-title>div:last-child{display:flex;gap:7px}
+
+.student-quick-notes,.student-dashboard-analytics,.student-timeline-panel,.student-finance-panel{display:grid;gap:12px;padding:16px;border:1px solid var(--line);border-radius:17px;background:#fff}
+.student-quick-notes textarea{width:100%;resize:vertical;min-height:96px;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;background:#fbfcf9;color:var(--text)}
+.student-quick-note-body{display:grid;gap:5px;padding:13px;border-radius:12px;background:#f6f9ee;border:1px solid #e3e9d4}
+.student-quick-note-body strong{white-space:pre-wrap;line-height:1.45}
+.student-quick-note-body small{color:var(--muted)}
+.student-quick-note-body.empty strong{color:var(--muted);font-weight:700}
+
+.student-analytics-grid{display:grid;grid-template-columns:minmax(310px,.8fr) minmax(0,1.7fr);gap:12px;align-items:stretch}
+.student-training-chart,.student-trend-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fbfcfa}
+.student-chart-head,.student-trend-card-head{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.student-chart-head>div{display:grid;gap:3px}.student-chart-head strong,.student-trend-card-head strong{font-size:.95rem}.student-chart-head small{color:var(--muted)}
+.student-training-bars{height:150px;display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end;margin-top:12px}
+.student-training-bars>div{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:4px;text-align:center;align-items:end}
+.student-training-bars b{font-size:.72rem}.student-training-bars small{font-size:.65rem;color:var(--muted);text-transform:capitalize}
+.student-training-bars span{height:100%;display:flex;align-items:end;justify-content:center}
+.student-training-bars i{display:block;width:68%;min-height:6px;border-radius:7px 7px 3px 3px;background:#b7d83c}
+.student-assessment-trends{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.student-trend-card{display:grid;gap:7px;min-height:190px}
+.student-trend-card>div:first-child>span{color:var(--muted);font-size:.72rem;font-weight:800;text-transform:uppercase}
+.student-mini-line{width:100%;height:100px;color:#6f8f24;overflow:visible}
+.student-mini-line polyline{fill:none;stroke:currentColor;stroke-width:2.4;vector-effect:non-scaling-stroke}
+.student-mini-line circle{fill:#fff;stroke:currentColor;stroke-width:1.8;vector-effect:non-scaling-stroke}
+.student-trend-labels{display:flex;justify-content:space-between;gap:8px}.student-trend-labels small{font-size:.62rem;color:var(--muted)}
+.student-trend-empty{align-content:center}.student-trend-empty>div{display:grid;gap:4px}.student-trend-empty small{color:var(--muted)}
+
+.student-timeline-list{display:grid;gap:0;border-top:1px solid var(--line)}
+.student-timeline-list article{display:grid;grid-template-columns:32px 1fr;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);align-items:start}
+.student-timeline-list article>span{font-size:1.05rem;text-align:center}.student-timeline-list article>div{display:grid;gap:2px}.student-timeline-list small{color:var(--muted)}
+.student-empty-soft{padding:18px;border:1px dashed var(--line);border-radius:12px;background:#fbfcfa;color:var(--muted);text-align:center}
+
+.student-finance-panel{margin-bottom:18px}
+.student-finance-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.student-finance-summary-grid article{display:grid;gap:4px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fbfcfa}
+.student-finance-summary-grid span{color:var(--muted);font-size:.72rem;font-weight:800;text-transform:uppercase}.student-finance-summary-grid strong{font-size:1.12rem}.student-finance-summary-grid small{color:var(--muted)}
+.student-finance-history{display:grid;gap:10px}
+.student-finance-month{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.student-finance-month>header{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px;background:#fafcf6}
+.student-finance-month>header>div{display:grid;gap:3px}.student-finance-month>header>div:last-child{text-align:right;justify-items:end}.student-finance-month>header span{font-weight:900;text-transform:capitalize}.student-finance-month>header small{color:var(--muted)}
+.student-payment-history{display:grid;padding:0 14px}.student-payment-history>div{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.student-payment-history>div>span{display:grid;gap:2px}.student-payment-history small{color:var(--muted)}.student-payment-history>.muted{padding:14px 0}
+
+@media(max-width:1050px){
+  .student-analytics-grid{grid-template-columns:1fr}
+  .student-assessment-trends{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .student-dashboard-status-grid,.student-finance-summary-grid{grid-template-columns:1fr}
+  .student-assessment-trends{grid-template-columns:1fr}
+  .student-section-title{align-items:flex-start;flex-direction:column}
+  .student-section-title>div:last-child{width:100%}.student-section-title>div:last-child button{flex:1}
+  .student-finance-month>header{align-items:flex-start;flex-direction:column}.student-finance-month>header>div:last-child{text-align:left;justify-items:start;width:100%}
+  .student-payment-history>div{grid-template-columns:1fr auto;gap:6px}.student-payment-history>div>.text-button,.student-payment-history>div>.danger-link{justify-self:start}
+}
+@media(max-width:600px){
+  .student-profile-primary-tabs button:last-child{grid-column:auto!important}
+  .student-profile-primary-tabs button{min-height:70px!important;padding:9px!important}
+  .student-profile-tab-icon{font-size:1.05rem!important}
+  .student-profile-tab-text strong{font-size:.72rem!important}.student-profile-tab-text small{font-size:.58rem!important}
+  .student-dashboard-complete{gap:10px!important}
+  .student-status-card{min-height:88px;padding:11px}
+  .student-quick-notes,.student-dashboard-analytics,.student-timeline-panel,.student-finance-panel{padding:11px;border-radius:13px}
+  .student-training-chart,.student-trend-card{padding:10px}
+  .student-training-bars{height:120px;gap:4px}
+}

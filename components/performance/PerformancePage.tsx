@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   PerformanceActivity,
   PerformanceActivityType,
+  PerformanceCyclingKind,
   PerformanceAssessment,
   PerformanceData,
   PerformanceGoal,
@@ -21,6 +22,7 @@ type ActivityForm = {
   id?: string;
   date: string;
   type: PerformanceActivityType;
+  cyclingKind: PerformanceCyclingKind;
   title: string;
   distanceKm: string;
   durationMinutes: string;
@@ -83,6 +85,17 @@ const ACTIVITY_ICONS: Record<PerformanceActivityType, string> = {
   TENNIS: "🎾",
   OTHER: "⚡",
 };
+
+const CYCLING_KIND_OPTIONS: { value: PerformanceCyclingKind; label: string }[] = [
+  { value: "SPEED", label: "Speed / estrada" },
+  { value: "MTB", label: "MTB" },
+  { value: "INDOOR", label: "Spinning / Bike indoor" },
+  { value: "OTHER", label: "Outro / não definido" },
+];
+
+function cyclingKindLabel(value?: PerformanceCyclingKind | null) {
+  return CYCLING_KIND_OPTIONS.find(option => option.value === value)?.label || "Não definido";
+}
 
 const STRENGTH_SYSTEM_OPTIONS: { value: PerformanceStrengthSystem; label: string }[] = [
   { value: "TRADITIONAL", label: "Tradicional" },
@@ -154,6 +167,7 @@ function emptyActivity(): ActivityForm {
   return {
     date: localToday(),
     type: "CYCLING",
+    cyclingKind: "SPEED",
     title: "",
     distanceKm: "",
     durationMinutes: "",
@@ -352,6 +366,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const [goalForm, setGoalForm] = useState<GoalForm>(emptyGoal());
   const [assessmentForm, setAssessmentForm] = useState<AssessmentForm>(emptyAssessment());
   const [filterType, setFilterType] = useState<"ALL" | PerformanceActivityType>("ALL");
+  const [filterCyclingKind, setFilterCyclingKind] = useState<"ALL" | PerformanceCyclingKind>("ALL");
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
   const [detailActivity, setDetailActivity] = useState<PerformanceActivity | null>(null);
 
@@ -458,9 +473,10 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const filteredActivities = useMemo(() => {
     return [...data.activities]
       .filter(activity => filterType === "ALL" || activity.type === filterType)
+      .filter(activity => filterType !== "CYCLING" || filterCyclingKind === "ALL" || activity.cyclingKind === filterCyclingKind)
       .filter(activity => !filterYear || activity.date.startsWith(`${filterYear}-`))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [data.activities, filterType, filterYear]);
+  }, [data.activities, filterType, filterCyclingKind, filterYear]);
 
   const latestAssessment = [...data.assessments].sort((a, b) => b.date.localeCompare(a.date))[0];
 
@@ -596,6 +612,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       id: activity.id,
       date: activity.date,
       type: activity.type,
+      cyclingKind: activity.cyclingKind || "OTHER",
       title: activity.title,
       distanceKm: activity.distanceKm?.toString() || "",
       durationMinutes: activity.durationMinutes?.toString() || "",
@@ -624,6 +641,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       id: existing?.id || uid(),
       date: activityForm.date,
       type: activityForm.type,
+      cyclingKind: activityForm.type === "CYCLING" ? activityForm.cyclingKind : null,
       title: activityForm.title.trim(),
       distanceKm: toNumber(activityForm.distanceKm),
       durationMinutes: toNumber(activityForm.durationMinutes),
@@ -949,10 +967,11 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <button className="primary" onClick={openNewActivity}>+ Nova atividade</button>
             </div>
             <div className={styles.filters}>
-              <select value={filterType} onChange={e => setFilterType(e.target.value as typeof filterType)}>
+              <select value={filterType} onChange={e => { const next=e.target.value as typeof filterType; setFilterType(next); if(next!=="CYCLING") setFilterCyclingKind("ALL"); }}>
                 <option value="ALL">Todas as modalidades</option>
                 {Object.entries(ACTIVITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
+              {filterType === "CYCLING" ? <select value={filterCyclingKind} onChange={e => setFilterCyclingKind(e.target.value as typeof filterCyclingKind)}><option value="ALL">Todos os tipos de ciclismo</option>{CYCLING_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : null}
               <input type="number" value={filterYear} onChange={e => setFilterYear(e.target.value)} placeholder="Ano" />
             </div>
             <div className={styles.list}>
@@ -1054,6 +1073,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
                 <Measure label="Esforço relativo" value={detailActivity.relativeEffort} unit="" />
               </> : null}
             </div>
+            {detailActivity.type === "CYCLING" ? <div className={styles.assessmentHeadline}><strong>Tipo de ciclismo</strong><span>{cyclingKindLabel(detailActivity.cyclingKind)}</span></div> : null}
             {detailActivity.type === "STRENGTH" && detailActivity.strengthSystem ? <div className={styles.assessmentHeadline}><strong>Sistema de treino</strong><span>{strengthSystemLabel(detailActivity.strengthSystem)}</span></div> : null}
             {detailActivity.type === "STRENGTH" && detailActivity.strengthExercises?.length ? <div className={styles.exerciseDetails}><strong>Exercícios</strong>{detailActivity.strengthExercises.map(item => <div key={item.id}><span>{item.block ? `${item.block} · ` : ""}{item.name}</span><small>{[item.sets && `${item.sets} séries`, item.reps && `${item.reps} reps`, item.load && item.load, item.notes].filter(Boolean).join(" · ")}</small></div>)}</div> : null}
             {detailActivity.type === "TENNIS" ? <div className={styles.exerciseDetails}><strong>{detailActivity.tennisKind === "MATCH" ? "Partida" : "Treino de tênis"}</strong>{detailActivity.tennisOpponent ? <div><span>Adversário</span><small>{detailActivity.tennisOpponent}</small></div> : null}{detailActivity.tennisScore ? <div><span>Placar</span><small>{detailActivity.tennisScore}</small></div> : null}</div> : null}
@@ -1074,7 +1094,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             <div className={styles.formGrid}>
               <Field label="Data"><input type="date" value={activityForm.date} onChange={e => setActivityForm({...activityForm,date:e.target.value})} required /></Field>
               <Field label="Modalidade"><select value={activityForm.type} onChange={e => setActivityForm({...activityForm,type:e.target.value as PerformanceActivityType})}>{Object.entries(ACTIVITY_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-              <Field label="Título" full><input value={activityForm.title} onChange={e => setActivityForm({...activityForm,title:e.target.value})} placeholder="Ex.: Pedal Speed, Musculação A, Pilates..." required /></Field>
+              {activityForm.type === "CYCLING" ? <Field label="Tipo de ciclismo"><select value={activityForm.cyclingKind} onChange={e => setActivityForm({...activityForm,cyclingKind:e.target.value as PerformanceCyclingKind})}>{CYCLING_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field> : null}
+              <Field label="Título" full><input value={activityForm.title} onChange={e => setActivityForm({...activityForm,title:e.target.value})} placeholder="Ex.: Pedal Speed, Spinning, Musculação A, Pilates..." required /></Field>
               <Field label="Duração (min)"><input inputMode="numeric" value={activityForm.durationMinutes} onChange={e => setActivityForm({...activityForm,durationMinutes:e.target.value})} placeholder="0" /></Field>
               {activityForm.type === "CYCLING" || activityForm.type === "RUNNING" || activityForm.type === "OTHER" ? <>
                 <Field label="Distância (km)"><input inputMode="decimal" value={activityForm.distanceKm} onChange={e => setActivityForm({...activityForm,distanceKm:e.target.value})} placeholder="0,0" /></Field>
@@ -1169,7 +1190,7 @@ function formatMetric(value:number,metric:PerformanceGoalMetric) {
 }
 
 function ActivityRow({activity,compact=false,onClick}:{activity:PerformanceActivity;compact?:boolean;onClick?:()=>void}) {
-  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.type === "STRENGTH" && activity.strengthSystem ? " · " + strengthSystemLabel(activity.strengthSystem) : ""}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.type === "STRENGTH" && activity.strengthExercises?.length ? <span><strong>{activity.strengthExercises.length}</strong> exercício{activity.strengthExercises.length === 1 ? "" : "s"}</span> : null}{activity.type === "TENNIS" ? <span><strong>{activity.tennisKind === "MATCH" ? "Partida" : "Treino"}</strong>{activity.tennisOpponent ? `vs. ${activity.tennisOpponent}` : ""}</span> : null}{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
+  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.type === "CYCLING" ? " · " + cyclingKindLabel(activity.cyclingKind) : ""}{activity.type === "STRENGTH" && activity.strengthSystem ? " · " + strengthSystemLabel(activity.strengthSystem) : ""}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.type === "STRENGTH" && activity.strengthExercises?.length ? <span><strong>{activity.strengthExercises.length}</strong> exercício{activity.strengthExercises.length === 1 ? "" : "s"}</span> : null}{activity.type === "TENNIS" ? <span><strong>{activity.tennisKind === "MATCH" ? "Partida" : "Treino"}</strong>{activity.tennisOpponent ? `vs. ${activity.tennisOpponent}` : ""}</span> : null}{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
 }
 
 function AssessmentSummary({item}:{item:PerformanceAssessment}) {
