@@ -162,6 +162,12 @@ export function reconcileKidsFinance(
           candidateScore(b.item, profile) - candidateScore(a.item, profile),
       );
 
+    const historicalAny = nextKids.some(
+      (item) =>
+        item.competence < competence &&
+        !item.excludedFromTotals &&
+        matchesProfile(item, profile),
+    );
     const historicalSingle = nextKids.some(
       (item) =>
         item.competence < competence &&
@@ -170,7 +176,17 @@ export function reconcileKidsFinance(
         matchesProfile(item, profile),
     );
 
-    if (historicalSingle) {
+    // Regra definitiva de cobrança única:
+    // - histórico SINGLE anterior; OU
+    // - cadastro atual ONE_TIME + qualquer cobrança válida anterior.
+    //
+    // Isso corrige registros legados como Laura Staut Gonçalves:
+    // o cadastro já estava "Uma parcela", mas agosto foi salvo como RECURRING.
+    const oneTimeAlreadyCharged =
+      historicalSingle ||
+      (profile.student.billingMode === "ONE_TIME" && historicalAny);
+
+    if (oneTimeAlreadyCharged) {
       for (const candidate of candidates) {
         claimed.add(candidate.index);
         nextKids[candidate.index] = {
