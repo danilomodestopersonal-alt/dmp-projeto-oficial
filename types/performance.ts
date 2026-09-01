@@ -10,10 +10,12 @@ export type PerformanceActivitySource = "MANUAL" | "STRAVA";
 
 export type PerformanceStrengthExercise = {
   id: string;
+  block?: string;
   name: string;
   sets: string;
   reps: string;
   load: string;
+  notes?: string;
 };
 
 export type PerformanceStrengthSystem =

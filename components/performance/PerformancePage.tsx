@@ -169,7 +169,147 @@ function emptyActivity(): ActivityForm {
 }
 
 function emptyStrengthExercise(): PerformanceStrengthExercise {
-  return { id: uid(), name: "", sets: "", reps: "", load: "" };
+  return { id: uid(), block: "", name: "", sets: "", reps: "", load: "", notes: "" };
+}
+function normalizeStrengthVoice(value:string){
+  return value
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9\s]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function detectStrengthSystem(text:string):PerformanceStrengthSystem|null{
+  const value=normalizeStrengthVoice(text);
+  if(/\bb7\b/.test(value))return"B7";
+  if(/\btri set\b|\btriset\b/.test(value))return"TRISET";
+  if(/\bbi set\b|\bbiset\b/.test(value))return"BISET";
+  if(/\bcircuito\b/.test(value))return"CIRCUIT";
+  if(/\bdrop set\b|\bdropset\b/.test(value))return"DROP_SET";
+  if(/\brest pause\b/.test(value))return"REST_PAUSE";
+  if(/\bpiramide\b/.test(value))return"PYRAMID";
+  if(/\bconvencional\b|\btradicional\b/.test(value))return"TRADITIONAL";
+  return null;
+}
+function extractStrengthFocus(rawText:string){
+  const match=rawText.match(/\bobjetivo\s*:\s*(.+?)(?=(?:\r?\n|[.;])|(?:\s*[,;\-–—]?\s*(?:sistema|protocolo|bloco)\b)|$)/i);
+  if(!match)return{focus:"",text:rawText};
+  const focus=match[1].trim().replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g,"");
+  const text=(rawText.slice(0,match.index)+rawText.slice((match.index||0)+match[0].length))
+    .replace(/^[\s,;:.\-–—]+/,"")
+    .trim();
+  return{focus,text};
+}
+function organizeStrengthTranscript(rawText:string,system:PerformanceStrengthSystem):PerformanceStrengthExercise[]{
+  const numberWords:Record<string,string>={
+    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","três":"3",
+    "quatro":"4","cinco":"5","seis":"6","sete":"7","oito":"8","nove":"9",
+    "dez":"10","onze":"11","doze":"12","treze":"13","quatorze":"14",
+    "catorze":"14","quinze":"15","dezesseis":"16","dezessete":"17",
+    "dezoito":"18","dezenove":"19","vinte":"20"
+  };
+
+  let text=rawText
+    .replace(/\r\n?/g,"\n")
+    .replace(/\b(?:sistema|protocolo)\s*:?\s*(?:convencional|tradicional|b7|bi[- ]?set|tri[- ]?set|circuito|drop[- ]?set|rest[- ]?pause|pir[aâ]mide|outro)[.,;:]?/gi,"")
+    .trim();
+
+  text=text.replace(
+    /\b(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
+    value=>numberWords[value.toLocaleLowerCase("pt-BR")]||value
+  );
+
+  text=text
+    .replace(/\s*[;|]+\s*/g,"\n")
+    .replace(/\s*[.!?]+\s+(?=[A-Za-zÀ-ÿ])/g,"\n")
+    .replace(/\s+(?=bloco\s+\d+\b)/gi,"\n")
+    .replace(/\b(?:próximo exercício|proximo exercicio|novo exercício|novo exercicio)\b/gi,"\n")
+    .replace(/\n{2,}/g,"\n");
+
+  const output:PerformanceStrengthExercise[]=[];
+  let currentBlock="";
+
+  for(const rawLine of text.split(/\n+/)){
+    let line=rawLine.trim();
+    if(!line)continue;
+
+    const blockMatch=line.match(/^bloco\s+(\d+)\s*[:\-–—]?\s*(.*)$/i);
+    if(blockMatch){
+      currentBlock=`Bloco ${blockMatch[1]}`;
+      line=(blockMatch[2]||"").trim();
+      if(!line)continue;
+    }
+
+    line=line.replace(/^\s*(?:\d+\s*[.)\-:]|[-•])\s*/,"").trim();
+    if(!line)continue;
+
+    let prescription=line.match(/\b(\d+)\s*[x×]\s*(\d+|f|falha)\b/i);
+    if(!prescription){
+      prescription=line.match(/\b(\d+)\s*s[eé]ries?\s*(?:de\s*)?(\d+|f|falha)\b/i);
+    }
+    if(!prescription){
+      const failure=line.match(/\b(\d+)\s*s[eé]ries?\s*(?:at[eé]\s*a\s*)?falha\b/i);
+      if(failure)prescription=[failure[0],failure[1],"F"] as RegExpMatchArray;
+    }
+
+    if(!prescription){
+      output.push({
+        id:uid(),
+        block:currentBlock,
+        name:line.replace(/^[\s,;:.\-–—•]+|[\s,;:.\-–—•]+$/g,"").trim(),
+        sets:"",
+        reps:"",
+        load:"",
+        notes:""
+      });
+      continue;
+    }
+
+    const prescriptionIndex=prescription.index||0;
+    const name=line
+      .slice(0,prescriptionIndex)
+      .replace(/^[\s,;:.\-–—•]+|[\s,;:.\-–—•]+$/g,"")
+      .trim();
+
+    const tail=line
+      .slice(prescriptionIndex+prescription[0].length)
+      .replace(/^[\s,;:.\-–—•]+/,"")
+      .trim();
+
+    let load="";
+    let notes="";
+    const loadMatch=tail.match(/^(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i);
+
+    if(loadMatch){
+      load=`${loadMatch[1].replace(",",".")} kg${/cada\s*lado/i.test(loadMatch[0])?" de cada lado":""}`;
+      notes=tail.slice(loadMatch[0].length).replace(/^[\s,;:.\-–—•]+/,"").trim();
+    }else{
+      notes=tail;
+    }
+
+    output.push({
+      id:uid(),
+      block:currentBlock,
+      name:name||`Exercício ${output.length+1}`,
+      sets:prescription[1]||"",
+      reps:/^(?:f|falha)$/i.test(prescription[2]||"")?"F":prescription[2]||"",
+      load,
+      notes
+    });
+  }
+
+  const automaticSize=system==="B7"||system==="BISET"?2:system==="TRISET"?3:0;
+  if(automaticSize){
+    return output.map((exercise,index)=>({
+      ...exercise,
+      block:exercise.block?.trim()||`Bloco ${Math.floor(index/automaticSize)+1}`
+    }));
+  }
+  if(system==="CIRCUIT"){
+    return output.map(exercise=>({...exercise,block:exercise.block?.trim()||"Bloco 1"}));
+  }
+  return output;
 }
 
 function emptyGoal(): GoalForm {
@@ -207,6 +347,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const [tab, setTab] = useState<Tab>("summary");
   const [modal, setModal] = useState<Modal>(null);
   const [activityForm, setActivityForm] = useState<ActivityForm>(emptyActivity());
+  const [strengthTranscript,setStrengthTranscript]=useState("");
+  const [strengthListening,setStrengthListening]=useState(false);
   const [goalForm, setGoalForm] = useState<GoalForm>(emptyGoal());
   const [assessmentForm, setAssessmentForm] = useState<AssessmentForm>(emptyAssessment());
   const [filterType, setFilterType] = useState<"ALL" | PerformanceActivityType>("ALL");
@@ -343,7 +485,108 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     return { value, percent: goal.target > 0 ? Math.min(100, Math.round((value / goal.target) * 100)) : 0 };
   }
 
+  function stopStrengthVoice(){
+    const voiceWindow=window as any;
+    voiceWindow.__dmpPerformanceShouldListen=false;
+    const recognition=voiceWindow.__dmpPerformanceRecognition;
+    if(recognition){
+      recognition.onend=null;
+      try{recognition.stop();}catch{}
+    }
+    voiceWindow.__dmpPerformanceRecognition=null;
+    voiceWindow.__dmpPerformanceLastFinal="";
+    voiceWindow.__dmpPerformanceLastAt=0;
+    setStrengthListening(false);
+  }
+  function listenStrengthWorkout(){
+    const SpeechRecognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+    if(!SpeechRecognition){
+      alert("O reconhecimento de voz não está disponível neste navegador. Use o campo de texto.");
+      return;
+    }
+
+    const voiceWindow=window as any;
+    if(voiceWindow.__dmpPerformanceShouldListen){
+      stopStrengthVoice();
+      return;
+    }
+
+    voiceWindow.__dmpPerformanceShouldListen=true;
+
+    const normalizeVoice=(value:string)=>normalizeStrengthVoice(value);
+    const appendUnique=(current:string,incoming:string)=>{
+      const clean=incoming.replace(/\s+/g," ").trim();
+      if(!clean)return current;
+      const now=Date.now();
+      const normalized=normalizeVoice(clean);
+      const last=String(voiceWindow.__dmpPerformanceLastFinal||"");
+      const lastNormalized=normalizeVoice(last);
+      const lastAt=Number(voiceWindow.__dmpPerformanceLastAt||0);
+
+      if(lastNormalized&&now-lastAt<3500&&normalized===lastNormalized){
+        voiceWindow.__dmpPerformanceLastAt=now;
+        return current;
+      }
+      voiceWindow.__dmpPerformanceLastFinal=clean;
+      voiceWindow.__dmpPerformanceLastAt=now;
+      return `${current.trim()} ${clean}`.trim();
+    };
+
+    const start=()=>{
+      if(!voiceWindow.__dmpPerformanceShouldListen)return;
+      const recognition=new SpeechRecognition();
+      voiceWindow.__dmpPerformanceRecognition=recognition;
+      recognition.lang="pt-BR";
+      recognition.continuous=true;
+      recognition.interimResults=false;
+      recognition.maxAlternatives=1;
+
+      recognition.onstart=()=>setStrengthListening(true);
+      recognition.onresult=(event:any)=>{
+        for(let i=event.resultIndex||0;i<event.results.length;i++){
+          if(event.results[i]?.isFinal===false)continue;
+          const spoken=String(event.results[i]?.[0]?.transcript||"").trim();
+          if(spoken)setStrengthTranscript(current=>appendUnique(current,spoken));
+        }
+      };
+      recognition.onerror=(event:any)=>{
+        if(["not-allowed","service-not-allowed","audio-capture"].includes(event.error)){
+          stopStrengthVoice();
+        }
+      };
+      recognition.onend=()=>{
+        voiceWindow.__dmpPerformanceRecognition=null;
+        if(voiceWindow.__dmpPerformanceShouldListen)window.setTimeout(start,350);
+        else setStrengthListening(false);
+      };
+
+      try{recognition.start();}
+      catch{
+        if(voiceWindow.__dmpPerformanceShouldListen)window.setTimeout(start,350);
+      }
+    };
+
+    start();
+  }
+  function organizeStrengthFromVoice(){
+    const raw=strengthTranscript.trim();
+    if(!raw)return;
+
+    const extracted=extractStrengthFocus(raw);
+    const detected=detectStrengthSystem(extracted.text)||activityForm.strengthSystem;
+    const parsed=organizeStrengthTranscript(extracted.text,detected);
+
+    setActivityForm(current=>({
+      ...current,
+      type:"STRENGTH",
+      title:current.title.trim()?current.title:(extracted.focus||"Musculação"),
+      strengthSystem:detected,
+      strengthExercises:parsed.length?parsed:current.strengthExercises,
+    }));
+  }
   function openNewActivity() {
+    stopStrengthVoice();
+    setStrengthTranscript("");
     setActivityForm(emptyActivity());
     setModal("activity");
   }
@@ -367,6 +610,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       tennisScore: activity.tennisScore || "",
       notes: activity.notes || "",
     });
+    stopStrengthVoice();
+    setStrengthTranscript("");
     setModal("activity");
   }
 
@@ -391,6 +636,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             sets: item.sets.trim(),
             reps: item.reps.trim(),
             load: item.load.trim(),
+            block: item.block?.trim() || "",
+            notes: item.notes?.trim() || "",
           }))
         : undefined,
       strengthSystem: activityForm.type === "STRENGTH" ? activityForm.strengthSystem : null,
@@ -406,7 +653,11 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     const activities = existing
       ? data.activities.map(item => item.id === activity.id ? activity : item)
       : [activity, ...data.activities];
-    if (await persist({ ...data, activities })) setModal(null);
+    if (await persist({ ...data, activities })) {
+      stopStrengthVoice();
+      setStrengthTranscript("");
+      setModal(null);
+    }
   }
 
   async function deleteActivity(id: string) {
@@ -804,7 +1055,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               </> : null}
             </div>
             {detailActivity.type === "STRENGTH" && detailActivity.strengthSystem ? <div className={styles.assessmentHeadline}><strong>Sistema de treino</strong><span>{strengthSystemLabel(detailActivity.strengthSystem)}</span></div> : null}
-            {detailActivity.type === "STRENGTH" && detailActivity.strengthExercises?.length ? <div className={styles.exerciseDetails}><strong>Exercícios</strong>{detailActivity.strengthExercises.map(item => <div key={item.id}><span>{item.name}</span><small>{[item.sets && `${item.sets} séries`, item.reps && `${item.reps} reps`, item.load && item.load].filter(Boolean).join(" · ")}</small></div>)}</div> : null}
+            {detailActivity.type === "STRENGTH" && detailActivity.strengthExercises?.length ? <div className={styles.exerciseDetails}><strong>Exercícios</strong>{detailActivity.strengthExercises.map(item => <div key={item.id}><span>{item.block ? `${item.block} · ` : ""}{item.name}</span><small>{[item.sets && `${item.sets} séries`, item.reps && `${item.reps} reps`, item.load && item.load, item.notes].filter(Boolean).join(" · ")}</small></div>)}</div> : null}
             {detailActivity.type === "TENNIS" ? <div className={styles.exerciseDetails}><strong>{detailActivity.tennisKind === "MATCH" ? "Partida" : "Treino de tênis"}</strong>{detailActivity.tennisOpponent ? <div><span>Adversário</span><small>{detailActivity.tennisOpponent}</small></div> : null}{detailActivity.tennisScore ? <div><span>Placar</span><small>{detailActivity.tennisScore}</small></div> : null}</div> : null}
             {detailActivity.gearName ? <div className={styles.assessmentHeadline}><strong>Equipamento</strong><span>{detailActivity.gearName}</span></div> : null}
             {detailActivity.description ? <div className={styles.assessmentHeadline}><strong>Descrição</strong><span>{detailActivity.description}</span></div> : null}
@@ -818,7 +1069,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       ) : null}
 
       {modal === "activity" ? (
-        <ModalShell title={activityForm.id ? "Editar atividade" : "Registrar atividade"} eyebrow="PERFORMANCE" onClose={() => setModal(null)}>
+        <ModalShell title={activityForm.id ? "Editar atividade" : "Registrar atividade"} eyebrow="PERFORMANCE" onClose={() => {stopStrengthVoice();setStrengthTranscript("");setModal(null);}}>
           <form onSubmit={submitActivity} className={styles.form}>
             <div className={styles.formGrid}>
               <Field label="Data"><input type="date" value={activityForm.date} onChange={e => setActivityForm({...activityForm,date:e.target.value})} required /></Field>
@@ -830,15 +1081,15 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
                 <Field label="Altimetria (m)"><input inputMode="numeric" value={activityForm.elevationMeters} onChange={e => setActivityForm({...activityForm,elevationMeters:e.target.value})} placeholder="0" /></Field>
                 <Field label="Calorias"><input inputMode="numeric" value={activityForm.calories} onChange={e => setActivityForm({...activityForm,calories:e.target.value})} placeholder="Opcional" /></Field>
               </> : null}
-              {activityForm.type === "STRENGTH" ? <Field label="Sistema de treino" full><select value={activityForm.strengthSystem} onChange={e => setActivityForm({...activityForm,strengthSystem:e.target.value as PerformanceStrengthSystem})}>{STRENGTH_SYSTEM_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field> : null}
+              {activityForm.type === "STRENGTH" ? <><div className={`${styles.fieldFull} ${styles.strengthVoicePanel}`}><div><strong>🎤 Montar treino por voz / texto</strong><p>Fale ou cole o treino como você faz com os alunos. Depois toque em “Revisar e montar” e confira tudo antes de salvar.</p></div><textarea rows={7} value={strengthTranscript} onChange={e=>setStrengthTranscript(e.target.value)} placeholder={'Objetivo: Peito + tríceps\nSistema: B7\nBloco 1\nSupino reto — 3x15 — 30 kg\nTríceps polia — 3xF — 25 kg'}/><div className="hero-actions"><button type="button" className="secondary" onClick={listenStrengthWorkout}>{strengthListening?"⏹ Parar":"🎤 Falar"}</button><button type="button" className="primary" onClick={organizeStrengthFromVoice} disabled={!strengthTranscript.trim()}>Revisar e montar</button></div></div><Field label="Sistema de treino" full><select value={activityForm.strengthSystem} onChange={e => setActivityForm({...activityForm,strengthSystem:e.target.value as PerformanceStrengthSystem})}>{STRENGTH_SYSTEM_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field></> : null}
               {activityForm.type === "TENNIS" ? <>
                 <Field label="Tipo"><select value={activityForm.tennisKind} onChange={e => setActivityForm({...activityForm,tennisKind:e.target.value as PerformanceTennisKind})}><option value="TRAINING">Treino</option><option value="MATCH">Partida</option></select></Field>
                 {activityForm.tennisKind === "MATCH" ? <><Field label="Contra quem"><input value={activityForm.tennisOpponent} onChange={e => setActivityForm({...activityForm,tennisOpponent:e.target.value})} placeholder="Nome do adversário" /></Field><Field label="Placar"><input value={activityForm.tennisScore} onChange={e => setActivityForm({...activityForm,tennisScore:e.target.value})} placeholder="Ex.: 6/4 6/3" /></Field></> : null}
               </> : null}
-              {activityForm.type === "STRENGTH" ? <div className={`${styles.fieldFull} ${styles.exerciseEditor}`}><div className={styles.exerciseEditorHead}><strong>Exercícios</strong><button type="button" className="secondary" onClick={() => setActivityForm({...activityForm,strengthExercises:[...activityForm.strengthExercises,emptyStrengthExercise()]})}>+ Exercício</button></div>{activityForm.strengthExercises.map((item,index) => <div className={styles.exerciseEditorRow} key={item.id}><input aria-label={`Exercício ${index+1}`} value={item.name} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,name:e.target.value} : current)})} placeholder="Exercício" /><input aria-label="Séries" value={item.sets} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,sets:e.target.value} : current)})} placeholder="Séries" /><input aria-label="Repetições" value={item.reps} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,reps:e.target.value} : current)})} placeholder="Reps" /><input aria-label="Carga" value={item.load} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,load:e.target.value} : current)})} placeholder="Carga" /><button type="button" className={styles.exerciseRemove} onClick={() => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.length === 1 ? [emptyStrengthExercise()] : activityForm.strengthExercises.filter(current => current.id !== item.id)})}>×</button></div>)}</div> : null}
+              {activityForm.type === "STRENGTH" ? <div className={`${styles.fieldFull} ${styles.exerciseEditor}`}><div className={styles.exerciseEditorHead}><div><strong>Revisão do treino</strong><small>Corrija bloco, exercício, séries, reps, carga e observação antes de salvar.</small></div><button type="button" className="secondary" onClick={() => setActivityForm({...activityForm,strengthExercises:[...activityForm.strengthExercises,emptyStrengthExercise()]})}>+ Exercício</button></div>{activityForm.strengthExercises.map((item,index) => <div className={`${styles.exerciseEditorRow} ${styles.strengthExerciseEditorRow}`} key={item.id}><input aria-label="Bloco" value={item.block||""} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,block:e.target.value} : current)})} placeholder="Bloco" /><input aria-label={`Exercício ${index+1}`} value={item.name} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,name:e.target.value} : current)})} placeholder="Exercício" /><input aria-label="Séries" value={item.sets} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,sets:e.target.value} : current)})} placeholder="Séries" /><input aria-label="Repetições" value={item.reps} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,reps:e.target.value} : current)})} placeholder="Reps" /><input aria-label="Carga" value={item.load} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,load:e.target.value} : current)})} placeholder="Carga" /><input aria-label="Observação" value={item.notes||""} onChange={e => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.map(current => current.id === item.id ? {...current,notes:e.target.value} : current)})} placeholder="Observação" /><button type="button" className={styles.exerciseRemove} onClick={() => setActivityForm({...activityForm,strengthExercises:activityForm.strengthExercises.length === 1 ? [emptyStrengthExercise()] : activityForm.strengthExercises.filter(current => current.id !== item.id)})}>×</button></div>)}</div> : null}
               <Field label="Observações" full><textarea rows={4} value={activityForm.notes} onChange={e => setActivityForm({...activityForm,notes:e.target.value})} placeholder="Sensações, intensidade, terreno, observações do treino..." /></Field>
             </div>
-            <ModalActions saving={saving} onCancel={() => setModal(null)} label="Salvar atividade" />
+            <ModalActions saving={saving} onCancel={() => {stopStrengthVoice();setStrengthTranscript("");setModal(null);}} label="Salvar atividade" />
           </form>
         </ModalShell>
       ) : null}

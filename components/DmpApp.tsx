@@ -3056,6 +3056,35 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   const [currentIndex,setCurrentIndex]=useState(0);
   const [startedAt]=useState(()=>new Date().toISOString());
   function updateExercise(id:string, patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
+  function nextSessionBlock(){
+    const numbers=exercises.map(ex=>Number((ex.block||"").match(/\d+/)?.[0]||0)).filter(Boolean);
+    return `Bloco ${Math.max(0,...numbers)+1}`;
+  }
+  function addSessionExercise(block=""){
+    const id=crypto.randomUUID();
+    setExercises(current=>[...current,{id,block,name:"",sets:"3",reps:"12",load:"",notes:""}]);
+    setCompleted(current=>({...current,[id]:false}));
+  }
+  function addSessionBlock(){addSessionExercise(nextSessionBlock());}
+  function removeSessionExercise(id:string){
+    const target=exercises.find(ex=>ex.id===id);
+    if(!target)return;
+    if(!confirm(`Excluir "${target.name||"este exercício"}" somente da sessão de hoje?`))return;
+    setExercises(current=>current.filter(ex=>ex.id!==id));
+    setCompleted(current=>{const next={...current};delete next[id];return next;});
+    setCurrentIndex(current=>Math.max(0,Math.min(current,Math.max(0,exercises.length-2))));
+  }
+  function removeSessionBlock(block:string){
+    const clean=block.trim();
+    if(!clean)return;
+    const group=exercises.filter(ex=>(ex.block||"").trim()===clean);
+    if(!group.length)return;
+    if(!confirm(`Excluir ${clean} inteiro (${group.length} exercício${group.length===1?"":"s"}) somente da sessão de hoje?`))return;
+    const ids=new Set(group.map(ex=>ex.id));
+    setExercises(current=>current.filter(ex=>!ids.has(ex.id)));
+    setCompleted(current=>{const next={...current};ids.forEach(id=>delete next[id]);return next;});
+    setCurrentIndex(0);
+  }
   const completedCount=exercises.filter(ex=>completed[ex.id]).length;
   const currentExercise=exercises[currentIndex];
   const slot=workout?.slot||inferWorkoutSlot(workout,0);
@@ -3072,11 +3101,13 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   }
 
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack}/><section className="content narrow"><div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>Treino {slot}</small></div>
-    {student.restrictions||student.injuries ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div> : null}<div className="session-mode-banner"><span>📋 Treino {slot} · {workoutProtocolLabel(protocol)}</span><strong>{workout?.name||`Treino ${slot}`}</strong><small>{completedCount}/{exercises.length} exercícios marcados{workout?.notes?` · ${workout.notes}`:""}</small><button className="secondary compact-button" onClick={()=>setLessonMode(true)}>▶ Modo aula</button></div>
-    <div className="session-list">{exercises.map(ex=>{const previous=findPreviousExercise(student,ex.name);return <article className={`session-exercise planned-row ${completed[ex.id]?"is-done":""}`} key={ex.id}>
+    {student.restrictions||student.injuries ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div> : null}<div className="session-mode-banner"><span>📋 Treino {slot} · {workoutProtocolLabel(protocol)}</span><strong>{workout?.name||`Treino ${slot}`}</strong><small>{completedCount}/{exercises.length} exercícios marcados{workout?.notes?` · ${workout.notes}`:""}</small><button className="secondary compact-button" disabled={!exercises.length} onClick={()=>setLessonMode(true)}>▶ Modo aula</button></div>
+    <div className="hero-actions" style={{marginBottom:12}}><button type="button" className="secondary compact-button" onClick={()=>addSessionExercise(exercises[exercises.length-1]?.block||"")}>+ Exercício</button><button type="button" className="secondary compact-button" onClick={addSessionBlock}>+ Bloco</button><small className="muted">Só muda a sessão de hoje; a ficha original não é alterada.</small></div>
+    <div className="session-list">{exercises.map((ex,index)=>{const previous=findPreviousExercise(student,ex.name);return <article className={`session-exercise planned-row ${completed[ex.id]?"is-done":""}`} key={ex.id}>
       <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??false} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
-      <div className="planned-exercise-main"><div className="planned-title-line"><span className="status-chip">{ex.block||"—"}</span><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div></div>
+      <div className="planned-exercise-main"><div className="planned-title-line"><input aria-label="Bloco" title="Altere para mover o exercício entre blocos" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})} placeholder="Bloco" style={{width:105,maxWidth:"28%",fontWeight:800}}/><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:8}}><button type="button" className="danger-link compact-button" onClick={()=>removeSessionExercise(ex.id)}>Excluir exercício</button>{ex.block&&exercises.findIndex(item=>(item.block||"").trim()===(ex.block||"").trim())===index?<button type="button" className="danger-link compact-button" onClick={()=>removeSessionBlock(ex.block||"")}>Excluir {ex.block}</button>:null}</div></div>
     </article>})}</div>
+    {!exercises.length?<div className="empty-review"><strong>Sessão sem exercícios</strong><span>Use “+ Exercício” ou “+ Bloco” para montar o que será realizado hoje.</span></div>:null}
     <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,workoutId:workout?.id,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
 }

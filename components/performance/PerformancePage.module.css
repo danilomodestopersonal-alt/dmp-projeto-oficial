@@ -11,3 +11,12 @@
 
 .heroImage{height:220px!important;max-height:220px!important;object-fit:cover!important;object-position:center!important;border-radius:20px;box-shadow:0 18px 36px rgba(0,0,0,.22)}
 @media(max-width:760px){.heroImage{height:180px!important;max-height:180px!important}}
+
+/* DMP Performance - strength voice v3 */
+.strengthVoicePanel{grid-column:1/-1;display:grid;gap:10px;padding:14px;border:1px solid #dfe7c2;background:#f7faed;border-radius:16px}
+.strengthVoicePanel p{margin:4px 0 0;color:#66747f;font-size:.82rem}
+.strengthVoicePanel textarea{width:100%;box-sizing:border-box;border:1px solid #d3dbe1;border-radius:12px;padding:11px 12px;background:#fff;font:inherit;color:#15232f;resize:vertical}
+.exerciseEditorHead>div{display:flex;flex-direction:column;gap:3px}
+.exerciseEditorHead small{font-size:.75rem;color:#71808c}
+.strengthExerciseEditorRow{grid-template-columns:minmax(90px,.7fr) minmax(180px,2fr) repeat(3,minmax(72px,.75fr)) minmax(120px,1.3fr) auto}
+@media(max-width:760px){.strengthVoicePanel{grid-column:auto}.strengthExerciseEditorRow{grid-template-columns:1fr 1fr}.strengthExerciseEditorRow input:nth-child(2),.strengthExerciseEditorRow input:nth-child(6){grid-column:1/-1}}
