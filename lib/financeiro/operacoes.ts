@@ -1,6 +1,8 @@
 import type {
   DsKidEntry,
   ExtraExpense,
+  FinanceCarryoverEntry,
+  FinanceCarryoverKind,
   FinanceData,
   FinanceExpense,
   FinanceExpenseKind,
@@ -34,7 +36,10 @@ export type FinanceCommand =
   | { type: "EXTRA_UPDATE"; id: string; date: string; description: string; category: string; paymentMethod?: string; amount: number }
   | { type: "EXTRA_DELETE"; id: string }
   | { type: "CATEGORY_CREATE"; name: string; competence: string }
-  | { type: "CATEGORY_DELETE"; name: string; competence: string };
+  | { type: "CATEGORY_DELETE"; name: string; competence: string }
+  | { type: "CARRYOVER_CREATE"; competence: string; originCompetence: string; studentId?: string | null; studentName: string; amount: number; kind: FinanceCarryoverKind; note?: string; sourceEntryId?: string | null }
+  | { type: "CARRYOVER_UPDATE"; id: string; originCompetence: string; studentId?: string | null; studentName: string; amount: number; kind: FinanceCarryoverKind; note?: string; sourceEntryId?: string | null }
+  | { type: "CARRYOVER_DELETE"; id: string };
 
 function id(prefix: string) {
   const suffix = typeof globalThis.crypto?.randomUUID === "function"
@@ -148,6 +153,7 @@ function commandCompetence(data: FinanceData, command: FinanceCommand): string {
       || data.dsKids.find(item => item.id === command.id)?.competence
       || data.expenses.find(item => item.id === command.id)?.competence
       || data.extraExpenses.find(item => item.id === command.id)?.competence
+      || (data.carriedPendencies || []).find(item => item.id === command.id)?.competence
       || data.currentCompetence;
   }
   return data.currentCompetence;
@@ -286,6 +292,53 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
 
     case "CATEGORY_DELETE": { if (data.extraExpenses.some(item => item.category === command.name)) return data;
       return withHistory({ ...data, categories: data.categories.filter(item => item !== command.name) }, historyEntry(command.competence, "CATEGORY_DELETED", `Categoria ${command.name} excluída.`));
+    }
+
+    case "CARRYOVER_CREATE": {
+      const entry: FinanceCarryoverEntry = {
+        id: id("carryover"),
+        competence: command.competence,
+        originCompetence: command.originCompetence,
+        scope: "DS_KIDS",
+        studentId: command.studentId ?? null,
+        studentName: command.studentName.trim(),
+        amount: command.amount,
+        kind: command.kind,
+        note: command.note?.trim() || undefined,
+        sourceEntryId: command.sourceEntryId ?? null,
+      };
+      return withHistory(
+        { ...data, carriedPendencies: [...(data.carriedPendencies || []), entry] },
+        historyEntry(command.competence, "CARRYOVER_CREATED", `Pendência de ${entry.studentName} trazida de ${entry.originCompetence}.`, entry.amount, entry.id),
+      );
+    }
+
+    case "CARRYOVER_UPDATE": {
+      const current = (data.carriedPendencies || []).find(item => item.id === command.id);
+      if (!current) return data;
+      const updated = (data.carriedPendencies || []).map(item => item.id === command.id ? {
+        ...item,
+        originCompetence: command.originCompetence,
+        studentId: command.studentId ?? null,
+        studentName: command.studentName.trim(),
+        amount: command.amount,
+        kind: command.kind,
+        note: command.note?.trim() || undefined,
+        sourceEntryId: command.sourceEntryId ?? null,
+      } : item);
+      return withHistory(
+        { ...data, carriedPendencies: updated },
+        historyEntry(current.competence, "CARRYOVER_UPDATED", `Pendência de ${command.studentName.trim()} atualizada.`, command.amount, command.id),
+      );
+    }
+
+    case "CARRYOVER_DELETE": {
+      const current = (data.carriedPendencies || []).find(item => item.id === command.id);
+      if (!current) return data;
+      return withHistory(
+        { ...data, carriedPendencies: (data.carriedPendencies || []).filter(item => item.id !== command.id) },
+        historyEntry(current.competence, "CARRYOVER_DELETED", `Pendência trazida de ${current.studentName} excluída.`, current.amount, current.id),
+      );
     }
   }
 }

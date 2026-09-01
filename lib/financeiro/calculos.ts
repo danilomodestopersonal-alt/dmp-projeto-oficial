@@ -40,14 +40,23 @@ export function expenseStatus(expense: FinanceExpense, referenceDate = new Date(
 
 export function financeSummary(data: FinanceData, competence = data.currentCompetence) {
   const personal = data.personalInvoices.filter(item => item.competence === competence && !item.excludedFromTotals);
-  const kids = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals && !!item.studentId);
+  const carryovers = (data.carriedPendencies || []).filter(item => item.competence === competence);
+  const transferredSourceIds = new Set(
+    (data.carriedPendencies || [])
+      .filter(item => item.originCompetence === competence && item.sourceEntryId)
+      .map(item => item.sourceEntryId as string),
+  );
+  const kids = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals && !!item.studentId && !transferredSourceIds.has(item.id));
+  const kidsCarryovers = carryovers.filter(item => item.scope === "DS_KIDS");
   const expenses = data.expenses.filter(item => item.competence === competence);
   const extras = data.extraExpenses.filter(item => item.competence === competence);
   const receipts = data.dsReceipts[competence] || [];
 
   const personalExpected = sum(personal.map(item => item.expectedAmount));
   const personalReceived = sum(personal.map(item => paid(item.payments)));
-  const kidsGross = sum(kids.map(item => item.amount));
+  const kidsGrossBase = sum(kids.map(item => item.amount));
+  const kidsCarryoverTotal = sum(kidsCarryovers.map(item => item.amount));
+  const kidsGross = sum([kidsGrossBase, kidsCarryoverTotal]);
   const kidsNet = roundMoney(kidsGross * data.dsPercent);
   const ranking = data.rankingByCompetence[competence] || 0;
   const dsSettlement = roundMoney(kidsNet + ranking);
@@ -73,6 +82,10 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   return {
     personal,
     kids,
+    carryovers,
+    kidsCarryovers,
+    kidsGrossBase,
+    kidsCarryoverTotal,
     expenses,
     extras,
     receipts,

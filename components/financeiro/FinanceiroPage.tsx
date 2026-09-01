@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   DsKidEntry,
   ExtraExpense,
+  FinanceCarryoverEntry,
+  FinanceCarryoverKind,
   FinanceData,
   FinanceExpense,
   FinanceExpenseKind,
@@ -48,6 +50,14 @@ import { preparePersonalRenewalForNextMonth, reconcilePersonalFinance, type Pers
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => localDateISO();
 
+function normalizeFinanceName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "closing" | "reports";
 type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
 
@@ -65,6 +75,8 @@ type Action =
   | { type: "extra-edit"; extra: ExtraExpense }
   | { type: "kid-create" }
   | { type: "kid-edit"; kid: DsKidEntry }
+  | { type: "carry-create" }
+  | { type: "carry-edit"; carry: FinanceCarryoverEntry }
   | { type: "category-create" }
   | null;
 
@@ -118,6 +130,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
   const [undoDeletion, setUndoDeletion] = useState<FinanceData | null>(null);
   const [kidsAudit, setKidsAudit] = useState<KidsFinanceAudit | null>(null);
   const [personalAudit, setPersonalAudit] = useState<PersonalFinanceAudit | null>(null);
+  const [kidsStudentOptions, setKidsStudentOptions] = useState<Array<{id:string;name:string}>>([]);
   const competence = data.currentCompetence;
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
@@ -203,9 +216,17 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
           if (kidsResponse.ok) {
             const kidsPayload = await kidsResponse.json();
             if (kidsPayload.data) {
+              const kidsData = kidsPayload.data as KidsData;
+              const profiles = new Map<string,{id:string;name:string}>();
+              for (const group of kidsData.classes) {
+                for (const student of group.students) {
+                  if (!profiles.has(student.id)) profiles.set(student.id,{id:student.id,name:student.name});
+                }
+              }
+              if (!cancelled) setKidsStudentOptions([...profiles.values()].sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")));
               const reconciled = reconcileKidsFinance(
                 next,
-                kidsPayload.data as KidsData,
+                kidsData,
               );
               next = reconciled.data;
               setKidsAudit(reconciled.audit);
@@ -536,9 +557,12 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
             <section className="panel">
               <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button></div>
               {competence === "2026-08" && summary.ranking === 6500 ? <div className={styles.importNote}><strong>Conferência da planilha</strong><span>O Resumo DS informa Ranking de R$ 6.500,00. Outro quadro da planilha mostra R$ 7.000,00. O DMP está usando R$ 6.500,00; altere aqui se necessário.</span></div> : null}
-              <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} /><Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong /><Calc label="Recebido da DS" value={summary.dsReceived} /><Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
+              <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} />{summary.kidsCarryoverTotal>0?<Calc label="Incluído de pendências anteriores" value={summary.kidsCarryoverTotal}/>:null}<Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong /><Calc label="Recebido da DS" value={summary.dsReceived} /><Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
               <button className={`primary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-receipt" })}>+ Registrar recebimento DS</button>
               <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{receipt.sourceName || "DS"}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
+              <div className={styles.importNote}><strong>🔴 Pendências trazidas de meses anteriores</strong><span>Você escolhe somente quem deve entrar nesta competência. Esses valores entram no Kids bruto deste mês e não seguem automaticamente para o próximo.</span></div>
+              <button className={`secondary ${styles.fullButton}`} disabled={!editable || !Object.keys(data.competences).some(item=>item<competence)} onClick={() => openAction({ type: "carry-create" })}>+ Trazer pendência</button>
+              <div className={styles.receiptList}>{summary.kidsCarryovers.length ? summary.kidsCarryovers.slice().sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")).map(item => <div key={item.id} className={styles.receipt}><span><strong>{item.studentName}</strong><small>Veio de {competenceLabel(item.originCompetence)} · {carryoverKindLabel(item.kind)}{item.note?` · ${item.note}`:""}</small></span><div className={styles.receiptActions}><strong className={styles.outValue}>{money.format(item.amount)}</strong><button disabled={!editable} onClick={() => openAction({type:"carry-edit",carry:item})}>Editar</button></div></div>) : <span className="muted">Nenhuma pendência trazida para este mês.</span>}</div>
             </section>
             <section className="panel">
               <div className="panel-head"><div><h2>Alunos Kids</h2><p className="muted">{summary.kids.length} registros válidos · {money.format(summary.kidsGross)} bruto.{kidsAudit?.excluded?` · ${kidsAudit.excluded} registro(s) antigo(s) preservado(s) fora da soma.`:""}{kidsAudit?.legacyIncluded?` · ${kidsAudit.legacyIncluded} registro(s) ainda sem vínculo.`:""}</p></div></div>
@@ -570,16 +594,17 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         {tab === "reports" ? <ReportsTab data={data} competence={competence} onDownload={downloadReport} /> : null}
       </section>
 
-      {action ? <FinanceActionModal action={action} data={data} competence={competence} onClose={() => setAction(null)} dispatch={dispatch} /> : null}
+      {action ? <FinanceActionModal action={action} data={data} competence={competence} kidsStudentOptions={kidsStudentOptions} onClose={() => setAction(null)} dispatch={dispatch} /> : null}
       <button className={styles.floatingMic} disabled={!editable} onClick={startVoice} aria-label="Lançar por voz">🎤</button>
     </>
   );
 }
 
-function FinanceActionModal({ action, data, competence, onClose, dispatch }: { action: Exclude<Action, null>; data: FinanceData; competence: string; onClose: () => void; dispatch: (command: FinanceCommand) => void }) {
+function FinanceActionModal({ action, data, competence, kidsStudentOptions, onClose, dispatch }: { action: Exclude<Action, null>; data: FinanceData; competence: string; kidsStudentOptions:Array<{id:string;name:string}>; onClose: () => void; dispatch: (command: FinanceCommand) => void }) {
   const invoice = action.type === "personal-edit" || action.type === "personal-payment" ? action.invoice : null;
   const expense = action.type === "expense-edit" || action.type === "expense-payment" || action.type === "card-value" ? action.expense : null;
   const kid = action.type === "kid-edit" ? action.kid : null;
+  const carry = action.type === "carry-edit" ? action.carry : null;
   const extra = action.type === "extra-edit" ? action.extra : null;
   const defaultKind: FinanceExpenseKind = action.type === "expense-create" ? action.kind || "RECURRING" : expense?.kind || "RECURRING";
   const isPayment = action.type === "personal-payment" || action.type === "expense-payment";
@@ -588,7 +613,8 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
       : action.type === "card-value" && expense ? expense.expectedAmount
         : action.type === "ranking" ? data.rankingByCompetence[competence] || 0
           : kid ? kid.amount
-            : extra ? extra.amount
+            : carry ? carry.amount
+              : extra ? extra.amount
               : action.type === "personal-edit" && invoice ? invoice.expectedAmount
                 : action.type === "expense-edit" && expense ? expense.expectedAmount
                   : 0;
@@ -608,6 +634,12 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
   const [newCategory, setNewCategory] = useState("");
   const [kidBillingMode,setKidBillingMode]=useState<"SINGLE"|"INSTALLMENT"|"RECURRING">(kid?.billingMode||"RECURRING");
   const [kidCategory,setKidCategory]=useState<"RED"|"ORANGE"|"GREEN"|null>(kid?.tennisCategory||null);
+  const originOptions=Object.keys(data.competences).filter(item=>item<competence).sort().reverse();
+  const fallbackCarryName=carry?.studentName||"";
+  const [carryStudentId,setCarryStudentId]=useState(carry?.studentId||"");
+  const [carryStudentName,setCarryStudentName]=useState(fallbackCarryName);
+  const [carryOrigin,setCarryOrigin]=useState(carry?.originCompetence||originOptions[0]||"");
+  const [carryKind,setCarryKind]=useState<FinanceCarryoverKind>(carry?.kind||"SINGLE");
 
   function numericAmount() { return parseMoney(amount); }
   function validDay() { return Math.min(31, Math.max(1, Number(dueDay) || 1)); }
@@ -680,6 +712,21 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
       onClose(); return;
     }
 
+    if (action.type === "carry-create" || action.type === "carry-edit") {
+      if (numeric === null || numeric <= 0 || !carryOrigin || carryOrigin >= competence || !carryStudentName.trim()) return;
+      const duplicate=(data.carriedPendencies||[]).some(item=>item.id!==carry?.id&&item.competence===competence&&item.originCompetence===carryOrigin&&((carryStudentId&&item.studentId===carryStudentId)||normalizeFinanceName(item.studentName)===normalizeFinanceName(carryStudentName)));
+      if(duplicate){window.alert("Essa pendência já foi trazida para esta competência.");return;}
+      const expectedMode=carryKind==="SINGLE"?"SINGLE":carryKind==="INSTALLMENT"?"INSTALLMENT":carryKind==="MONTHLY"?"RECURRING":null;
+      const usedSources=new Set((data.carriedPendencies||[]).filter(item=>item.id!==carry?.id&&item.sourceEntryId).map(item=>item.sourceEntryId as string));
+      const sourceCandidates=data.dsKids.filter(item=>item.competence===carryOrigin&&!item.excludedFromTotals&&!usedSources.has(item.id)&&((carryStudentId&&item.studentId===carryStudentId)||normalizeFinanceName(item.studentName)===normalizeFinanceName(carryStudentName)));
+      const exactSources=sourceCandidates.filter(item=>Math.abs(item.amount-numeric)<.005);
+      const source=exactSources.find(item=>!expectedMode||item.billingMode===expectedMode)||exactSources[0]||null;
+      const payload={originCompetence:carryOrigin,studentId:carryStudentId||source?.studentId||null,studentName:carryStudentName,amount:numeric,kind:carryKind,note,sourceEntryId:source?.id||null};
+      if(action.type==="carry-create")dispatch({type:"CARRYOVER_CREATE",competence,...payload});
+      else dispatch({type:"CARRYOVER_UPDATE",id:action.carry.id,...payload});
+      onClose(); return;
+    }
+
     if (action.type === "extra-create" || action.type === "extra-edit") {
       if (numeric === null || numeric <= 0 || !description.trim()) return;
       const finalCategory = category || suggestCategory(description);
@@ -710,6 +757,8 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
 
     {action.type === "kid-create" || action.type === "kid-edit" ? <><label>Aluno Kids<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event=>setDueDay(event.target.value)}/></label></div><label>Forma de cobrança<select value={kidBillingMode} onChange={event=>setKidBillingMode(event.target.value as typeof kidBillingMode)}><option value="SINGLE">Parcela única</option><option value="INSTALLMENT">Parcelado por quantidade de meses</option><option value="RECURRING">Recorrente sem término</option></select></label>{kidBillingMode==="INSTALLMENT"?<div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent||"1"} onChange={event=>setInstallmentCurrent(event.target.value)}/></label><label>Quantidade de parcelas<input type="number" min="1" value={installmentTotal} onChange={event=>setInstallmentTotal(event.target.value)}/></label></div>:null}<fieldset className={styles.categoryPicker}><legend>Categoria DS Tênis</legend>{([null,"RED","ORANGE","GREEN"] as const).map(value=><button type="button" key={value||"NONE"} className={kidCategory===value?styles.categorySelected:""} onClick={()=>setKidCategory(value)}>{value===null?"Sem categoria":value==="RED"?"🔴 Vermelha":value==="ORANGE"?"🟠 Laranja":"🟢 Verde"}</button>)}</fieldset></> : null}
 
+    {action.type === "carry-create" || action.type === "carry-edit" ? <><label>Criança<select value={carryStudentId} onChange={event=>{const id=event.target.value;const option=kidsStudentOptions.find(item=>item.id===id);setCarryStudentId(id);setCarryStudentName(option?.name||"");}} autoFocus><option value="">Selecione...</option>{kidsStudentOptions.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{(!kidsStudentOptions.length||(carryStudentId&&!kidsStudentOptions.some(item=>item.id===carryStudentId)))?<label>Nome da criança<input value={carryStudentName} onChange={event=>setCarryStudentName(event.target.value)} placeholder="Digite o nome" /></label>:null}<div className={styles.formGrid}><label>Competência de origem<select value={carryOrigin} onChange={event=>setCarryOrigin(event.target.value)}>{originOptions.map(item=><option key={item} value={item}>{competenceLabel(item)}</option>)}</select></label><label>Valor<input value={amount} onChange={event=>setAmount(event.target.value)} placeholder="0,00" /></label></div><label>Tipo<select value={carryKind} onChange={event=>setCarryKind(event.target.value as FinanceCarryoverKind)}><option value="SINGLE">Uma parcela</option><option value="MONTHLY">Mensalidade</option><option value="INSTALLMENT">Parcela</option><option value="OTHER">Outro</option></select></label><label>Observação<input value={note} onChange={event=>setNote(event.target.value)} placeholder="Opcional" /></label><p className={styles.formHint}>Entra somente em {competenceLabel(competence)}. Não será renovada no mês seguinte. Se houver lançamento correspondente na origem, ele deixa de contar lá enquanto esta pendência existir.</p></> : null}
+
     {action.type === "extra-create" || action.type === "extra-edit" ? <><label>Descrição<input value={description} onChange={event => { setDescription(event.target.value); if (!category) setCategory(suggestCategory(event.target.value)); }} placeholder="Ex.: Padaria" autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><div className={styles.formGrid}><label>Categoria<select value={category} onChange={event => setCategory(event.target.value)}>{data.categories.map(item => <option key={item}>{item}</option>)}</select></label><label>Forma de pagamento<input value={method} onChange={event => setMethod(event.target.value)} placeholder="Pix, Débito..." /></label></div></> : null}
 
     {action.type === "category-create" ? <label>Nova categoria<input value={newCategory} onChange={event => setNewCategory(event.target.value)} autoFocus placeholder="Ex.: Saúde" /></label> : null}
@@ -718,6 +767,7 @@ function FinanceActionModal({ action, data, competence, onClose, dispatch }: { a
       {action.type === "personal-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir a mensalidade de ${action.invoice.studentName}?`)) { dispatch({ type: "PERSONAL_DELETE", id: action.invoice.id }); onClose(); } }}>Excluir mensalidade</button> : null}
       {action.type === "expense-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir ${action.expense.name}?`)) { dispatch({ type: "EXPENSE_DELETE", id: action.expense.id }); onClose(); } }}>Excluir conta</button> : null}
       {action.type === "kid-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir ${action.kid.studentName} da lista Kids deste mês?`)) { dispatch({ type: "DS_KID_DELETE", id: action.kid.id }); onClose(); } }}>Excluir Kids</button> : null}
+      {action.type === "carry-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir a pendência trazida de ${action.carry.studentName}?`)) { dispatch({ type: "CARRYOVER_DELETE", id: action.carry.id }); onClose(); } }}>Excluir pendência</button> : null}
       {action.type === "extra-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir o gasto “${action.extra.description}”?`)) { dispatch({ type: "EXTRA_DELETE", id: action.extra.id }); onClose(); } }}>Excluir gasto</button> : null}
       <span className={styles.modalSpacer} />
       <button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Salvar</button>
@@ -805,5 +855,6 @@ function formatDate(value: string) { const [y, m, d] = value.split("-"); return 
 function formatDateTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date); }
 function statusLabel(status: string) { return ({ PENDING: "Pendente", PARTIAL: "Parcial", PAID: "Pago", OVERDUE: "Vencido", PARTIAL_OVERDUE: "Parcial vencido" } as Record<string, string>)[status] || status; }
 function competenceStatusLabel(status?: string) { return status === "CLOSED" ? "Fechada" : status === "REOPENED" ? "Reaberta" : "Aberta"; }
+function carryoverKindLabel(kind: FinanceCarryoverKind) { return ({ SINGLE: "Uma parcela", MONTHLY: "Mensalidade", INSTALLMENT: "Parcela", OTHER: "Outro" } as Record<FinanceCarryoverKind, string>)[kind]; }
 function expenseKindLabel(kind: FinanceExpenseKind) { return ({ RECURRING: "Recorrente", INSTALLMENT: "Parcelamento", CARD: "Cartão", VARIABLE: "Variável" } as Record<FinanceExpenseKind, string>)[kind]; }
-function modalTitle(action: Exclude<Action, null>) { if (action.type === "personal-create") return "Nova mensalidade Personal"; if (action.type === "personal-edit") return `Editar · ${action.invoice.studentName}`; if (action.type === "personal-payment") return `Receber · ${action.invoice.studentName}`; if (action.type === "expense-create") return action.kind === "CARD" ? "Novo cartão" : "Nova despesa"; if (action.type === "expense-edit") return `Editar · ${action.expense.name}`; if (action.type === "expense-payment") return `Pagar · ${action.expense.name}`; if (action.type === "card-value") return `Fatura · ${action.expense.name}`; if (action.type === "ranking") return "Ranking do mês"; if (action.type === "ds-receipt") return "Recebimento da DS"; if (action.type === "kid-create") return "Novo aluno Kids"; if (action.type === "kid-edit") return `Editar Kids · ${action.kid.studentName}`; if (action.type === "extra-create") return "Novo gasto extra"; if (action.type === "extra-edit") return `Editar gasto · ${action.extra.description}`; return "Nova categoria"; }
+function modalTitle(action: Exclude<Action, null>) { if (action.type === "personal-create") return "Nova mensalidade Personal"; if (action.type === "personal-edit") return `Editar · ${action.invoice.studentName}`; if (action.type === "personal-payment") return `Receber · ${action.invoice.studentName}`; if (action.type === "expense-create") return action.kind === "CARD" ? "Novo cartão" : "Nova despesa"; if (action.type === "expense-edit") return `Editar · ${action.expense.name}`; if (action.type === "expense-payment") return `Pagar · ${action.expense.name}`; if (action.type === "card-value") return `Fatura · ${action.expense.name}`; if (action.type === "ranking") return "Ranking do mês"; if (action.type === "ds-receipt") return "Recebimento da DS"; if (action.type === "kid-create") return "Novo aluno Kids"; if (action.type === "kid-edit") return `Editar Kids · ${action.kid.studentName}`; if (action.type === "carry-create") return "Trazer pendência de mês anterior"; if (action.type === "carry-edit") return `Pendência · ${action.carry.studentName}`; if (action.type === "extra-create") return "Novo gasto extra"; if (action.type === "extra-edit") return `Editar gasto · ${action.extra.description}`; return "Nova categoria"; }

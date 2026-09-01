@@ -36,6 +36,21 @@ export type DsKidEntry = {
   installmentTotal?: number | null;
 };
 
+export type FinanceCarryoverKind = "SINGLE" | "MONTHLY" | "INSTALLMENT" | "OTHER";
+
+export type FinanceCarryoverEntry = {
+  id: string;
+  competence: string;
+  originCompetence: string;
+  scope: "DS_KIDS";
+  studentId?: string | null;
+  studentName: string;
+  amount: number;
+  kind: FinanceCarryoverKind;
+  note?: string;
+  sourceEntryId?: string | null;
+};
+
 export type DsReceipt = {
   id: string;
   date: string | null;
@@ -93,7 +108,10 @@ export type FinanceHistoryKind =
   | "EXTRA_UPDATED"
   | "EXTRA_DELETED"
   | "CATEGORY_CREATED"
-  | "CATEGORY_DELETED";
+  | "CATEGORY_DELETED"
+  | "CARRYOVER_CREATED"
+  | "CARRYOVER_UPDATED"
+  | "CARRYOVER_DELETED";
 
 export type FinanceHistoryEntry = {
   id: string;
@@ -123,6 +141,7 @@ export type FinanceData = {
   dsReceipts: Record<string, DsReceipt[]>;
   expenses: FinanceExpense[];
   extraExpenses: ExtraExpense[];
+  carriedPendencies?: FinanceCarryoverEntry[];
   categories: string[];
   history?: FinanceHistoryEntry[];
   metadata?: {

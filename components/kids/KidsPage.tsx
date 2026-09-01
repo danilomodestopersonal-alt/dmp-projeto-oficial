@@ -1942,6 +1942,22 @@ function StudentEditor({
               <option value="INSTALLMENTS">Parcelado</option>
             </select>
           </label>
+          {profile.billingMode === "ONE_TIME" ? (
+            <label>
+              Mês em que a parcela única foi paga
+              <input
+                type="month"
+                value={profile.oneTimePaymentCompetence || ""}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    oneTimePaymentCompetence: event.target.value || undefined,
+                  }))
+                }
+              />
+              <small>Somente informativo. Não cria nem renova cobrança.</small>
+            </label>
+          ) : null}
           {profile.billingMode === "INSTALLMENTS" ? (
             <label>
               Quantidade de parcelas

@@ -60,6 +60,7 @@ export function normalizeFinanceData(value: unknown, fallback: FinanceData): Fin
     dsKids: uniqueIds(value.dsKids, "kid"),
     expenses: uniqueIds(value.expenses, "expense").map(item => ({ ...item, payments: uniqueIds(Array.isArray(item.payments) ? item.payments : [], `expense-payment-${item.id}`) })),
     extraExpenses: uniqueIds(value.extraExpenses, "extra"),
+    carriedPendencies: uniqueIds(Array.isArray(value.carriedPendencies) ? value.carriedPendencies : [], "carryover"),
     dsReceipts: Object.fromEntries(
       Object.entries(value.dsReceipts).map(([competence, receipts]) => [
         competence,

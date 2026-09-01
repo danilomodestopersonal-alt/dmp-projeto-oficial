@@ -9,6 +9,7 @@ export type KidsStudent = {
   fatherName?:string; fatherPhone?:string; motherName?:string; motherPhone?:string;
   primaryContact?:"FATHER"|"MOTHER"; financialResponsible?:string; notes?:string;
   monthlyAmount?:number; dueDay?:number; billingMode?:KidsBillingMode; installmentCount?:number;
+  oneTimePaymentCompetence?:string;
 };
 
 export type KidsClass = {
