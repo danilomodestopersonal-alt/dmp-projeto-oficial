@@ -2166,35 +2166,67 @@ function buildKidsFinancialReport(data:KidsData,finance:FinanceData|null):Report
   const competence=finance?.currentCompetence||currentMonth();
   const entries=(finance?.dsKids||[]).filter(item=>item.competence===competence&&!item.excludedFromTotals);
   const profiles=new Map<string,{student:KidsStudent;groups:KidsClass[]}>();
+
   for(const group of data.classes){
     for(const student of group.students){
       if(!student.active)continue;
       const current=profiles.get(student.id);
-      if(current){
-        current.groups.push(group);
-        if(current.student.monthlyAmount===undefined&&student.monthlyAmount!==undefined)current.student=student;
-      }else profiles.set(student.id,{student,groups:[group]});
+      if(current)current.groups.push(group);
+      else profiles.set(student.id,{student,groups:[group]});
     }
   }
+
   const used=new Set<string>();
   const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
-  const rows=[...profiles.values()].sort((a,b)=>localeCompare(a.student.name,b.student.name)).map(({student,groups})=>{
-    const entry=entries.find(item=>item.studentId===student.id)||entries.find(item=>normalizeName(item.studentName)===normalizeName(student.name));
-    if(entry)used.add(entry.id);
-    const amount=entry?.amount??student.monthlyAmount??0;
-    const classNames=groups.map(group=>group.name).filter((value,index,array)=>array.indexOf(value)===index);
-    return {name:student.name,classes:classNames,amount};
-  });
+
+  const rows=[...profiles.values()]
+    .sort((a,b)=>localeCompare(a.student.name,b.student.name))
+    .map(({student,groups})=>{
+      const entry=
+        entries.find(item=>item.studentId===student.id) ||
+        entries.find(item=>normalizeName(item.studentName)===normalizeName(student.name));
+
+      if(entry)used.add(entry.id);
+
+      const classNames=groups
+        .map(group=>group.name)
+        .filter((value,index,array)=>array.indexOf(value)===index);
+
+      return {
+        name:student.name,
+        classes:classNames,
+        amount:entry?.amount??0,
+        hasEntry:Boolean(entry),
+      };
+    });
+
   const orphan=entries.filter(item=>!used.has(item.id));
-  const total=rows.reduce((sum,row)=>sum+row.amount,0)+orphan.reduce((sum,item)=>sum+item.amount,0);
-  const htmlRows=rows.map(row=>`<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.classes.join(" · ")||"—")}</td><td>${row.classes.length}</td><td>${money.format(row.amount)}</td></tr>`).join("");
-  const orphanRows=orphan.map(item=>`<tr><td>⚠ ${escapeHtml(item.studentName)}</td><td>Sem vínculo com cadastro Kids</td><td>0</td><td>${money.format(item.amount)}</td></tr>`).join("");
+
+  // Exatamente a mesma fonte do Kids bruto:
+  // registros da competência que não estão excludedFromTotals.
+  const total=entries.reduce((sum,item)=>sum+item.amount,0);
+
+  const htmlRows=rows.map(row=>
+    `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.classes.join(" · ")||"—")}${row.hasEntry?"":" · ⚠ Sem lançamento financeiro"}</td><td>${row.classes.length}</td><td>${money.format(row.amount)}</td></tr>`
+  ).join("");
+
+  const orphanRows=orphan.map(item=>
+    `<tr><td>⚠ ${escapeHtml(item.studentName)}</td><td>Pendência: registro financeiro sem vínculo com cadastro Kids ativo</td><td>0</td><td>${money.format(item.amount)}</td></tr>`
+  ).join("");
+
   const label=new Date(`${competence}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
-  const body=`<div class="metrics"><b>${rows.length}<small>Crianças ativas</small></b><b>${money.format(total)}<small>Total do mês</small></b><b>${orphan.length}<small>Sem vínculo</small></b></div><table><thead><tr><th>Aluno</th><th>Turma(s)</th><th>Qtd. turmas</th><th>Valor no mês</th></tr></thead><tbody>${htmlRows}${orphanRows}</tbody><tfoot><tr><th colspan="3">TOTAL</th><th>${money.format(total)}</th></tr></tfoot></table>`;
-  const text=[`Conferência Kids — ${label}`,...rows.map(row=>`${row.name} · ${row.classes.length} turma(s) · ${money.format(row.amount)}`),...orphan.map(item=>`ATENÇÃO: ${item.studentName} sem vínculo · ${money.format(item.amount)}`),`TOTAL: ${money.format(total)}`].join("\n");
+
+  const body=`<div class="metrics"><b>${rows.length}<small>Crianças ativas</small></b><b>${money.format(total)}<small>Total do mês</small></b><b>${orphan.length}<small>Pendências de vínculo</small></b></div><table><thead><tr><th>Aluno</th><th>Turma(s)</th><th>Qtd. turmas</th><th>Valor no mês</th></tr></thead><tbody>${htmlRows}${orphanRows}</tbody><tfoot><tr><th colspan="3">TOTAL — igual ao Kids bruto</th><th>${money.format(total)}</th></tr></tfoot></table>`;
+
+  const text=[
+    `Conferência Kids — ${label}`,
+    ...rows.map(row=>`${row.name} · ${row.classes.length} turma(s) · ${money.format(row.amount)}${row.hasEntry?"":" · SEM LANÇAMENTO FINANCEIRO"}`),
+    ...orphan.map(item=>`PENDÊNCIA DE VÍNCULO: ${item.studentName} · ${money.format(item.amount)}`),
+    `TOTAL / KIDS BRUTO: ${money.format(total)}`,
+  ].join("\n");
+
   return {title:"Conferência financeira Kids",subtitle:`Competência: ${label}`,body,text};
 }
-
 function buildReport(
   data: KidsData,
   kind: "student" | "class",

@@ -66,6 +66,43 @@ type Action =
   | { type: "category-create" }
   | null;
 
+function ensureCalendarCompetence(base: FinanceData): FinanceData {
+  const target = today().slice(0, 7);
+
+  if (base.competences[target]) {
+    return base.currentCompetence === target
+      ? base
+      : { ...base, currentCompetence: target };
+  }
+
+  const previousCandidates = Object.keys(base.competences)
+    .filter(value => value < target)
+    .sort();
+  const previous = previousCandidates[previousCandidates.length - 1];
+
+  if (!previous) return base;
+
+  let next: FinanceData = { ...base, currentCompetence: previous };
+  let guard = 0;
+
+  // A criação não fecha o mês anterior.
+  // Pagamentos/recebimentos do mês anterior permanecem apenas nele.
+  while (!next.competences[target] && next.currentCompetence < target && guard < 24) {
+    const fromCompetence = next.currentCompetence;
+    const generated = applyFinanceCommand(next, {
+      type: "CREATE_NEXT_COMPETENCE",
+      fromCompetence,
+    });
+    if (generated.currentCompetence === fromCompetence) break;
+    next = generated;
+    guard += 1;
+  }
+
+  return next.competences[target]
+    ? { ...next, currentCompetence: target }
+    : base;
+}
+
 export default function FinanceiroPage() {
   const [data, setData] = useState<FinanceData>(financeSeedAugust2026);
   const [loaded, setLoaded] = useState(false);
@@ -97,13 +134,13 @@ export default function FinanceiroPage() {
         const cloud = await fetchFinanceCloud(financeSeedAugust2026);
         if (cancelled) return;
         const base=cloud||local;
-        let next=base;
+        let next=ensureCalendarCompetence(base);
         try{
           const kidsResponse=await fetch("/api/kids",{cache:"no-store"});
           if(kidsResponse.ok){
             const kidsPayload=await kidsResponse.json();
             if(kidsPayload.data){
-              const reconciled=reconcileKidsFinance(base,kidsPayload.data as KidsData);
+              const reconciled=reconcileKidsFinance(next,kidsPayload.data as KidsData);
               next=reconciled.data;
               setKidsAudit(reconciled.audit);
               if(reconciled.changed){
