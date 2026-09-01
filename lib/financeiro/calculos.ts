@@ -39,8 +39,8 @@ export function expenseStatus(expense: FinanceExpense, referenceDate = new Date(
 }
 
 export function financeSummary(data: FinanceData, competence = data.currentCompetence) {
-  const personal = data.personalInvoices.filter(item => item.competence === competence);
-  const kids = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals);
+  const personal = data.personalInvoices.filter(item => item.competence === competence && !item.excludedFromTotals);
+  const kids = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals && !!item.studentId);
   const expenses = data.expenses.filter(item => item.competence === competence);
   const extras = data.extraExpenses.filter(item => item.competence === competence);
   const receipts = data.dsReceipts[competence] || [];

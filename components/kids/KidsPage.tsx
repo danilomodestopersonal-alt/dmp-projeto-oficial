@@ -89,6 +89,12 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
     });
     if(target){setTab("agenda");setLessonId(target.id);}
   },[data,openRequest]);
+  async function createFinanceSafetyBackup(){
+    const response=await fetch("/api/backup",{method:"POST"});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok||!payload?.ok)throw new Error("Backup financeiro não foi criado.");
+    return payload.backup;
+  }
   async function load() {
     setLoading(true);
     try {
@@ -107,7 +113,9 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
             setFinanceData(reconciled.data);
             next=mergeFinanceProfiles(next,reconciled.data);
             if(reconciled.changed){
-              await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
+              await createFinanceSafetyBackup();
+              const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
+              if(!save.ok)throw new Error("Falha ao salvar reconciliação Kids.");
             }
           }
         }
@@ -154,6 +162,7 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
       const reconciled=reconcileKidsFinance(finance,{...data,classes:studentClasses},{createMissing:true,updateFromProfile:true});
       setFinanceData(reconciled.data);
       if(reconciled.changed){
+        await createFinanceSafetyBackup();
         const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
         if(!save.ok)throw new Error();
       }
@@ -2164,7 +2173,9 @@ function Reports({
 type Report = { title: string; subtitle: string; body: string; text: string };
 function buildKidsFinancialReport(data:KidsData,finance:FinanceData|null):Report{
   const competence=finance?.currentCompetence||currentMonth();
-  const entries=(finance?.dsKids||[]).filter(item=>item.competence===competence&&!item.excludedFromTotals);
+  const monthEntries=(finance?.dsKids||[]).filter(item=>item.competence===competence);
+  const entries=monthEntries.filter(item=>!item.excludedFromTotals&&!!item.studentId);
+  const pendingEntries=monthEntries.filter(item=>item.excludedFromTotals||!item.studentId);
   const profiles=new Map<string,{student:KidsStudent;groups:KidsClass[]}>();
 
   for(const group of data.classes){
@@ -2200,10 +2211,10 @@ function buildKidsFinancialReport(data:KidsData,finance:FinanceData|null):Report
       };
     });
 
-  const orphan=entries.filter(item=>!used.has(item.id));
+  const orphan=pendingEntries.filter(item=>!used.has(item.id));
 
   // Exatamente a mesma fonte do Kids bruto:
-  // registros da competência que não estão excludedFromTotals.
+  // apenas registros vinculados e válidos.
   const total=entries.reduce((sum,item)=>sum+item.amount,0);
 
   const htmlRows=rows.map(row=>
@@ -2211,17 +2222,17 @@ function buildKidsFinancialReport(data:KidsData,finance:FinanceData|null):Report
   ).join("");
 
   const orphanRows=orphan.map(item=>
-    `<tr><td>⚠ ${escapeHtml(item.studentName)}</td><td>Pendência: registro financeiro sem vínculo com cadastro Kids ativo</td><td>0</td><td>${money.format(item.amount)}</td></tr>`
+    `<tr><td>⚠ ${escapeHtml(item.studentName)}</td><td>Fora do total · registro preservado para auditoria</td><td>0</td><td>${money.format(item.amount)}</td></tr>`
   ).join("");
 
   const label=new Date(`${competence}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
 
-  const body=`<div class="metrics"><b>${rows.length}<small>Crianças ativas</small></b><b>${money.format(total)}<small>Total do mês</small></b><b>${orphan.length}<small>Pendências de vínculo</small></b></div><table><thead><tr><th>Aluno</th><th>Turma(s)</th><th>Qtd. turmas</th><th>Valor no mês</th></tr></thead><tbody>${htmlRows}${orphanRows}</tbody><tfoot><tr><th colspan="3">TOTAL — igual ao Kids bruto</th><th>${money.format(total)}</th></tr></tfoot></table>`;
+  const body=`<div class="metrics"><b>${rows.length}<small>Crianças ativas</small></b><b>${money.format(total)}<small>Total do mês</small></b><b>${orphan.length}<small>Registros fora do total</small></b></div><table><thead><tr><th>Aluno</th><th>Turma(s)</th><th>Qtd. turmas</th><th>Valor no mês</th></tr></thead><tbody>${htmlRows}${orphanRows}</tbody><tfoot><tr><th colspan="3">TOTAL — igual ao Kids bruto</th><th>${money.format(total)}</th></tr></tfoot></table>`;
 
   const text=[
     `Conferência Kids — ${label}`,
     ...rows.map(row=>`${row.name} · ${row.classes.length} turma(s) · ${money.format(row.amount)}${row.hasEntry?"":" · SEM LANÇAMENTO FINANCEIRO"}`),
-    ...orphan.map(item=>`PENDÊNCIA DE VÍNCULO: ${item.studentName} · ${money.format(item.amount)}`),
+    ...orphan.map(item=>`FORA DO TOTAL / AUDITORIA: ${item.studentName} · ${money.format(item.amount)}`),
     `TOTAL / KIDS BRUTO: ${money.format(total)}`,
   ].join("\n");
 

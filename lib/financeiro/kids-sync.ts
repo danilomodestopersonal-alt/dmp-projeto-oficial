@@ -48,6 +48,20 @@ const aliasPairs = [
   ["Leandro", "Leandro Cantarin Quartaroli Filho"],
   ["Stela", "Stella Castilha Quartaroli"],
   ["Elis Constanza", "Elisa Golçalves Della Constanza"],
+  ["Luca Capabianco", "Luca Fray Cappabianco"],
+  ["Bruna Palone", "Bruna Oliveira Pallone"],
+  ["Rafaela Masson", "Rafaela Squizzato Masson"],
+  ["Felipe Juste", "Felipe de Campos Juste"],
+  ["Bruno Oyamada", "Bruno Oyamada da Silva"],
+  ["Joaquim Tonelatti", "Joaquim Tonelatti Martins"],
+  ["Murilo Duarte", "Murilo Carieri Duarte"],
+  ["Gustavo Grespam", "Gustavo Martins Grespam"],
+  ["Laura Staut", "Laura Staut Gonçalves"],
+  ["Ricardo Gandara", "Ricardo Gandara Monteiro"],
+  ["Hekena Zelenika", "Helena Romanelli Zelenika"],
+  ["Matheus Leite", "Matheus Leite Victorino de Paula"],
+  ["Luiza Kimori", "Luiza Kimori Pereira"],
+  ["Luisa Staut", "Luiza Staut"],
 ] as const;
 
 function namesEquivalent(a: string, b: string) {
@@ -219,6 +233,18 @@ export function reconcileKidsFinance(
         ...nextKids[duplicate.index],
         excludedFromTotals: true,
       };
+    }
+  }
+
+  // Segurança: qualquer registro da competência que não conseguiu vínculo
+  // com uma criança ativa permanece guardado, mas NÃO entra no Kids bruto.
+  for (let index = 0; index < nextKids.length; index += 1) {
+    const item = nextKids[index];
+    if (item.competence !== competence) continue;
+    if (item.studentId) continue;
+    if (claimed.has(index)) continue;
+    if (!item.excludedFromTotals) {
+      nextKids[index] = { ...item, excludedFromTotals: true };
     }
   }
 

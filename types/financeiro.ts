@@ -15,6 +15,9 @@ export type PersonalInvoice = {
   dueDay: number;
   expectedAmount: number;
   payments: FinancePayment[];
+  profileManaged?: boolean;
+  autoRenew?: boolean;
+  excludedFromTotals?: boolean;
 };
 
 export type DsKidBillingMode = "SINGLE" | "INSTALLMENT" | "RECURRING";

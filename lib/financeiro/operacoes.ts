@@ -77,8 +77,15 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     return { ...data, currentCompetence: target };
   }
 
-  const sourcePersonal = data.personalInvoices.filter(item => item.competence === fromCompetence);
-  const sourceKids = data.dsKids.filter(item => item.competence === fromCompetence).filter(item=>!item.excludedFromTotals).filter(item=>item.billingMode!=="SINGLE");
+  const sourcePersonal = data.personalInvoices
+    .filter(item => item.competence === fromCompetence)
+    .filter(item => !item.excludedFromTotals)
+    .filter(item => item.autoRenew !== false);
+  const sourceKids = data.dsKids
+    .filter(item => item.competence === fromCompetence)
+    .filter(item=>!item.excludedFromTotals)
+    .filter(item=>!!item.studentId)
+    .filter(item=>item.billingMode!=="SINGLE");
   const sourceExpenses = data.expenses.filter(item => item.competence === fromCompetence);
 
   const personalInvoices: PersonalInvoice[] = sourcePersonal.map(item => ({
@@ -183,7 +190,7 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory(reopened, historyEntry(command.competence, "COMPETENCE_REOPENED", `Competência ${command.competence} reaberta.`));
     }
 
-    case "PERSONAL_CREATE": { const invoice: PersonalInvoice = { id: id("personal"), competence: command.competence, studentName: command.studentName.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, payments: [] };
+    case "PERSONAL_CREATE": { const invoice: PersonalInvoice = { id: id("personal"), competence: command.competence, studentName: command.studentName.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, payments: [], autoRenew:true, profileManaged:false, excludedFromTotals:false };
       return withHistory({ ...data, personalInvoices: [...data.personalInvoices, invoice] }, historyEntry(command.competence, "PERSONAL_CREATED", `Mensalidade de ${invoice.studentName} criada.`, invoice.expectedAmount, invoice.id));
     }
 

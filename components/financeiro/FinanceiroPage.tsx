@@ -42,6 +42,8 @@ import { parseFinanceVoice, parseMoney, suggestCategory, type VoicePreview } fro
 import styles from "./FinanceiroPage.module.css";
 import type { KidsData } from "@/types/kids";
 import { reconcileKidsFinance, type KidsFinanceAudit } from "@/lib/financeiro/kids-sync";
+import type { Student } from "@/types/models";
+import { preparePersonalRenewalForNextMonth, reconcilePersonalFinance, type PersonalFinanceAudit } from "@/lib/financeiro/personal-sync";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => localDateISO();
@@ -103,7 +105,7 @@ function ensureCalendarCompetence(base: FinanceData): FinanceData {
     : base;
 }
 
-export default function FinanceiroPage() {
+export default function FinanceiroPage({students=[],onStudentsChange}:{students?:Student[];onStudentsChange?:(next:Student[])=>void}) {
   const [data, setData] = useState<FinanceData>(financeSeedAugust2026);
   const [loaded, setLoaded] = useState(false);
   const [cloudWritable, setCloudWritable] = useState(false);
@@ -115,6 +117,7 @@ export default function FinanceiroPage() {
   const [listFilter, setListFilter] = useState<Filter>("ALL");
   const [undoDeletion, setUndoDeletion] = useState<FinanceData | null>(null);
   const [kidsAudit, setKidsAudit] = useState<KidsFinanceAudit | null>(null);
+  const [personalAudit, setPersonalAudit] = useState<PersonalFinanceAudit | null>(null);
   const competence = data.currentCompetence;
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
@@ -128,45 +131,147 @@ export default function FinanceiroPage() {
 
   useEffect(() => {
     let cancelled = false;
+
+    async function createSafetyBackup() {
+      const response = await fetch("/api/backup", { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok) {
+        throw new Error("Backup de segurança não foi criado. Migração cancelada.");
+      }
+      return payload.backup;
+    }
+
+    async function putJson(url:string, body:unknown) {
+      const response = await fetch(url, {
+        method:"PUT",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`Falha ao salvar ${url}`);
+    }
+
     async function load() {
       const local = loadFinanceData(financeSeedAugust2026);
+
       try {
         const cloud = await fetchFinanceCloud(financeSeedAugust2026);
         if (cancelled) return;
-        const base=cloud||local;
-        let next=ensureCalendarCompetence(base);
-        try{
-          const kidsResponse=await fetch("/api/kids",{cache:"no-store"});
-          if(kidsResponse.ok){
-            const kidsPayload=await kidsResponse.json();
-            if(kidsPayload.data){
-              const reconciled=reconcileKidsFinance(next,kidsPayload.data as KidsData);
-              next=reconciled.data;
+
+        if (!cloud) {
+          setData(ensureCalendarCompetence(local));
+          setCloudWritable(false);
+          return;
+        }
+
+        const base = cloud;
+        const originalStudents = students.map(student => ({...student}));
+        const target = today().slice(0,7);
+
+        // Antes de criar mês novo, somente atualiza a informação de renovação.
+        // Valor e vencimento do mês anterior NÃO são recalculados.
+        let prepared = base;
+        if (!base.competences[target]) {
+          const previous = Object.keys(base.competences)
+            .filter(value => value < target)
+            .sort()
+            .at(-1);
+          if (previous) {
+            prepared = preparePersonalRenewalForNextMonth(
+              prepared,
+              originalStudents,
+              previous,
+            ).data;
+          }
+        }
+
+        let next = ensureCalendarCompetence(prepared);
+
+        // 1) Migra Personal existente: Financeiro atual -> cadastro.
+        // 2) A partir daí cadastro -> mensalidade da competência atual.
+        const personal = reconcilePersonalFinance(
+          next,
+          originalStudents,
+          next.currentCompetence,
+        );
+        next = personal.data;
+        let nextStudents = personal.students;
+        setPersonalAudit(personal.audit);
+
+        // Kids: vincula aliases conhecidos e mantém órfãos fora da soma.
+        try {
+          const kidsResponse = await fetch("/api/kids", { cache:"no-store" });
+          if (kidsResponse.ok) {
+            const kidsPayload = await kidsResponse.json();
+            if (kidsPayload.data) {
+              const reconciled = reconcileKidsFinance(
+                next,
+                kidsPayload.data as KidsData,
+              );
+              next = reconciled.data;
               setKidsAudit(reconciled.audit);
-              if(reconciled.changed){
-                const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
-                if(!save.ok)throw new Error("Falha ao persistir auditoria Kids.");
-              }
             }
           }
-        }catch(error){console.error("Financeiro: não foi possível conferir o Kids.",error);}
-        if (cloud) {
-          setData(next);
-          saveFinanceData(next);
-        } else {
-          setData(next);
+        } catch (error) {
+          console.error("Financeiro: conferência Kids falhou.", error);
         }
+
+        const studentsChanged =
+          JSON.stringify(nextStudents) !== JSON.stringify(originalStudents);
+        const financeChanged =
+          JSON.stringify(next) !== JSON.stringify(base);
+
+        if (studentsChanged || financeChanged) {
+          // NADA é gravado antes deste backup.
+          await createSafetyBackup();
+
+          let studentsSaved = false;
+          try {
+            if (studentsChanged) {
+              await putJson("/api/data", nextStudents);
+              studentsSaved = true;
+            }
+            if (financeChanged) {
+              await putJson("/api/finance", next);
+            }
+          } catch (saveError) {
+            // Rollback imediato do cadastro se o Financeiro falhar depois.
+            if (studentsSaved) {
+              try {
+                await putJson("/api/data", originalStudents);
+              } catch (rollbackError) {
+                console.error("Rollback do cadastro falhou; backup manual disponível.", rollbackError);
+              }
+            }
+            throw saveError;
+          }
+        }
+
+        if (cancelled) return;
+
+        if (personal.changedStudents) {
+          onStudentsChange?.(nextStudents);
+        }
+
+        setData(next);
+        saveFinanceData(next);
         setCloudWritable(true);
       } catch (error) {
-        console.error("Financeiro: nuvem indisponível; usando backup local.", error);
+        console.error(
+          "Financeiro: migração protegida não foi concluída; usando dados sem migração.",
+          error,
+        );
         if (!cancelled) {
           setData(local);
           setCloudWritable(false);
+          window.alert(
+            "A migração financeira foi interrompida por segurança. Nenhum dado foi apagado. Consulte o backup antes de tentar novamente.",
+          );
         }
       } finally {
         if (!cancelled) setLoaded(true);
       }
     }
+
     void load();
     return () => { cancelled = true; };
   }, []);
@@ -415,12 +520,12 @@ export default function FinanceiroPage() {
 
         {tab === "personal" ? (
           <section className="panel">
-            <div className="panel-head"><div><h2>Personal · {competenceLabel(competence)}</h2><p className="muted">{money.format(summary.personalReceived)} recebidos de {money.format(summary.personalExpected)} previstos.</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "personal-create" })}>+ Mensalidade</button></div>
+            <div className="panel-head"><div><h2>Personal · {competenceLabel(competence)}</h2><p className="muted">{money.format(summary.personalReceived)} recebidos de {money.format(summary.personalExpected)} previstos.{personalAudit?" · "+personalAudit.linked+" vinculados ao cadastro"+(personalAudit.ambiguous?" · "+personalAudit.ambiguous+" pendência(s) para conferência":"")+(personalAudit.unmatchedInvoices?" · "+personalAudit.unmatchedInvoices+" lançamento(s) sem aluno correspondente":""):""}</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "personal-create" })}>+ Mensalidade manual</button></div>
             <FilterBar value={listFilter} onChange={setListFilter} />
             <div className={styles.list}>
               {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).sort(compareDueDay).map(invoice => {
                 const received = paid(invoice.payments); const missing = remaining(invoice.expectedAmount, invoice.payments); const status = invoiceStatus(invoice);
-                return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><button className={styles.manageButton} disabled={!editable} onClick={() => openAction({ type: "personal-edit", invoice })}>Editar</button></div>;
+                return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><button className={styles.manageButton} disabled={!editable||invoice.profileManaged===true} title={invoice.profileManaged?"Mensalidade gerenciada no cadastro do aluno":"Editar mensalidade manual"} onClick={() => openAction({ type: "personal-edit", invoice })}>{invoice.profileManaged?"Cadastro":"Editar"}</button></div>;
               })}
             </div>
           </section>

@@ -1197,7 +1197,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 })() : null}
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
-          {view === "finance" ? <FinanceiroPage /> : null}
+          {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} /> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} onBack={()=>{setKidsLessonRequest(null);setView("today");}} /> : null}
           {view === "performance" ? <PerformancePage openActivityId={selectedPerformanceActivityId} /> : null}
           {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
@@ -2532,16 +2532,41 @@ function StudentFilesPanel({student}:{student:Student}) {
   </section>;
 }
 
-type StudentFormPayload = Pick<Student,"name"|"phone"|"email"|"goal"|"profession"|"modality"|"weeklyFrequency"|"notes"|"restrictions"|"injuries"|"medications"|"emergencyContact"|"emergencyPhone"|"startDate"|"birthDate"|"gender"|"tennisCategory">;
+type StudentFormPayload = Pick<Student,"name"|"phone"|"email"|"goal"|"profession"|"modality"|"weeklyFrequency"|"financialActive"|"monthlyAmount"|"financeDueDay"|"notes"|"restrictions"|"injuries"|"medications"|"emergencyContact"|"emergencyPhone"|"startDate"|"birthDate"|"gender"|"tennisCategory">;
 function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initialStudent?:Student;onClose:()=>void;onSave:(payload:StudentFormPayload)=>void}) {
-  const [form,setForm]=useState<StudentFormPayload>({name:initialStudent?.name||"",phone:initialStudent?.phone||"",email:initialStudent?.email||"",goal:initialStudent?.goal||"",profession:initialStudent?.profession||"",modality:initialStudent?.modality||"",weeklyFrequency:initialStudent?.weeklyFrequency||"",notes:initialStudent?.notes||"",restrictions:initialStudent?.restrictions||"",injuries:initialStudent?.injuries||"",medications:initialStudent?.medications||"",emergencyContact:initialStudent?.emergencyContact||"",emergencyPhone:initialStudent?.emergencyPhone||"",startDate:initialStudent?.startDate||"",birthDate:initialStudent?.birthDate||"",gender:initialStudent?.gender,tennisCategory:initialStudent?.tennisCategory||null});
+  const [form,setForm]=useState<StudentFormPayload>({name:initialStudent?.name||"",phone:initialStudent?.phone||"",email:initialStudent?.email||"",goal:initialStudent?.goal||"",profession:initialStudent?.profession||"",modality:initialStudent?.modality||"",weeklyFrequency:initialStudent?.weeklyFrequency||"",financialActive:initialStudent?.financialActive,monthlyAmount:initialStudent?.monthlyAmount,financeDueDay:initialStudent?.financeDueDay,notes:initialStudent?.notes||"",restrictions:initialStudent?.restrictions||"",injuries:initialStudent?.injuries||"",medications:initialStudent?.medications||"",emergencyContact:initialStudent?.emergencyContact||"",emergencyPhone:initialStudent?.emergencyPhone||"",startDate:initialStudent?.startDate||"",birthDate:initialStudent?.birthDate||"",gender:initialStudent?.gender,tennisCategory:initialStudent?.tennisCategory||null});
   const age=calculateAge(form.birthDate);
+  useEffect(()=>{
+    if(!initialStudent||initialStudent.financialActive!==undefined)return;
+    let cancelled=false;
+    const normalizeFinanceName=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+    fetch("/api/finance",{cache:"no-store"})
+      .then(response=>response.ok?response.json():Promise.reject())
+      .then(payload=>{
+        if(cancelled||!payload?.data)return;
+        const finance=payload.data as FinanceData;
+        const current=finance.personalInvoices.filter(invoice=>invoice.competence===finance.currentCompetence&&!invoice.excludedFromTotals);
+        const byId=current.filter(invoice=>invoice.studentId===initialStudent.id);
+        const byName=current.filter(invoice=>!invoice.studentId&&normalizeFinanceName(invoice.studentName)===normalizeFinanceName(initialStudent.name));
+        const invoice=byId.length===1?byId[0]:byId.length===0&&byName.length===1?byName[0]:null;
+        if(!invoice)return;
+        setForm(currentForm=>currentForm.financialActive===undefined?{
+          ...currentForm,
+          financialActive:true,
+          monthlyAmount:invoice.expectedAmount,
+          financeDueDay:invoice.dueDay,
+        }:currentForm);
+      })
+      .catch(()=>{});
+    return()=>{cancelled=true;};
+  },[initialStudent]);
   function submit(event:FormEvent){event.preventDefault();if(!form.name.trim())return;onSave({...form,name:form.name.trim()});}
   return <div className="modal-backdrop"><section className="modal modal-large"><div className="modal-head"><div><h2>{title}</h2><p className="muted">Cadastro completo para atendimento e segurança.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" onSubmit={submit}>
     <label>Nome<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required /></label><label>Telefone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></label>
     <label>E-mail<input type="email" value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} /></label><label>Profissão<input value={form.profession||""} onChange={e=>setForm({...form,profession:e.target.value})} /></label>
     <label>Data de início<input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} /></label><label>Data de nascimento<input type="date" value={form.birthDate} onChange={e=>setForm({...form,birthDate:e.target.value})} />{age!==null?<small>Idade atual: {age} anos</small>:null}</label><label>Sexo<select value={form.gender||""} onChange={e=>setForm({...form,gender:(e.target.value||undefined) as Student["gender"]})}><option value="">Não informado</option><option value="MALE">Masculino</option><option value="FEMALE">Feminino</option></select></label>
     <label>Modalidade<input value={form.modality||""} onChange={e=>setForm({...form,modality:e.target.value})} placeholder="Ex.: musculação, tênis, corrida" /></label><label>Frequência semanal<input value={form.weeklyFrequency||""} onChange={e=>setForm({...form,weeklyFrequency:e.target.value})} placeholder="Ex.: 2x por semana" /></label>
+    <fieldset className="full student-finance-box"><legend>Financeiro do Personal</legend><label className="student-finance-toggle"><input type="checkbox" checked={form.financialActive===true} onChange={e=>setForm({...form,financialActive:e.target.checked})}/><span><strong>Ativar no Financeiro</strong><small>Alunos antigos entram preenchidos com a mensalidade e o vencimento já existentes quando o vínculo é seguro.</small></span></label>{form.financialActive===true?<div className="student-finance-grid"><label>Mensalidade (R$)<input type="number" min="0" step="0.01" value={form.monthlyAmount??""} onChange={e=>setForm({...form,monthlyAmount:e.target.value===""?undefined:Number(e.target.value)})} required /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={form.financeDueDay??""} onChange={e=>setForm({...form,financeDueDay:e.target.value===""?undefined:Number(e.target.value)})} required /></label><small className="full">O cadastro passa a comandar as próximas mensalidades. Pagamentos e competências anteriores continuam preservados.</small></div>:<small className="student-finance-off">Desativado: não cria novas cobranças automáticas. O histórico existente não é apagado.</small>}</fieldset>
     <fieldset className="full tennis-category-picker"><legend>Categoria DS Tênis</legend>{([null,"RED","ORANGE","GREEN"] as const).map(category=><button type="button" key={category||"NONE"} className={form.tennisCategory===category?"selected":""} onClick={()=>setForm({...form,tennisCategory:category})}><StudentCategoryDot category={category}/>{category===null?"Sem categoria":category==="RED"?"Vermelha":category==="ORANGE"?"Laranja":"Verde"}</button>)}</fieldset>
     <label className="full">Objetivo<input value={form.goal} onChange={e=>setForm({...form,goal:e.target.value})} /></label>
     <label className="full">⚠ Restrições / cuidados importantes<textarea rows={3} value={form.restrictions} onChange={e=>setForm({...form,restrictions:e.target.value})} placeholder="O que você precisa lembrar antes de prescrever ou iniciar a aula." /></label>

@@ -5264,3 +5264,86 @@ input:focus,textarea:focus{
   .calendar-preview-row.calendar-multi-row .calendar-slot-students{padding:8px 10px}
   .calendar-preview-row.calendar-multi-row .calendar-event-main small{margin:0}
 }
+
+/* DMP Home - treino do dia wrap seguro */
+.performance-today-card,
+.performance-today-card>div,
+.performance-today-list,
+.performance-today-row{
+  min-width:0!important;
+  max-width:100%!important;
+}
+.performance-today-card .performance-today-list{
+  width:100%!important;
+  margin-left:0!important;
+  padding-left:0!important;
+  align-items:stretch!important;
+  text-align:left!important;
+}
+.performance-today-row{
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+.performance-today-row b{
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  overflow-wrap:anywhere!important;
+  line-height:1.25!important;
+}
+@media(min-width:1000px){
+  .performance-today-card .performance-today-list{
+    width:100%!important;
+    margin-left:0!important;
+    text-align:left!important;
+    align-items:stretch!important;
+  }
+}
+
+/* DMP Student - financeiro integrado */
+.student-finance-box{
+  border:1px solid #d9e3c3!important;
+  border-radius:16px!important;
+  padding:14px!important;
+  background:#f8fbf1!important;
+}
+.student-finance-box legend{
+  padding:0 7px!important;
+  font-weight:900!important;
+}
+.student-finance-toggle{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:flex-start!important;
+  gap:10px!important;
+}
+.student-finance-toggle input{
+  width:18px!important;
+  height:18px!important;
+  margin-top:2px!important;
+}
+.student-finance-toggle span{
+  display:grid!important;
+  gap:3px!important;
+}
+.student-finance-toggle small,
+.student-finance-grid small,
+.student-finance-off{
+  color:#6d776a!important;
+  font-size:.78rem!important;
+}
+.student-finance-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:12px!important;
+  margin-top:12px!important;
+}
+.student-finance-grid .full{
+  grid-column:1/-1!important;
+}
+@media(max-width:700px){
+  .student-finance-grid{grid-template-columns:1fr!important}
+}
