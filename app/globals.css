@@ -5766,3 +5766,21 @@ input:focus,textarea:focus{
 
 /* DMP ajuste final - Fechamento do mes 14px */
 @media(min-width:1000px){.month-closing-today-card>div>strong{font-size:14px!important;}}
+
+/* DMP 02/09/2026 — Agenda da Home com todas as fichas ativas + Dashboard sem Objetivo */
+.home-workout-badges{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0}
+.home-workout-badge.suggested{border-color:#9dbd27;background:#eff8d4;box-shadow:inset 0 0 0 1px #8faf16;color:#587000}
+.home-workout-badge.suggested small{color:#587000!important;font-weight:900!important}
+.student-dashboard-complete .student-dashboard-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:980px){.student-dashboard-complete .student-dashboard-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.student-dashboard-complete .student-dashboard-quick-card:nth-child(3){grid-column:1/-1}}
+@media(max-width:700px){
+  .calendar-slot-student>.home-workout-badges{grid-column:3!important;justify-self:end!important;display:flex!important;gap:3px!important;flex-wrap:nowrap!important}
+  .home-workout-badges .home-workout-badge{grid-column:auto!important;padding:4px 6px!important;min-width:0!important}
+  .home-workout-badges .home-workout-badge b{font-size:.62rem!important}
+  .home-workout-badges .home-workout-badge small{display:none!important}
+  .home-workout-badges .home-workout-badge.suggested small{display:inline!important;font-size:.52rem!important}
+}
+@media(max-width:390px){
+  .calendar-slot-student>.home-workout-badges{grid-column:2!important;max-width:100%!important;overflow-x:auto!important;scrollbar-width:none!important}
+  .calendar-slot-student>.home-workout-badges::-webkit-scrollbar{display:none!important}
+}
