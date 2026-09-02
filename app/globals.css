@@ -5784,3 +5784,51 @@ input:focus,textarea:focus{
   .calendar-slot-student>.home-workout-badges{grid-column:2!important;max-width:100%!important;overflow-x:auto!important;scrollbar-width:none!important}
   .calendar-slot-student>.home-workout-badges::-webkit-scrollbar{display:none!important}
 }
+
+/* DMP 02-09-2026 — menu enxuto, buscas rápidas e identificação dos treinos */
+.calendar-today-panel-clickable{cursor:pointer}
+.calendar-today-panel-clickable button,
+.calendar-today-panel-clickable a{cursor:pointer}
+
+.sidebar-student-search{position:relative;margin-top:8px;display:grid;gap:5px}
+.sidebar-student-search>label{font-size:.64rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.7);padding:0 3px}
+.sidebar-student-search-box{display:flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.22);border-radius:11px;background:rgba(255,255,255,.1);padding:0 9px;min-height:38px}
+.sidebar-student-search-box>span{font-size:1rem;color:#dfe8c5}
+.sidebar-student-search-box input{width:100%;min-width:0;border:0!important;outline:0!important;background:transparent!important;color:#fff!important;padding:8px 0!important;font-size:.76rem!important;box-shadow:none!important}
+.sidebar-student-search-box input::placeholder{color:rgba(255,255,255,.62)}
+.sidebar-student-search-results{position:absolute;z-index:90;left:0;right:0;bottom:48px;display:grid;gap:3px;padding:5px;border:1px solid #dce5c5;border-radius:12px;background:#fff;box-shadow:0 12px 28px rgba(0,0,0,.22)}
+.sidebar-student-search-results button{border:0;background:#fff;border-radius:8px;padding:7px 8px;text-align:left;display:grid;color:#24322d}
+.sidebar-student-search-results button:hover{background:#f2f7e8}
+.sidebar-student-search-results strong{font-size:.75rem}
+.sidebar-student-search-results small{font-size:.62rem;color:#6e7974}
+.sidebar-student-search-empty{position:absolute;z-index:90;left:0;right:0;bottom:48px;padding:9px;border-radius:10px;background:#fff;color:#6d7772;font-size:.68rem;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.sidebar-kids-special{margin-top:auto}
+.dashboard-logout{margin-top:7px}
+
+.workout-student-header-title{font-size:clamp(1.2rem,2vw,1.65rem)!important;font-weight:950!important;letter-spacing:-.02em!important;color:#202a26!important}
+.planned-student-identity strong{font-size:clamp(1.45rem,2.6vw,2rem)!important;font-weight:950!important}
+
+.kids-mobile-quick-search,
+.kids-students-search{display:grid;gap:7px}
+.kids-mobile-quick-search{display:none}
+.kids-mobile-quick-search>label{font-size:.72rem;font-weight:900;color:#4a5750}
+.kids-students-search{margin:0 0 14px}
+.kids-search-input-wrap{display:flex;align-items:center;gap:7px;border:1px solid #d9e0dc;border-radius:12px;background:#fff;padding:0 11px;min-height:42px}
+.kids-search-input-wrap>span{font-size:1.05rem;color:#60716a}
+.kids-search-input-wrap input{width:100%;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;padding:9px 0!important}
+.kids-search-results{display:grid;gap:5px}
+.kids-search-results button{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;border:1px solid #e0e6e2;border-radius:10px;background:#fff;padding:9px 10px;text-align:left}
+.kids-search-results button strong{font-size:.82rem}
+.kids-search-results button small{font-size:.68rem;color:#727e78}
+.kids-search-empty{font-size:.72rem;color:#737f79;padding:5px 2px}
+
+@media(max-width:900px){
+  .kids-mobile-quick-search{display:grid;margin:0 12px 14px;padding:12px;border:1px solid #e0e6e2;border-radius:14px;background:#fff;box-shadow:0 5px 16px rgba(25,55,44,.06)}
+  .month-closing-today-card{align-items:flex-start!important;text-align:left!important}
+  .month-closing-today-card>div{align-items:flex-start!important;text-align:left!important;width:100%!important}
+  .month-closing-today-card>div>strong{justify-content:flex-start!important;text-align:left!important;width:100%!important}
+  .month-closing-today-card .highlight-lines,
+  .month-closing-today-card .month-closing-lines{align-items:flex-start!important;text-align:left!important;width:100%!important}
+  .month-closing-today-card .highlight-lines small,
+  .month-closing-today-card .month-closing-lines small{text-align:left!important;width:100%!important}
+}

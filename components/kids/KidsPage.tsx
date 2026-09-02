@@ -77,6 +77,8 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
   const [showReplacementForm,setShowReplacementForm]=useState(false);
   const [showInactiveStudents,setShowInactiveStudents]=useState(false);
   const [showNewStudentForm,setShowNewStudentForm]=useState(false);
+  const [studentSearch,setStudentSearch]=useState("");
+  const [dashboardStudentSearch,setDashboardStudentSearch]=useState("");
 
   useEffect(() => {
     void load();
@@ -231,6 +233,9 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
     }));
     return [...map.values()].filter(student=>!allKids.some(active=>active.id===student.id)).sort((a,b)=>localeCompare(a.name,b.name));
   },[classes,allKids]);
+  const filteredActiveKids=useMemo(()=>studentSearch.trim()?allKids.filter(student=>student.name.toLocaleLowerCase("pt-BR").includes(studentSearch.trim().toLocaleLowerCase("pt-BR"))):allKids,[allKids,studentSearch]);
+  const filteredInactiveKids=useMemo(()=>studentSearch.trim()?inactiveKids.filter(student=>student.name.toLocaleLowerCase("pt-BR").includes(studentSearch.trim().toLocaleLowerCase("pt-BR"))):inactiveKids,[inactiveKids,studentSearch]);
+  const dashboardSearchResults=useMemo(()=>dashboardStudentSearch.trim()?allKids.filter(student=>student.name.toLocaleLowerCase("pt-BR").includes(dashboardStudentSearch.trim().toLocaleLowerCase("pt-BR"))).slice(0,6):[],[allKids,dashboardStudentSearch]);
   function classTime(id: string) {
     return classes.find((item) => item.id === id)?.startTime || "";
   }
@@ -553,6 +558,11 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
               }}
             />
           </section>
+          <section className="kids-mobile-quick-search">
+            <label htmlFor="kids-dashboard-search">Buscar aluno Kids</label>
+            <div className="kids-search-input-wrap"><span>⌕</span><input id="kids-dashboard-search" value={dashboardStudentSearch} onChange={event=>setDashboardStudentSearch(event.target.value)} placeholder="Digite o nome da criança..." autoComplete="off"/></div>
+            {dashboardSearchResults.length?<div className="kids-search-results">{dashboardSearchResults.map(student=><button key={student.id} onClick={()=>{setDashboardStudentSearch("");openStudent(student.id);}}><strong>{student.name}</strong><small>{student.classIds.length} turma{student.classIds.length===1?"":"s"}</small><span>›</span></button>)}</div>:dashboardStudentSearch.trim()?<div className="kids-search-empty">Nenhuma criança encontrada.</div>:null}
+          </section>
           <section className={styles.panel}>
             <div className={styles.panelHead}>
               <div>
@@ -760,8 +770,11 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
               <button onClick={()=>setShowInactiveStudents(current=>!current)}>{showInactiveStudents?"Ver alunos ativos":`Ver alunos inativos (${inactiveKids.length})`}</button>
             </div>
           </div>
+          <div className="kids-students-search">
+            <div className="kids-search-input-wrap"><span>⌕</span><input value={studentSearch} onChange={event=>setStudentSearch(event.target.value)} placeholder={showInactiveStudents?"Buscar aluno inativo...":"Buscar criança pelo nome..."} autoComplete="off"/></div>
+          </div>
           <div className={styles.kidsRoster}>
-            {(showInactiveStudents?inactiveKids:allKids).map((student) => (
+            {(showInactiveStudents?filteredInactiveKids:filteredActiveKids).map((student) => (
               <button key={student.id} onClick={() => openStudent(student.id)}>
                 <span className={styles.categoryDots}>
                   {student.categories.map((category) => (
