@@ -1928,7 +1928,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
             <span className="performance-today-list">
               {performanceActivities.map(activity=>
                 <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
-                  {activityTodayLine(activity)}
+                  <b style={{fontWeight:400}}>{activityTodayLine(activity)}</b>
                 </span>
               )}
             </span>
