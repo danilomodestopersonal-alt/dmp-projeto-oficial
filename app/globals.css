@@ -5824,11 +5824,20 @@ input:focus,textarea:focus{
 
 @media(max-width:900px){
   .kids-mobile-quick-search{display:grid;margin:0 12px 14px;padding:12px;border:1px solid #e0e6e2;border-radius:14px;background:#fff;box-shadow:0 5px 16px rgba(25,55,44,.06)}
-  .month-closing-today-card{align-items:flex-start!important;text-align:left!important}
-  .month-closing-today-card>div{align-items:flex-start!important;text-align:left!important;width:100%!important}
-  .month-closing-today-card>div>strong{justify-content:flex-start!important;text-align:left!important;width:100%!important}
+  .month-closing-today-card{align-items:center!important;text-align:center!important}
+  .month-closing-today-card>div{align-items:center!important;text-align:center!important;width:100%!important}
+  .month-closing-today-card>div>strong{justify-content:center!important;text-align:center!important;width:100%!important}
   .month-closing-today-card .highlight-lines,
-  .month-closing-today-card .month-closing-lines{align-items:flex-start!important;text-align:left!important;width:100%!important}
+  .month-closing-today-card .month-closing-lines{align-items:center!important;text-align:center!important;width:100%!important}
   .month-closing-today-card .highlight-lines small,
-  .month-closing-today-card .month-closing-lines small{text-align:left!important;width:100%!important}
+  .month-closing-today-card .month-closing-lines small{text-align:center!important;width:100%!important}
 }
+
+/* DMP 03/09/2026 — filtros diretos no card de aulas Kids */
+.kids-lessons-status-stat{cursor:default!important}
+.kids-lessons-status-stat>div{display:grid;gap:2px;min-width:0}
+.kids-stat-filter,.kids-stat-all{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0;text-align:left}
+.kids-stat-completed{font-size:inherit;font-weight:900;line-height:1.1}
+.kids-stat-cancelled{font-size:.76em;font-weight:700;color:#65716c}
+.kids-stat-filter:hover{text-decoration:underline}
+.kids-stat-all{font-size:2rem;font-weight:900;color:#f48a17;line-height:1;padding:8px}

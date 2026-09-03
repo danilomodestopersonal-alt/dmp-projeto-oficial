@@ -538,15 +538,15 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
               icon="👥"
               onClick={() => setTab("students")}
             />
-            <button className={styles.stat} onClick={() => openAgenda("ALL")}>
+            <div className={`${styles.stat} kids-lessons-status-stat`}>
               <span>✅</span>
               <div>
                 <small>Aulas realizadas / canceladas</small>
-                <strong>{completed} realizadas</strong>
-                <small>{cancelled} canceladas</small>
+                <button type="button" className="kids-stat-filter kids-stat-completed" onClick={() => openAgenda("COMPLETED")}>{completed} realizadas</button>
+                <button type="button" className="kids-stat-filter kids-stat-cancelled" onClick={() => openAgenda("CANCELLED")}>{cancelled} canceladas</button>
               </div>
-              <b>›</b>
-            </button>
+              <button type="button" className="kids-stat-all" onClick={() => openAgenda("ALL")} aria-label="Abrir todas as aulas">›</button>
+            </div>
             <Stat
               label="Ocupação das vagas"
               value={occupancy}

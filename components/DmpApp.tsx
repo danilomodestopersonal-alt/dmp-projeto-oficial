@@ -1527,8 +1527,8 @@ function DataCenter({students,onReplace}:{students:Student[];onReplace:(students
 function AccessSettings(){
   const [email,setEmail]=useState("");const [currentPassword,setCurrentPassword]=useState("");const [newPassword,setNewPassword]=useState("");const [confirmPassword,setConfirmPassword]=useState("");const [message,setMessage]=useState("");const [saving,setSaving]=useState(false);
   useEffect(()=>{fetch("/api/settings/access",{cache:"no-store"}).then(r=>r.json()).then(data=>{if(data?.email)setEmail(data.email);}).catch(()=>{});},[]);
-  async function save(event:FormEvent){event.preventDefault();setMessage("");if(!email.trim()||!currentPassword){setMessage("Informe o login e a senha atual.");return;}if(newPassword&&newPassword!==confirmPassword){setMessage("A confirmação da nova senha não confere.");return;}if(newPassword&&newPassword.length<8){setMessage("A nova senha deve ter pelo menos 8 caracteres.");return;}setSaving(true);try{const response=await fetch("/api/settings/access",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),currentPassword,newPassword})});const data=await response.json();setMessage(response.ok?"Acesso atualizado com segurança.":data?.message||"Não foi possível atualizar o acesso.");if(response.ok){setCurrentPassword("");setNewPassword("");setConfirmPassword("");}}catch{setMessage("Não foi possível atualizar o acesso.");}finally{setSaving(false);}}
-  return <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Segurança da conta</p><h1>Configurações</h1><p>Altere o login e a senha usados para entrar no DMP.</p></div></header><section className="dashboard-content"><article className="panel access-settings-panel"><div className="panel-head"><div><h2>Acesso ao DMP</h2><p className="muted">Para confirmar qualquer alteração, informe a senha atual.</p></div><span className="status-chip ok">Protegido</span></div><form className="form-grid" onSubmit={save} autoComplete="off"><label className="full">Login / e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" required/></label><label className="full">Senha atual<input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" required/></label><label>Nova senha<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Deixe vazio para manter"/></label><label>Confirmar nova senha<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password"/></label>{message?<div className="full access-settings-message">{message}</div>:null}<button className="primary full" disabled={saving}>{saving?"Salvando...":"Salvar alterações de acesso"}</button></form></article></section></>;
+  async function save(event:FormEvent){event.preventDefault();setMessage("");if(!email.trim()){setMessage("Informe o login / e-mail.");return;}if(!newPassword){setMessage("Defina uma nova senha para concluir a configuração do acesso.");return;}if(newPassword!==confirmPassword){setMessage("A confirmação da nova senha não confere.");return;}if(newPassword.length<8){setMessage("A nova senha deve ter pelo menos 8 caracteres.");return;}setSaving(true);try{const response=await fetch("/api/settings/access",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim(),currentPassword,newPassword})});const data=await response.json();setMessage(response.ok?"Acesso definitivo configurado. Teste o novo login em uma janela anônima antes de sair desta sessão.":data?.message||"Não foi possível atualizar o acesso.");if(response.ok){setCurrentPassword("");setNewPassword("");setConfirmPassword("");}}catch{setMessage("Não foi possível atualizar o acesso.");}finally{setSaving(false);}}
+  return <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Segurança da conta</p><h1>Configurações</h1><p>Defina seu e-mail e sua senha definitiva de acesso ao DMP.</p></div></header><section className="dashboard-content"><article className="panel access-settings-panel"><div className="panel-head"><div><h2>Acesso ao DMP</h2><p className="muted">Como você já está conectado, pode cadastrar um novo acesso sem precisar saber a senha inicial.</p></div><span className="status-chip ok">Sessão protegida</span></div><form className="form-grid" onSubmit={save} autoComplete="off"><label className="full">Login / e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" required/></label><label className="full">Senha atual <small>(opcional nesta sessão)</small><input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" placeholder="Pode deixar vazio"/></label><label>Nova senha<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo 8 caracteres" required/></label><label>Confirmar nova senha<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password" required/></label>{message?<div className="full access-settings-message">{message}</div>:null}<button className="primary full" disabled={saving}>{saving?"Salvando...":"Cadastrar acesso definitivo"}</button></form></article></section></>;
 }
 
 function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error:string;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
@@ -1543,7 +1543,7 @@ function Sidebar({current,onNavigate,logout,students,onStudent}:{current:View;on
   const mobileOrder:View[]=["today","kids","finance","performance","students","workouts-overview","assessments-overview","data","settings"];
   const orderedItems = mobile ? mobileOrder.map(view=>items.find(item=>item.view===view)!).filter(Boolean) : items;
   const quickStudents=studentSearch.trim()?students.filter(student=>student.status==="ACTIVE"&&normalizeName(student.name).includes(normalizeName(studentSearch))).slice(0,6):[];
-  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card" role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav>{!mobile?<><button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><strong>Aulas Kids</strong></span></button><div className="sidebar-student-search"><label htmlFor="sidebar-student-search">Busca rápida</label><div className="sidebar-student-search-box"><span>⌕</span><input id="sidebar-student-search" value={studentSearch} onChange={event=>setStudentSearch(event.target.value)} placeholder="Buscar aluno..." autoComplete="off"/></div>{quickStudents.length?<div className="sidebar-student-search-results">{quickStudents.map(student=><button key={student.id} onClick={()=>{setStudentSearch("");onStudent(student.id);}}><strong>{student.name}</strong><small>Abrir Dashboard</small></button>)}</div>:studentSearch.trim()?<div className="sidebar-student-search-empty">Nenhum aluno encontrado.</div>:null}</div><button className="dashboard-logout" onClick={logout}>Sair</button></>:null}{!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}</aside>;
+  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card" role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div><nav className="dashboard-nav">{orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav>{!mobile?<><button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><strong>Aulas Kids</strong></span></button><div className="sidebar-student-search"><div className="sidebar-student-search-box"><span>⌕</span><input id="sidebar-student-search" value={studentSearch} onChange={event=>setStudentSearch(event.target.value)} placeholder="Buscar aluno..." autoComplete="off"/></div>{quickStudents.length?<div className="sidebar-student-search-results">{quickStudents.map(student=><button key={student.id} onClick={()=>{setStudentSearch("");onStudent(student.id);}}><strong>{student.name}</strong><small>Abrir Dashboard</small></button>)}</div>:studentSearch.trim()?<div className="sidebar-student-search-empty">Nenhum aluno encontrado.</div>:null}</div><button className="dashboard-logout" onClick={logout}>Sair</button></>:null}{!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}</aside>;
 }
 type WeatherData={temperature:number;wind:number;rainChance:number;code:number;hours:{time:string;rain:number}[]};
 function DigitalClock(){
@@ -1707,6 +1707,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
   const monthCycling=monthPerformance.filter(item=>item.type==="CYCLING");
   const monthCyclingDistance=monthCycling.reduce((sum,item)=>sum+(item.distanceKm||0),0);
   const monthStrength=monthPerformance.filter(item=>item.type==="STRENGTH");
+  const monthPilates=monthPerformance.filter(item=>item.type==="PILATES");
 
   const renderPeople=(title:string,list:Student[],empty:string,statusClass:string)=>
     <section className="today-summary-group">
@@ -1811,6 +1812,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
             <small><b>{monthKids}</b> aulas Kids</small>
             <small><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
             <small><b>{monthStrength.length}</b> musculação</small>
+            <small><b>{monthPilates.length}</b> pilates</small>
           </span>
         </div>
       </button>
@@ -1881,6 +1883,11 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
           <article>
             <header><strong>Musculação</strong><b>{monthStrength.length}</b></header>
             <div className="month-closing-detail-list">{monthStrength.slice(0,5).map(activity=><button key={activity.id} onClick={()=>onOpenPerformanceActivity(activity)}><span>{formatDate(activity.date)}</span><strong>{activity.title}</strong></button>)}</div>
+            <button className="secondary compact-action" onClick={onPerformance}>Abrir Performance</button>
+          </article>
+          <article>
+            <header><strong>Pilates</strong><b>{monthPilates.length}</b></header>
+            <div className="month-closing-detail-list">{monthPilates.slice(0,5).map(activity=><button key={activity.id} onClick={()=>onOpenPerformanceActivity(activity)}><span>{formatDate(activity.date)}</span><strong>{activity.title}</strong></button>)}</div>
             <button className="secondary compact-action" onClick={onPerformance}>Abrir Performance</button>
           </article>
         </div>
@@ -1973,6 +1980,25 @@ function MobileQuickActions({onClose,onNavigate}:{onClose:()=>void;onNavigate:(t
 function kidsCategoryName(category:KidsCategory){return category==="RED"?"Bola vermelha":category==="ORANGE"?"Bola laranja":category==="GREEN"?"Bola verde":"Bola amarela";}
 function Header({title,back,titleClassName}:{title:string;back?:()=>void;titleClassName?:string}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong className={titleClassName}>{title}</strong></div></header>; }
 
+function looksLikeTrainingSchedule(value?:string){
+  const text=(value||"").trim().toLowerCase();
+  if(!text)return false;
+  return /\b(seg|segunda|ter|terça|terca|qua|quarta|qui|quinta|sex|sexta|sáb|sab|sábado|sabado|dom|domingo)\b/.test(text)||/\b\d{1,2}(?::\d{2})?\s*h(?:\d{2})?\b/.test(text);
+}
+function inferredWeeklyFrequency(value?:string){
+  const text=(value||"").toLowerCase();
+  const groups=[/\b(seg|segunda)\b/,/\b(ter|terça|terca)\b/,/\b(qua|quarta)\b/,/\b(qui|quinta)\b/,/\b(sex|sexta)\b/,/\b(sáb|sab|sábado|sabado)\b/,/\b(dom|domingo)\b/];
+  const count=groups.filter(regex=>regex.test(text)).length;
+  return count?`${count}x por semana`:"Não informada";
+}
+function studentFrequencyDisplay(student:Student){
+  if(student.trainingSchedule)return student.weeklyFrequency||"Não informada";
+  return looksLikeTrainingSchedule(student.weeklyFrequency)?inferredWeeklyFrequency(student.weeklyFrequency):student.weeklyFrequency||"Não informada";
+}
+function studentScheduleDisplay(student:Student){
+  return student.trainingSchedule||(looksLikeTrainingSchedule(student.weeklyFrequency)?student.weeklyFrequency:"")||"Não informado";
+}
+
 function StudentProfileIdentity({student,onEdit}:{student:Student;onEdit:()=>void}) {
   const age=calculateAge(student.birthDate);
   const months=monthsSince(student.startDate);
@@ -1988,8 +2014,8 @@ function StudentProfileIdentity({student,onEdit}:{student:Student;onEdit:()=>voi
         <div className="student-profile-identity-meta">
           <span><small>Idade</small><strong>{age!==null?`${age} anos`:"Não informada"}</strong></span>
           <span><small>Aluno há</small><strong>{months===null?"Não informado":formatMonths(months)}</strong></span>
-          <span><small>Frequência</small><strong>{student.weeklyFrequency||"Não informada"}</strong></span>
-          <span className="student-profile-schedule-meta"><small>Dias e horários</small><strong>{student.trainingSchedule||"Não informado"}</strong></span>
+          <span><small>Frequência</small><strong>{studentFrequencyDisplay(student)}</strong></span>
+          <span className="student-profile-schedule-meta"><small>Dias e horários</small><strong>{studentScheduleDisplay(student)}</strong></span>
         </div>
       </div>
     </div>
