@@ -1,0 +1,8 @@
+import {NextRequest,NextResponse} from "next/server";
+import {pool} from "@/lib/db";
+export const runtime="nodejs";
+const DATA_ID="profile_settings_v1";
+const DEFAULT={birthdayImage:"",birthdayMessage:"Parabéns pelo seu dia! 🎉 Desejo muita saúde, felicidade e um excelente novo ciclo. Abraço!"};
+function authorized(request:NextRequest){return request.cookies.get("dmp_session")?.value==="demo-session-token";}
+export async function GET(request:NextRequest){if(!authorized(request))return NextResponse.json({message:"Sessão inválida."},{status:401});try{const result=await pool.query("SELECT payload FROM dmp_data WHERE id=$1",[DATA_ID]);return NextResponse.json({ok:true,data:{...DEFAULT,...(result.rows[0]?.payload||{})}});}catch(error){console.error("Erro ao ler configurações de perfil:",error);return NextResponse.json({ok:false,data:DEFAULT},{status:500});}}
+export async function PUT(request:NextRequest){if(!authorized(request))return NextResponse.json({message:"Sessão inválida."},{status:401});try{const body=await request.json();const birthdayImage=String(body?.birthdayImage||"");const birthdayMessage=String(body?.birthdayMessage||"").slice(0,1200);if(birthdayImage.length>2_800_000)return NextResponse.json({message:"Imagem muito grande."},{status:413});const payload={birthdayImage,birthdayMessage};await pool.query(`INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()`,[DATA_ID,JSON.stringify(payload)]);return NextResponse.json({ok:true,data:payload});}catch(error){console.error("Erro ao salvar configurações de perfil:",error);return NextResponse.json({message:"Não foi possível salvar."},{status:500});}}
