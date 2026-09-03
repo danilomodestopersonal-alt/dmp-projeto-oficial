@@ -59,7 +59,7 @@ function whatsappNumber(phone?:string){
   return {href:"",missingDdd:false};
 }
 
-export default function KidsPage({ onBack, openRequest }: { onBack: () => void; openRequest?:KidsLessonOpenRequest|null }) {
+export default function KidsPage({ onBack, openRequest, openStudentId }: { onBack: () => void; openRequest?:KidsLessonOpenRequest|null; openStudentId?:string|null }) {
   const [data, setData] = useState<KidsData | null>(null);
   const [tab, setTab] = useState<KidsTab>("dashboard");
   const [loading, setLoading] = useState(true);
@@ -91,6 +91,11 @@ export default function KidsPage({ onBack, openRequest }: { onBack: () => void; 
     });
     if(target){setTab("agenda");setLessonId(target.id);}
   },[data,openRequest]);
+  useEffect(()=>{
+    if(!data||!openStudentId)return;
+    const exists=data.classes.some(group=>group.students.some(student=>student.id===openStudentId));
+    if(exists){setTab("students");setStudentId(openStudentId);setClassId(null);setLessonId(null);}
+  },[data,openStudentId]);
   async function createFinanceSafetyBackup(){
     const response=await fetch("/api/backup",{method:"POST"});
     const payload=await response.json().catch(()=>({}));
