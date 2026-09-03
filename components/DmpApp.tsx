@@ -1808,36 +1808,43 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
         :<small>{empty}</small>}
     </section>;
 
-  const performanceIcon=(type:PerformanceActivity["type"])=>
-    type==="CYCLING"?"Bike":
-    type==="STRENGTH"?"Força":
-    type==="PILATES"?"Pilates":
-    type==="RUNNING"?"Corrida":
-    type==="TENNIS"?"Tênis":"Atividade";
-
   const durationText=(minutes:number)=>{
     const total=Math.round(minutes);
     const h=Math.floor(total/60);
     const m=total%60;
-    return h?`${h}h${String(m).padStart(2,"0")}`:`${m} min`;
+    if(!h)return `${m} min`;
+    return m?`${h}h${String(m).padStart(2,"0")}`:`${h}h`;
   };
 
-  const activitySummary=(activity:PerformanceActivity)=>{
-    const details:string[]=[];
+  const cyclingTodayKind=(activity:PerformanceActivity)=>{
+    if(activity.cyclingKind==="SPEED")return "Speed";
+    if(activity.cyclingKind==="MTB")return "MTB";
+    if(activity.cyclingKind==="INDOOR")return "Indoor";
+    const text=`${activity.title||""} ${activity.description||""} ${activity.notes||""}`.toLowerCase();
+    if(/\bmtb\b|mountain bike/.test(text))return "MTB";
+    if(/indoor|rolo|virtual/.test(text))return "Indoor";
+    if(/speed|estrada|road/.test(text))return "Speed";
+    return "Ciclismo";
+  };
 
-    if(activity.distanceKm){
-      details.push(`${activity.distanceKm.toLocaleString("pt-BR",{maximumFractionDigits:1})} km`);
+  const activityTodayLine=(activity:PerformanceActivity)=>{
+    if(activity.type==="STRENGTH"){
+      const focus=(activity.title||"").trim();
+      const generic=/^(muscula[cç][aã]o|for[cç]a|strength|treino de for[cç]a)$/i.test(focus);
+      return `🏋️ Musculação${focus&&!generic?` — ${focus}`:""}`;
     }
-
-    if(activity.durationMinutes){
-      details.push(durationText(activity.durationMinutes));
+    if(activity.type==="CYCLING"){
+      const distance=activity.distanceKm&&activity.distanceKm>0
+        ?` — ${activity.distanceKm.toLocaleString("pt-BR",{maximumFractionDigits:1})} km`
+        :"";
+      return `🚴 ${cyclingTodayKind(activity)}${distance}`;
     }
-
-    if(activity.averageSpeedKmh){
-      details.push(`${activity.averageSpeedKmh.toLocaleString("pt-BR",{maximumFractionDigits:1})} km/h`);
+    if(activity.type==="PILATES")return "🤸 Pilates";
+    if(activity.type==="TENNIS"){
+      const minutes=activity.durationMinutes||activity.elapsedMinutes||0;
+      return `🎾 Tênis${minutes>0?` — ${durationText(minutes)}`:""}`;
     }
-
-    return details.join(" · ");
+    return activity.title||"Atividade";
   };
 
   return <>
@@ -1921,8 +1928,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
             <span className="performance-today-list">
               {performanceActivities.map(activity=>
                 <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
-                  <b>{activity.title}</b>
-                  {activitySummary(activity)?<small>{activitySummary(activity)}</small>:null}
+                  <b>{activityTodayLine(activity)}</b>
                 </span>
               )}
             </span>
