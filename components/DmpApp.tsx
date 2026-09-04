@@ -582,11 +582,11 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     setSelectedWorkoutId(null);
   }
 
-  function openStudent(id: string) {
+  function openStudent(id: string, initialTab:StudentTab="summary") {
     setSelectedStudentId(id);
     setSelectedWorkoutId(null);
     setWorkoutEditorSlot("A");
-    setTab("summary");
+    setTab(initialTab);
     setView("student");
   }
 
@@ -974,7 +974,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     </div>
   </> : <a className="spotify-connect" href="/api/spotify/login">Conectar Spotify</a>}
 </div><DesktopAgendaRail events={calendarEvents} students={students} onOpenAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onOpenStudent={openStudent} onRefresh={()=>void refreshCalendarAutomatic(true)}/></aside></div>
-            <div className="mobile-header-actions"><button className="mobile-header-logout" onClick={logout}>Sair</button><div className="mobile-action-stack"><button className="mobile-quick-launch" onClick={()=>setShowMobileActions(true)} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={()=>{sessionStorage.setItem("dmp_finance_voice_start","1");navigateMain("finance");}} aria-label="Falar lançamento financeiro">🎤</button></div></div>
+            <div className="mobile-home-logout"><button type="button" onClick={logout}>Sair</button></div>
+            <div className="mobile-header-actions"><button className="mobile-quick-launch" onClick={()=>setShowMobileActions(true)} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={()=>{sessionStorage.setItem("dmp_finance_voice_start","1");navigateMain("finance");}} aria-label="Falar lançamento financeiro">🎤</button></div>
             {showMobileActions?<MobileQuickActions onClose={()=>setShowMobileActions(false)} onNavigate={target=>{if(target==="extra")sessionStorage.setItem("dmp_finance_quick_action","extra");setShowMobileActions(false);navigateMain(target==="extra"||target==="receive"?"finance":target);}}/>:null}
           </> : null}
 
@@ -1349,7 +1350,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 }
 
 
-function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent,onAbsence,onOpenKids}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onAbsence:(student:Student,event:CalendarEvent)=>void;onOpenKids:(event:CalendarEvent)=>void}) {
+function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent,onAbsence,onOpenKids}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string,tab?:StudentTab)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onAbsence:(student:Student,event:CalendarEvent)=>void;onOpenKids:(event:CalendarEvent)=>void}) {
   const completedIds=new Set(todaySessions.filter(item=>item.session.source!=="ABSENCE").map(item=>item.student.id));
   const absentIds=new Set(todaySessions.filter(item=>item.session.source==="ABSENCE").map(item=>item.student.id));
   const displayEvents=[...events];
@@ -1361,7 +1362,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
   });
   displayEvents.sort((a,b)=>a.start.localeCompare(b.start));
   return <section className="panel calendar-today-panel calendar-today-panel-clickable" onClick={event=>{const target=event.target as HTMLElement;if(target.closest("button,a,input,select,textarea,label"))return;onOpenAgenda();}}><div className="panel-head"><div><h2>Agenda de hoje</h2>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
-    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}>{kids||!slotStudents.length?<strong>{event.summary}</strong>:null}<small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;const workoutEntries=getStudentWorkoutEntries(student);const workoutSequence=studentWorkoutSequence(student,workoutEntries);return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
+    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}>{kids||!slotStudents.length?<strong>{event.summary}</strong>:null}<small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students"><span className="calendar-slot-title">Treinos do horário</span>{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;const workoutEntries=getStudentWorkoutEntries(student);return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
   {student.phone?<button
     type="button"
     className="calendar-whatsapp-button"
@@ -1374,7 +1375,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
     }}
   ><svg viewBox="0 0 24 24" aria-hidden="true" className="calendar-whatsapp-icon"><path fill="currentColor" d="M12.04 2a9.84 9.84 0 0 0-8.39 14.98L2 22l5.18-1.62A9.96 9.96 0 1 0 12.04 2Zm0 17.93a8.02 8.02 0 0 1-4.09-1.12l-.29-.17-3.07.96 1-2.99-.19-.31a7.91 7.91 0 1 1 6.64 3.63Zm4.4-5.93c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.47-.39-.41-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.16 1.51.1.46-.07 1.43-.58 1.63-1.15.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg></button>:null}
   <button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>{student.name}</button>
-</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{workoutEntries.length?<span className="home-workout-badges">{workoutEntries.map(entry=>{const validity=workoutValidityInfo(student,entry.workout);const suggested=workoutEntries.length>1&&workoutSequence.suggested?.workout.id===entry.workout.id;return <button type="button" key={entry.workout.id} className={`home-workout-badge home-workout-badge-button ${validity.status.toLowerCase()} ${suggested?"suggested":""}`} onClick={()=>window.open(`/app?mode=planned-session&student=${encodeURIComponent(student.id)}&workout=${encodeURIComponent(entry.workout.id)}`,"_blank","noopener,noreferrer")} title={`Abrir Treino ${entry.slot}${suggested?" · próximo sugerido":""} em nova janela`}><b>{entry.slot}</b><small>{suggested?"PRÓXIMO":validity.status==="NONE"?`${entry.workout.exercises.length} ex`:validity.endDate?`até ${formatDate(validity.endDate)}`:validity.label}</small></button>})}</span>:null}{done?<span className="status-chip ok">✓ Finalizado</span>:absent?<span className="status-chip absent">Ausente</span>:null}{!done&&!absent?<span className="calendar-student-actions"><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></span>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
+</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{workoutEntries.length&&!done?<button type="button" className="secondary compact-action home-workouts-open" onClick={()=>onOpenStudent(student.id,"workouts")} title="Abrir Central de Treinos">Treinos</button>:null}{absent?<span className="status-chip absent">Ausente</span>:null}{!done&&!absent?<span className="calendar-student-actions"><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></span>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
@@ -3465,6 +3466,7 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
   const [sessionDate,setSessionDate]=useState(today());
   const [exercises,setExercises]=useState<Exercise[]>([]);
   const [listening,setListening]=useState(false);
+  const [transcriptFromVoice,setTranscriptFromVoice]=useState(false);
   function organize(){
     const extracted=extractSessionFocus(transcript);
     if(extracted.focus)setFocus(extracted.focus);
@@ -3628,6 +3630,7 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
       }
 
       if(finalText.trim()){
+        setTranscriptFromVoice(true);
         setTranscript(current=>appendWithoutDuplicate(current,finalText.trim()));
       }
     };
@@ -3679,7 +3682,7 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
   startRecognition();
 }
   return <main className="app-page"><Header title={`${student.name} — Registro rápido`} back={onBack}/><section className="content free-session-layout">
-    <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button
+    <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>{const next=e.target.value;if(!next.trim())setTranscriptFromVoice(false);setTranscript(next);}} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button
   type="button"
   className="primary"
   onClick={()=>{
@@ -3688,9 +3691,17 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
       return;
     }
 
-    const extracted=extractSessionFocus(transcript);
-    if(extracted.focus)setFocus(extracted.focus);
-    const organized=organizeQuickTranscript(extracted.text);
+    let organized:Exercise[]=[];
+
+    if(transcriptFromVoice){
+      const voiceResult=organizeQuickVoiceTranscript(transcript);
+      if(voiceResult.focus)setFocus(voiceResult.focus);
+      organized=voiceResult.exercises;
+    }else{
+      const extracted=extractSessionFocus(transcript);
+      if(extracted.focus)setFocus(extracted.focus);
+      organized=organizeQuickTranscript(extracted.text);
+    }
 
     if(!organized.length){
       alert("Fale ou escreva o treino antes de organizar.");
@@ -4142,6 +4153,128 @@ function sameSaoPauloDate(a:string,b:string){try{return saoPauloDateFromIso(a)==
 function isSundayInSaoPaulo(){const label=new Intl.DateTimeFormat("en-US",{timeZone:"America/Sao_Paulo",weekday:"short"}).format(new Date());return label==="Sun";}
 function formatSyncTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
 function formatSyncDateTime(value:string){try{return new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(value));}catch{return"";}}
+
+function organizeQuickVoiceTranscript(rawText:string):{focus:string;protocol:WorkoutProtocol|null;exercises:Exercise[]}{
+  const numberWords:Record<string,string>={
+    "um":"1","uma":"1","dois":"2","duas":"2","tres":"3","três":"3",
+    "quatro":"4","cinco":"5","seis":"6","sete":"7","oito":"8","nove":"9",
+    "dez":"10","onze":"11","doze":"12","treze":"13","quatorze":"14",
+    "catorze":"14","quinze":"15","dezesseis":"16","dezessete":"17",
+    "dezoito":"18","dezenove":"19","vinte":"20"
+  };
+
+  const replaceNumberWords=(value:string)=>value.replace(
+    /\b(um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte)\b/gi,
+    word=>numberWords[word.toLocaleLowerCase("pt-BR")]||word
+  );
+
+  let text=rawText.replace(/\r?\n/g," ").replace(/\s+/g," ").trim();
+  if(!text)return{focus:"",protocol:null,exercises:[]};
+
+  let focus="";
+  const focusMatch=text.match(/\bobjetivo\b\s*:?\s*(.+?)(?=\s+(?:m[eé]todo|sistema|protocolo)\b|\s+(?:(?:primeiro|segundo|terceiro|quarto|quinto|sexto|s[eé]timo|oitavo|nono|d[eé]cimo)\s+bloco|bloco\s+(?:\d+|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez))\b|$)/i);
+  if(focusMatch){
+    focus=focusMatch[1].trim().replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g,"");
+    const start=focusMatch.index||0;
+    text=`${text.slice(0,start)} ${text.slice(start+focusMatch[0].length)}`.replace(/\s+/g," ").trim();
+  }
+
+  const protocol=/\bb\s*7\b/i.test(text)?"B7":detectWorkoutProtocol(text);
+  text=text.replace(/\b(?:m[eé]todo|sistema|protocolo)\s*:?\s*(?:b\s*7|bi\s*-?\s*set|tri\s*-?\s*set|circuito|convencional|misto|personalizado)\b/gi," ");
+
+  const ordinalBlocks:[RegExp,string][]=[
+    [/\bprimeiro\s+bloco\b/gi,"1"],[/\bsegundo\s+bloco\b/gi,"2"],
+    [/\bterceiro\s+bloco\b/gi,"3"],[/\bquarto\s+bloco\b/gi,"4"],
+    [/\bquinto\s+bloco\b/gi,"5"],[/\bsexto\s+bloco\b/gi,"6"],
+    [/\bs[eé]timo\s+bloco\b/gi,"7"],[/\boitavo\s+bloco\b/gi,"8"],
+    [/\bnono\s+bloco\b/gi,"9"],[/\bd[eé]cimo\s+bloco\b/gi,"10"]
+  ];
+  ordinalBlocks.forEach(([pattern,block])=>{text=text.replace(pattern,`\nBloco ${block}: `);});
+  text=replaceNumberWords(text);
+  text=text.replace(/\bbloco\s+(\d+)\b\s*:?/gi,(_,block)=>`\nBloco ${block}: `);
+  text=text.replace(/[ \t]+/g," ").replace(/\n\s*/g,"\n").trim();
+
+  const sections:{block:string;text:string}[]=[];
+  const marker=/\bBloco\s+(\d+)\s*:\s*/gi;
+  const markers:RegExpExecArray[]=[];
+  let markerMatch:RegExpExecArray|null;
+  while((markerMatch=marker.exec(text))!==null)markers.push(markerMatch);
+
+  if(markers.length){
+    const firstIndex=markers[0].index||0;
+    const before=text.slice(0,firstIndex).trim();
+    if(before)sections.push({block:"",text:before});
+    markers.forEach((match,index)=>{
+      const start=(match.index||0)+match[0].length;
+      const end=index+1<markers.length?(markers[index+1].index||text.length):text.length;
+      sections.push({block:match[1],text:text.slice(start,end).trim()});
+    });
+  }else{
+    sections.push({block:"",text});
+  }
+
+  const exercises:Exercise[]=[];
+  const prescription=/\b(\d+)\s*(?:s[eé]ries?\s*(?:(?:de|com)\s*|(?:at[eé]\s+a\s*)?)?|[x×]\s*|(?:de|por)\s+)(\d+|falha)\b/gi;
+
+  const cleanExerciseName=(value:string)=>value
+    .replace(/^[\s,;:.\-–—•]+/,"")
+    .replace(/^(?:(?:e|mais|junto\s+com|depois|seguido\s+de)\s+)+/i,"")
+    .replace(/^[\s,;:.\-–—•]+|[\s,;:.\-–—•]+$/g,"")
+    .trim();
+
+  for(const section of sections){
+    if(!section.text)continue;
+    const matches:RegExpExecArray[]=[];
+    prescription.lastIndex=0;
+    let prescriptionMatch:RegExpExecArray|null;
+    while((prescriptionMatch=prescription.exec(section.text))!==null)matches.push(prescriptionMatch);
+    let cursor=0;
+
+    matches.forEach((match,index)=>{
+      const matchIndex=match.index||0;
+      const name=cleanExerciseName(section.text.slice(cursor,matchIndex));
+      let afterStart=matchIndex+match[0].length;
+      const after=section.text.slice(afterStart);
+      const loadMatch=after.match(/^\s*(?:com\s+|carga\s+(?:de\s+)?)?(\d+(?:[.,]\d+)?)\s*(?:kg|quilos?|kilos?)\b(?:\s*(?:de\s*cada\s*lado|cada\s*lado))?/i);
+      let load="";
+
+      if(loadMatch){
+        load=`${loadMatch[1].replace(",",".")} kg${/cada\s*lado/i.test(loadMatch[0])?" de cada lado":""}`;
+        afterStart+=loadMatch[0].length;
+      }
+
+      if(name){
+        exercises.push({
+          id:crypto.randomUUID(),
+          block:section.block,
+          name,
+          sets:match[1]||"",
+          reps:/falha/i.test(match[2]||"")?"F":match[2]||"",
+          load,
+          notes:""
+        } as Exercise);
+      }
+
+      cursor=afterStart;
+
+      if(index===matches.length-1){
+        const remainder=section.text.slice(cursor).replace(/^[\s,;:.\-–—•]+/,"").trim();
+        if(remainder&&exercises.length){
+          const last=exercises[exercises.length-1];
+          if(!/^(?:e|mais|junto\s+com)\b/i.test(remainder))last.notes=remainder;
+        }
+      }
+    });
+  }
+
+  const groupSize=protocol==="B7"||protocol==="BISET"?2:protocol==="TRISET"?3:0;
+  if(groupSize&&exercises.every(exercise=>!exercise.block?.trim())){
+    exercises.forEach((exercise,index)=>{exercise.block=String(Math.floor(index/groupSize)+1);});
+  }
+
+  return{focus,protocol,exercises};
+}
+
 function extractSessionFocus(rawText:string){
   const match=rawText.match(/\bobjetivo\s*:\s*(.+?)(?=(?:\r?\n|[.;])|(?:\s*[,;\-–—]?\s*(?:sistema|protocolo|bloco)\b)|$)/i);
   if(!match)return{focus:"",text:rawText};
