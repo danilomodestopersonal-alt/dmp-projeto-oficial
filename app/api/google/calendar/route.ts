@@ -26,12 +26,26 @@ export async function GET(request: NextRequest) {
       timeZone:"America/Sao_Paulo"
     });
 
-    const google = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`, {
-      headers:{authorization:`Bearer ${accessToken}`}, cache:"no-store"
-    });
-    if (!google.ok) return NextResponse.json({error:"google_error",status:google.status},{status:502});
-    const data = await google.json();
-    const events = (data.items || []).map((event:any) => ({
+    const items:any[] = [];
+    let pageToken = "";
+    let pages = 0;
+
+    do {
+      const pageParams = new URLSearchParams(params);
+      if (pageToken) pageParams.set("pageToken", pageToken);
+
+      const google = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${pageParams.toString()}`, {
+        headers:{authorization:`Bearer ${accessToken}`}, cache:"no-store"
+      });
+      if (!google.ok) return NextResponse.json({error:"google_error",status:google.status},{status:502});
+
+      const data = await google.json();
+      if (Array.isArray(data.items)) items.push(...data.items);
+      pageToken = String(data.nextPageToken || "");
+      pages += 1;
+    } while (pageToken && pages < 20);
+
+    const events = items.map((event:any) => ({
       id:event.id,
       summary:event.summary || "Sem título",
       description:event.description || "",

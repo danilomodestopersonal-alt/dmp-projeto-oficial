@@ -526,8 +526,8 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
             <div className={styles.threeCol}>
               <MiniSummary title="Personal" rows={[["Previsto", summary.personalExpected], ["Recebido", summary.personalReceived], ["Falta", summary.personalOpen]]} onClick={() => setTab("personal")} />
-              <MiniSummary title="DS Tênis" rows={[["Kids líquido", summary.kidsNet], ["Ranking", summary.ranking], [summary.dsBalance >= 0 ? "A receber" : "A devolver", Math.abs(summary.dsBalance)]]} onClick={() => setTab("ds")} />
-              <MiniSummary title="Despesas" rows={[["Previstas", summary.expensesExpected], ["Pagas", summary.expensesPaid], ["Gastos extras", summary.extrasTotal]]} onClick={() => setTab("expenses")} />
+              <MiniSummary title="DS Tênis" rows={[["Kids líquido", summary.kidsNet], ["Ranking", summary.ranking], ["Recebido", summary.dsReceived], [summary.dsBalance >= 0 ? "A receber" : "A devolver", Math.abs(summary.dsBalance)]]} onClick={() => setTab("ds")} />
+              <MiniSummary title="Despesas" rows={[["Previstas", summary.expensesExpected], ["Pagas", summary.expensesPaid], ["A pagar", summary.payable]]} onClick={() => setTab("expenses")} />
             </div>
 
             <section className="panel">
