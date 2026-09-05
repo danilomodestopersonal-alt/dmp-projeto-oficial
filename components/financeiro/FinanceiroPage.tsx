@@ -462,7 +462,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
           <h1>Financeiro</h1>
           <p>{competenceLabel(competence)} · <strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
-        <div className={styles.headerQuickActions}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",justifyContent:"center",padding:"0 8px"}}>
           <button className="secondary" onClick={() => setTab("personal")}>Receber pessoal</button>
           <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
           <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>

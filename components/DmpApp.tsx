@@ -1299,7 +1299,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           </section>
 
-          {tab === "summary" ? <StudentDashboardComplete student={selectedStudent} onOpen={setTab} onReport={()=>void printPersonalStudentReport(selectedStudent)} onStudentUpdate={updateStudentRecord} /> : null}
+          {tab === "summary" ? <StudentDashboardComplete student={selectedStudent} allStudents={students} onOpen={setTab} onReport={()=>void printPersonalStudentReport(selectedStudent)} onStudentUpdate={updateStudentRecord} /> : null}
           {tab === "timeline" ? <StudentTimeline student={selectedStudent} /> : null}
 
           {tab === "workouts" ? <>
@@ -1677,24 +1677,30 @@ function SpecialDatesHome({students,onStudent}:{students:Student[];onStudent:(id
 return dates.length?<section className="panel special-dates-home"><div className="panel-head"><div><h2>Hoje é dia especial 🎉</h2><p className="muted">{dates.length===1?"1 data importante hoje":`${dates.length} datas importantes hoje`}.</p></div></div><div className="special-date-list">{dates.map((item,index)=><article key={`${item.student.id}-${item.kind}-${index}`}><button className="special-date-main" onClick={()=>onStudent(item.student.id)}><span>{item.kind==="birthday"?"🎂":"🏅"}</span><div><strong>{item.label}</strong><small>{item.detail}</small></div></button>{item.kind==="birthday"?<button className="primary compact-action" onClick={()=>void shareBirthday(item.student)}>Enviar parabéns</button>:null}</article>)}</div></section>:null}
 
 
-async function shareStudentSummary(student:Student){
+async function shareStudentSummary(student:Student,allStudents:Student[]){
   const sorted=assessmentSorted(student),latest=sorted[0];
   const first=student.name.trim().split(/\s+/)[0]||student.name;
   const monthKey=today().slice(0,7);
-  const monthName=new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long"});
   const todayKey=today();
+  const monthName=new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long"});
+  const completed=student.sessions.filter(session=>session.source!=="ABSENCE");
+  const fallbackMonthCompleted=completed.filter(session=>session.date.slice(0,7)===monthKey).length;
+  const fallbackLast=[...completed].sort((a,b)=>b.date.localeCompare(a.date)||(b.finishedAt||b.startedAt||"").localeCompare(a.finishedAt||a.startedAt||""))[0];
   let agendaEvents:CalendarEvent[]=[];
   try{
-    const start=dateOffset(todayKey,-120);
-    const response=await fetch(`/api/google/calendar?date=${start}&days=121`,{cache:"no-store"});
-    if(response.ok){
-      const payload=await response.json();
-      agendaEvents=matchCalendarEvents(Array.isArray(payload?.events)?payload.events:[],[student]).filter(event=>getCalendarEventStudents(event,[student]).some(item=>item.id===student.id)&&calendarEventDate(event)<=todayKey);
-    }
+    const startDate=dateOffset(todayKey,-120);
+    const response=await fetch(`/api/google/calendar?date=${startDate}&days=121`,{cache:"no-store"});
+    const payload=response.ok?await response.json():null;
+    const raw=Array.isArray(payload?.events)?payload.events as CalendarEvent[]:[];
+    agendaEvents=matchCalendarEvents(raw,allStudents).filter(event=>
+      calendarEventDate(event)<=todayKey&&
+      getCalendarEventStudents(event,allStudents).some(item=>item.id===student.id)
+    );
   }catch{}
-  const monthCompleted=agendaEvents.filter(event=>calendarEventDate(event).slice(0,7)===monthKey).length;
-  const lastAgendaEvent=[...agendaEvents].sort((a,b)=>calendarEventDate(b).localeCompare(calendarEventDate(a))||String(b.start||"").localeCompare(String(a.start||"")))[0];
-  const lastWorkoutText=lastAgendaEvent?formatDate(calendarEventDate(lastAgendaEvent)):"Nenhum treino registrado";
+  const monthAgenda=agendaEvents.filter(event=>calendarEventDate(event).slice(0,7)===monthKey);
+  const latestAgenda=[...agendaEvents].sort((a,b)=>calendarEventDate(b).localeCompare(calendarEventDate(a))||String(b.start||"").localeCompare(String(a.start||"")))[0];
+  const monthCompleted=agendaEvents.length?monthAgenda.length:fallbackMonthCompleted;
+  const lastWorkoutText=latestAgenda?formatDate(calendarEventDate(latestAgenda)):fallbackLast?formatDate(fallbackLast.date):"Nenhum treino registrado";
   const assessmentText=latest?`• Última avaliação: ${formatDate(latest.date)}${latest.weight!=null?` · ${latest.weight} kg`:""}${latest.bodyFatPercent!=null?` · ${latest.bodyFatPercent}% de gordura`:""}.`:"";
   let template=DEFAULT_STUDENT_SUMMARY_MESSAGE;
   try{
@@ -1812,10 +1818,11 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
 
   const pending=notes.filter(note=>!note.done);
   const monthKey=today().slice(0,7);
-  const monthSessionRows=students.flatMap(student=>student.sessions.filter(session=>session.date.slice(0,7)===monthKey).map(session=>({student,session}))).sort((a,b)=>b.session.date.localeCompare(a.session.date));
-  const monthSessions=monthSessionRows.map(item=>item.session);
-  const monthAttended=monthSessions.filter(session=>session.source!=="ABSENCE").length;
-  const monthAbsent=monthSessions.filter(session=>session.source==="ABSENCE").length;
+  const monthAgendaRows=monthEvents
+    .filter(event=>calendarEventDate(event)<=today())
+    .flatMap(event=>getCalendarEventStudents(event,students).map(student=>({student,event})))
+    .sort((a,b)=>calendarEventDate(b.event).localeCompare(calendarEventDate(a.event))||String(b.event.start||"").localeCompare(String(a.event.start||"")));
+  const monthAttended=monthAgendaRows.length;
   const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(item=>item.date.slice(0,7)===monthKey).map(assessment=>({student,assessment}))).sort((a,b)=>b.assessment.date.localeCompare(a.assessment.date));
   const monthAssessments=monthAssessmentRows.length;
   const monthPerformance=monthPerformanceActivities.filter(item=>item.date.slice(0,7)===monthKey);
@@ -1983,7 +1990,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
         <div className="month-closing-detail-grid">
           <article>
             <header><strong>Atendimentos</strong><b>{monthAttended}</b></header>
-            <div className="month-closing-detail-list">{monthSessionRows.filter(item=>item.session.source!=="ABSENCE").slice(0,6).map(({student,session})=><button key={student.id+session.id} onClick={()=>onStudent(student.id)}><span>{formatDate(session.date)}</span><strong>{student.name}</strong></button>)}</div>
+            <div className="month-closing-detail-list">{monthAgendaRows.slice(0,6).map(({student,event})=><button key={student.id+event.id} onClick={()=>onStudent(student.id)}><span>{formatDate(calendarEventDate(event))}</span><strong>{student.name}</strong></button>)}</div>
             <button className="secondary compact-action" onClick={onHistory}>Abrir Histórico</button>
           </article>
           <article>
@@ -2244,7 +2251,7 @@ function StudentDashboardTimeline({student,invoices}:{student:Student;invoices:F
   return <section className="student-timeline-panel"><div className="student-section-title"><div><span>LINHA DO TEMPO</span><h3>Últimas movimentações</h3></div></div>{items.length?<div className="student-timeline-list">{items.map(item=><article key={item.id}><span>{item.icon}</span><div><strong>{item.title}</strong><small>{formatDate(item.date)} · {item.detail}</small></div></article>)}</div>:<div className="student-empty-soft">Ainda não há movimentações registradas para este aluno.</div>}</section>;
 }
 
-function StudentDashboardComplete({student,onOpen,onReport,onStudentUpdate}:{student:Student;onOpen:(tab:StudentTab)=>void;onReport:()=>void;onStudentUpdate:(student:Student)=>void}) {
+function StudentDashboardComplete({student,allStudents,onOpen,onReport,onStudentUpdate}:{student:Student;allStudents:Student[];onOpen:(tab:StudentTab)=>void;onReport:()=>void;onStudentUpdate:(student:Student)=>void}) {
   const monthKey=today().slice(0,7);
   const monthSessions=student.sessions.filter(session=>session.date.slice(0,7)===monthKey&&session.source!=="ABSENCE");
   const monthAbsences=student.sessions.filter(session=>session.date.slice(0,7)===monthKey&&session.source==="ABSENCE");
@@ -2267,7 +2274,7 @@ function StudentDashboardComplete({student,onOpen,onReport,onStudentUpdate}:{stu
   const weightSeries=assessmentChronological.flatMap(item=>{const value=assessmentNumber(item.weight);return value===null?[]:[{label:formatDate(item.date),value}];});
   const fatSeries=assessmentChronological.flatMap(item=>{const value=assessmentNumber(item.bodyFatPercent);return value===null?[]:[{label:formatDate(item.date),value}];});
   const leanSeries=assessmentChronological.flatMap(item=>{const value=assessmentLeanMassKg(item);return value===null?[]:[{label:formatDate(item.date),value}];});
-  const shareSummary=()=>void shareStudentSummary(student);
+  const shareSummary=()=>void shareStudentSummary(student,allStudents);
   return <section className="student-dashboard-stage-one student-dashboard-complete">
     <div className="student-dashboard-stage-head"><div><span>DASHBOARD DO ALUNO</span><h2>Visão geral</h2></div><button className="primary" onClick={shareSummary}>WhatsApp resumo</button><button type="button" className="secondary" onClick={onReport}>🖨️ Relatório</button></div>
     <div className="student-dashboard-quick-grid">
