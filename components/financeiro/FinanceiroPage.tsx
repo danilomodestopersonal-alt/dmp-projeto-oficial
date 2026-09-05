@@ -462,6 +462,12 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
           <h1>Financeiro</h1>
           <p>{competenceLabel(competence)} · <strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
+        <div className={styles.headerQuickActions}>
+          <button className="secondary" onClick={() => setTab("personal")}>Receber pessoal</button>
+          <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
+          <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
+          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>Gasto extra</button>
+        </div>
         <div className={styles.topActions}>
           <label className={styles.competencePicker}>
             <span>Competência</span>
@@ -504,11 +510,12 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
             <div className={styles.kpiGrid}>
               <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" />
               <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" />
+              <Kpi label="A receber" value={summary.receivable} tone="income" />
+              <Kpi label="Saldo projetado" value={summary.projectedResult} />
               <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" />
               <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" />
-              <Kpi label="Saldo projetado" value={summary.projectedResult} />
-              <Kpi label="A receber" value={summary.receivable} tone="income" />
               <Kpi label="A pagar" value={summary.payable} tone="expense" />
+              <Kpi label="Gastos extras do mês" value={summary.extrasTotal} tone="expense" />
             </div>
 
             <section className={`panel ${styles.weeklyDue}`}>
@@ -516,15 +523,6 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
               {weeklyDue.length?<div className={styles.list}>{weeklyDue.map(item=><div className={`${styles.row} ${styles.staticRow}`} key={item.id}><span><strong>{item.name}</strong><small>Vence em {formatDate(item.dueDate)}</small></span><strong className={styles.outValue}>{money.format(item.open)}</strong></div>)}</div>:<Empty text="Nenhuma conta em aberto vence nesta semana."/>}
             </section>
 
-            <section className="panel">
-              <div className="panel-head"><div><h2>Ações rápidas</h2><p className="muted">Rotina diária em poucos toques.</p></div></div>
-              <div className={styles.actionGrid}>
-                <button className="secondary" onClick={() => setTab("personal")}>Receber Personal</button>
-                <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
-                <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
-                <button className="primary" onClick={() => openAction({ type: "extra-create" })}>+ Gasto extra</button>
-              </div>
-            </section>
 
             <div className={styles.threeCol}>
               <MiniSummary title="Personal" rows={[["Previsto", summary.personalExpected], ["Recebido", summary.personalReceived], ["Falta", summary.personalOpen]]} onClick={() => setTab("personal")} />

@@ -1682,10 +1682,19 @@ async function shareStudentSummary(student:Student){
   const first=student.name.trim().split(/\s+/)[0]||student.name;
   const monthKey=today().slice(0,7);
   const monthName=new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long"});
-  const completed=student.sessions.filter(session=>session.source!=="ABSENCE");
-  const monthCompleted=completed.filter(session=>session.date.slice(0,7)===monthKey).length;
-  const lastCompleted=[...completed].sort((a,b)=>b.date.localeCompare(a.date)||(b.finishedAt||b.startedAt||"").localeCompare(a.finishedAt||a.startedAt||""))[0];
-  const lastWorkoutText=lastCompleted?formatDate(lastCompleted.date):"Nenhum treino registrado";
+  const todayKey=today();
+  let agendaEvents:CalendarEvent[]=[];
+  try{
+    const start=dateOffset(todayKey,-120);
+    const response=await fetch(`/api/google/calendar?date=${start}&days=121`,{cache:"no-store"});
+    if(response.ok){
+      const payload=await response.json();
+      agendaEvents=matchCalendarEvents(Array.isArray(payload?.events)?payload.events:[],[student]).filter(event=>getCalendarEventStudents(event,[student]).some(item=>item.id===student.id)&&calendarEventDate(event)<=todayKey);
+    }
+  }catch{}
+  const monthCompleted=agendaEvents.filter(event=>calendarEventDate(event).slice(0,7)===monthKey).length;
+  const lastAgendaEvent=[...agendaEvents].sort((a,b)=>calendarEventDate(b).localeCompare(calendarEventDate(a))||String(b.start||"").localeCompare(String(a.start||"")))[0];
+  const lastWorkoutText=lastAgendaEvent?formatDate(calendarEventDate(lastAgendaEvent)):"Nenhum treino registrado";
   const assessmentText=latest?`• Última avaliação: ${formatDate(latest.date)}${latest.weight!=null?` · ${latest.weight} kg`:""}${latest.bodyFatPercent!=null?` · ${latest.bodyFatPercent}% de gordura`:""}.`:"";
   let template=DEFAULT_STUDENT_SUMMARY_MESSAGE;
   try{
