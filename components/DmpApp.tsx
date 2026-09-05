@@ -437,7 +437,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     if (!force && calendarLoaded && last && Date.now()-new Date(last).getTime()<CALENDAR_AUTO_REFRESH_MS) return;
     setCalendarLoading(true);
     try {
-      const response=await fetch(`/api/google/calendar?date=${today()}&days=14`,{cache:"no-store"});
+      const monthStart=`${today().slice(0,7)}-01`; const response=await fetch(`/api/google/calendar?date=${monthStart}&days=45`,{cache:"no-store"});
       if (!response.ok) {
         const errorData=await response.json().catch(()=>({}));
         if(response.status===401||errorData?.error==="reauth_required"){setCalendarStatus(current=>({...current,connected:false}));setCalendarLoaded(false);return;}
