@@ -5902,3 +5902,97 @@ input:focus,textarea:focus{
 @media(max-width:390px){
   .calendar-slot-student>.home-workouts-open{grid-column:2!important}
 }
+
+/* DMP 05/09/2026 — Home mobile padronizada e ações presas ao cabeçalho */
+@media(max-width:900px){
+  .dashboard-topbar:has(.today-heading){
+    display:flex!important;
+    flex-direction:row!important;
+    align-items:flex-start!important;
+    justify-content:space-between!important;
+    gap:10px!important;
+  }
+
+  .dashboard-topbar:has(.today-heading) .today-heading{
+    flex:1 1 auto!important;
+    min-width:0!important;
+  }
+
+  .dashboard-topbar:has(.today-heading) .mobile-header-actions{
+    display:flex!important;
+    position:static!important;
+    inset:auto!important;
+    z-index:auto!important;
+    flex:0 0 auto!important;
+    flex-direction:row!important;
+    align-items:center!important;
+    gap:9px!important;
+    margin:0!important;
+  }
+
+  .dashboard-topbar:has(.today-heading) .mobile-header-actions .mobile-quick-launch,
+  .dashboard-topbar:has(.today-heading) .mobile-header-actions .mobile-voice-launch{
+    position:static!important;
+    width:46px!important;
+    height:46px!important;
+    min-width:46px!important;
+    min-height:46px!important;
+    margin:0!important;
+    font-size:1.28rem!important;
+    box-shadow:0 6px 18px rgba(33,41,22,.18)!important;
+  }
+
+  .today-highlight-grid{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    align-items:stretch!important;
+    gap:10px!important;
+  }
+
+  .today-summary-card,
+  .month-closing-today-card,
+  .today-notes-card,
+  .performance-today-card{
+    width:100%!important;
+    min-height:128px!important;
+    height:auto!important;
+    box-sizing:border-box!important;
+    margin:0!important;
+    padding:15px 16px!important;
+    border-radius:16px!important;
+    align-items:flex-start!important;
+  }
+
+  .today-summary-card>div,
+  .month-closing-today-card>div,
+  .today-notes-card>div,
+  .performance-today-card>div{
+    width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+
+  .today-summary-card>div>strong,
+  .month-closing-today-card>div>strong,
+  .today-notes-card>div>strong,
+  .performance-today-card>div>strong{
+    display:block!important;
+    width:100%!important;
+    margin:0 0 7px!important;
+    font-size:.92rem!important;
+    line-height:1.2!important;
+  }
+}
+
+@media(max-width:390px){
+  .dashboard-topbar:has(.today-heading) .mobile-header-actions{
+    gap:7px!important;
+  }
+  .dashboard-topbar:has(.today-heading) .mobile-header-actions .mobile-quick-launch,
+  .dashboard-topbar:has(.today-heading) .mobile-header-actions .mobile-voice-launch{
+    width:42px!important;
+    height:42px!important;
+    min-width:42px!important;
+    min-height:42px!important;
+  }
+}
