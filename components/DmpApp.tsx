@@ -12,6 +12,7 @@ import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
 import type {KidsCategory,KidsData,KidsStudent} from "@/types/kids";
+import {normalizeKidsData} from "@/lib/kids/seed";
 import type {FinanceData} from "@/types/financeiro";
 import { financeSeedAugust2026 } from "@/lib/financeiro/agosto2026";
 import { fetchFinanceCloud, loadFinanceData } from "@/lib/financeiro/storage";
@@ -1587,27 +1588,31 @@ function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onM
   const [kidsSearchStudents,setKidsSearchStudents]=useState<KidsStudent[]>([]);
   useEffect(() => { setMobile(isPhoneDevice());for(const panel of ["sidebar","rail"]){const saved=localStorage.getItem(`dmp_${panel}_width`);if(saved)document.documentElement.style.setProperty(panel==="sidebar"?"--dmp-sidebar-width":"--dmp-agenda-rail-width",`${saved}px`);}}, []);
   useEffect(()=>{
-    if(!studentSearch.trim()||mobile){setKidsSearchStudents([]);return;}
+    if(mobile){setKidsSearchStudents([]);return;}
     let cancelled=false;
     fetch("/api/kids",{cache:"no-store"})
       .then(response=>response.ok?response.json():null)
       .then(payload=>{
         if(cancelled)return;
-        const groups=(payload?.data?.classes||[]) as {students?:KidsStudent[]}[];
+        const raw=payload?.data as KidsData|null;
+        if(!raw){setKidsSearchStudents([]);return;}
+        const data=normalizeKidsData(raw);
         const unique=new Map<string,KidsStudent>();
-        groups.flatMap(group=>group.students||[]).forEach(student=>{if(student?.id&&student.active!==false&&!unique.has(student.id))unique.set(student.id,student);});
+        data.classes.flatMap(group=>group.students||[]).forEach(student=>{
+          if(student?.id&&!unique.has(student.id))unique.set(student.id,student);
+        });
         setKidsSearchStudents([...unique.values()]);
       })
       .catch(()=>{if(!cancelled)setKidsSearchStudents([]);});
     return()=>{cancelled=true;};
-  },[studentSearch,mobile]);
+  },[mobile]);
   const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"reports",icon:"📊",label:"Relatórios"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"students",icon:"👥",label:"Alunos"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"},{view:"settings",icon:"⚙️",label:"Configurações"}];
   const mobileOrder:View[]=["today","kids","finance","performance","reports","students","workouts-overview","assessments-overview","data","settings"];
   const orderedItems = mobile ? mobileOrder.map(view=>items.find(item=>item.view===view)!).filter(Boolean) : items;
   const normalizedSearch=normalizeName(studentSearch);
   const quickStudents=studentSearch.trim()?students.filter(student=>student.status==="ACTIVE"&&normalizeName(student.name).includes(normalizedSearch)).slice(0,6):[];
-  const quickKids=studentSearch.trim()?kidsSearchStudents.filter(student=>normalizeName(student.name).includes(normalizedSearch)).slice(0,6):[];
-  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card" role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div>{mobile&&current==="today"?<div className="sidebar-mobile-actions"><button className="mobile-quick-launch" onClick={onMobileQuick} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={onMobileVoice} aria-label="Falar lançamento financeiro">🎤</button></div>:null}<nav className="dashboard-nav">{orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav>{!mobile?<><button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><strong>Aulas Kids</strong></span></button><div className="sidebar-student-search"><div className="sidebar-student-search-box"><span>⌕</span><input id="sidebar-student-search" value={studentSearch} onChange={event=>setStudentSearch(event.target.value)} placeholder="Buscar Personal ou Kids..." autoComplete="off"/></div>{quickStudents.length||quickKids.length?<div className="sidebar-student-search-results">{quickStudents.map(student=><button key={`personal-${student.id}`} onClick={()=>{setStudentSearch("");onStudent(student.id);}}><strong>{student.name}</strong><small>Personal · Abrir Dashboard</small></button>)}{quickKids.map(student=><button key={`kids-${student.id}`} onClick={()=>{setStudentSearch("");onKidsStudent(student.id);}}><strong>{student.name}</strong><small>Kids · Abrir ficha</small></button>)}</div>:studentSearch.trim()?<div className="sidebar-student-search-empty">Nenhum aluno encontrado.</div>:null}</div><button className="dashboard-logout" onClick={logout}>Sair</button></>:null}{!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}</aside>;
+  const quickKids=studentSearch.trim()?kidsSearchStudents.filter(student=>normalizeName(`${student.name} ${student.fatherName||""} ${student.motherName||""} ${student.financialResponsible||""} ${student.notes||""}`).includes(normalizedSearch)).slice(0,6):[];
+  return <aside className="dashboard-sidebar"><div className="dashboard-logo-card" role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></div>{mobile&&current==="today"?<div className="sidebar-mobile-actions"><button className="mobile-quick-launch" onClick={onMobileQuick} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={onMobileVoice} aria-label="Falar lançamento financeiro">🎤</button></div>:null}<nav className="dashboard-nav">{orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}</nav>{!mobile?<><button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><strong>Aulas Kids</strong></span></button><div className="sidebar-student-search"><div className="sidebar-student-search-box"><span>⌕</span><input id="sidebar-student-search" value={studentSearch} onChange={event=>setStudentSearch(event.target.value)} placeholder="Buscar aluno..." autoComplete="off"/></div>{quickStudents.length||quickKids.length?<div className="sidebar-student-search-results">{quickStudents.map(student=><button key={`personal-${student.id}`} onClick={()=>{setStudentSearch("");onStudent(student.id);}}><strong>{student.name}</strong><small>Personal · Abrir Dashboard</small></button>)}{quickKids.map(student=><button key={`kids-${student.id}`} onClick={()=>{setStudentSearch("");onKidsStudent(student.id);}}><strong>{student.name}</strong><small>Kids · Abrir ficha</small></button>)}</div>:studentSearch.trim()?<div className="sidebar-student-search-empty">Nenhum aluno encontrado.</div>:null}</div><button className="dashboard-logout" onClick={logout}>Sair</button></>:null}{!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}</aside>;
 }
 
 type WeatherData={temperature:number;wind:number;rainChance:number;code:number;hours:{time:string;rain:number}[]};
