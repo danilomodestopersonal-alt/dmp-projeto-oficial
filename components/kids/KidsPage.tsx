@@ -182,9 +182,18 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setNotice("Cadastro salvo na DS, mas o Financeiro não atualizou. Tente salvar a criança novamente.");
     }
   }
-  function updateEvent(event:KidsEvent){
+  function saveEvent(event:KidsEvent){
     if(!data)return;
-    void persist({...data,events:(data.events||[]).map(item=>item.id===event.id?event:item)},"Evento atualizado.");
+    const exists=(data.events||[]).some(item=>item.id===event.id);
+    const events=exists
+      ?(data.events||[]).map(item=>item.id===event.id?event:item)
+      :[...(data.events||[]),event];
+    void persist({...data,events},"Evento salvo.");
+  }
+  function deleteEvent(eventId:string){
+    if(!data)return;
+    const deletedEventIds=[...new Set([...(data.deletedEventIds||[]),eventId])];
+    void persist({...data,events:(data.events||[]).filter(item=>item.id!==eventId),deletedEventIds},"Evento excluído.");
   }
   const classes = data?.classes || [];
   const lessons = data?.lessons || [];
@@ -736,9 +745,8 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
                   a.startTime.localeCompare(b.startTime),
               )
               .map((item) => {
-                const enrolled = item.students.filter(
-                  (student) => student.active,
-                ).length;
+                const activeStudents=item.students.filter(student=>student.active).sort((a,b)=>localeCompare(a.name,b.name));
+                const enrolled = activeStudents.length;
                 const slots =
                   item.category === "RED" || item.category === "ORANGE" ? 6 : 4;
                 return (
@@ -748,11 +756,16 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
                     onClick={() => openClass(item.id)}
                   >
                     <CategoryDot category={item.category} />
-                    <span>
+                    <span className={styles.classCardMain}>
                       <strong>{item.name}</strong>
                       <small>
                         {enrolled}/{slots} alunos ·{" "}
                         {Math.max(0, slots - enrolled)} vagas disponíveis
+                      </small>
+                      <small className={styles.classCardStudents}>
+                        {activeStudents.length
+                          ? `Alunos: ${activeStudents.map(student=>student.name).join(", ")}`
+                          : "Nenhum aluno ativo"}
                       </small>
                     </span>
                     <b>Abrir</b>
@@ -786,7 +799,12 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
                     <CategoryDot key={category} category={category} />
                   ))}
                 </span>
-                <strong>{student.name}</strong>
+                <span className={styles.kidsRosterMain}>
+                  <strong>{student.name}</strong>
+                  <small>
+                    {student.classIds.map(id=>classes.find(group=>group.id===id)?.name).filter(Boolean).join(" · ")}
+                  </small>
+                </span>
                 <small>{student.classIds.length} turma{student.classIds.length === 1 ? "" : "s"}</small>
                 <span>›</span>
               </button>
@@ -805,7 +823,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
         </section>
       ) : null}
 
-      {tab === "events" ? <KidsEvents events={data.events||[]} onSave={updateEvent}/> : null}
+      {tab === "events" ? <KidsEvents events={data.events||[]} onSave={saveEvent} onDelete={deleteEvent}/> : null}
 
       {tab === "reports" ? (
         <Reports
@@ -832,9 +850,12 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       {classId ? (
         <ClassEditor
           group={group(classId)!}
+          lessons={lessons}
           semesterStart={data.semesterStart}
+          semesterEnd={data.semesterEnd}
           onClose={() => setClassId(null)}
           onSave={updateClass}
+          onOpenLesson={(id)=>{setClassId(null);openLesson(id);}}
         />
       ) : null}
       {studentId ? (
@@ -870,42 +891,84 @@ function NewStudentForm({classes,semesterStart,onClose,onSave}:{classes:KidsClas
   </section></div>;
 }
 
-function KidsEvents({events,onSave}:{events:KidsEvent[];onSave:(event:KidsEvent)=>void}){
+function KidsEvents({events,onSave,onDelete}:{events:KidsEvent[];onSave:(event:KidsEvent)=>void;onDelete:(eventId:string)=>void}){
   const [query,setQuery]=useState("");
   const [year,setYear]=useState("ALL");
   const [month,setMonth]=useState("ALL");
+  const [editingEvent,setEditingEvent]=useState<KidsEvent|null>(null);
   const years=[...new Set(events.map(item=>item.year))].sort();
   const normalized=query.trim().toLocaleLowerCase("pt-BR");
-  const filtered=events.filter(event=>(year==="ALL"||String(event.year)===year)&&(month==="ALL"||event.startDate.slice(5,7)===month)&&(!normalized||`${event.name} ${event.description||""}`.toLocaleLowerCase("pt-BR").includes(normalized))).sort((a,b)=>{
+  const filtered=events.filter(event=>(year==="ALL"||String(event.year)===year)&&(month==="ALL"||event.startDate.slice(5,7)===month)&&(!normalized||`${event.name} ${event.description||""} ${event.notes||""}`.toLocaleLowerCase("pt-BR").includes(normalized))).sort((a,b)=>{
     const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
     const aPast=(a.endDate||a.startDate)<todayKey;const bPast=(b.endDate||b.startDate)<todayKey;
     if(aPast!==bPast)return aPast?1:-1;
     return aPast?b.startDate.localeCompare(a.startDate):a.startDate.localeCompare(b.startDate);
   });
   const visibleYears=[...new Set(filtered.map(item=>item.year))].sort();
+  const createEvent=()=>{
+    const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    setEditingEvent({id:`event-${crypto.randomUUID()}`,name:"",startDate:today,endDate:today,year:Number(today.slice(0,4)),status:"PROGRAMMED",type:"OTHER",description:"",notes:"",driveUrl:""});
+  };
+  const duplicateEvent=(event:KidsEvent)=>setEditingEvent({...event,id:`event-${crypto.randomUUID()}`,name:`${event.name} — cópia`});
   return <section className={styles.panel}>
-    <div className={styles.panelHead}><div><h2>Eventos DS Tennis</h2><p>Calendário anual, informações e pastas de trabalho no Google Drive.</p></div></div>
+    <div className={styles.panelHead}>
+      <div><h2>Eventos DS Tennis</h2><p>Calendário anual, informações e pastas de trabalho no Google Drive.</p></div>
+      <button className={styles.primary} onClick={createEvent}>+ Novo evento</button>
+    </div>
     <div className={styles.eventFilters}><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Buscar evento..."/><select value={year} onChange={event=>setYear(event.target.value)}><option value="ALL">Todos os anos</option>{years.map(value=><option key={value} value={value}>{value}</option>)}</select><select value={month} onChange={event=>setMonth(event.target.value)}><option value="ALL">Todos os meses</option>{Array.from({length:12},(_,index)=>{const value=String(index+1).padStart(2,"0");return <option key={value} value={value}>{new Date(2026,index,1).toLocaleDateString("pt-BR",{month:"long"})}</option>;})}</select></div>
     {visibleYears.map(value=><div key={value} className={styles.eventsYear}>
       <h3>{value}</h3>
-      <div className={styles.eventsGrid}>{filtered.filter(item=>item.year===value).map(event=><KidsEventCard key={event.id} event={event} onSave={onSave}/>)}</div>
+      <div className={styles.eventsGrid}>{filtered.filter(item=>item.year===value).map(event=><KidsEventCard key={event.id} event={event} onEdit={()=>setEditingEvent(event)} onDuplicate={()=>duplicateEvent(event)} onDelete={()=>{if(confirm(`Excluir o evento "${event.name}"?`))onDelete(event.id);}}/>)}</div>
     </div>)}
-    {!filtered.length?<Empty title="Nenhum evento encontrado" text="Altere os filtros ou pesquise outro nome."/>:null}
+    {!filtered.length?<Empty title="Nenhum evento encontrado" text="Altere os filtros ou crie um novo evento."/>:null}
+    {editingEvent?<KidsEventEditor event={editingEvent} onClose={()=>setEditingEvent(null)} onSave={event=>{onSave(event);setEditingEvent(null);}}/>:null}
   </section>;
 }
 
-function KidsEventCard({event,onSave}:{event:KidsEvent;onSave:(event:KidsEvent)=>void}){
-  const [editing,setEditing]=useState(false);
-  const [driveUrl,setDriveUrl]=useState(event.driveUrl||"");
+function KidsEventCard({event,onEdit,onDuplicate,onDelete}:{event:KidsEvent;onEdit:()=>void;onDuplicate:()=>void;onDelete:()=>void}){
   const date=event.endDate&&event.endDate!==event.startDate?`${formatDate(event.startDate)} a ${formatDate(event.endDate)}`:formatDate(event.startDate);
-  const past=(event.endDate||event.startDate)<new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-  return <article className={`${styles.eventCard} ${past?styles.eventPast:""}`}>
+  const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const past=(event.endDate||event.startDate)<todayKey;
+  const status=event.status||(past?"COMPLETED":"PROGRAMMED");
+  const statusLabels:Record<NonNullable<KidsEvent["status"]>,string>={PROGRAMMED:"Programado",CONFIRMED:"Confirmado",COMPLETED:"Concluído",CANCELLED:"Cancelado"};
+  const typeLabels:Record<NonNullable<KidsEvent["type"]>,string>={CLINIC:"Clínica",TMC_ADULT:"TMC Adulto",TMC_KIDS:"TMC Kids",RANKING:"Ranking",INTERNAL:"Evento interno",OTHER:"Outro"};
+  return <article className={`${styles.eventCard} ${status==="COMPLETED"||status==="CANCELLED"?styles.eventPast:""}`}>
     <div className={styles.eventDate}><span>{new Date(`${event.startDate}T12:00:00`).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span><strong>{new Date(`${event.startDate}T12:00:00`).getDate()}</strong></div>
-    <div className={styles.eventInfo}><small>{date}</small><h3>{event.name}</h3>{event.description?<p>{event.description}</p>:null}
-      {editing?<div className={styles.eventDriveEdit}><input value={driveUrl} onChange={e=>setDriveUrl(e.target.value)} placeholder="Cole o link da pasta no Google Drive"/><button className={styles.primary} onClick={()=>{onSave({...event,driveUrl:driveUrl.trim()});setEditing(false);}}>Salvar</button></div>:null}
+    <div className={styles.eventInfo}>
+      <small>{date}</small>
+      <h3>{event.name}</h3>
+      <div className={styles.eventMeta}><span>{typeLabels[event.type||"OTHER"]}</span><span>{statusLabels[status]}</span></div>
+      {event.description?<p>{event.description}</p>:null}
+      {event.notes?<small className={styles.eventNotes}>Obs.: {event.notes}</small>:null}
     </div>
-    <div className={styles.eventActions}><span className={past?styles.eventDone:styles.eventUpcoming}>{past?"Realizado":"Programado"}</span>{event.driveUrl?<a href={event.driveUrl} target="_blank" rel="noreferrer">📁 Abrir pasta</a>:null}<button onClick={()=>setEditing(current=>!current)}>{event.driveUrl?"Editar link":"+ Pasta do Drive"}</button></div>
+    <div className={styles.eventActions}>
+      {event.driveUrl?<a href={event.driveUrl} target="_blank" rel="noreferrer">📁 Abrir pasta</a>:null}
+      <button onClick={onEdit}>Editar</button>
+      <button onClick={onDuplicate}>Duplicar</button>
+      <button className={styles.dangerButton} onClick={onDelete}>Excluir</button>
+    </div>
   </article>;
+}
+
+function KidsEventEditor({event,onClose,onSave}:{event:KidsEvent;onClose:()=>void;onSave:(event:KidsEvent)=>void}){
+  const [draft,setDraft]=useState<KidsEvent>({...event});
+  const statusOptions:[NonNullable<KidsEvent["status"]>,string][]=[["PROGRAMMED","Programado"],["CONFIRMED","Confirmado"],["COMPLETED","Concluído"],["CANCELLED","Cancelado"]];
+  const typeOptions:[NonNullable<KidsEvent["type"]>,string][]=[["CLINIC","Clínica"],["TMC_ADULT","TMC Adulto"],["TMC_KIDS","TMC Kids"],["RANKING","Ranking"],["INTERNAL","Evento interno"],["OTHER","Outro"]];
+  const valid=Boolean(draft.name.trim()&&draft.startDate&&(!draft.endDate||draft.endDate>=draft.startDate));
+  return <div className={styles.modalBackdrop}><section className={styles.modal}>
+    <div className={styles.modalHead}><div><h2>{event.name?"Editar evento":"Novo evento"}</h2><p>Cadastre ou atualize as informações do evento.</p></div><button onClick={onClose}>×</button></div>
+    <div className={styles.formGrid}>
+      <label className={styles.eventFormFull}>Título do evento<input autoFocus value={draft.name} onChange={e=>setDraft(current=>({...current,name:e.target.value}))} placeholder="Nome do evento"/></label>
+      <label>Data inicial<input type="date" value={draft.startDate} onChange={e=>setDraft(current=>({...current,startDate:e.target.value,year:Number(e.target.value.slice(0,4))||current.year}))}/></label>
+      <label>Data final<input type="date" min={draft.startDate} value={draft.endDate||draft.startDate} onChange={e=>setDraft(current=>({...current,endDate:e.target.value}))}/></label>
+      <label>Tipo<select value={draft.type||"OTHER"} onChange={e=>setDraft(current=>({...current,type:e.target.value as NonNullable<KidsEvent["type"]>}))}>{typeOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Status<select value={draft.status||"PROGRAMMED"} onChange={e=>setDraft(current=>({...current,status:e.target.value as NonNullable<KidsEvent["status"]>}))}>{statusOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+      <label className={styles.eventFormFull}>Descrição<textarea rows={3} value={draft.description||""} onChange={e=>setDraft(current=>({...current,description:e.target.value}))} placeholder="Descrição do evento"/></label>
+      <label className={styles.eventFormFull}>Observações internas<textarea rows={2} value={draft.notes||""} onChange={e=>setDraft(current=>({...current,notes:e.target.value}))} placeholder="Observações internas"/></label>
+      <label className={styles.eventFormFull}>Pasta do Google Drive<input value={draft.driveUrl||""} onChange={e=>setDraft(current=>({...current,driveUrl:e.target.value}))} placeholder="Cole o link da pasta (opcional)"/></label>
+    </div>
+    <div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!valid} onClick={()=>onSave({...draft,name:draft.name.trim(),description:draft.description?.trim(),notes:draft.notes?.trim(),driveUrl:draft.driveUrl?.trim(),endDate:draft.endDate||draft.startDate,year:Number(draft.startDate.slice(0,4))})}>Salvar evento</button></div>
+  </section></div>;
 }
 
 function ReplacementBoard({replacements,students}:{replacements:KidsReplacement[];students:{id:string;name:string}[]}){
@@ -1397,14 +1460,20 @@ function LessonEditor({
 
 function ClassEditor({
   group,
+  lessons,
   semesterStart,
+  semesterEnd,
   onClose,
   onSave,
+  onOpenLesson,
 }: {
   group: KidsClass;
+  lessons: KidsLesson[];
   semesterStart: string;
+  semesterEnd: string;
   onClose: () => void;
   onSave: (next: KidsClass) => void;
+  onOpenLesson: (id:string) => void;
 }) {
   const [draft, setDraft] = useState({
     ...group,
@@ -1415,6 +1484,13 @@ function ClassEditor({
   });
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState(semesterStart);
+  const [lessonSummary,setLessonSummary]=useState<"COMPLETED"|"CANCELLED"|null>(null);
+  const classLessons=lessons
+    .filter(lesson=>lesson.classId===group.id&&lesson.kind!=="REPLACEMENT"&&lesson.date>=semesterStart&&lesson.date<=semesterEnd)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  const completedLessons=classLessons.filter(lesson=>lesson.status==="COMPLETED");
+  const cancelledLessons=classLessons.filter(lesson=>lesson.status==="CANCELLED"||lesson.status==="HOLIDAY");
+  const summaryLessons=lessonSummary==="COMPLETED"?completedLessons:lessonSummary==="CANCELLED"?cancelledLessons:[];
   function add() {
     const clean = name.trim();
     if (!clean) return;
@@ -1443,6 +1519,28 @@ function ClassEditor({
           </div>
           <button onClick={onClose}>×</button>
         </div>
+        <div className={styles.classSemesterSummary}>
+          <button type="button" onClick={()=>setLessonSummary(current=>current==="COMPLETED"?null:"COMPLETED")} className={lessonSummary==="COMPLETED"?styles.classSemesterActive:""}>
+            <strong>{completedLessons.length}</strong>
+            <span>Aulas realizadas</span>
+          </button>
+          <button type="button" onClick={()=>setLessonSummary(current=>current==="CANCELLED"?null:"CANCELLED")} className={lessonSummary==="CANCELLED"?styles.classSemesterActive:""}>
+            <strong>{cancelledLessons.length}</strong>
+            <span>Aulas canceladas</span>
+          </button>
+          <div>
+            <strong>{classLessons.length}</strong>
+            <span>Aulas previstas</span>
+          </div>
+        </div>
+        {lessonSummary?<div className={styles.classLessonHistory}>
+          <div className={styles.classLessonHistoryHead}><strong>{lessonSummary==="COMPLETED"?"Aulas realizadas":"Aulas canceladas"} no semestre</strong><button type="button" onClick={()=>setLessonSummary(null)}>Fechar lista</button></div>
+          {summaryLessons.length?summaryLessons.map(lesson=><button type="button" key={lesson.id} onClick={()=>onOpenLesson(lesson.id)}>
+            <span>{formatDate(lesson.date)}</span>
+            <small>{statusLabel[lesson.status]}{lesson.theme?` · ${lesson.theme}`:""}</small>
+            <b>Abrir</b>
+          </button>):<p>Nenhuma aula nesta situação.</p>}
+        </div>:null}
         <div className={styles.formGrid}>
           <label>
             Nome da turma

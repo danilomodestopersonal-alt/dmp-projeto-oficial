@@ -121,9 +121,11 @@ export function normalizeKidsData(source:KidsData):KidsData{
     }
   }
   const uniqueReplacements=[...new Map(replacements.map(item=>[`${item.sourceLessonId}:${item.studentId}`,item])).values()];
-  const savedEvents=Array.isArray(source.events)?source.events:[];
-  const events=[...savedEvents,...kidsEvents.filter(item=>!savedEvents.some(saved=>saved.id===item.id))].sort((a,b)=>a.startDate.localeCompare(b.startDate));
-  return {...source,classes,lessons,replacements:uniqueReplacements,events,updatedAt:source.updatedAt||now};
+  const deletedEventIds=[...new Set(source.deletedEventIds||[])];
+  const deletedEvents=new Set(deletedEventIds);
+  const savedEvents=(Array.isArray(source.events)?source.events:[]).filter(item=>!deletedEvents.has(item.id));
+  const events=[...savedEvents,...kidsEvents.filter(item=>!deletedEvents.has(item.id)&&!savedEvents.some(saved=>saved.id===item.id))].sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  return {...source,classes,lessons,replacements:uniqueReplacements,events,deletedEventIds,updatedAt:source.updatedAt||now};
 }
 
 function earliestDate(a?:string,b?:string){if(!a)return b;if(!b)return a;return a<b?a:b;}

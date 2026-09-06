@@ -62,14 +62,20 @@ export type KidsReplacement = {
   attendance?:KidsAttendanceStatus;
 };
 
+export type KidsEventStatus = "PROGRAMMED" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type KidsEventType = "CLINIC" | "TMC_ADULT" | "TMC_KIDS" | "RANKING" | "INTERNAL" | "OTHER";
+
 export type KidsEvent = {
   id:string;
   name:string;
   startDate:string;
   endDate?:string;
   description?:string;
+  notes?:string;
   year:number;
   driveUrl?:string;
+  status?:KidsEventStatus;
+  type?:KidsEventType;
 };
 
 export type KidsData = {
@@ -80,5 +86,6 @@ export type KidsData = {
   lessons:KidsLesson[];
   replacements?:KidsReplacement[];
   events?:KidsEvent[];
+  deletedEventIds?:string[];
   updatedAt:string;
 };

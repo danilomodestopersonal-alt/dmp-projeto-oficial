@@ -213,22 +213,30 @@
 }
 .classGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 .classCard {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
   align-items: center;
   text-align: left;
   gap: 12px;
+  width: 100%;
 }
-.classCard span:nth-child(2) {
+.classCardMain {
   display: grid;
   gap: 4px;
-  flex: 1;
+  min-width: 0;
 }
 .classCard small {
   color: #687974;
+}
+.classCardStudents {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #536b64 !important;
 }
 .loading {
   min-height: 70vh;
@@ -541,9 +549,7 @@
 .kidsRoster {
   display: grid;
   gap: 7px;
-  max-height: 430px;
-  overflow: auto;
-  padding-right: 5px;
+  padding-right: 0;
 }
 .kidsRoster > button {
   display: flex;
@@ -552,6 +558,22 @@
   width: 100%;
   padding: 11px 13px;
   text-align: left;
+}
+.kidsRosterMain {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.kidsRosterMain strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kidsRosterMain small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .kidsRoster > button strong {
   flex: 1;
@@ -634,4 +656,99 @@
     flex-direction: column;
   }
   .eventFilters{grid-template-columns:1fr}.eventCard{grid-template-columns:65px 1fr}.eventActions{grid-column:2}.eventDriveEdit{flex-direction:column}.eventDriveEdit input{min-width:0;width:100%}
+}
+
+.classSemesterSummary {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.classSemesterSummary > button,
+.classSemesterSummary > div {
+  display: grid;
+  gap: 3px;
+  padding: 14px;
+  border: 1px solid #d9e3df;
+  border-radius: 16px;
+  background: #f8faf7;
+  color: #173f38;
+  text-align: left;
+}
+.classSemesterSummary > button {
+  cursor: pointer;
+}
+.classSemesterSummary strong {
+  font-size: 26px;
+  color: #6f8f14;
+}
+.classSemesterSummary span {
+  color: #657670;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.classSemesterActive {
+  border-color: #9fbe27 !important;
+  box-shadow: 0 0 0 2px #b7d83c33;
+  background: #f4f9df !important;
+}
+.classLessonHistory {
+  display: grid;
+  gap: 7px;
+  margin: -5px 0 18px;
+  padding: 12px;
+  border: 1px solid #dce5e1;
+  border-radius: 16px;
+  background: #fbfcfa;
+}
+.classLessonHistoryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.classLessonHistoryHead button {
+  padding: 7px 10px !important;
+}
+.classLessonHistory > button {
+  display: grid;
+  grid-template-columns: 105px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 9px 11px !important;
+}
+.classLessonHistory > button small {
+  color: #687974;
+}
+.eventMeta {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.eventMeta span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #f1f5ea;
+  color: #55725f;
+  font-size: .7rem;
+  font-weight: 900;
+}
+.eventNotes {
+  color: #6a7773 !important;
+}
+.dangerButton {
+  color: #b43c36 !important;
+  border-color: #e6bbb8 !important;
+}
+.eventFormFull {
+  grid-column: 1 / -1;
+}
+@media (max-width: 800px) {
+  .classSemesterSummary { grid-template-columns: 1fr; }
+  .classLessonHistory > button { grid-template-columns: 90px 1fr; }
+  .classLessonHistory > button b { grid-column: 2; }
+  .classCard { grid-template-columns: auto minmax(0,1fr) auto; }
+  .classCardStudents { white-space: normal; }
+  .kidsRoster > button { align-items: flex-start; }
 }
