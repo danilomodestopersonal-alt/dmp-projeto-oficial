@@ -236,7 +236,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #536b64 !important;
+  color: #7b8985 !important;
+  font-size: .8rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.classCardStudents span {
+  color: #5f716b;
+  font-weight: 700;
 }
 .loading {
   min-height: 70vh;

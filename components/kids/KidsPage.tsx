@@ -764,7 +764,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
                       </small>
                       <small className={styles.classCardStudents}>
                         {activeStudents.length
-                          ? `Alunos: ${activeStudents.map(student=>student.name).join(", ")}`
+                          ? <><span>Alunos:</span> {activeStudents.map(student=>student.name).join(", ")}</>
                           : "Nenhum aluno ativo"}
                       </small>
                     </span>
@@ -893,7 +893,8 @@ function NewStudentForm({classes,semesterStart,onClose,onSave}:{classes:KidsClas
 
 function KidsEvents({events,onSave,onDelete}:{events:KidsEvent[];onSave:(event:KidsEvent)=>void;onDelete:(eventId:string)=>void}){
   const [query,setQuery]=useState("");
-  const [year,setYear]=useState("ALL");
+  const currentYear=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric"}).format(new Date());
+  const [year,setYear]=useState(currentYear);
   const [month,setMonth]=useState("ALL");
   const [editingEvent,setEditingEvent]=useState<KidsEvent|null>(null);
   const years=[...new Set(events.map(item=>item.year))].sort();
@@ -1488,8 +1489,9 @@ function ClassEditor({
   const classLessons=lessons
     .filter(lesson=>lesson.classId===group.id&&lesson.kind!=="REPLACEMENT"&&lesson.date>=semesterStart&&lesson.date<=semesterEnd)
     .sort((a,b)=>a.date.localeCompare(b.date));
-  const completedLessons=classLessons.filter(lesson=>lesson.status==="COMPLETED");
-  const cancelledLessons=classLessons.filter(lesson=>lesson.status==="CANCELLED"||lesson.status==="HOLIDAY");
+  const plannedLessons=classLessons.filter(lesson=>lesson.status!=="HOLIDAY");
+  const completedLessons=plannedLessons.filter(lesson=>lesson.status==="COMPLETED");
+  const cancelledLessons=plannedLessons.filter(lesson=>lesson.status==="CANCELLED");
   const summaryLessons=lessonSummary==="COMPLETED"?completedLessons:lessonSummary==="CANCELLED"?cancelledLessons:[];
   function add() {
     const clean = name.trim();
@@ -1529,7 +1531,7 @@ function ClassEditor({
             <span>Aulas canceladas</span>
           </button>
           <div>
-            <strong>{classLessons.length}</strong>
+            <strong>{plannedLessons.length}</strong>
             <span>Aulas previstas</span>
           </div>
         </div>
