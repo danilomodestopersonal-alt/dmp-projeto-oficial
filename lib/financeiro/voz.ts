@@ -26,9 +26,9 @@ export function parseMoney(value: string) {
 
 export function suggestCategory(text: string) {
   const t = normalizeVoice(text);
-  if (/padaria|ifood|marmita|pizza|lanche|sorvete|agua de coco/.test(t)) return "Alimentação";
-  if (/mercado|covabra|pague menos/.test(t)) return "Mercado";
-  if (/combust|posto|estacion|lava car/.test(t)) return "Transporte";
+  if (/mcdonald|mc donald|uber eats|ifood|padaria|marmita|pizza|lanche|sorvete|agua de coco|almoco|jantar|restaurante|lanchonete|cafe/.test(t)) return "Alimentação";
+  if (/mercado|covabra|pague menos|supermercado/.test(t)) return "Mercado";
+  if (/uber|99|taxi|combust|posto|estacion|lava car/.test(t)) return "Transporte";
   if (/pintor|reforma/.test(t)) return "Reforma da Casa";
   if (/casa|lamp|travesseiro/.test(t)) return "Casa";
   if (/farmacia|remedio|saude/.test(t)) return "Saúde";

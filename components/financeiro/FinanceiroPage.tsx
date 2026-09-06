@@ -336,6 +336,37 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
     setAction({type:"extra-create"});
   }, []);
 
+  function voiceCategoryKey(label:string) {
+    return normalizeFinanceName(label);
+  }
+
+  function learnedVoiceCategory(label:string) {
+    try {
+      const raw=window.localStorage.getItem("dmp_finance_voice_categories");
+      const map=raw?JSON.parse(raw) as Record<string,string>:{};
+      return map[voiceCategoryKey(label)]||"";
+    } catch {
+      return "";
+    }
+  }
+
+  function rememberVoiceCategory(label:string,category:string) {
+    try {
+      const raw=window.localStorage.getItem("dmp_finance_voice_categories");
+      const map=raw?JSON.parse(raw) as Record<string,string>:{};
+      map[voiceCategoryKey(label)]=category;
+      window.localStorage.setItem("dmp_finance_voice_categories",JSON.stringify(map));
+    } catch {}
+  }
+
+  function addVoiceCategory() {
+    if(!voicePreview||voicePreview.kind!=="extra"||!requireEditable())return;
+    const name=window.prompt("Nome da nova categoria:")?.trim();
+    if(!name)return;
+    dispatch({type:"CATEGORY_CREATE",name,competence});
+    setVoicePreview(current=>current&&current.kind==="extra"?{...current,category:name}:current);
+  }
+
   function startVoice() {
     if (!requireEditable()) return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -350,7 +381,13 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
     recognition.onresult = (event: any) => {
       const text = event.results?.[0]?.[0]?.transcript || "";
       setVoiceText(text);
-      setVoicePreview(parseFinanceVoice(text, summary.personal, summary.expenses));
+      const parsed=parseFinanceVoice(text, summary.personal, summary.expenses);
+      if(parsed?.kind==="extra"){
+        const learned=learnedVoiceCategory(parsed.label);
+        setVoicePreview(learned?{...parsed,category:learned}:parsed);
+      }else{
+        setVoicePreview(parsed);
+      }
     };
     recognition.onerror = () => window.alert("Não consegui entender. Tente novamente.");
     recognition.start();
@@ -371,7 +408,9 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         window.alert("Esse gasto já parece estar lançado hoje. Nada foi duplicado.");
         return;
       }
-      dispatch({ type: "EXTRA_CREATE", competence, date: today(), description: preview.label, category: preview.category || "Outros", amount: preview.amount });
+      const category=preview.category || "Outros";
+      dispatch({ type: "EXTRA_CREATE", competence, date: today(), description: preview.label, category, amount: preview.amount });
+      rememberVoiceCategory(preview.label,category);
     } else if (preview.kind === "ds") {
       dispatch({ type: "DS_RECEIPT_ADD", competence, date: today(), amount: preview.amount, sourceName: "DS", note: "Lançado por voz" });
     } else if (preview.kind === "ranking") {
@@ -462,7 +501,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
           <h1>Financeiro</h1>
           <p>{competenceLabel(competence)} · <strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",justifyContent:"center",padding:"0 8px"}}>
+        <div className={styles.quickActions}>
           <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
           <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
           <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
@@ -475,7 +514,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
               {competences.map(item => <option key={item} value={item}>{competenceLabel(item)}</option>)}
             </select>
           </label>
-          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
+          <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
           <button className={`primary ${styles.micButton}`} onClick={startVoice}>🎤 Falar</button>
         </div>
       </header>
@@ -495,9 +534,14 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         {!editable ? <section className={styles.closedBanner}><strong>🔒 {competenceLabel(competence)} está fechada.</strong><span>Os dados estão em modo somente leitura. Para corrigir algo, use Reabrir na aba Fechamento.</span></section> : null}
 
         {voiceText ? (
-          <section className={`panel ${styles.voicePreview}`}>
+          <section className={`panel ${styles.voicePreview} ${voicePreview?.kind==="extra"?styles.voiceExtraPreview:""}`}>
             <div><span className="muted">Você disse</span><strong>“{voiceText}”</strong></div>
-            {voicePreview ? <div><span className="muted">Vou registrar</span><strong>{voicePreview.label} · {money.format(voicePreview.amount)}</strong></div> : <div><strong>Não ficou claro.</strong><span className="muted">Tente uma frase mais específica.</span></div>}
+            {voicePreview?.kind==="extra" ? <div className={styles.voiceExtraFields}>
+              <label>Estabelecimento / descrição<input value={voicePreview.label} onChange={event=>setVoicePreview(current=>current&&current.kind==="extra"?{...current,label:event.target.value}:current)} /></label>
+              <label>Valor<input inputMode="decimal" value={String(voicePreview.amount).replace(".",",")} onChange={event=>{const amount=parseMoney(event.target.value);setVoicePreview(current=>current&&current.kind==="extra"&&amount!==null?{...current,amount}:current);}} /></label>
+              <label>Categoria<select value={voicePreview.category||"Outros"} onChange={event=>setVoicePreview(current=>current&&current.kind==="extra"?{...current,category:event.target.value}:current)}>{data.categories.map(item=><option key={item}>{item}</option>)}</select></label>
+              <button type="button" className="secondary" onClick={addVoiceCategory}>+ Categoria</button>
+            </div> : voicePreview ? <div><span className="muted">Vou registrar</span><strong>{voicePreview.label} · {money.format(voicePreview.amount)}</strong></div> : <div><strong>Não ficou claro.</strong><span className="muted">Tente uma frase mais específica.</span></div>}
             <div className={styles.inlineActions}>
               <button className="secondary" onClick={() => { setVoiceText(""); setVoicePreview(null); }}>Cancelar</button>
               {voicePreview ? <button className="primary" onClick={confirmVoice}>Confirmar</button> : null}
@@ -508,14 +552,14 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         {tab === "summary" ? (
           <>
             <div className={styles.kpiGrid}>
-              <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" />
-              <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" />
-              <Kpi label="A receber" value={summary.receivable} tone="income" />
+              <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" onClick={()=>{setListFilter("ALL");setTab("personal");}} />
+              <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" onClick={()=>{setListFilter("PAID");setTab("personal");}} />
+              <Kpi label="A receber" value={summary.receivable} tone="income" onClick={()=>{setListFilter("OPEN");setTab("personal");}} />
               <Kpi label="Saldo projetado" value={summary.projectedResult} />
-              <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" />
-              <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" />
-              <Kpi label="A pagar" value={summary.payable} tone="expense" />
-              <Kpi label="Gastos extras do mês" value={summary.extrasTotal} tone="expense" />
+              <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" onClick={()=>{setListFilter("ALL");setTab("expenses");}} />
+              <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" onClick={()=>{setListFilter("PAID");setTab("expenses");}} />
+              <Kpi label="A pagar" value={summary.payable} tone="expense" onClick={()=>{setListFilter("OPEN");setTab("expenses");}} />
+              <Kpi label="Gastos extras do mês" value={summary.extrasTotal} tone="expense" onClick={()=>setTab("extras")} />
             </div>
 
             <section className={`panel ${styles.weeklyDue}`}>
@@ -525,7 +569,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
 
             <div className={styles.threeCol}>
-              <MiniSummary title="Personal" rows={[["Previsto", summary.personalExpected], ["Recebido", summary.personalReceived], ["Falta", summary.personalOpen]]} onClick={() => setTab("personal")} />
+              <MiniSummary title="Personal" rows={[["Previsto", summary.personalExpected], ["Recebido", summary.personalReceived], ["A receber", summary.personalOpen]]} onClick={() => setTab("personal")} />
               <MiniSummary title="DS Tênis" rows={[["Kids líquido", summary.kidsNet], ["Ranking", summary.ranking], ["Recebido", summary.dsReceived], [summary.dsBalance >= 0 ? "A receber" : "A devolver", Math.abs(summary.dsBalance)]]} onClick={() => setTab("ds")} />
               <MiniSummary title="Despesas" rows={[["Previstas", summary.expensesExpected], ["Pagas", summary.expensesPaid], ["A pagar", summary.payable]]} onClick={() => setTab("expenses")} />
             </div>
@@ -855,7 +899,7 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (value: Filte
 function compareDueDay(a:{dueDay?:number|null},b:{dueDay?:number|null}) { const ad=a.dueDay&&a.dueDay>0?a.dueDay:Number.MAX_SAFE_INTEGER; const bd=b.dueDay&&b.dueDay>0?b.dueDay:Number.MAX_SAFE_INTEGER; return ad-bd; }
 function FinanceCategoryDot({category}:{category?:"RED"|"ORANGE"|"GREEN"|null}) { return category?<span className={`${styles.financeCategoryDot} ${styles[category.toLowerCase()]}`} aria-label={`Categoria ${category.toLowerCase()}`}/>:null; }
 function matchesFilter(status: string, filter: Filter) { if (filter === "ALL") return true; if (filter === "PAID") return status === "PAID"; if (filter === "OVERDUE") return status.includes("OVERDUE"); return status !== "PAID"; }
-function Kpi({ label, value, text, emphasis = false, percent = false, tone = "neutral" }: { label: string; value?: number; text?: string; emphasis?: boolean; percent?: boolean; tone?: "neutral" | "income" | "expense" | "resultPositive" | "resultNegative" | "resultZero" }) { const toneClass = tone === "income" ? styles.kpiIncome : tone === "expense" ? styles.kpiExpense : tone === "resultPositive" ? styles.kpiResultPositive : tone === "resultNegative" ? styles.kpiResultNegative : tone === "resultZero" ? styles.kpiResultZero : ""; return <article className={`${styles.kpi} ${emphasis ? styles.kpiEmphasis : ""} ${toneClass}`}><span>{label}</span><strong>{text ?? (percent ? `${(value || 0).toFixed(1).replace(".", ",")}%` : money.format(value || 0))}</strong></article>; }
+function Kpi({ label, value, text, emphasis = false, percent = false, tone = "neutral", onClick }: { label: string; value?: number; text?: string; emphasis?: boolean; percent?: boolean; tone?: "neutral" | "income" | "expense" | "resultPositive" | "resultNegative" | "resultZero"; onClick?:()=>void }) { const toneClass = tone === "income" ? styles.kpiIncome : tone === "expense" ? styles.kpiExpense : tone === "resultPositive" ? styles.kpiResultPositive : tone === "resultNegative" ? styles.kpiResultNegative : tone === "resultZero" ? styles.kpiResultZero : ""; const className=`${styles.kpi} ${emphasis ? styles.kpiEmphasis : ""} ${toneClass} ${onClick?styles.kpiClickable:""}`; const content=<><span>{label}</span><strong>{text ?? (percent ? `${(value || 0).toFixed(1).replace(".", ",")}%` : money.format(value || 0))}</strong></>; return onClick?<button type="button" className={className} onClick={onClick} title={`Abrir ${label}`}>{content}</button>:<article className={className}>{content}</article>; }
 function Pending({ text, onClick, danger = false }: { text: string; onClick: () => void; danger?: boolean }) { return <button className={`${styles.pending} ${danger ? styles.pendingDanger : ""}`} onClick={onClick}><span>●</span><strong>{text}</strong><span>›</span></button>; }
 function MiniSummary({ title, rows, onClick }: { title: string; rows: [string, number][]; onClick: () => void }) { return <section className={`panel ${styles.mini}`}><div className="panel-head"><h2>{title}</h2><button className="text-button" onClick={onClick}>Ver</button></div>{rows.map(([label, value]) => <div className={styles.miniRow} key={label}><span>{label}</span><strong>{money.format(value)}</strong></div>)}</section>; }
 function Calc({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) { return <div className={`${styles.calcRow} ${strong ? styles.calcStrong : ""}`}><span>{label}</span><strong>{money.format(value)}</strong></div>; }

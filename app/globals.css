@@ -5996,3 +5996,23 @@ input:focus,textarea:focus{
     min-height:42px!important;
   }
 }
+
+
+/* DMP 06/09/2026 — Home mobile: ações no cabeçalho preto e cards compactos */
+.sidebar-mobile-actions{display:none}
+@media(max-width:900px){
+  .dashboard-sidebar{position:relative!important}
+  .sidebar-mobile-actions{display:flex!important;position:absolute!important;top:14px!important;right:14px!important;z-index:4!important;align-items:center!important;gap:9px!important}
+  .sidebar-mobile-actions .mobile-quick-launch,.sidebar-mobile-actions .mobile-voice-launch{display:grid!important;place-items:center!important;position:static!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;margin:0!important;border-radius:50%!important;font-size:1.28rem!important;box-shadow:0 6px 18px rgba(0,0,0,.24)!important}
+  .sidebar-mobile-actions .mobile-quick-launch{border:0!important;background:var(--dmp-green)!important;color:#1e2718!important}
+  .sidebar-mobile-actions .mobile-voice-launch{border:0!important;background:#fff!important;color:#116f99!important}
+  .today-highlight-grid{gap:10px!important;align-items:start!important}
+  .today-summary-card,.month-closing-today-card,.today-notes-card,.performance-today-card{min-height:0!important;height:auto!important;padding:14px 16px!important;align-self:start!important}
+  .today-summary-card>div,.month-closing-today-card>div,.today-notes-card>div,.performance-today-card>div{min-height:0!important;align-self:auto!important;justify-content:flex-start!important}
+  .today-summary-card>div>strong,.month-closing-today-card>div>strong,.today-notes-card>div>strong,.performance-today-card>div>strong{min-height:0!important;margin-bottom:7px!important;padding-top:0!important}
+}
+@media(max-width:520px){
+  .dashboard-logo-card{max-width:48vw!important}
+  .sidebar-mobile-actions{top:15px!important;right:12px!important;gap:8px!important}
+  .sidebar-mobile-actions .mobile-quick-launch,.sidebar-mobile-actions .mobile-voice-launch{width:43px!important;height:43px!important;min-width:43px!important;min-height:43px!important}
+}
