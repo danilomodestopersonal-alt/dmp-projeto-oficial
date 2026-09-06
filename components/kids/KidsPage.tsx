@@ -492,6 +492,21 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       </section>
     );
 
+  const semesterLessons=lessons.filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd&&item.status!=="HOLIDAY");
+  const semesterCompleted=semesterLessons.filter(item=>item.status==="COMPLETED"||(item.status==="SCHEDULED"&&lessonHasPassed(item,classes))).length;
+  const semesterCancelled=semesterLessons.filter(item=>item.status==="CANCELLED").length;
+  const semesterScheduled=semesterLessons.length;
+  const replacementPending=(data.replacements||[]).filter(item=>item.status==="PENDING").length;
+  const replacementCompleted=(data.replacements||[]).filter(item=>item.status==="COMPLETED").length;
+  const totalVacancies=Math.max(0,capacity-occupied);
+  const activeClassesByCapacity=classes.filter(item=>item.active).map(item=>{
+    const classCapacity=item.category==="RED"||item.category==="ORANGE"?6:4;
+    const enrolled=item.students.filter(student=>student.active).length;
+    const rate=classCapacity?Math.round((enrolled/classCapacity)*100):0;
+    const status=rate>=100?"Lotada":rate>=80?"Quase lotada":rate>=50?"Equilibrada":"Baixa ocupação";
+    return {...item,classCapacity,enrolled,rate,status,vacancies:Math.max(0,classCapacity-enrolled)};
+  }).sort((a,b)=>b.rate-a.rate||a.weekday-b.weekday||a.startTime.localeCompare(b.startTime));
+
   return (
     <div className={styles.page}>
       <header className={styles.hero}>
@@ -539,38 +554,47 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
 
       {tab === "dashboard" ? (
         <>
-          <section className={styles.stats}>
-            <Stat
-              label="Turmas ativas"
-              value={classes.filter((item) => item.active).length}
-              icon="🎾"
-              onClick={() => { setVacanciesOnly(false); setTab("classes"); }}
-            />
-            <Stat
-              label="Alunos ativos"
-              value={allKids.length}
-              icon="👥"
-              onClick={() => setTab("students")}
-            />
-            <div className={`${styles.stat} kids-lessons-status-stat`}>
-              <span>✅</span>
+          <section className={styles.semesterPanel}>
+            <div className={styles.semesterHead}>
               <div>
-                <small>Aulas realizadas / canceladas</small>
-                <button type="button" className="kids-stat-filter kids-stat-completed" onClick={() => openAgenda("COMPLETED")}>{completed} realizadas</button>
-                <button type="button" className="kids-stat-filter kids-stat-cancelled" onClick={() => openAgenda("CANCELLED")}>{cancelled} canceladas</button>
+                <span>COORDENAÇÃO KIDS</span>
+                <h2>Painel do semestre</h2>
+                <p>{formatDate(data.semesterStart)} a {formatDate(data.semesterEnd)} · visão rápida da operação Kids</p>
               </div>
-              <button type="button" className="kids-stat-all" onClick={() => openAgenda("ALL")} aria-label="Abrir todas as aulas">›</button>
+              <button onClick={() => openAgenda("ALL")}>Abrir agenda do semestre</button>
             </div>
-            <Stat
-              label="Ocupação das vagas"
-              value={occupancy}
-              suffix={`% · ${occupied}/${capacity}`}
-              icon="📊"
-              onClick={() => {
-                setVacanciesOnly(true);
-                setTab("classes");
-              }}
-            />
+            <div className={styles.semesterStats}>
+              <button onClick={() => setTab("students")}><small>Alunos ativos</small><strong>{allKids.length}</strong><span>cadastros ativos</span></button>
+              <button onClick={() => {setVacanciesOnly(false);setTab("classes");}}><small>Turmas ativas</small><strong>{classes.filter(item=>item.active).length}</strong><span>{occupied}/{capacity} vagas ocupadas</span></button>
+              <button onClick={() => openAgenda("COMPLETED")}><small>Aulas realizadas</small><strong>{semesterCompleted}</strong><span>de {semesterScheduled} previstas</span></button>
+              <button onClick={() => openAgenda("CANCELLED")}><small>Canceladas reais</small><strong>{semesterCancelled}</strong><span>feriados não entram</span></button>
+              <button onClick={() => setTab("replacements")}><small>Reposições</small><strong>{replacementPending}</strong><span>{replacementCompleted} concluídas</span></button>
+              <button onClick={() => {setVacanciesOnly(true);setTab("classes");}}><small>Vagas disponíveis</small><strong>{totalVacancies}</strong><span>{occupancy}% de ocupação média</span></button>
+            </div>
+          </section>
+          <section className={styles.capacityPanel}>
+            <div className={styles.panelHead}>
+              <div>
+                <h2>Vagas e capacidade</h2>
+                <p>Veja rapidamente quais turmas estão lotadas e onde ainda há espaço.</p>
+              </div>
+              <button onClick={() => {setVacanciesOnly(false);setTab("classes");}}>Abrir todas as turmas</button>
+            </div>
+            <div className={styles.capacitySummary}>
+              <span><b>{activeClassesByCapacity.filter(item=>item.rate>=100).length}</b> lotadas</span>
+              <span><b>{activeClassesByCapacity.filter(item=>item.rate>=80&&item.rate<100).length}</b> quase lotadas</span>
+              <span><b>{activeClassesByCapacity.filter(item=>item.rate>=50&&item.rate<80).length}</b> equilibradas</span>
+              <span><b>{activeClassesByCapacity.filter(item=>item.rate<50).length}</b> baixa ocupação</span>
+            </div>
+            <div className={styles.capacityList}>
+              {activeClassesByCapacity.map(item=><button key={item.id} onClick={()=>openClass(item.id)}>
+                <span className={styles.categoryDots}><CategoryDot category={item.category}/></span>
+                <span className={styles.capacityMain}><strong>{item.name}</strong><small>{weekdayLabel[item.weekday]} · {item.startTime} · {item.teacher}</small></span>
+                <span className={styles.capacityNumbers}><b>{item.enrolled}/{item.classCapacity}</b><small>{item.vacancies} vaga{item.vacancies===1?"":"s"}</small></span>
+                <span className={`${styles.capacityStatus} ${item.status==="Lotada"?styles.capacityFull:item.status==="Quase lotada"?styles.capacityNear:item.status==="Baixa ocupação"?styles.capacityLow:styles.capacityOk}`}>{item.status}</span>
+                <span className={styles.capacityBar}><i style={{width:`${Math.min(100,item.rate)}%`}}/></span>
+              </button>)}
+            </div>
           </section>
           <section className="kids-mobile-quick-search">
             <label htmlFor="kids-dashboard-search">Buscar aluno Kids</label>
@@ -1882,6 +1906,26 @@ function StudentEditor({
     (lesson) => lesson.attendance[studentId] === "ABSENT",
   ).length;
   const cancelledLessons=lessons.filter(lesson=>lesson.status==="CANCELLED"&&classes.some(group=>group.id===lesson.classId&&group.students.some(student=>student.id===studentId&&(!student.startDate||student.startDate<=lesson.date)))).sort((a,b)=>b.date.localeCompare(a.date));
+  const allMemberships=draft.filter(group=>group.students.some(student=>student.id===studentId));
+  const historyItems=[
+    ...allMemberships.map(group=>{
+      const member=group.students.find(student=>student.id===studentId)!;
+      return {date:member.startDate||semesterStart,type:"Turma",title:`Entrada em ${group.name}`,detail:`Bola ${categoryLabel[group.category]} · ${weekdayLabel[group.weekday]}, ${group.startTime}${member.active?"":" · turma anterior/inativa"}`};
+    }),
+    ...completedLessons.map(lesson=>({
+      date:lesson.date,
+      type:lesson.attendance[studentId]==="ABSENT"?"Falta":"Aula",
+      title:lesson.attendance[studentId]==="ABSENT"?"Falta registrada":"Aula realizada",
+      detail:groupName(classes,lesson.classId),
+    })),
+    ...cancelledLessons.map(lesson=>({date:lesson.date,type:"Cancelamento",title:"Aula cancelada",detail:`${groupName(classes,lesson.classId)}${lesson.notes?` · ${lesson.notes}`:""}`})),
+    ...credits.map(item=>({
+      date:item.completedDate||item.scheduledDate||item.sourceDate,
+      type:"Reposição",
+      title:item.status==="COMPLETED"?"Reposição concluída":item.status==="SCHEDULED"?"Reposição agendada":"Reposição pendente",
+      detail:item.status==="COMPLETED"?`Origem: ${formatDate(item.sourceDate)}`:item.reason,
+    })),
+  ].filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd).sort((a,b)=>b.date.localeCompare(a.date));
   function printStudentReport() {
     printReport(buildReport({ ...data, classes: draft }, "student", studentId));
   }
@@ -2106,6 +2150,23 @@ function StudentEditor({
             />
           </label>
         </div>
+        <section className={styles.studentHistory}>
+          <div className={styles.studentHistoryHead}>
+            <div>
+              <h3>Histórico da criança</h3>
+              <p>Linha do tempo do semestre com turmas, aulas, faltas e reposições.</p>
+            </div>
+            <span>{historyItems.length} registros</span>
+          </div>
+          {profile.notes?.trim()?<div className={styles.studentHistoryNote}><strong>Observação atual</strong><p>{profile.notes}</p></div>:null}
+          <div className={styles.timeline}>
+            {historyItems.length?historyItems.map((item,index)=><article key={`${item.type}-${item.date}-${index}`}>
+              <time>{formatDate(item.date)}</time>
+              <span className={styles.timelineDot}/>
+              <div><small>{item.type}</small><strong>{item.title}</strong><p>{item.detail}</p></div>
+            </article>):<p>Nenhum registro disponível para este semestre.</p>}
+          </div>
+        </section>
         <h3>
           Reposições da criança (
           {credits.filter((item) => item.status !== "COMPLETED").length}{" "}
