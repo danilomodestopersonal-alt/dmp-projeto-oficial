@@ -6056,3 +6056,104 @@ input:focus,textarea:focus{
   width:max-content;
   min-width:140px;
 }
+
+
+/* DMP 07/09/2026 — eventos no mini calendário da Home */
+.mini-month-days button.event-day{
+  border-radius:50%;
+  background:#f58220;
+  color:#fff;
+  font-weight:900;
+}
+.mini-month-days button.event-day:hover{
+  background:#dd6f12;
+}
+.mini-month-days button.today.event-day{
+  background:var(--dmp-green);
+  color:inherit;
+  box-shadow:0 0 0 2px #f58220;
+}
+.mini-month-days button.event-selected{
+  outline:2px solid #b85c0d;
+  outline-offset:1px;
+}
+.mini-month-event-popover{
+  margin-top:9px;
+  padding:9px;
+  border:1px solid #f3c69d;
+  border-radius:12px;
+  background:#fff8f1;
+  box-shadow:0 8px 20px rgba(71,45,20,.10);
+}
+.mini-month-event-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:7px;
+}
+.mini-month-event-head>strong{
+  color:#8b4a13;
+  font-size:.7rem;
+}
+.mini-month-event-head>button{
+  width:22px;
+  height:22px;
+  border:0;
+  border-radius:50%;
+  background:#f6dfca;
+  color:#8b4a13;
+  font-weight:900;
+}
+.mini-month-event-list{
+  display:grid;
+  gap:6px;
+}
+.mini-month-event-list article{
+  display:grid;
+  grid-template-columns:8px 1fr;
+  gap:7px;
+  align-items:start;
+  padding:6px 0;
+  border-top:1px solid #f5dfca;
+}
+.mini-month-event-list article:first-child{
+  border-top:0;
+}
+.mini-month-event-dot{
+  width:8px;
+  height:8px;
+  margin-top:4px;
+  border-radius:50%;
+  background:#f58220;
+}
+.mini-month-event-list article div{
+  display:grid;
+  gap:1px;
+  min-width:0;
+}
+.mini-month-event-list article strong{
+  font-size:.7rem;
+  line-height:1.2;
+}
+.mini-month-event-list article small{
+  color:#8a725f;
+  font-size:.6rem;
+}
+.mini-month-event-list article p{
+  margin:2px 0 0;
+  color:#725b48;
+  font-size:.6rem;
+  line-height:1.3;
+}
+.mini-month-open-agenda{
+  width:100%;
+  margin-top:7px;
+  padding:6px 8px;
+  border:0;
+  border-radius:9px;
+  background:#f58220;
+  color:#fff;
+  font-size:.62rem;
+  font-weight:900;
+}
