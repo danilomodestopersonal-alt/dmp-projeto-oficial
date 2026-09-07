@@ -58,6 +58,12 @@ function normalizeFinanceName(value: string) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function normalizePaymentUrl(value:string){
+  const text=value.trim();
+  if(!text)return "#";
+  return /^https?:\/\//i.test(text)?text:`https://${text}`;
+}
+
 type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "closing" | "reports";
 type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
 
@@ -67,6 +73,7 @@ type Action =
   | { type: "personal-payment"; invoice: PersonalInvoice }
   | { type: "expense-create"; kind?: FinanceExpenseKind }
   | { type: "expense-edit"; expense: FinanceExpense }
+  | { type: "expense-detail"; expense: FinanceExpense }
   | { type: "expense-payment"; expense: FinanceExpense }
   | { type: "card-value"; expense: FinanceExpense }
   | { type: "ds-receipt" }
@@ -564,7 +571,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
             <section className={`panel ${styles.weeklyDue}`}>
               <div className="panel-head"><div><h2>Vencimentos da semana</h2><p className="muted">Somente contas previstas que ainda estão em aberto.</p></div><button className="secondary" onClick={()=>setTab("expenses")}>Ver despesas</button></div>
-              {weeklyDue.length?<div className={styles.list}>{weeklyDue.map(item=><div className={`${styles.row} ${styles.staticRow}`} key={item.id}><span><strong>{item.name}</strong><small>Vence em {formatDate(item.dueDate)}</small></span><strong className={styles.outValue}>{money.format(item.open)}</strong></div>)}</div>:<Empty text="Nenhuma conta em aberto vence nesta semana."/>}
+              {weeklyDue.length?<div className={styles.list}>{weeklyDue.map(item=><button className={`${styles.row} ${styles.weeklyDueRow}`} key={item.id} onClick={()=>openAction({type:"expense-detail",expense:item})}><span><strong>{item.name}</strong><small>Vence em {formatDate(item.dueDate)}</small></span><span className={styles.weeklyDueValue}><strong className={styles.outValue}>{money.format(item.open)}</strong><small>Abrir ›</small></span></button>)}</div>:<Empty text="Nenhuma conta em aberto vence nesta semana."/>}
             </section>
 
 
@@ -644,7 +651,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
 function FinanceActionModal({ action, data, competence, kidsStudentOptions, onClose, dispatch }: { action: Exclude<Action, null>; data: FinanceData; competence: string; kidsStudentOptions:Array<{id:string;name:string}>; onClose: () => void; dispatch: (command: FinanceCommand) => void }) {
   const invoice = action.type === "personal-edit" || action.type === "personal-payment" ? action.invoice : null;
-  const expense = action.type === "expense-edit" || action.type === "expense-payment" || action.type === "card-value" ? action.expense : null;
+  const expense = action.type === "expense-edit" || action.type === "expense-detail" || action.type === "expense-payment" || action.type === "card-value" ? action.expense : null;
   const kid = action.type === "kid-edit" ? action.kid : null;
   const carry = action.type === "carry-edit" ? action.carry : null;
   const extra = action.type === "extra-edit" ? action.extra : null;
@@ -673,6 +680,8 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
   const [installmentTotal, setInstallmentTotal] = useState(String(kid?.installmentTotal || expense?.installmentTotal || ""));
   const [sourceName, setSourceName] = useState("DS");
   const [note, setNote] = useState("");
+  const [expenseNote,setExpenseNote]=useState(expense?.note||"");
+  const [paymentLink,setPaymentLink]=useState(expense?.paymentLink||"");
   const [newCategory, setNewCategory] = useState("");
   const [kidBillingMode,setKidBillingMode]=useState<"SINGLE"|"INSTALLMENT"|"RECURRING">(kid?.billingMode||"RECURRING");
   const [kidCategory,setKidCategory]=useState<"RED"|"ORANGE"|"GREEN"|null>(kid?.tennisCategory||null);
@@ -726,8 +735,8 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
     if (action.type === "expense-create" || action.type === "expense-edit") {
       if (!name.trim() || numeric === null || numeric < 0) return;
       const current = optNumber(installmentCurrent); const total = optNumber(installmentTotal);
-      if (action.type === "expense-create") dispatch({ type: "EXPENSE_CREATE", competence, name, dueDay: validDay(), expectedAmount: numeric, kind, installmentCurrent: current, installmentTotal: total });
-      else dispatch({ type: "EXPENSE_UPDATE", id: action.expense.id, name, dueDay: validDay(), expectedAmount: numeric, kind, installmentCurrent: current, installmentTotal: total });
+      if (action.type === "expense-create") dispatch({ type: "EXPENSE_CREATE", competence, name, dueDay: validDay(), expectedAmount: numeric, kind, installmentCurrent: current, installmentTotal: total, note: expenseNote, paymentLink });
+      else dispatch({ type: "EXPENSE_UPDATE", id: action.expense.id, name, dueDay: validDay(), expectedAmount: numeric, kind, installmentCurrent: current, installmentTotal: total, note: expenseNote, paymentLink });
       onClose(); return;
     }
 
@@ -740,7 +749,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     if (action.type === "card-value") {
       if (numeric === null || numeric < 0) return;
-      dispatch({ type: "EXPENSE_UPDATE", id: action.expense.id, name: action.expense.name, dueDay: action.expense.dueDay, expectedAmount: numeric, kind: action.expense.kind, installmentCurrent: action.expense.installmentCurrent, installmentTotal: action.expense.installmentTotal });
+      dispatch({ type: "EXPENSE_UPDATE", id: action.expense.id, name: action.expense.name, dueDay: action.expense.dueDay, expectedAmount: numeric, kind: action.expense.kind, installmentCurrent: action.expense.installmentCurrent, installmentTotal: action.expense.installmentTotal, note: action.expense.note, paymentLink: action.expense.paymentLink });
       onClose(); return;
     }
 
@@ -800,7 +809,9 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     {action.type === "personal-payment" ? <><div className={styles.formGrid}><label>Valor recebido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Opcional" /></label><p className={styles.formHint}>Previsto {money.format(action.invoice.expectedAmount)} · já recebido {money.format(paid(action.invoice.payments))} · falta {money.format(remaining(action.invoice.expectedAmount, action.invoice.payments))}</p></> : null}
 
-    {action.type === "expense-create" || action.type === "expense-edit" ? <><label>Conta / despesa<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor previsto<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div><label>Tipo<select value={kind} onChange={event => setKind(event.target.value as FinanceExpenseKind)}><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelamento</option><option value="CARD">Cartão</option><option value="VARIABLE">Variável / só este mês</option></select></label>{isInstallment ? <div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent} onChange={event => setInstallmentCurrent(event.target.value)} /></label><label>Total de parcelas<input type="number" min="1" value={installmentTotal} onChange={event => setInstallmentTotal(event.target.value)} /></label></div> : null}{action.type === "expense-edit" ? <PaymentHistory title="Pagamentos registrados" payments={action.expense.payments} onDelete={payment => { if (window.confirm(`Excluir pagamento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "EXPENSE_PAYMENT_DELETE", expenseId: action.expense.id, paymentId: payment.id }); }} /> : null}</> : null}
+    {action.type === "expense-create" || action.type === "expense-edit" ? <><label>Conta / despesa<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor previsto<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div><label>Tipo<select value={kind} onChange={event => setKind(event.target.value as FinanceExpenseKind)}><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelamento</option><option value="CARD">Cartão</option><option value="VARIABLE">Variável / só este mês</option></select></label>{isInstallment ? <div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent} onChange={event => setInstallmentCurrent(event.target.value)} /></label><label>Total de parcelas<input type="number" min="1" value={installmentTotal} onChange={event => setInstallmentTotal(event.target.value)} /></label></div> : null}<label>Link para pagamento<input value={paymentLink} onChange={event=>setPaymentLink(event.target.value)} placeholder="https://... (opcional)" /></label><label>Observação da conta<textarea rows={2} value={expenseNote} onChange={event=>setExpenseNote(event.target.value)} placeholder="Opcional" /></label>{action.type === "expense-edit" ? <PaymentHistory title="Pagamentos registrados" payments={action.expense.payments} onDelete={payment => { if (window.confirm(`Excluir pagamento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "EXPENSE_PAYMENT_DELETE", expenseId: action.expense.id, paymentId: payment.id }); }} /> : null}</> : null}
+
+    {action.type === "expense-detail" ? <div className={styles.expenseDetail}><div className={styles.expenseDetailHero}><div><small>Conta</small><h2>{action.expense.name}</h2><span>Vence dia {action.expense.dueDay}</span></div><strong>{money.format(remaining(action.expense.expectedAmount,action.expense.payments))}</strong></div><dl><div><dt>Valor previsto</dt><dd>{money.format(action.expense.expectedAmount)}</dd></div><div><dt>Já pago</dt><dd>{money.format(paid(action.expense.payments))}</dd></div><div><dt>Status</dt><dd>{remaining(action.expense.expectedAmount,action.expense.payments)>0?"Em aberto":"Pago"}</dd></div></dl>{action.expense.note?<div className={styles.expenseDetailNote}><strong>Observação</strong><p>{action.expense.note}</p></div>:null}{action.expense.paymentLink?<a className={styles.paymentLinkButton} href={normalizePaymentUrl(action.expense.paymentLink)} target="_blank" rel="noreferrer">Abrir para pagar ↗</a>:<p className={styles.formHint}>Esta conta ainda não possui link de pagamento cadastrado.</p>}</div> : null}
 
     {action.type === "expense-payment" ? <><div className={styles.formGrid}><label>Valor pago<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Opcional" /></label><p className={styles.formHint}>Previsto {money.format(action.expense.expectedAmount)} · já pago {money.format(paid(action.expense.payments))} · falta {money.format(remaining(action.expense.expectedAmount, action.expense.payments))}</p></> : null}
 
@@ -818,13 +829,13 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
     {action.type === "category-create" ? <label>Nova categoria<input value={newCategory} onChange={event => setNewCategory(event.target.value)} autoFocus placeholder="Ex.: Saúde" /></label> : null}
 
     <div className={styles.modalActions}>
+      {action.type === "expense-detail" ? <><button type="button" className="secondary" onClick={onClose}>Fechar</button><span className={styles.modalSpacer}/>{remaining(action.expense.expectedAmount,action.expense.payments)>0?<button type="button" className="primary" onClick={()=>{const open=remaining(action.expense.expectedAmount,action.expense.payments);if(window.confirm(`Marcar ${action.expense.name} como paga no valor de ${money.format(open)}?`)){dispatch({type:"EXPENSE_PAYMENT_ADD",expenseId:action.expense.id,date:today(),amount:open,note:"Pagamento marcado pela tela de vencimentos."});onClose();}}}>Marcar como paga</button>:null}</> : null}
       {action.type === "personal-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir a mensalidade de ${action.invoice.studentName}?`)) { dispatch({ type: "PERSONAL_DELETE", id: action.invoice.id }); onClose(); } }}>Excluir mensalidade</button> : null}
       {action.type === "expense-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir ${action.expense.name}?`)) { dispatch({ type: "EXPENSE_DELETE", id: action.expense.id }); onClose(); } }}>Excluir conta</button> : null}
       {action.type === "kid-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir ${action.kid.studentName} da lista Kids deste mês?`)) { dispatch({ type: "DS_KID_DELETE", id: action.kid.id }); onClose(); } }}>Excluir Kids</button> : null}
       {action.type === "carry-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir a pendência trazida de ${action.carry.studentName}?`)) { dispatch({ type: "CARRYOVER_DELETE", id: action.carry.id }); onClose(); } }}>Excluir pendência</button> : null}
       {action.type === "extra-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir o gasto “${action.extra.description}”?`)) { dispatch({ type: "EXTRA_DELETE", id: action.extra.id }); onClose(); } }}>Excluir gasto</button> : null}
-      <span className={styles.modalSpacer} />
-      <button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Salvar</button>
+      {action.type !== "expense-detail" ? <><span className={styles.modalSpacer} /><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Salvar</button></> : null}
     </div>
   </form></div>;
 }

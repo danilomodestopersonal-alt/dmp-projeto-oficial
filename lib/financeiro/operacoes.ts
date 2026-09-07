@@ -27,8 +27,8 @@ export type FinanceCommand =
   | { type: "DS_RECEIPT_ADD"; competence: string; date: string; amount: number; sourceName?: string; note?: string }
   | { type: "DS_RECEIPT_DELETE"; competence: string; receiptId: string }
   | { type: "RANKING_SET"; competence: string; amount: number }
-  | { type: "EXPENSE_CREATE"; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null }
-  | { type: "EXPENSE_UPDATE"; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null }
+  | { type: "EXPENSE_CREATE"; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
+  | { type: "EXPENSE_UPDATE"; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
   | { type: "EXPENSE_DELETE"; id: string }
   | { type: "EXPENSE_PAYMENT_ADD"; expenseId: string; date: string; amount: number; note?: string }
   | { type: "EXPENSE_PAYMENT_DELETE"; expenseId: string; paymentId: string }
@@ -247,12 +247,12 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory({ ...data, rankingByCompetence: { ...data.rankingByCompetence, [command.competence]: command.amount } }, historyEntry(command.competence, "RANKING_UPDATED", "Valor do ranking atualizado.", command.amount));
     }
 
-    case "EXPENSE_CREATE": { const expense: FinanceExpense = { id: id("expense"), competence: command.competence, name: command.name.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null, kind: command.kind, payments: [] };
+    case "EXPENSE_CREATE": { const expense: FinanceExpense = { id: id("expense"), competence: command.competence, name: command.name.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null, kind: command.kind, note: command.note?.trim() || undefined, paymentLink: command.paymentLink?.trim() || undefined, payments: [] };
       return withHistory({ ...data, expenses: [...data.expenses, expense] }, historyEntry(command.competence, "EXPENSE_CREATED", `Despesa ${expense.name} criada.`, expense.expectedAmount, expense.id));
     }
 
     case "EXPENSE_UPDATE": { const current = data.expenses.find(item => item.id === command.id); if (!current) return data;
-      const updated = data.expenses.map(item => item.id === command.id ? { ...item, name: command.name.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, kind: command.kind, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null } : item);
+      const updated = data.expenses.map(item => item.id === command.id ? { ...item, name: command.name.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, kind: command.kind, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null, note: command.note?.trim() || undefined, paymentLink: command.paymentLink?.trim() || undefined } : item);
       return withHistory({ ...data, expenses: updated }, historyEntry(current.competence, "EXPENSE_UPDATED", `Despesa ${command.name.trim()} atualizada.`, command.expectedAmount, command.id));
     }
 

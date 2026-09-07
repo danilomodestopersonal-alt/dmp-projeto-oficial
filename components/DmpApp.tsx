@@ -116,29 +116,55 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [selectedPerformanceActivityId,setSelectedPerformanceActivityId]=useState<string|null>(null);
   const deepLinkHandled = useRef(false);
   const sessionReturnView = useRef<View>("student");
+  const browserHistoryReady = useRef(false);
+  const browserBackRestoring = useRef(false);
 
-  // Mantém uma entrada de histórico interna para o botão/gesto Voltar do Android.
+  // Histórico real de navegação: cada tela do DMP vira uma etapa do botão/gesto Voltar.
   useEffect(() => {
-    if (!(window.history.state && window.history.state.dmpRoot)) {
-      window.history.replaceState({dmpRoot:true}, "", window.location.href);
-      window.history.pushState({dmpGuard:true}, "", window.location.href);
+    const snapshot={dmpNav:true,view,tab,selectedStudentId};
+    if(!browserHistoryReady.current){
+      window.history.replaceState({...window.history.state,...snapshot},"",window.location.href);
+      browserHistoryReady.current=true;
+      return;
     }
-    const rearm=()=>window.history.pushState({dmpGuard:true}, "", window.location.href);
-    const onPopState=()=>{
-      if(showFinancePin){setShowFinancePin(false);rearm();return;}
-      if(showStudentForm){setShowStudentForm(false);rearm();return;}
-      if(showEditStudentForm){setShowEditStudentForm(false);rearm();return;}
-      if(showAssessmentForm){setShowAssessmentForm(false);rearm();return;}
-      if(showGoogleEventForm){setShowGoogleEventForm(false);rearm();return;}
-      if(view==="workout-editor"&&!confirm("Voltar sem salvar? Alterações feitas nesta montagem podem ser perdidas.")){rearm();return;}
-      if(["workout-editor","planned-session","free-session","attendance-session"].includes(view)){setView("student");rearm();return;}
-      if(view==="student"){setView("students");rearm();return;}
-      if(view!=="today"){setView("today");rearm();return;}
-      // Em Hoje, não rearma: um novo Voltar pode sair normalmente.
+    if(browserBackRestoring.current){
+      browserBackRestoring.current=false;
+      return;
+    }
+    const state=window.history.state;
+    const same=state?.dmpNav&&state.view===view&&state.tab===tab&&(state.selectedStudentId||null)===(selectedStudentId||null);
+    if(!same)window.history.pushState({...state,...snapshot},"",window.location.href);
+  },[view,tab,selectedStudentId]);
+
+  useEffect(() => {
+    const restoreCurrent=()=>window.history.pushState({...window.history.state,dmpNav:true,view,tab,selectedStudentId},"",window.location.href);
+    const onPopState=(event:PopStateEvent)=>{
+      if(showFinancePin){setShowFinancePin(false);restoreCurrent();return;}
+      if(showStudentForm){setShowStudentForm(false);restoreCurrent();return;}
+      if(showEditStudentForm){setShowEditStudentForm(false);restoreCurrent();return;}
+      if(showAssessmentForm){setShowAssessmentForm(false);restoreCurrent();return;}
+      if(showGoogleEventForm){setShowGoogleEventForm(false);restoreCurrent();return;}
+      if(view==="workout-editor"&&!confirm("Voltar sem salvar? Alterações feitas nesta montagem podem ser perdidas.")){restoreCurrent();return;}
+      const state=event.state;
+      if(state?.dmpNav){
+        browserBackRestoring.current=true;
+        setSelectedStudentId(state.selectedStudentId||null);
+        setTab((state.tab||"summary") as StudentTab);
+        setView((state.view||"today") as View);
+        return;
+      }
+      // Fallback: sem histórico interno válido, volta para Hoje em vez de saltar de forma imprevisível.
+      if(view!=="today"){
+        browserBackRestoring.current=true;
+        setSelectedStudentId(null);
+        setTab("summary");
+        setView("today");
+        window.history.pushState({dmpNav:true,view:"today",tab:"summary",selectedStudentId:null},"",window.location.href);
+      }
     };
     window.addEventListener("popstate",onPopState);
     return()=>window.removeEventListener("popstate",onPopState);
-  },[view,showFinancePin,showStudentForm,showEditStudentForm,showAssessmentForm,showGoogleEventForm]);
+  },[view,tab,selectedStudentId,showFinancePin,showStudentForm,showEditStudentForm,showAssessmentForm,showGoogleEventForm]);
 
 
   useEffect(()=>{
@@ -480,7 +506,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
   }
 
   useEffect(() => {
-    if (!(view === "today" || view === "agenda") || !calendarStatus.connected) return;
+    if (!(view === "today" || view === "agenda" || view === "reports" || view === "workouts-overview") || !calendarStatus.connected) return;
     void refreshCalendarAutomatic(false);
   }, [view, calendarStatus.connected, calendarLoaded]);
 
@@ -511,7 +537,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
     if (!calendarStatus.connected) return;
     const syncWhenActive=()=>{
       if (document.visibilityState!=="visible") return;
-      if (view==="today"||view==="agenda") void refreshCalendarAutomatic(false);
+      if (view==="today"||view==="agenda"||view==="reports"||view==="workouts-overview") void refreshCalendarAutomatic(false);
     };
     window.addEventListener("focus",syncWhenActive);
     document.addEventListener("visibilitychange",syncWhenActive);
@@ -1046,27 +1072,32 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
   const monthKey = todayKey.slice(0,7);
   const todayDate = new Date(todayKey + "T12:00:00");
 
+  const monthLedger = buildAttendanceLedger(activeStudents,calendarEvents,monthKey);
+
   const trainingData = activeStudents.map(student => {
     const sessions = student.sessions
       .filter(session => session.source !== "ABSENCE")
       .slice()
       .sort((a,b) => b.date.localeCompare(a.date));
 
-    const monthSessions = sessions.filter(session => session.date.slice(0,7) === monthKey);
-    const last = sessions[0] || null;
-    const daysSinceLast = last
-      ? Math.max(0, Math.floor((todayDate.getTime() - new Date(last.date + "T12:00:00").getTime()) / 86400000))
+    const monthSessions = monthLedger.filter(item=>item.student.id===student.id&&item.source!=="ABSENCE");
+    const calendarLastDate=monthSessions.slice().sort((a,b)=>b.date.localeCompare(a.date))[0]?.date||null;
+    const storedLast=sessions[0]||null;
+    const lastDate=[storedLast?.date||"",calendarLastDate||""].sort().at(-1)||null;
+    const last=storedLast&&storedLast.date===lastDate?storedLast:null;
+    const daysSinceLast = lastDate
+      ? Math.max(0, Math.floor((todayDate.getTime() - new Date(lastDate + "T12:00:00").getTime()) / 86400000))
       : null;
 
     const entries = getStudentWorkoutEntries(student);
 
     const status =
-      !last ? "NEVER" :
+      !lastDate ? "NEVER" :
       daysSinceLast !== null && daysSinceLast >= 14 ? "STALE" :
       daysSinceLast !== null && daysSinceLast >= 8 ? "WATCH" :
       "RECENT";
 
-    return {student,sessions,monthSessions,last,daysSinceLast,entries,status};
+    return {student,sessions,monthSessions,last,lastDate,daysSinceLast,entries,status};
   });
 
   const monthWorkouts = trainingData.reduce((sum,item)=>sum+item.monthSessions.length,0);
@@ -1122,8 +1153,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           <span>
             <strong><StudentCategoryDot category={item.student.tennisCategory}/>{item.student.name}</strong>
             <small>
-              {item.last
-                ? <>Último treino: <b>{formatDate(item.last.date)}</b> · {item.last.workoutName||"Treino registrado"}</>
+              {item.lastDate
+                ? <>Último treino: <b>{formatDate(item.lastDate)}</b> · {item.last?.workoutName||"Atendimento registrado"}</>
                 : <>Nenhum treino registrado</>}
             </small>
             <small className="training-month-line">
@@ -1236,7 +1267,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} /> : null}
-          {view === "reports" ? <PersonalReportsPage students={students} onStudent={openStudent} /> : null}
+          {view === "reports" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}
           {view === "performance" ? <PerformancePage openActivityId={selectedPerformanceActivityId} /> : null}
           {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
@@ -1692,12 +1723,39 @@ function whatsappLink(phone?:string){const digits=(phone||"").replace(/\D/g,"");
 function monthKeyOffset(key:string,delta:number){const [y,m]=key.split("-").map(Number);const d=new Date(y,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;}
 function monthLabel(key:string){return new Date(`${key}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});}
 function sessionIsPresence(session:Session){return session.source!=="ABSENCE";}
-function monthStudentStats(student:Student,key:string){const sessions=student.sessions.filter(s=>s.date.startsWith(key));const done=sessions.filter(sessionIsPresence).length;const absences=sessions.filter(s=>s.source==="ABSENCE").length;return{done,absences,total:done+absences,presence:done+absences?Math.round(done/(done+absences)*100):0};}
-function PersonalReportsPage({students,onStudent}:{students:Student[];onStudent:(id:string)=>void}){
+type AttendanceLedgerRow={student:Student;date:string;source:"CALENDAR"|"SESSION"|"ABSENCE";eventId?:string};
+function buildAttendanceLedger(students:Student[],events:CalendarEvent[],key:string):AttendanceLedgerRow[]{
+  const currentKey=today().slice(0,7);
+  const isFuture=key>currentKey;
+  if(isFuture)return [];
+  const localRows=students.flatMap(student=>student.sessions.filter(session=>session.date.startsWith(key)).map(session=>({student,session})));
+  const absenceDays=new Set(localRows.filter(item=>item.session.source==="ABSENCE").map(item=>`${item.student.id}|${item.session.date}`));
+  const localEventKeys=new Set(localRows.filter(item=>item.session.calendarEvent?.id).map(item=>`${item.student.id}|${item.session.calendarEvent!.id}`));
+  const calendarRows=events
+    .filter(event=>!event.allDay&&!kidsCalendarRequest(event)&&calendarEventDate(event).startsWith(key))
+    .filter(event=>{
+      const date=calendarEventDate(event);
+      if(date<today())return true;
+      if(date>today())return false;
+      const end=Date.parse(event.end);
+      return Number.isFinite(end)?end<=Date.now():true;
+    })
+    .flatMap(event=>getCalendarEventStudents(event,students).map(student=>({student,event,date:calendarEventDate(event)})))
+    .filter(item=>!absenceDays.has(`${item.student.id}|${item.date}`))
+    .filter(item=>!localEventKeys.has(`${item.student.id}|${item.event.id}`))
+    .map(item=>({student:item.student,date:item.date,source:"CALENDAR" as const,eventId:item.event.id}));
+  const calendarDays=new Set(calendarRows.map(item=>`${item.student.id}|${item.date}`));
+  const storedRows=localRows
+    .filter(item=>item.session.source==="ABSENCE"||item.session.calendarEvent?.id||!calendarDays.has(`${item.student.id}|${item.session.date}`))
+    .map(item=>({student:item.student,date:item.session.date,source:item.session.source==="ABSENCE"?"ABSENCE" as const:"SESSION" as const,eventId:item.session.calendarEvent?.id}));
+  return [...calendarRows,...storedRows].sort((a,b)=>b.date.localeCompare(a.date));
+}
+function monthStudentStats(student:Student,ledger:AttendanceLedgerRow[]){const rows=ledger.filter(item=>item.student.id===student.id);const done=rows.filter(item=>item.source!=="ABSENCE").length;const absences=rows.filter(item=>item.source==="ABSENCE").length;return{done,absences,total:done+absences,presence:done+absences?Math.round(done/(done+absences)*100):0};}
+function PersonalReportsPage({students,calendarEvents,onStudent}:{students:Student[];calendarEvents:CalendarEvent[];onStudent:(id:string)=>void}){
   const [month,setMonth]=useState(today().slice(0,7));const [finance,setFinance]=useState<FinanceData|null>(null);
   useEffect(()=>{let cancelled=false;const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>{if(!cancelled&&d)setFinance(d)}).catch(()=>{});return()=>{cancelled=true}},[]);
   const previous=monthKeyOffset(month,-1);const active=students.filter(s=>s.status==="ACTIVE");
-  const makeStats=(key:string)=>{const rows=active.map(student=>({student,...monthStudentStats(student,key)}));const done=rows.reduce((n,r)=>n+r.done,0),absences=rows.reduce((n,r)=>n+r.absences,0),evaluations=active.reduce((n,s)=>n+s.assessments.filter(a=>a.date.startsWith(key)).length,0);const fs=finance?financeSummary(finance,key):null;return{rows,done,absences,evaluations,studentsWithSessions:rows.filter(r=>r.done>0).length,received:fs?.personalReceived||0,expected:fs?.personalExpected||0};};
+  const makeStats=(key:string)=>{const ledger=buildAttendanceLedger(active,calendarEvents,key);const rows=active.map(student=>({student,...monthStudentStats(student,ledger)}));const done=rows.reduce((n,r)=>n+r.done,0),absences=rows.reduce((n,r)=>n+r.absences,0),evaluations=active.reduce((n,s)=>n+s.assessments.filter(a=>a.date.startsWith(key)).length,0);const fs=finance?financeSummary(finance,key):null;return{rows,done,absences,evaluations,studentsWithSessions:rows.filter(r=>r.done>0).length,received:fs?.personalReceived||0,expected:fs?.personalExpected||0};};
   const current=makeStats(month),prev=makeStats(previous);const rank=[...current.rows].filter(r=>r.total>0).sort((a,b)=>b.presence-a.presence||b.done-a.done||a.student.name.localeCompare(b.student.name,"pt-BR"));
   const delta=(a:number,b:number)=>`${a-b>0?"+":""}${a-b}`;
   function printReport(){const popup=window.open("","_blank");if(!popup)return;const rows=rank.map((r,i)=>`<tr><td>${i+1}</td><td>${r.student.name}</td><td>${r.done}</td><td>${r.absences}</td><td>${r.presence}%</td></tr>`).join("");popup.document.write(`<html><head><title>Relatório Personal - ${monthLabel(month)}</title><style>body{font-family:Arial;padding:32px;color:#263238}h1{color:#166b91}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{border:1px solid #ddd;padding:14px;border-radius:12px}table{width:100%;border-collapse:collapse;margin-top:20px}td,th{padding:8px;border-bottom:1px solid #ddd;text-align:left}@media print{button{display:none}}</style></head><body><button onclick="print()">Imprimir / salvar PDF</button><h1>DMP · Fechamento ${monthLabel(month)}</h1><div class="cards"><div class="card"><b>Sessões</b><h2>${current.done}</h2></div><div class="card"><b>Faltas</b><h2>${current.absences}</h2></div><div class="card"><b>Avaliações</b><h2>${current.evaluations}</h2></div><div class="card"><b>Recebido Personal</b><h2>${formatStudentMoney(current.received)}</h2></div></div><h2>Ranking de assiduidade</h2><table><tr><th>#</th><th>Aluno</th><th>Sessões</th><th>Faltas</th><th>Presença</th></tr>${rows}</table></body></html>`);popup.document.close();}

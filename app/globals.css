@@ -6016,3 +6016,14 @@ input:focus,textarea:focus{
   .sidebar-mobile-actions{top:15px!important;right:12px!important;gap:8px!important}
   .sidebar-mobile-actions .mobile-quick-launch,.sidebar-mobile-actions .mobile-voice-launch{width:43px!important;height:43px!important;min-width:43px!important;min-height:43px!important}
 }
+
+/* DMP 07/09/2026 — Fechamento do mês alinhado como os demais cards no celular */
+@media(max-width:700px){
+  .month-closing-today-card{align-items:flex-start!important;text-align:left!important}
+  .month-closing-today-card>div{align-items:start!important;text-align:left!important;width:100%!important;justify-items:start!important}
+  .month-closing-today-card>div>strong{justify-content:flex-start!important;text-align:left!important;width:100%!important}
+  .month-closing-today-card .highlight-lines,
+  .month-closing-today-card .month-closing-lines{align-items:start!important;text-align:left!important;width:100%!important;justify-items:start!important}
+  .month-closing-today-card .highlight-lines small,
+  .month-closing-today-card .month-closing-lines small{text-align:left!important;width:100%!important}
+}

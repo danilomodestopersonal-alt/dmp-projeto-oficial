@@ -70,6 +70,8 @@ export type FinanceExpense = {
   installmentCurrent?: number | null;
   installmentTotal?: number | null;
   kind: FinanceExpenseKind;
+  note?: string;
+  paymentLink?: string;
   payments: FinancePayment[];
 };
 

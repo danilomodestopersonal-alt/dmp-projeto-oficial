@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
 import {
   createKidsSeed,
@@ -79,6 +79,35 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   const [showNewStudentForm,setShowNewStudentForm]=useState(false);
   const [studentSearch,setStudentSearch]=useState("");
   const [dashboardStudentSearch,setDashboardStudentSearch]=useState("");
+  const kidsHistoryReady=useRef(false);
+  const kidsBackRestoring=useRef(false);
+
+  useEffect(()=>{
+    const snapshot={...window.history.state,dmpKids:true,dmpKidsTab:tab,dmpKidsLessonId:lessonId,dmpKidsClassId:classId,dmpKidsStudentId:studentId};
+    if(!kidsHistoryReady.current){
+      window.history.replaceState(snapshot,"",window.location.href);
+      kidsHistoryReady.current=true;
+      return;
+    }
+    if(kidsBackRestoring.current){kidsBackRestoring.current=false;return;}
+    const state=window.history.state;
+    const same=state?.dmpKids&&state.dmpKidsTab===tab&&(state.dmpKidsLessonId||null)===(lessonId||null)&&(state.dmpKidsClassId||null)===(classId||null)&&(state.dmpKidsStudentId||null)===(studentId||null);
+    if(!same)window.history.pushState(snapshot,"",window.location.href);
+  },[tab,lessonId,classId,studentId]);
+
+  useEffect(()=>{
+    const onPopState=(event:PopStateEvent)=>{
+      const state=event.state;
+      if(!state?.dmpKids)return;
+      kidsBackRestoring.current=true;
+      setTab((state.dmpKidsTab||"dashboard") as KidsTab);
+      setLessonId(state.dmpKidsLessonId||null);
+      setClassId(state.dmpKidsClassId||null);
+      setStudentId(state.dmpKidsStudentId||null);
+    };
+    window.addEventListener("popstate",onPopState);
+    return()=>window.removeEventListener("popstate",onPopState);
+  },[]);
 
   useEffect(() => {
     void load();
@@ -921,6 +950,7 @@ function KidsEvents({events,onSave,onDelete}:{events:KidsEvent[];onSave:(event:K
   const [year,setYear]=useState(currentYear);
   const [month,setMonth]=useState("ALL");
   const [editingEvent,setEditingEvent]=useState<KidsEvent|null>(null);
+  const [showExport,setShowExport]=useState(false);
   const years=[...new Set(events.map(item=>item.year))].sort();
   const normalized=query.trim().toLocaleLowerCase("pt-BR");
   const filtered=events.filter(event=>(year==="ALL"||String(event.year)===year)&&(month==="ALL"||event.startDate.slice(5,7)===month)&&(!normalized||`${event.name} ${event.description||""} ${event.notes||""}`.toLocaleLowerCase("pt-BR").includes(normalized))).sort((a,b)=>{
@@ -938,7 +968,7 @@ function KidsEvents({events,onSave,onDelete}:{events:KidsEvent[];onSave:(event:K
   return <section className={styles.panel}>
     <div className={styles.panelHead}>
       <div><h2>Eventos DS Tennis</h2><p>Calendário anual, informações e pastas de trabalho no Google Drive.</p></div>
-      <button className={styles.primary} onClick={createEvent}>+ Novo evento</button>
+      <div className={styles.eventHeaderActions}><button onClick={()=>setShowExport(true)}>Exportar</button><button className={styles.primary} onClick={createEvent}>+ Novo evento</button></div>
     </div>
     <div className={styles.eventFilters}><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Buscar evento..."/><select value={year} onChange={event=>setYear(event.target.value)}><option value="ALL">Todos os anos</option>{years.map(value=><option key={value} value={value}>{value}</option>)}</select><select value={month} onChange={event=>setMonth(event.target.value)}><option value="ALL">Todos os meses</option>{Array.from({length:12},(_,index)=>{const value=String(index+1).padStart(2,"0");return <option key={value} value={value}>{new Date(2026,index,1).toLocaleDateString("pt-BR",{month:"long"})}</option>;})}</select></div>
     {visibleYears.map(value=><div key={value} className={styles.eventsYear}>
@@ -947,7 +977,71 @@ function KidsEvents({events,onSave,onDelete}:{events:KidsEvent[];onSave:(event:K
     </div>)}
     {!filtered.length?<Empty title="Nenhum evento encontrado" text="Altere os filtros ou crie um novo evento."/>:null}
     {editingEvent?<KidsEventEditor event={editingEvent} onClose={()=>setEditingEvent(null)} onSave={event=>{onSave(event);setEditingEvent(null);}}/>:null}
+    {showExport?<EventExportModal events={events} defaultYear={year==="ALL"?currentYear:year} onClose={()=>setShowExport(false)}/>:null}
   </section>;
+}
+
+function eventStatusLabel(event:KidsEvent){
+  const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const past=(event.endDate||event.startDate)<todayKey;
+  const status=event.status||(past?"COMPLETED":"PROGRAMMED");
+  return ({PROGRAMMED:"Programado",CONFIRMED:"Confirmado",COMPLETED:"Concluído",CANCELLED:"Cancelado"} as const)[status];
+}
+function eventExportTitle(period:string,year:string){return period==="MONTH"?"Calendário de eventos · mês":period==="SEMESTER"?"Calendário de eventos · semestre":period==="YEAR"?`Calendário de Eventos ${year}`:period==="CUSTOM"?"Calendário de eventos":"Próximos Eventos DS Tennis";}
+function escapeXml(value:string){const map:Record<string,string>={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"};return value.replace(/[&<>"']/g,char=>map[char]||char);}
+async function logoDataUrl(){
+  try{const response=await fetch("/logo-ctds.png");if(!response.ok)return "";const blob=await response.blob();return await new Promise<string>(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||""));reader.onerror=()=>resolve("");reader.readAsDataURL(blob);});}catch{return "";}
+}
+function EventExportModal({events,defaultYear,onClose}:{events:KidsEvent[];defaultYear:string;onClose:()=>void}){
+  const todayKey=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const [period,setPeriod]=useState<"UPCOMING"|"MONTH"|"SEMESTER"|"YEAR"|"CUSTOM">("UPCOMING");
+  const [format,setFormat]=useState<"IMAGE"|"PDF"|"LIST">("IMAGE");
+  const [confirmedOnly,setConfirmedOnly]=useState(false);
+  const [includeDescription,setIncludeDescription]=useState(true);
+  const [customStart,setCustomStart]=useState(todayKey);
+  const [customEnd,setCustomEnd]=useState(`${defaultYear}-12-31`);
+  const monthKey=todayKey.slice(0,7);
+  const currentMonth=Number(todayKey.slice(5,7));
+  const semesterStart=`${defaultYear}-${currentMonth<=6?"01":"07"}-01`;
+  const semesterEnd=`${defaultYear}-${currentMonth<=6?"06-30":"12-31"}`;
+  const selected=events.filter(event=>{
+    if(confirmedOnly&&event.status!=="CONFIRMED")return false;
+    if(event.status==="CANCELLED")return false;
+    const end=event.endDate||event.startDate;
+    if(period==="UPCOMING")return end>=todayKey;
+    if(period==="MONTH")return event.startDate.slice(0,7)===monthKey;
+    if(period==="SEMESTER")return end>=semesterStart&&event.startDate<=semesterEnd;
+    if(period==="YEAR")return String(event.year)===defaultYear;
+    return end>=customStart&&event.startDate<=customEnd;
+  }).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const title=eventExportTitle(period,defaultYear);
+  const shortDate=(event:KidsEvent)=>event.endDate&&event.endDate!==event.startDate?`${formatDate(event.startDate)} a ${formatDate(event.endDate)}`:formatDate(event.startDate);
+  async function downloadImage(){
+    if(!selected.length)return;
+    const logo=await logoDataUrl();
+    const width=1080,rowH=154,headerH=245,height=Math.max(650,headerH+selected.length*rowH+80);
+    const rows=selected.map((event,index)=>{const y=headerH+index*rowH;const month=new Date(`${event.startDate}T12:00:00`).toLocaleDateString("pt-BR",{month:"short"}).replace(".","").toUpperCase();const day=String(new Date(`${event.startDate}T12:00:00`).getDate()).padStart(2,"0");const desc=includeDescription&&event.description?event.description.slice(0,90):"";return `<g><line x1="64" y1="${y+rowH-10}" x2="1016" y2="${y+rowH-10}" stroke="#d8e2dc"/><rect x="64" y="${y+12}" width="178" height="112" rx="18" fill="${index%2?"#f47b20":"#0c503f"}"/><text x="153" y="${y+48}" text-anchor="middle" font-family="Arial" font-size="23" font-weight="700" fill="#fff">${escapeXml(month)}</text><text x="153" y="${y+99}" text-anchor="middle" font-family="Arial" font-size="52" font-weight="900" fill="#fff">${day}</text><text x="286" y="${y+48}" font-family="Arial" font-size="29" font-weight="900" fill="#123f35">${escapeXml(event.name.slice(0,46))}</text><text x="286" y="${y+82}" font-family="Arial" font-size="20" fill="#5d6d67">${escapeXml(shortDate(event))} · ${escapeXml(eventStatusLabel(event))}</text>${desc?`<text x="286" y="${y+112}" font-family="Arial" font-size="18" fill="#66746f">${escapeXml(desc)}</text>`:""}</g>`;}).join("");
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#fbfcfa"/><rect x="0" y="0" width="100%" height="18" fill="#f47b20"/><text x="64" y="82" font-family="Arial" font-size="28" font-weight="800" fill="#789b31">CALENDÁRIO INTERNO</text><text x="64" y="138" font-family="Arial" font-size="48" font-weight="900" fill="#123f35">${escapeXml(title)}</text><text x="64" y="178" font-family="Arial" font-size="20" fill="#66746f">DS Tennis · agenda gerada pelo DMP</text>${logo?`<image href="${logo}" x="790" y="42" width="220" height="130" preserveAspectRatio="xMidYMid meet"/>`:""}${rows}<text x="64" y="${height-34}" font-family="Arial" font-size="16" fill="#8a9691">Atualizado em ${escapeXml(new Date().toLocaleDateString("pt-BR"))}</text></svg>`;
+    const blob=new Blob([svg],{type:"image/svg+xml;charset=utf-8"});const url=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;const ctx=canvas.getContext("2d");if(!ctx){URL.revokeObjectURL(url);return;}ctx.drawImage(img,0,0);URL.revokeObjectURL(url);canvas.toBlob(out=>{if(!out)return;const href=URL.createObjectURL(out);const a=document.createElement("a");a.href=href;a.download=`agenda-ds-tennis-${todayKey}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(href),1000);},"image/png");};img.src=url;
+  }
+  function openPdf(){
+    if(!selected.length)return;const popup=window.open("","_blank");if(!popup)return;const rows=selected.map(event=>`<article><div class="date"><b>${escapeHtml(new Date(`${event.startDate}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit"}))}</b><span>${escapeHtml(new Date(`${event.startDate}T12:00:00`).toLocaleDateString("pt-BR",{month:"short"}).replace(".",""))}</span></div><div><h2>${escapeHtml(event.name)}</h2><small>${escapeHtml(shortDate(event))} · ${escapeHtml(eventStatusLabel(event))}</small>${includeDescription&&event.description?`<p>${escapeHtml(event.description)}</p>`:""}</div></article>`).join("");popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:14mm}body{font-family:Arial;color:#123f35;margin:0}header{display:flex;justify-content:space-between;align-items:center;border-bottom:5px solid #f47b20;padding-bottom:14px}header img{width:150px}h1{margin:0;font-size:26px}.sub{color:#789b31;font-weight:800}article{display:grid;grid-template-columns:74px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid #d9e2de}.date{width:68px;height:68px;border-radius:14px;background:#0c503f;color:white;display:grid;place-content:center;text-align:center}.date b{font-size:26px}.date span{text-transform:uppercase;font-size:11px}article h2{margin:0 0 5px;font-size:18px}article small,article p{color:#66746f}article p{margin:7px 0 0}@media print{button{display:none}}</style></head><body><button onclick="print()">Imprimir / salvar PDF</button><header><div><div class="sub">CALENDÁRIO INTERNO</div><h1>${escapeHtml(title)}</h1></div><img src="${location.origin}/logo-ctds.png"></header>${rows}<script>window.onload=()=>setTimeout(()=>window.print(),350)<\/script></body></html>`);popup.document.close();
+  }
+  function downloadList(){
+    if(!selected.length)return;const lines=[title,"DS Tennis","",...selected.flatMap(event=>[`${shortDate(event)} — ${event.name}${confirmedOnly?"":" · "+eventStatusLabel(event)}`,includeDescription&&event.description?event.description:"",""]).filter(Boolean)];const blob=new Blob([lines.join("\n")],{type:"text/plain;charset=utf-8"});const href=URL.createObjectURL(blob);const a=document.createElement("a");a.href=href;a.download=`agenda-ds-tennis-${todayKey}.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(href),1000);
+  }
+  const generate=()=>format==="IMAGE"?void downloadImage():format==="PDF"?openPdf():downloadList();
+  return <div className={styles.modalBackdrop}><section className={`${styles.modal} ${styles.eventExportModal}`}>
+    <div className={styles.modalHead}><div><h2>Exportar agenda</h2><p>Gere uma arte pronta para WhatsApp, PDF ou lista simples.</p></div><button onClick={onClose}>×</button></div>
+    <div className={styles.exportControls}>
+      <label>Período<select value={period} onChange={e=>setPeriod(e.target.value as typeof period)}><option value="UPCOMING">Próximos eventos</option><option value="MONTH">Este mês</option><option value="SEMESTER">Semestre atual</option><option value="YEAR">Ano {defaultYear}</option><option value="CUSTOM">Escolher período</option></select></label>
+      <label>Formato<select value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="IMAGE">Imagem para WhatsApp</option><option value="PDF">PDF</option><option value="LIST">Lista simples</option></select></label>
+      {period==="CUSTOM"?<><label>De<input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)}/></label><label>Até<input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)}/></label></>:null}
+    </div>
+    <div className={styles.exportChecks}><label><input type="checkbox" checked={confirmedOnly} onChange={e=>setConfirmedOnly(e.target.checked)}/> Somente eventos confirmados</label><label><input type="checkbox" checked={includeDescription} onChange={e=>setIncludeDescription(e.target.checked)}/> Incluir descrição curta</label></div>
+    <div className={styles.exportPreview}><div className={styles.exportPreviewHead}><div><small>PRÉ-VISUALIZAÇÃO</small><h3>{title}</h3></div><img src="/logo-ctds.png" alt="CT DS Tennis"/></div>{selected.length?selected.map(event=><article key={event.id}><time>{new Date(`${event.startDate}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})}</time><div><strong>{event.name}</strong><small>{shortDate(event)} · {eventStatusLabel(event)}</small>{includeDescription&&event.description?<p>{event.description}</p>:null}</div></article>):<p>Nenhum evento encontrado com estes filtros.</p>}</div>
+    <div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!selected.length} onClick={generate}>Gerar {format==="IMAGE"?"imagem":format==="PDF"?"PDF":"lista"}</button></div>
+  </section></div>;
 }
 
 function KidsEventCard({event,onEdit,onDuplicate,onDelete}:{event:KidsEvent;onEdit:()=>void;onDuplicate:()=>void;onDelete:()=>void}){

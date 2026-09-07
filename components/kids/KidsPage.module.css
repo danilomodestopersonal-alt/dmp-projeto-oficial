@@ -967,3 +967,23 @@
   .timeline article { grid-template-columns:70px 14px 1fr; gap:7px; }
   .timeline article:not(:last-child)::after { left:83px; }
 }
+
+/* DMP 07/09/2026 — exportação visual da agenda de eventos */
+.eventHeaderActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.eventExportModal{width:min(900px,96vw);max-height:92vh;overflow:auto}
+.exportControls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.exportChecks{display:flex;gap:16px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;background:#f6f8f4;border:1px solid #e0e7df}
+.exportChecks label{display:flex;grid-template-columns:auto 1fr;align-items:center;gap:8px;font-weight:800}
+.exportChecks input{width:auto}
+.exportPreview{display:grid;gap:0;border:1px solid #dce5e1;border-radius:20px;overflow:hidden;background:#fbfcfa}
+.exportPreviewHead{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:18px 20px;border-top:7px solid #f47b20;background:#fff}
+.exportPreviewHead small{color:#789b31;font-weight:900;letter-spacing:.08em}
+.exportPreviewHead h3{margin:4px 0 0;color:#173f38;font-size:22px}
+.exportPreviewHead img{width:130px;height:72px;object-fit:contain}
+.exportPreview article{display:grid;grid-template-columns:90px 1fr;gap:14px;padding:15px 20px;border-top:1px solid #e4eae7}
+.exportPreview time{align-self:start;padding:10px;border-radius:12px;background:#174f43;color:#fff;text-align:center;font-weight:900;text-transform:uppercase}
+.exportPreview article>div{display:grid;gap:3px}
+.exportPreview article strong{font-size:16px;color:#173f38}
+.exportPreview article small{color:#687974}
+.exportPreview article p{margin:4px 0 0;color:#687974;font-size:12px;line-height:1.4}
+@media(max-width:700px){.eventHeaderActions{width:100%;display:grid;grid-template-columns:1fr 1fr}.eventHeaderActions button{width:100%}.exportControls{grid-template-columns:1fr}.exportChecks{display:grid;gap:8px}.exportPreviewHead{align-items:flex-start}.exportPreviewHead img{width:92px;height:54px}.exportPreview article{grid-template-columns:70px 1fr;padding:13px}.eventExportModal{max-height:94vh}}

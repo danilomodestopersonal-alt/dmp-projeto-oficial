@@ -62,3 +62,25 @@
   .voiceExtraFields button{width:100%}
 }
 @media(max-width:420px){.kpiGrid{grid-template-columns:1fr!important}}
+
+/* DMP 07/09/2026 — vencimentos clicáveis e pagamento */
+.weeklyDueRow{cursor:pointer!important;transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease}
+.weeklyDueRow:hover{border-color:#b7c9b0!important;transform:translateY(-1px);box-shadow:0 8px 20px rgba(32,36,42,.06)}
+.weeklyDueValue{display:grid!important;gap:2px!important;text-align:right}
+.weeklyDueValue small{font-size:11px;color:#7d8780}
+.modal textarea{width:100%;border:1px solid #dce2d8;border-radius:12px;padding:11px 12px;font:inherit;background:#fff;resize:vertical}
+.expenseDetail{display:grid;gap:14px}
+.expenseDetailHero{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;padding:16px;border-radius:16px;background:#f7f9f4;border:1px solid #e1e7de}
+.expenseDetailHero small{display:block;color:#778079;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.expenseDetailHero h2{margin:3px 0 4px;font-size:24px}
+.expenseDetailHero span{color:#6e786f;font-size:13px}
+.expenseDetailHero>strong{font-size:24px;color:#a95148;white-space:nowrap}
+.expenseDetail dl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0}
+.expenseDetail dl div{padding:11px 12px;border:1px solid #e5e9e2;border-radius:12px;background:#fff}
+.expenseDetail dt{font-size:11px;color:#78817a;font-weight:800}
+.expenseDetail dd{margin:4px 0 0;font-weight:900;color:#293029}
+.expenseDetailNote{padding:12px 14px;border-radius:12px;background:#fff8df;border:1px solid #ead89b}
+.expenseDetailNote p{margin:5px 0 0;color:#665f49;line-height:1.45}
+.paymentLinkButton{display:flex;align-items:center;justify-content:center;min-height:46px;border-radius:12px;background:#20242a;color:#fff;text-decoration:none;font-weight:900}
+.paymentLinkButton:hover{background:#2d333a}
+@media(max-width:640px){.expenseDetailHero{display:grid}.expenseDetailHero>strong{font-size:22px}.expenseDetail dl{grid-template-columns:1fr}.weeklyDueValue small{display:block!important}}
