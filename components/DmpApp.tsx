@@ -11,7 +11,7 @@ import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
-import type {KidsCategory,KidsData,KidsEvent,KidsStudent} from "@/types/kids";
+import type {KidsCategory,KidsData,KidsStudent} from "@/types/kids";
 import {normalizeKidsData} from "@/lib/kids/seed";
 import type {FinanceData} from "@/types/financeiro";
 import { financeSeedAugust2026 } from "@/lib/financeiro/agosto2026";
@@ -100,7 +100,6 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [kidsStudentRequest,setKidsStudentRequest]=useState<string|null>(null);
   const [kidsEntryKey,setKidsEntryKey]=useState(0);
   const [homeMonthKidsCount,setHomeMonthKidsCount]=useState<number|null>(null);
-  const [homeKidsEvents,setHomeKidsEvents]=useState<KidsEvent[]>([]);
   const [showMobileActions,setShowMobileActions]=useState(false);
   const [todayPerformanceActivities,setTodayPerformanceActivities]=useState<PerformanceActivity[]>([]);
   const [homePerformanceActivities,setHomePerformanceActivities]=useState<PerformanceActivity[]>([]);
@@ -560,10 +559,8 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         const data=payload.data as KidsData|null;
         if(!data){
           setHomeMonthKidsCount(0);
-          setHomeKidsEvents([]);
           return;
         }
-        setHomeKidsEvents((data.events||[]).filter(event=>event.status!=="CANCELLED"));
         const monthKey=today().slice(0,7);
         const count=data.lessons.filter(lesson=>{
           if(lesson.date.slice(0,7)!==monthKey)return false;
@@ -576,10 +573,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         setHomeMonthKidsCount(count);
       })
       .catch(()=>{
-        if(!cancelled){
-          setHomeMonthKidsCount(null);
-          setHomeKidsEvents([]);
-        }
+        if(!cancelled)setHomeMonthKidsCount(null);
       });
     return()=>{cancelled=true;};
   },[view]);
@@ -979,7 +973,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} kidsEvents={homeKidsEvents} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id} onClick={()=>startEditingNote(note)} role="button" tabIndex={0}><div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div><div className="note-actions" onClick={e=>e.stopPropagation()}><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}{editingNoteId?<div className="note-modal-backdrop" onMouseDown={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}><section className="note-modal" onMouseDown={e=>e.stopPropagation()}><div className="note-modal-head"><span>Editar recado</span><button className="text-button" onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}} aria-label="Fechar">×</button></div><input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Escreva seu recado..."/><div className="note-modal-actions"><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button><button className="primary" onClick={saveEditedNote}>Salvar</button></div></section></div>:null}</section>
               <HomePendingSection students={students}/>
@@ -1875,7 +1869,7 @@ function GlobalSearch({value,onChange,students,events,onStudent,onAgenda,onKidsS
   const eventHits=events.filter(event=>normalizeName(`${event.summary} ${event.description||""} ${event.location||""}`).includes(q)).slice(0,5);
   return <div className="global-search global-search-open"><span>⌕</span><input autoFocus value={value} onChange={e=>onChange(e.target.value)} placeholder="Buscar Personal, Kids, treino, avaliação, financeiro..."/><div className="global-search-results">{studentHits.map(hit=><button key={`${hit.student.id}-${hit.label}`} onClick={()=>{onChange("");onStudent(hit.student.id)}}><b>{hit.student.name}</b><small>{hit.label} · {hit.detail}</small></button>)}{kidsHits.map(student=><button key={`kids-${student.id}`} onClick={()=>{onChange("");onKidsStudent(student.id)}}><b>{student.name}</b><small>Kids · Abrir ficha da criança</small></button>)}{financeHits.map(item=>{const st=students.find(s=>normalizeName(s.name)===normalizeName(item.studentName));return <button key={`fin-${item.id}`} onClick={()=>{onChange("");if(st)onStudent(st.id)}}><b>{item.studentName}</b><small>Financeiro · {item.competence} · {formatStudentMoney(item.expectedAmount)}</small></button>})}{eventHits.map(event=><button key={`ev-${event.id}`} onClick={()=>{onChange("");onAgenda(calendarEventDate(event))}}><b>{event.summary}</b><small>Agenda · {formatDate(calendarEventDate(event))}</small></button>)}{!studentHits.length&&!kidsHits.length&&!financeHits.length&&!eventHits.length?<p>Nenhum resultado encontrado.</p>:null}</div></div>;
 }
-function TodayHighlights({events,monthEvents,kidsEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];kidsEvents:KidsEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void}){
+function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void}){
   const [showSummary,setShowSummary]=useState(false);
   const [showMonthClosing,setShowMonthClosing]=useState(false);
 
@@ -1990,7 +1984,7 @@ function TodayHighlights({events,monthEvents,kidsEvents,monthKidsCount,notes,stu
   return <>
     <div className="today-highlight-grid">
 
-      <MiniMonthCalendar onSelect={onAgenda} events={kidsEvents}/>
+      <MiniMonthCalendar onSelect={onAgenda}/>
 
       <button
         className="today-highlight-card today-summary-card"
@@ -2145,84 +2139,9 @@ function TodayHighlights({events,monthEvents,kidsEvents,monthKidsCount,notes,stu
   </>;
 }
 
-function MiniMonthCalendar({onSelect,events}:{onSelect:(date:string)=>void;events:KidsEvent[]}){
-  const now=new Date();
-  const [cursor,setCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));
-  const [selectedDate,setSelectedDate]=useState<string|null>(null);
-  const year=cursor.getFullYear();
-  const month=cursor.getMonth();
-  const first=new Date(year,month,1).getDay();
-  const days=new Date(year,month+1,0).getDate();
-
-  const eventDates=new Map<string,KidsEvent[]>();
-  events.forEach(event=>{
-    const startDate=event.startDate;
-    const endDate=event.endDate||event.startDate;
-    if(!startDate||!endDate)return;
-    const current=new Date(`${startDate}T12:00:00`);
-    const finish=new Date(`${endDate}T12:00:00`);
-    if(Number.isNaN(current.getTime())||Number.isNaN(finish.getTime()))return;
-    while(current<=finish){
-      const value=localDateKey(current);
-      const list=eventDates.get(value)||[];
-      list.push(event);
-      eventDates.set(value,list);
-      current.setDate(current.getDate()+1);
-    }
-  });
-
-  const selectedEvents=selectedDate?(eventDates.get(selectedDate)||[]):[];
-
-  function selectDay(value:string){
-    const dayEvents=eventDates.get(value)||[];
-    if(dayEvents.length){
-      setSelectedDate(value);
-      return;
-    }
-    setSelectedDate(null);
-    onSelect(value);
-  }
-
-  return <article className="mini-month">
-    <div className="mini-month-nav">
-      <button onClick={()=>{setSelectedDate(null);setCursor(new Date(year,month-1,1));}}>‹</button>
-      <strong>{cursor.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong>
-      <button onClick={()=>{setSelectedDate(null);setCursor(new Date(year,month+1,1));}}>›</button>
-    </div>
-    <button className="mini-month-today" onClick={()=>{setSelectedDate(null);setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button>
-    <div className="mini-month-week"><b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b></div>
-    <div className="mini-month-days">
-      {Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}
-      {Array.from({length:days},(_,index)=>{
-        const day=index+1;
-        const value=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-        const hasEvent=eventDates.has(value);
-        const isToday=value===today();
-        const className=[isToday?"today":"",hasEvent?"event-day":"",selectedDate===value?"event-selected":""].filter(Boolean).join(" ");
-        return <button key={day} className={className} title={hasEvent?(eventDates.get(value)||[]).map(item=>item.name).join(" · "):undefined} onClick={()=>selectDay(value)}>{day}</button>;
-      })}
-    </div>
-
-    {selectedDate&&selectedEvents.length?
-      <div className="mini-month-event-popover">
-        <div className="mini-month-event-head">
-          <strong>Evento · {formatDate(selectedDate)}</strong>
-          <button onClick={()=>setSelectedDate(null)} aria-label="Fechar detalhes">×</button>
-        </div>
-        <div className="mini-month-event-list">
-          {selectedEvents.map(event=><article key={event.id}>
-            <span className="mini-month-event-dot"/>
-            <div>
-              <strong>{event.name}</strong>
-              <small>{event.startDate===event.endDate||!event.endDate?formatDate(event.startDate):`${formatDate(event.startDate)} a ${formatDate(event.endDate)}`}</small>
-              {event.description?<p>{event.description}</p>:null}
-            </div>
-          </article>)}
-        </div>
-        <button className="mini-month-open-agenda" onClick={()=>onSelect(selectedDate)}>Abrir agenda deste dia</button>
-      </div>
-    :null}
-  </article>;
+function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
+  const now=new Date();const [cursor,setCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));const year=cursor.getFullYear();const month=cursor.getMonth();const first=new Date(year,month,1).getDay();const days=new Date(year,month+1,0).getDate();
+  return <article className="mini-month"><div className="mini-month-nav"><button onClick={()=>setCursor(new Date(year,month-1,1))}>‹</button><strong>{cursor.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong><button onClick={()=>setCursor(new Date(year,month+1,1))}>›</button></div><button className="mini-month-today" onClick={()=>{setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button><div className="mini-month-week"><b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b></div><div className="mini-month-days">{Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}{Array.from({length:days},(_,index)=>{const day=index+1;const value=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <button key={day} className={value===today()?"today":""} onClick={()=>onSelect(value)}>{day}</button>;})}</div></article>;
 }
 
 function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh}:{events:CalendarEvent[];students:Student[];onOpenAgenda:(date:string)=>void;onOpenStudent:(id:string)=>void;onRefresh:()=>void}){
