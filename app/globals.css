@@ -6045,7 +6045,8 @@ input:focus,textarea:focus{
     padding:0 12px!important;
   }
   .sidebar-student-search{
-    margin-top:8px!important;
+    margin-top:auto!important;
+    margin-bottom:0!important;
   }
 }
 .settings-session-panel{
