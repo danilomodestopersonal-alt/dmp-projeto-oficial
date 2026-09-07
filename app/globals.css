@@ -6027,3 +6027,31 @@ input:focus,textarea:focus{
   .month-closing-today-card .highlight-lines small,
   .month-closing-today-card .month-closing-lines small{text-align:left!important;width:100%!important}
 }
+
+/* DMP 07-09-2026 — organização final do menu lateral */
+@media (min-width: 901px) {
+  .dashboard-logo-card{
+    margin-bottom:10px!important;
+  }
+  .sidebar-kids-special{
+    margin-top:0!important;
+    margin-bottom:8px!important;
+  }
+  .dashboard-nav{
+    gap:4px!important;
+  }
+  .dashboard-nav-item{
+    min-height:42px!important;
+    padding:0 12px!important;
+  }
+  .sidebar-student-search{
+    margin-top:8px!important;
+  }
+}
+.settings-session-panel{
+  align-content:start;
+}
+.settings-logout-button{
+  width:max-content;
+  min-width:140px;
+}
