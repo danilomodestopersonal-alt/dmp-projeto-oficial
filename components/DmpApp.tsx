@@ -1754,7 +1754,7 @@ function monthStudentStats(student:Student,ledger:AttendanceLedgerRow[]){const r
 function PersonalReportsPage({students,calendarEvents,onStudent}:{students:Student[];calendarEvents:CalendarEvent[];onStudent:(id:string)=>void}){
   const [month,setMonth]=useState(today().slice(0,7));const [finance,setFinance]=useState<FinanceData|null>(null);
   useEffect(()=>{let cancelled=false;const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>{if(!cancelled&&d)setFinance(d)}).catch(()=>{});return()=>{cancelled=true}},[]);
-  const previous=monthKeyOffset(month,-1);const active=students.filter(s=>s.status==="ACTIVE");
+  const previous=monthKeyOffset(month,-1);const active=students.filter(s=>s.status==="ACTIVE"&&normalizeName(s.name)!=="daniela lima");
   const makeStats=(key:string)=>{const ledger=buildAttendanceLedger(active,calendarEvents,key);const rows=active.map(student=>({student,...monthStudentStats(student,ledger)}));const done=rows.reduce((n,r)=>n+r.done,0),absences=rows.reduce((n,r)=>n+r.absences,0),evaluations=active.reduce((n,s)=>n+s.assessments.filter(a=>a.date.startsWith(key)).length,0);const fs=finance?financeSummary(finance,key):null;return{rows,done,absences,evaluations,studentsWithSessions:rows.filter(r=>r.done>0).length,received:fs?.personalReceived||0,expected:fs?.personalExpected||0};};
   const current=makeStats(month),prev=makeStats(previous);const rank=[...current.rows].filter(r=>r.total>0).sort((a,b)=>b.presence-a.presence||b.done-a.done||a.student.name.localeCompare(b.student.name,"pt-BR"));
   const delta=(a:number,b:number)=>`${a-b>0?"+":""}${a-b}`;

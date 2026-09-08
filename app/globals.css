@@ -6157,3 +6157,134 @@ input:focus,textarea:focus{
   font-size:.54rem;
   line-height:1.25;
 }
+
+/* =========================================================
+   DMP 08/09/2026 - NOVO LAYOUT DA SESSAO DE TREINO
+   ========================================================= */
+
+/* usa melhor a largura disponivel */
+.content.narrow:has(.session-mode-banner){
+  max-width:1320px;
+  width:100%;
+}
+
+/* um exercicio por linha no desktop */
+.content.narrow:has(.session-mode-banner) .session-list{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:14px;
+}
+
+/* card mais horizontal, limpo e espacoso */
+.content.narrow:has(.session-mode-banner) .session-exercise.planned-row{
+  display:grid;
+  grid-template-columns:96px minmax(0,1fr);
+  gap:18px;
+  align-items:start;
+  padding:18px 20px;
+  border-radius:18px;
+}
+
+/* area Feito */
+.content.narrow:has(.session-mode-banner) .session-exercise.planned-row > .exercise-check{
+  min-height:46px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-top:4px;
+}
+
+/* corpo do exercicio */
+.content.narrow:has(.session-mode-banner) .planned-exercise-main{
+  min-width:0;
+  display:grid;
+  gap:10px;
+}
+
+/* bloco + nome */
+.content.narrow:has(.session-mode-banner) .planned-title-line{
+  display:grid;
+  grid-template-columns:56px minmax(0,1fr);
+  gap:10px;
+  align-items:center;
+}
+
+.content.narrow:has(.session-mode-banner) .planned-name{
+  width:100%;
+  min-width:0;
+  min-height:44px;
+  font-size:1rem;
+  font-weight:800;
+}
+
+/* ultima execucao */
+.content.narrow:has(.session-mode-banner) .last-load-inline{
+  display:block;
+  margin:0;
+  padding:7px 10px;
+  border-radius:10px;
+  background:#f7f9f3;
+  color:#667064;
+}
+
+/* SERIES | REPETICOES | CARGA | OBSERVACAO */
+.content.narrow:has(.session-mode-banner) .planned-fields{
+  display:grid;
+  grid-template-columns:
+    minmax(105px,.65fr)
+    minmax(210px,1.35fr)
+    minmax(200px,1.25fr)
+    minmax(260px,1.65fr);
+  gap:10px;
+  width:100%;
+}
+
+.content.narrow:has(.session-mode-banner) .planned-fields input{
+  width:100%;
+  min-width:0;
+  min-height:44px;
+  padding:0 13px;
+  font-size:.95rem;
+}
+
+/* deixa o card concluido discreto */
+.content.narrow:has(.session-mode-banner) .session-exercise.planned-row.is-done{
+  border-color:#cddba9;
+}
+
+/* TABLET */
+@media(max-width:1050px){
+  .content.narrow:has(.session-mode-banner) .planned-fields{
+    grid-template-columns:
+      minmax(90px,.7fr)
+      minmax(160px,1.3fr)
+      minmax(150px,1.2fr)
+      minmax(180px,1.4fr);
+  }
+}
+
+/* CELULAR */
+@media(max-width:700px){
+  .content.narrow:has(.session-mode-banner) .session-exercise.planned-row{
+    grid-template-columns:1fr;
+    gap:10px;
+    padding:15px;
+  }
+
+  .content.narrow:has(.session-mode-banner) .session-exercise.planned-row > .exercise-check{
+    min-height:auto;
+    padding:0;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-title-line{
+    grid-template-columns:48px minmax(0,1fr);
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-fields{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-fields input:nth-child(4){
+    grid-column:1 / -1;
+  }
+}
