@@ -6288,3 +6288,225 @@ input:focus,textarea:focus{
     grid-column:1 / -1;
   }
 }
+
+/* DMP 08/09/2026 - CARDS DE TREINO AGRUPADOS V2 */
+
+/* NOME DO EXERCICIO */
+.content.narrow:has(.session-mode-banner) .planned-name{
+  width:100%;
+  min-width:0;
+  min-height:56px!important;
+  padding:0 17px!important;
+  font-size:1.20rem!important;
+  font-weight:850!important;
+  letter-spacing:-.015em;
+  color:#25352b;
+}
+
+/* TITULO */
+.content.narrow:has(.session-mode-banner) .planned-title-line{
+  grid-template-columns:110px minmax(0,1fr)!important;
+  gap:12px!important;
+}
+
+/* BLOCO NORMAL */
+.planned-block-input{
+  width:110px!important;
+  max-width:110px!important;
+  min-height:50px;
+  font-weight:850;
+  text-align:center;
+}
+
+/* A1 / A2 / B1... */
+.planned-sequence-code{
+  display:grid;
+  place-items:center;
+  width:58px;
+  min-width:58px;
+  min-height:42px;
+  border-radius:12px;
+  background:#35483a;
+  color:#fff;
+  font-size:.88rem;
+  font-weight:950;
+  letter-spacing:.04em;
+}
+
+/* SERIES / REPS / CARGA */
+.content.narrow:has(.session-mode-banner) .planned-fields-core{
+  display:grid!important;
+  grid-template-columns:
+    minmax(130px,.75fr)
+    minmax(240px,1.35fr)
+    minmax(220px,1.25fr)!important;
+  gap:12px!important;
+}
+
+.content.narrow:has(.session-mode-banner)
+.planned-fields-core input{
+  min-height:48px;
+}
+
+/* OBSERVACAO */
+.planned-exercise-observation{
+  display:grid;
+  gap:6px;
+  margin-top:2px;
+}
+
+.planned-exercise-observation>span{
+  font-size:.70rem;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+  color:#748077;
+}
+
+.content.narrow:has(.session-mode-banner)
+.planned-exercise-observation input{
+  width:100%;
+  min-height:50px;
+  padding:0 15px;
+  font-size:.96rem;
+}
+
+/* ACOES DE EXCLUSAO MAIS DISCRETAS */
+.planned-exercise-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-top:2px;
+}
+
+.planned-exercise-actions .danger-link{
+  font-size:.73rem;
+  opacity:.72;
+}
+
+/* GRUPO */
+.planned-exercise-group{
+  min-width:0;
+}
+
+.planned-exercise-group.combined{
+  overflow:hidden;
+  border:1px solid #d9e3c0;
+  border-left:5px solid #94ad4a;
+  border-radius:20px;
+  background:#fbfcf8;
+  box-shadow:0 3px 12px rgba(45,62,45,.035);
+}
+
+/* CABECALHO */
+.planned-sequence-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 17px;
+  border-bottom:1px solid #e0e7cf;
+  background:#f0f5e4;
+}
+
+.planned-sequence-heading{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.planned-sequence-heading>span{
+  padding:6px 10px;
+  border-radius:999px;
+  background:#35483a;
+  color:#fff;
+  font-size:.69rem;
+  font-weight:950;
+  letter-spacing:.07em;
+}
+
+.planned-sequence-heading>strong{
+  font-size:.96rem;
+  color:#364338;
+}
+
+.planned-sequence-header>small{
+  color:#748077;
+  font-weight:800;
+}
+
+/* CARDS INTERNOS */
+.planned-exercise-group.combined
+.planned-sequence-items{
+  display:grid;
+  gap:0;
+}
+
+.planned-exercise-group.combined
+.session-exercise.planned-row{
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  border-bottom:1px solid #e5eadb!important;
+  background:#fff;
+}
+
+.planned-exercise-group.combined
+.session-exercise.planned-row:last-child{
+  border-bottom:0!important;
+}
+
+/* RODAPE DO GRUPO */
+.planned-sequence-footer{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:9px 16px 10px;
+  border-top:1px solid #e0e7cf;
+  background:#f5f8ed;
+  color:#66705f;
+  font-size:.74rem;
+}
+
+.planned-sequence-footer strong{
+  color:#35483a;
+  font-weight:950;
+}
+
+/* CELULAR */
+@media(max-width:700px){
+
+  .content.narrow:has(.session-mode-banner)
+  .planned-title-line{
+    grid-template-columns:76px minmax(0,1fr)!important;
+  }
+
+  .planned-block-input{
+    width:76px!important;
+    max-width:76px!important;
+  }
+
+  .content.narrow:has(.session-mode-banner)
+  .planned-fields-core{
+    grid-template-columns:1fr 1fr!important;
+  }
+
+  .content.narrow:has(.session-mode-banner)
+  .planned-fields-core input:nth-child(3){
+    grid-column:1 / -1;
+  }
+
+  .planned-sequence-header{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:5px;
+  }
+
+  .planned-sequence-footer{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:2px;
+  }
+
+}

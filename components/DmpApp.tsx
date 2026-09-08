@@ -3680,6 +3680,50 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   const currentExercise=exercises[currentIndex];
   const slot=workout?.slot||inferWorkoutSlot(workout,0);
   const protocol=workout?.protocol||"CONVENTIONAL";
+  const sessionSequenceSize=workout?.sequenceSize||defaultSequenceSize(protocol);
+
+  const rawSessionGroups:{
+    key:string;
+    label:string;
+    items:{exercise:Exercise;index:number}[]
+  }[]=[];
+
+  exercises.forEach((exercise,index)=>{
+    const explicit=(exercise.block||"").trim();
+
+    const automatic=
+      explicit||
+      sequenceBlockLabel(protocol,index,sessionSequenceSize)||
+      `__single_${index}`;
+
+    const previousGroup=rawSessionGroups[rawSessionGroups.length-1];
+
+    if(
+      previousGroup &&
+      previousGroup.key===automatic &&
+      !automatic.startsWith("__single_")
+    ){
+      previousGroup.items.push({exercise,index});
+    }else{
+      rawSessionGroups.push({
+        key:automatic,
+        label:automatic.startsWith("__single_")?"":automatic,
+        items:[{exercise,index}]
+      });
+    }
+  });
+
+  let sessionCombinedIndex=0;
+
+  const sessionGroups=rawSessionGroups.map(group=>{
+    const grouped=group.items.length>1;
+
+    const letter=grouped
+      ? String.fromCharCode(65+Math.min(sessionCombinedIndex++,25))
+      : "";
+
+    return {...group,grouped,letter};
+  });
   useEffect(()=>{
     const previousTitle=document.title;
     document.title=`${student.name} · Treino ${slot} · DMP`;
@@ -3687,11 +3731,10 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   },[student.name,slot]);
 
   if(lessonMode && currentExercise){
-    const previous=findPreviousExercise(student,currentExercise.name);
-    return <main className="app-page lesson-mode-page"><Header title={`${student.name} — Treino ${slot}`} back={()=>setLessonMode(false)} titleClassName="workout-student-header-title"/><section className="content lesson-mode-content"><div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>Treino {slot}</small></div>
+return <main className="app-page lesson-mode-page"><Header title={`${student.name} — Treino ${slot}`} back={()=>setLessonMode(false)} titleClassName="workout-student-header-title"/><section className="content lesson-mode-content"><div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>Treino {slot}</small></div>
       {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
       <div className="lesson-progress"><span>{workoutProtocolLabel(protocol)} · Exercício {currentIndex+1} de {exercises.length}</span><div><i style={{width:`${((currentIndex+1)/Math.max(1,exercises.length))*100}%`}}/></div></div>
-      <article className="panel lesson-card"><div className="lesson-card-top"><span className="status-chip">{currentExercise.block||`#${currentIndex+1}`}</span><label className="exercise-check"><input type="checkbox" checked={completed[currentExercise.id]??true} onChange={e=>setCompleted(current=>({...current,[currentExercise.id]:e.target.checked}))}/><span>Realizado</span></label></div><h1>{currentExercise.name}</h1>{currentExercise.notes?<div className="planned-note">📌 {currentExercise.notes}</div>:null}{previous?<div className="previous-load"><span>Última execução</span><strong>{previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""}</strong><small>{formatDate(previous.date)}</small></div>:<div className="previous-load muted">Sem execução anterior encontrada.</div>}<div className="planned-fields lesson-fields"><label>Séries<input value={currentExercise.sets} onChange={e=>updateExercise(currentExercise.id,{sets:e.target.value})}/></label><label>Repetições<input value={currentExercise.reps} onChange={e=>updateExercise(currentExercise.id,{reps:e.target.value})}/></label><label>Carga<input value={currentExercise.load} onChange={e=>updateExercise(currentExercise.id,{load:e.target.value})}/></label></div><label className="lesson-exercise-note">Observação de hoje<input value={currentExercise.notes||""} onChange={e=>updateExercise(currentExercise.id,{notes:e.target.value})} placeholder="Ajuste feito hoje..."/></label><div className="lesson-actions"><button className="secondary" disabled={currentIndex===0} onClick={()=>setCurrentIndex(i=>Math.max(0,i-1))}>← Anterior</button><button className="primary" onClick={()=>{setCompleted(current=>({...current,[currentExercise.id]:true}));setCurrentIndex(i=>Math.min(exercises.length-1,i+1));}}>{currentIndex===exercises.length-1?"✓ Último exercício":"Concluir e próximo →"}</button></div></article>
+      <article className="panel lesson-card"><div className="lesson-card-top"><span className="status-chip">{currentExercise.block||`#${currentIndex+1}`}</span><label className="exercise-check"><input type="checkbox" checked={completed[currentExercise.id]??true} onChange={e=>setCompleted(current=>({...current,[currentExercise.id]:e.target.checked}))}/><span>Realizado</span></label></div><h1>{currentExercise.name}</h1>{currentExercise.notes?<div className="planned-note">📌 {currentExercise.notes}</div>:null}<div className="planned-fields lesson-fields"><label>Séries<input value={currentExercise.sets} onChange={e=>updateExercise(currentExercise.id,{sets:e.target.value})}/></label><label>Repetições<input value={currentExercise.reps} onChange={e=>updateExercise(currentExercise.id,{reps:e.target.value})}/></label><label>Carga<input value={currentExercise.load} onChange={e=>updateExercise(currentExercise.id,{load:e.target.value})}/></label></div><label className="lesson-exercise-note">Observação de hoje<input value={currentExercise.notes||""} onChange={e=>updateExercise(currentExercise.id,{notes:e.target.value})} placeholder="Ajuste feito hoje..."/></label><div className="lesson-actions"><button className="secondary" disabled={currentIndex===0} onClick={()=>setCurrentIndex(i=>Math.max(0,i-1))}>← Anterior</button><button className="primary" onClick={()=>{setCompleted(current=>({...current,[currentExercise.id]:true}));setCurrentIndex(i=>Math.min(exercises.length-1,i+1));}}>{currentIndex===exercises.length-1?"✓ Último exercício":"Concluir e próximo →"}</button></div></article>
       <button className="secondary" onClick={()=>setLessonMode(false)}>Voltar para ficha completa</button>
     </section></main>;
   }
@@ -3699,10 +3742,190 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack} titleClassName="workout-student-header-title"/><section className="content narrow"><div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>Treino {slot}</small></div>
     {student.restrictions||student.injuries ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div> : null}<div className="session-mode-banner"><span>📋 Treino {slot} · {workoutProtocolLabel(protocol)}</span><strong>{workout?.name||`Treino ${slot}`}</strong><small>{completedCount}/{exercises.length} exercícios marcados{workout?.notes?` · ${workout.notes}`:""}</small><button className="secondary compact-button" disabled={!exercises.length} onClick={()=>setLessonMode(true)}>▶ Modo aula</button></div>
     <div className="hero-actions" style={{marginBottom:12}}><button type="button" className="secondary compact-button" onClick={()=>addSessionExercise(exercises[exercises.length-1]?.block||"")}>+ Exercício</button><button type="button" className="secondary compact-button" onClick={addSessionBlock}>+ Bloco</button><small className="muted">Só muda a sessão de hoje; a ficha original não é alterada.</small></div>
-    <div className="session-list">{exercises.map((ex,index)=>{const previous=findPreviousExercise(student,ex.name);return <article className={`session-exercise planned-row ${completed[ex.id]?"is-done":""}`} key={ex.id}>
-      <label className="exercise-check"><input type="checkbox" checked={completed[ex.id]??false} onChange={e=>setCompleted(current=>({...current,[ex.id]:e.target.checked}))}/><span>Feito</span></label>
-      <div className="planned-exercise-main"><div className="planned-title-line"><input aria-label="Bloco" title="Altere para mover o exercício entre blocos" value={ex.block||""} onChange={e=>updateExercise(ex.id,{block:e.target.value})} placeholder="Bloco" style={{width:105,maxWidth:"28%",fontWeight:800}}/><input className="planned-name" value={ex.name} onChange={e=>updateExercise(ex.id,{name:e.target.value})}/></div>{ex.notes?<small className="planned-note-inline">📌 {ex.notes}</small>:null}{previous?<small className="last-load-inline">Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}{previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}</small>:null}<div className="planned-fields"><input placeholder="Séries" value={ex.sets} onChange={e=>updateExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>updateExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>updateExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação de hoje" value={ex.notes||""} onChange={e=>updateExercise(ex.id,{notes:e.target.value})}/></div><div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:8}}><button type="button" className="danger-link compact-button" onClick={()=>removeSessionExercise(ex.id)}>Excluir exercício</button>{ex.block&&exercises.findIndex(item=>(item.block||"").trim()===(ex.block||"").trim())===index?<button type="button" className="danger-link compact-button" onClick={()=>removeSessionBlock(ex.block||"")}>Excluir {ex.block}</button>:null}</div></div>
-    </article>})}</div>
+    <div className="session-list">{sessionGroups.map((group,groupIndex)=>{
+
+      const groupType=group.grouped
+        ? protocol==="BISET"
+          ? "BI-SET"
+          : protocol==="TRISET"
+            ? "TRI-SET"
+            : protocol==="CIRCUIT"
+              ? "CIRCUITO"
+              : protocol==="B7"
+                ? "B7"
+                : "COMBINADO"
+        : "";
+
+      return <section
+        className={`planned-exercise-group ${group.grouped?"combined":"single"}`}
+        key={`${group.key}-${groupIndex}`}
+      >
+
+        {group.grouped?
+          <div className="planned-sequence-header">
+
+            <div className="planned-sequence-heading">
+              <span>{groupType}</span>
+              <strong>{group.label||`Bloco ${group.letter}`}</strong>
+            </div>
+
+            <small>
+              {group.items.length} exercícios juntos
+            </small>
+
+          </div>
+        :null}
+
+        <div className="planned-sequence-items">
+
+          {group.items.map(({exercise:ex,index},position)=>
+
+            <article
+              className={`session-exercise planned-row ${completed[ex.id]?"is-done":""}`}
+              key={ex.id}
+            >
+
+              <label className="exercise-check">
+                <input
+                  type="checkbox"
+                  checked={completed[ex.id]??false}
+                  onChange={e=>setCompleted(current=>({
+                    ...current,
+                    [ex.id]:e.target.checked
+                  }))}
+                />
+                <span>Feito</span>
+              </label>
+
+              <div className="planned-exercise-main">
+
+                <div className="planned-title-line">
+
+                  {group.grouped?
+                    <span className="planned-sequence-code">
+                      {group.letter}{position+1}
+                    </span>
+                  :
+                    <input
+                      className="planned-block-input"
+                      aria-label="Bloco"
+                      title="Altere para mover o exercício entre blocos"
+                      value={ex.block||""}
+                      onChange={e=>updateExercise(
+                        ex.id,
+                        {block:e.target.value}
+                      )}
+                      placeholder="Bloco"
+                    />
+                  }
+
+                  <input
+                    className="planned-name"
+                    value={ex.name}
+                    onChange={e=>updateExercise(
+                      ex.id,
+                      {name:e.target.value}
+                    )}
+                  />
+
+                </div>
+
+                <div className="planned-fields planned-fields-core">
+
+                  <input
+                    placeholder="Séries"
+                    value={ex.sets}
+                    onChange={e=>updateExercise(
+                      ex.id,
+                      {sets:e.target.value}
+                    )}
+                  />
+
+                  <input
+                    placeholder="Repetições"
+                    value={ex.reps}
+                    onChange={e=>updateExercise(
+                      ex.id,
+                      {reps:e.target.value}
+                    )}
+                  />
+
+                  <input
+                    placeholder="Carga"
+                    value={ex.load}
+                    onChange={e=>updateExercise(
+                      ex.id,
+                      {load:e.target.value}
+                    )}
+                  />
+
+                </div>
+
+                <label className="planned-exercise-observation">
+                  <span>Observação do exercício</span>
+
+                  <input
+                    placeholder="Ex.: cadência, ajuste, dor, orientação..."
+                    value={ex.notes||""}
+                    onChange={e=>updateExercise(
+                      ex.id,
+                      {notes:e.target.value}
+                    )}
+                  />
+                </label>
+
+                <div className="planned-exercise-actions">
+
+                  <button
+                    type="button"
+                    className="danger-link compact-button"
+                    onClick={()=>removeSessionExercise(ex.id)}
+                  >
+                    Excluir exercício
+                  </button>
+
+                  {ex.block &&
+                  exercises.findIndex(
+                    item=>
+                      (item.block||"").trim()===
+                      (ex.block||"").trim()
+                  )===index
+                    ?
+                    <button
+                      type="button"
+                      className="danger-link compact-button"
+                      onClick={()=>removeSessionBlock(ex.block||"")}
+                    >
+                      Excluir {ex.block}
+                    </button>
+                    :
+                    null
+                  }
+
+                </div>
+
+              </div>
+
+            </article>
+
+          )}
+
+        </div>
+
+        {group.grouped?
+          <div className="planned-sequence-footer">
+            <strong>
+              {group.letter}1 → {group.letter}{group.items.length}
+            </strong>
+            <span>
+              executar em sequência · descanso após {group.letter}{group.items.length}
+            </span>
+          </div>
+        :null}
+
+      </section>;
+
+    })}</div>
     {!exercises.length?<div className="empty-review"><strong>Sessão sem exercícios</strong><span>Use “+ Exercício” ou “+ Bloco” para montar o que será realizado hoje.</span></div>:null}
     <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,workoutId:workout?.id,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
