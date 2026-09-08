@@ -628,7 +628,7 @@ input:focus,textarea:focus{
 .exercise-check input{width:20px;height:20px;accent-color:var(--dmp-green-dark)}
 .planned-exercise-main{display:grid;gap:10px}
 .planned-name{font-weight:850;font-size:1rem}
-.planned-fields{display:grid;grid-template-columns:.58fr 1.05fr 1.18fr 1.2fr;gap:8px}
+.planned-fields{display:grid;grid-template-columns:.45fr 1.65fr 1.55fr .85fr;gap:8px}
 .quick-register-panel{align-content:start}
 .review-row.enhanced{
   display:grid;grid-template-columns:.75fr 2.2fr .7fr .8fr 1fr 38px;gap:8px;align-items:center;margin-bottom:8px
