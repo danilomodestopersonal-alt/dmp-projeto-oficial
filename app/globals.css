@@ -628,7 +628,7 @@ input:focus,textarea:focus{
 .exercise-check input{width:20px;height:20px;accent-color:var(--dmp-green-dark)}
 .planned-exercise-main{display:grid;gap:10px}
 .planned-name{font-weight:850;font-size:1rem}
-.planned-fields{display:grid;grid-template-columns:.7fr .7fr .8fr 1.2fr;gap:8px}
+.planned-fields{display:grid;grid-template-columns:.58fr 1.05fr 1.18fr 1.2fr;gap:8px}
 .quick-register-panel{align-content:start}
 .review-row.enhanced{
   display:grid;grid-template-columns:.75fr 2.2fr .7fr .8fr 1fr 38px;gap:8px;align-items:center;margin-bottom:8px
@@ -6055,4 +6055,105 @@ input:focus,textarea:focus{
 .settings-logout-button{
   width:max-content;
   min-width:140px;
+}
+
+
+/* DMP 08/09/2026 — pendencias consolidadas V4 */
+.home-completed-workout{
+  border:0;
+  cursor:pointer;
+}
+.home-completed-workout:hover{
+  text-decoration:underline;
+}
+
+.mini-month-days button.event-day{
+  width:18px!important;
+  min-width:18px!important;
+  max-width:18px!important;
+  height:18px!important;
+  padding:0!important;
+  justify-self:center!important;
+  align-self:center!important;
+  border-radius:50%!important;
+  background:#f58220!important;
+  color:#fff!important;
+  font-weight:900!important;
+  line-height:18px!important;
+}
+.mini-month-days button.today{
+  width:18px!important;
+  min-width:18px!important;
+  max-width:18px!important;
+  justify-self:center!important;
+  align-self:center!important;
+}
+.mini-month-days button.today.event-day{
+  background:var(--dmp-green)!important;
+  color:inherit!important;
+  box-shadow:0 0 0 2px #f58220!important;
+}
+.mini-month-days button.event-selected{
+  outline:1px solid #a85410;
+  outline-offset:1px;
+}
+.mini-month-event-detail{
+  margin-top:8px;
+  padding:7px;
+  border:1px solid #f1cfb1;
+  border-radius:10px;
+  background:#fffaf5;
+}
+.mini-month-event-detail-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:3px;
+}
+.mini-month-event-detail-head strong{
+  color:#8a4e1a;
+  font-size:.62rem;
+}
+.mini-month-event-detail-head button{
+  width:19px;
+  height:19px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:#f6e3d1;
+  color:#8a4e1a;
+  font-weight:900;
+}
+.mini-month-event-detail-item{
+  width:100%;
+  display:grid;
+  grid-template-columns:7px 1fr;
+  gap:6px;
+  align-items:start;
+  padding:5px 2px;
+  border:0;
+  border-top:1px solid #f2decc;
+  background:transparent;
+  text-align:left;
+}
+.mini-month-event-detail-item>span{
+  width:7px;
+  height:7px;
+  margin-top:3px;
+  border-radius:50%;
+  background:#f58220;
+}
+.mini-month-event-detail-item>div{
+  display:grid;
+  gap:1px;
+}
+.mini-month-event-detail-item strong{
+  font-size:.63rem;
+  line-height:1.2;
+}
+.mini-month-event-detail-item small{
+  color:#75685b;
+  font-size:.54rem;
+  line-height:1.25;
 }

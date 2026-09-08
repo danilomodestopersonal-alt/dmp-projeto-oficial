@@ -1419,7 +1419,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
     }}
   ><svg viewBox="0 0 24 24" aria-hidden="true" className="calendar-whatsapp-icon"><path fill="currentColor" d="M12.04 2a9.84 9.84 0 0 0-8.39 14.98L2 22l5.18-1.62A9.96 9.96 0 1 0 12.04 2Zm0 17.93a8.02 8.02 0 0 1-4.09-1.12l-.29-.17-3.07.96 1-2.99-.19-.31a7.91 7.91 0 1 1 6.64 3.63Zm4.4-5.93c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.47-.39-.41-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.16 1.51.1.46-.07 1.43-.58 1.63-1.15.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg></button>:null}
   <button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>{student.name}</button>
-</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{workoutEntries.length&&!done?<button type="button" className="secondary compact-action home-workouts-open" onClick={()=>onOpenStudent(student.id,"workouts")} title="Abrir Central de Treinos">Treinos</button>:null}{done?<span className="status-chip ok">✓ {completedWorkoutStatusLabel(student,completedSession)}</span>:absent?<span className="status-chip absent">Ausente</span>:null}{!done&&!absent?<span className="calendar-student-actions"><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></span>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
+</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{workoutEntries.length&&!done?<button type="button" className="secondary compact-action home-workouts-open" onClick={()=>onOpenStudent(student.id,"workouts")} title="Abrir Central de Treinos">Treinos</button>:null}{done?<button type="button" className="status-chip ok home-completed-workout" onClick={()=>onOpenStudent(student.id,"history")} title="Abrir treino realizado">✓ {completedWorkoutStatusLabel(student,completedSession)}</button>:absent?<span className="status-chip absent">Ausente</span>:null}{!done&&!absent?<span className="calendar-student-actions"><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></span>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
@@ -2140,10 +2140,126 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
 }
 
 function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
-  const now=new Date();const [cursor,setCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));const year=cursor.getFullYear();const month=cursor.getMonth();const first=new Date(year,month,1).getDay();const days=new Date(year,month+1,0).getDate();
-  return <article className="mini-month"><div className="mini-month-nav"><button onClick={()=>setCursor(new Date(year,month-1,1))}>‹</button><strong>{cursor.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong><button onClick={()=>setCursor(new Date(year,month+1,1))}>›</button></div><button className="mini-month-today" onClick={()=>{setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button><div className="mini-month-week"><b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b></div><div className="mini-month-days">{Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}{Array.from({length:days},(_,index)=>{const day=index+1;const value=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <button key={day} className={value===today()?"today":""} onClick={()=>onSelect(value)}>{day}</button>;})}</div></article>;
-}
+  const now=new Date();
+  const [cursor,setCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));
+  const [eventData,setEventData]=useState<import("@/types/kids").KidsEvent[]>([]);
+  const [selectedDate,setSelectedDate]=useState<string|null>(null);
+  const year=cursor.getFullYear();
+  const month=cursor.getMonth();
+  const first=new Date(year,month,1).getDay();
+  const days=new Date(year,month+1,0).getDate();
 
+  useEffect(()=>{
+    let cancelled=false;
+    fetch("/api/kids",{cache:"no-store"})
+      .then(response=>response.ok?response.json():Promise.reject())
+      .then(raw=>{
+        if(cancelled)return;
+        const data=normalizeKidsData(raw?.data??raw);
+        const source=(data?.events||[]).filter(event=>event.status!=="CANCELLED");
+
+        // Para registros repetidos do mesmo evento/ano, usa o menor intervalo valido.
+        const unique=new Map<string,typeof source[number]>();
+        const span=(event:typeof source[number])=>{
+          const startDate=event.startDate;
+          const endDate=event.endDate||event.startDate;
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(endDate))return Number.POSITIVE_INFINITY;
+          const a=new Date(`${startDate}T12:00:00`).getTime();
+          const b=new Date(`${endDate}T12:00:00`).getTime();
+          if(!Number.isFinite(a)||!Number.isFinite(b)||b<a)return Number.POSITIVE_INFINITY;
+          return Math.floor((b-a)/86400000)+1;
+        };
+
+        source.forEach(event=>{
+          const key=`${normalizeName(event.name)}|${event.year||event.startDate.slice(0,4)}`;
+          const previous=unique.get(key);
+          if(!previous||span(event)<span(previous))unique.set(key,event);
+        });
+
+        setEventData([...unique.values()]);
+      })
+      .catch(()=>{if(!cancelled)setEventData([]);});
+
+    return()=>{cancelled=true;};
+  },[]);
+
+  const eventsByDate=new Map<string,typeof eventData>();
+
+  eventData.forEach(event=>{
+    const startDate=event.startDate;
+    const endDate=event.endDate||event.startDate;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!/^\d{4}-\d{2}-\d{2}$/.test(endDate))return;
+
+    const start=new Date(`${startDate}T12:00:00`);
+    const finish=new Date(`${endDate}T12:00:00`);
+    if(Number.isNaN(start.getTime())||Number.isNaN(finish.getTime())||finish<start)return;
+
+    // Protecao: um registro anormalmente longo nao colore o mes inteiro.
+    const length=Math.floor((finish.getTime()-start.getTime())/86400000)+1;
+    if(length>7){
+      const list=eventsByDate.get(startDate)||[];
+      eventsByDate.set(startDate,[...list,event]);
+      return;
+    }
+
+    const current=new Date(start);
+    while(current<=finish){
+      const key=localDateKey(current);
+      const list=eventsByDate.get(key)||[];
+      eventsByDate.set(key,[...list,event]);
+      current.setDate(current.getDate()+1);
+    }
+  });
+
+  const selectedEvents=selectedDate?(eventsByDate.get(selectedDate)||[]):[];
+
+  return <article className="mini-month">
+    <div className="mini-month-nav">
+      <button onClick={()=>{setSelectedDate(null);setCursor(new Date(year,month-1,1));}}>‹</button>
+      <strong>{cursor.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong>
+      <button onClick={()=>{setSelectedDate(null);setCursor(new Date(year,month+1,1));}}>›</button>
+    </div>
+    <button className="mini-month-today" onClick={()=>{setSelectedDate(null);setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button>
+    <div className="mini-month-week"><b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b></div>
+    <div className="mini-month-days">
+      {Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}
+      {Array.from({length:days},(_,index)=>{
+        const day=index+1;
+        const value=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const hasEvent=eventsByDate.has(value);
+        const isToday=value===today();
+        const className=[isToday?"today":"",hasEvent?"event-day":"",selectedDate===value?"event-selected":""].filter(Boolean).join(" ");
+        return <button
+          key={day}
+          className={className}
+          title={hasEvent?(eventsByDate.get(value)||[]).map(event=>event.name).join(" · "):undefined}
+          onClick={()=>{
+            if(hasEvent){setSelectedDate(value);return;}
+            setSelectedDate(null);
+            onSelect(value);
+          }}
+        >{day}</button>;
+      })}
+    </div>
+    {selectedDate&&selectedEvents.length?
+      <div className="mini-month-event-detail">
+        <div className="mini-month-event-detail-head">
+          <strong>{formatDate(selectedDate)}</strong>
+          <button onClick={()=>setSelectedDate(null)}>×</button>
+        </div>
+        {selectedEvents.map(event=>
+          <button key={event.id} className="mini-month-event-detail-item" onClick={()=>onSelect(selectedDate)}>
+            <span/>
+            <div>
+              <strong>{event.name}</strong>
+              {event.description?<small>{event.description}</small>:null}
+            </div>
+          </button>
+        )}
+      </div>
+    :null}
+  </article>;
+}
 function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh}:{events:CalendarEvent[];students:Student[];onOpenAgenda:(date:string)=>void;onOpenStudent:(id:string)=>void;onRefresh:()=>void}){
   const [addingEvent,setAddingEvent]=useState<CalendarEvent|null>(null);
   const [showEncaixe,setShowEncaixe]=useState(false);
