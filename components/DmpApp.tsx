@@ -1725,33 +1725,23 @@ function monthKeyOffset(key:string,delta:number){const [y,m]=key.split("-").map(
 function monthLabel(key:string){return new Date(`${key}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});}
 function sessionIsPresence(session:Session){return session.source!=="ABSENCE";}
 type AttendanceLedgerRow={student:Student;date:string;source:"CALENDAR"|"SESSION"|"ABSENCE";eventId?:string};
-function buildAttendanceLedger(students:Student[],events:CalendarEvent[],key:string):AttendanceLedgerRow[]{
+function buildAttendanceLedger(students:Student[],_events:CalendarEvent[],key:string):AttendanceLedgerRow[]{
   const currentKey=today().slice(0,7);
-  const isFuture=key>currentKey;
-  if(isFuture)return [];
-  const localRows=students.flatMap(student=>student.sessions.filter(session=>session.date.startsWith(key)).map(session=>({student,session})));
-  const absenceDays=new Set(localRows.filter(item=>item.session.source==="ABSENCE").map(item=>`${item.student.id}|${item.session.date}`));
-  const localEventKeys=new Set(localRows.filter(item=>item.session.calendarEvent?.id).map(item=>`${item.student.id}|${item.session.calendarEvent!.id}`));
-  const calendarRows=events
-    .filter(event=>!event.allDay&&!kidsCalendarRequest(event)&&calendarEventDate(event).startsWith(key))
-    .filter(event=>{
-      const date=calendarEventDate(event);
-      if(date<today())return true;
-      if(date>today())return false;
-      const end=Date.parse(event.end);
-      return Number.isFinite(end)?end<=Date.now():true;
-    })
-    .flatMap(event=>getCalendarEventStudents(event,students).map(student=>({student,event,date:calendarEventDate(event)})))
-    .filter(item=>!absenceDays.has(`${item.student.id}|${item.date}`))
-    .filter(item=>!localEventKeys.has(`${item.student.id}|${item.event.id}`))
-    .map(item=>({student:item.student,date:item.date,source:"CALENDAR" as const,eventId:item.event.id}));
-  const calendarDays=new Set(calendarRows.map(item=>`${item.student.id}|${item.date}`));
-  const storedRows=localRows
-    .filter(item=>item.session.source==="ABSENCE"||item.session.calendarEvent?.id||!calendarDays.has(`${item.student.id}|${item.session.date}`))
-    .map(item=>({student:item.student,date:item.session.date,source:item.session.source==="ABSENCE"?"ABSENCE" as const:"SESSION" as const,eventId:item.session.calendarEvent?.id}));
-  return [...calendarRows,...storedRows].sort((a,b)=>b.date.localeCompare(a.date));
-}
-function monthStudentStats(student:Student,ledger:AttendanceLedgerRow[]){const rows=ledger.filter(item=>item.student.id===student.id);const done=rows.filter(item=>item.source!=="ABSENCE").length;const absences=rows.filter(item=>item.source==="ABSENCE").length;return{done,absences,total:done+absences,presence:done+absences?Math.round(done/(done+absences)*100):0};}
+  if(key>currentKey)return [];
+
+  return students
+    .flatMap(student=>
+      student.sessions
+        .filter(session=>session.date.startsWith(key))
+        .map(session=>({
+          student,
+          date:session.date,
+          source:session.source==="ABSENCE"?"ABSENCE" as const:"SESSION" as const,
+          eventId:session.calendarEvent?.id
+        }))
+    )
+    .sort((a,b)=>b.date.localeCompare(a.date));
+}function monthStudentStats(student:Student,ledger:AttendanceLedgerRow[]){const rows=ledger.filter(item=>item.student.id===student.id);const done=rows.filter(item=>item.source!=="ABSENCE").length;const absences=rows.filter(item=>item.source==="ABSENCE").length;return{done,absences,total:done+absences,presence:done+absences?Math.round(done/(done+absences)*100):0};}
 function PersonalReportsPage({students,calendarEvents,onStudent}:{students:Student[];calendarEvents:CalendarEvent[];onStudent:(id:string)=>void}){
   const [month,setMonth]=useState(today().slice(0,7));const [finance,setFinance]=useState<FinanceData|null>(null);
   useEffect(()=>{let cancelled=false;const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>{if(!cancelled&&d)setFinance(d)}).catch(()=>{});return()=>{cancelled=true}},[]);
@@ -1777,27 +1767,16 @@ async function shareStudentSummary(student:Student,allStudents:Student[]){
   const sorted=assessmentSorted(student),latest=sorted[0];
   const first=student.name.trim().split(/\s+/)[0]||student.name;
   const monthKey=today().slice(0,7);
-  const todayKey=today();
   const monthName=new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long"});
   const completed=student.sessions.filter(session=>session.source!=="ABSENCE");
-  const fallbackMonthCompleted=completed.filter(session=>session.date.slice(0,7)===monthKey).length;
-  const fallbackLast=[...completed].sort((a,b)=>b.date.localeCompare(a.date)||(b.finishedAt||b.startedAt||"").localeCompare(a.finishedAt||a.startedAt||""))[0];
-  let agendaEvents:CalendarEvent[]=[];
-  try{
-    const startDate=dateOffset(todayKey,-120);
-    const response=await fetch(`/api/google/calendar?date=${startDate}&days=121`,{cache:"no-store"});
-    const payload=response.ok?await response.json():null;
-    const raw=Array.isArray(payload?.events)?payload.events as CalendarEvent[]:[];
-    agendaEvents=matchCalendarEvents(raw,allStudents).filter(event=>
-      calendarEventDate(event)<=todayKey&&
-      getCalendarEventStudents(event,allStudents).some(item=>item.id===student.id)
-    );
-  }catch{}
-  const monthAgenda=agendaEvents.filter(event=>calendarEventDate(event).slice(0,7)===monthKey);
-  const latestAgenda=[...agendaEvents].sort((a,b)=>calendarEventDate(b).localeCompare(calendarEventDate(a))||String(b.start||"").localeCompare(String(a.start||"")))[0];
-  const monthCompleted=agendaEvents.length?monthAgenda.length:fallbackMonthCompleted;
-  const lastWorkoutText=latestAgenda?formatDate(calendarEventDate(latestAgenda)):fallbackLast?formatDate(fallbackLast.date):"Nenhum treino registrado";
-  const assessmentText=latest?`• Última avaliação: ${formatDate(latest.date)}${latest.weight!=null?` · ${latest.weight} kg`:""}${latest.bodyFatPercent!=null?` · ${latest.bodyFatPercent}% de gordura`:""}.`:"";
+  const monthCompleted=completed.filter(session=>session.date.slice(0,7)===monthKey).length;
+  const latestCompleted=[...completed].sort((a,b)=>
+    b.date.localeCompare(a.date)||
+    (b.finishedAt||b.startedAt||"").localeCompare(a.finishedAt||a.startedAt||"")
+  )[0];
+  const lastWorkoutText=latestCompleted
+    ?formatDate(latestCompleted.date)
+    :"Nenhum treino registrado";  const assessmentText=latest?`• Última avaliação: ${formatDate(latest.date)}${latest.weight!=null?` · ${latest.weight} kg`:""}${latest.bodyFatPercent!=null?` · ${latest.bodyFatPercent}% de gordura`:""}.`:"";
   let template=DEFAULT_STUDENT_SUMMARY_MESSAGE;
   try{
     const response=await fetch("/api/settings/profile",{cache:"no-store"});
