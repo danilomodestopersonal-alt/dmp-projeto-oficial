@@ -4784,7 +4784,15 @@ function matchCalendarEvents(events:CalendarEvent[],students:Student[]):Calendar
     return {...event,matchedStudentId:ids[0]||null,matchedStudentIds:ids};
   });
 }
-function getCalendarEventStudents(event:CalendarEvent,students:Student[]):Student[]{const ids=event.matchedStudentIds?.length?event.matchedStudentIds:(event.matchedStudentId?[event.matchedStudentId]:[]);return ids.map(id=>students.find(student=>student.id===id)).filter((student):student is Student=>Boolean(student));}
+function getCalendarEventStudents(event:CalendarEvent,students:Student[]):Student[]{
+  if(kidsCalendarRequest(event))return [];
+  const ids=event.matchedStudentIds?.length
+    ?event.matchedStudentIds
+    :(event.matchedStudentId?[event.matchedStudentId]:[]);
+  return ids
+    .map(id=>students.find(student=>student.id===id))
+    .filter((student):student is Student=>Boolean(student));
+}
 function formatCalendarTime(event:CalendarEvent){if(event.allDay)return"Dia todo";if(!event.start)return"—";const date=new Date(event.start);return date.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}
 function calendarEventDate(event:CalendarEvent){return event.start.slice(0,10);}
 function formatRailDate(event:CalendarEvent){const value=calendarEventDate(event);return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"});}
