@@ -3215,11 +3215,180 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
     if(parsed.length)setExercises(parsed.map((ex,index)=>({...ex,block:ex.block?`Bloco ${ex.block}`:sequenceBlockLabel(detected||protocol,index,defaultSequenceSize(detected||protocol)),notes:ex.notes||""})));
   }
   function listenWorkout(){
-    const Recognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-    if(!Recognition){alert("Ditado por voz não disponível neste navegador. Você pode colar ou digitar o treino.");return;}
-    const recognition=new Recognition(); recognition.lang="pt-BR"; recognition.continuous=true; recognition.interimResults=false;
-    recognition.onstart=()=>setDictating(true); recognition.onend=()=>setDictating(false); recognition.onerror=()=>setDictating(false);
-    recognition.onresult=(event:any)=>{let spoken="";for(let i=event.resultIndex;i<event.results.length;i++)spoken+=`${event.results[i][0].transcript} `;setDictation(current=>`${current} ${spoken}`.trim());}; recognition.start();
+    const SpeechRecognition=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+
+    if(!SpeechRecognition){
+      alert("O reconhecimento de voz não está disponível neste navegador. Você pode colar ou digitar o treino.");
+      return;
+    }
+
+    const voiceWindow=window as any;
+
+    // Segundo toque: encerra o ditado.
+    if(voiceWindow.__dmpWorkoutShouldListen){
+      voiceWindow.__dmpWorkoutShouldListen=false;
+
+      const activeRecognition=voiceWindow.__dmpWorkoutRecognition;
+      if(activeRecognition){
+        activeRecognition.onend=null;
+        try{activeRecognition.stop();}catch{}
+      }
+
+      voiceWindow.__dmpWorkoutRecognition=null;
+      voiceWindow.__dmpWorkoutLastFinalText="";
+      voiceWindow.__dmpWorkoutLastFinalAt=0;
+      setDictating(false);
+      return;
+    }
+
+    const normalizeVoiceText=(value:string)=>
+      value
+        .toLocaleLowerCase("pt-BR")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g,"")
+        .replace(/[^\p{L}\p{N}\s]/gu," ")
+        .replace(/\s+/g," ")
+        .trim();
+
+    const appendWithoutDuplicate=(current:string,incoming:string)=>{
+      const cleanIncoming=incoming.replace(/\s+/g," ").trim();
+      if(!cleanIncoming)return current;
+
+      const now=Date.now();
+      const normalizedIncoming=normalizeVoiceText(cleanIncoming);
+      const lastFinal=String(voiceWindow.__dmpWorkoutLastFinalText||"");
+      const normalizedLast=normalizeVoiceText(lastFinal);
+      const lastAt=Number(voiceWindow.__dmpWorkoutLastFinalAt||0);
+
+      if(normalizedLast && now-lastAt<3500){
+        if(normalizedIncoming===normalizedLast){
+          voiceWindow.__dmpWorkoutLastFinalAt=now;
+          return current;
+        }
+
+        if(normalizedIncoming.startsWith(normalizedLast+" ")){
+          const previousWords=lastFinal.trim().split(/\s+/).filter(Boolean).length;
+          const incomingWords=cleanIncoming.split(/\s+/).filter(Boolean);
+          const delta=incomingWords.slice(previousWords).join(" ").trim();
+
+          voiceWindow.__dmpWorkoutLastFinalText=cleanIncoming;
+          voiceWindow.__dmpWorkoutLastFinalAt=now;
+
+          if(!delta)return current;
+          return current.trim() ? `${current.trim()} ${delta}` : delta;
+        }
+
+        if(normalizedLast.startsWith(normalizedIncoming+" ")){
+          voiceWindow.__dmpWorkoutLastFinalAt=now;
+          return current;
+        }
+      }
+
+      const currentWords=current.trim().split(/\s+/).filter(Boolean);
+      const incomingWords=cleanIncoming.split(/\s+/).filter(Boolean);
+      let overlap=0;
+      const maxOverlap=Math.min(12,currentWords.length,incomingWords.length);
+
+      for(let size=maxOverlap;size>=1;size--){
+        const currentTail=normalizeVoiceText(currentWords.slice(-size).join(" "));
+        const incomingHead=normalizeVoiceText(incomingWords.slice(0,size).join(" "));
+
+        if(currentTail && currentTail===incomingHead){
+          overlap=size;
+          break;
+        }
+      }
+
+      const remainder=incomingWords.slice(overlap).join(" ").trim();
+
+      voiceWindow.__dmpWorkoutLastFinalText=cleanIncoming;
+      voiceWindow.__dmpWorkoutLastFinalAt=now;
+
+      if(!remainder)return current;
+
+      const base=current.trim();
+      return base ? `${base} ${remainder}` : remainder;
+    };
+
+    const startRecognition=()=>{
+      if(!voiceWindow.__dmpWorkoutShouldListen)return;
+
+      const recognition=new SpeechRecognition();
+      voiceWindow.__dmpWorkoutRecognition=recognition;
+
+      recognition.lang="pt-BR";
+      recognition.continuous=true;
+      recognition.interimResults=false;
+      recognition.maxAlternatives=1;
+
+      let processedResults=0;
+
+      recognition.onstart=()=>setDictating(true);
+
+      recognition.onresult=(event:any)=>{
+        let finalText="";
+        const resultIndex=typeof event.resultIndex==="number" ? event.resultIndex : 0;
+        const startIndex=Math.max(resultIndex,processedResults);
+
+        for(let i=startIndex;i<event.results.length;i++){
+          const result=event.results[i];
+
+          if(result?.isFinal){
+            const spoken=String(result[0]?.transcript||"").trim();
+
+            if(spoken)finalText+=`${spoken} `;
+            processedResults=Math.max(processedResults,i+1);
+          }
+        }
+
+        if(finalText.trim()){
+          setDictation(current=>appendWithoutDuplicate(current,finalText.trim()));
+        }
+      };
+
+      recognition.onerror=(event:any)=>{
+        if(
+          event.error==="not-allowed" ||
+          event.error==="service-not-allowed" ||
+          event.error==="audio-capture"
+        ){
+          voiceWindow.__dmpWorkoutShouldListen=false;
+          voiceWindow.__dmpWorkoutRecognition=null;
+          voiceWindow.__dmpWorkoutLastFinalText="";
+          voiceWindow.__dmpWorkoutLastFinalAt=0;
+          setDictating(false);
+        }
+      };
+
+      recognition.onend=()=>{
+        voiceWindow.__dmpWorkoutRecognition=null;
+
+        if(voiceWindow.__dmpWorkoutShouldListen){
+          setDictating(true);
+
+          window.setTimeout(()=>{
+            if(voiceWindow.__dmpWorkoutShouldListen){
+              startRecognition();
+            }
+          },350);
+        }else{
+          setDictating(false);
+        }
+      };
+
+      try{
+        recognition.start();
+      }catch{
+        if(voiceWindow.__dmpWorkoutShouldListen){
+          window.setTimeout(startRecognition,350);
+        }
+      }
+    };
+
+    voiceWindow.__dmpWorkoutShouldListen=true;
+    voiceWindow.__dmpWorkoutLastFinalText="";
+    voiceWindow.__dmpWorkoutLastFinalAt=0;
+    startRecognition();
   }
 
   function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
@@ -3666,7 +3835,7 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
 
     <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><div className="workout-row-actions"><button type="button" className="secondary workout-move" disabled={index===0} onClick={()=>moveExercise(exercise.id,-1)} title="Mover para cima">↑</button><button type="button" className="secondary workout-move" disabled={index===exercises.length-1} onClick={()=>moveExercise(exercise.id,1)} title="Mover para baixo">↓</button><button className="danger-link workout-remove" onClick={()=>removeExercise(exercise.id)}>×</button></div></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}{removedExercise?<div className="undo-strip"><span>Exercício removido.</span><button onClick={undoExerciseRemoval}>Desfazer</button></div>:null}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><div className="workout-editor-actions"><button type="button" className="secondary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>exportWorkoutPdf(workoutExportPayload())}>PDF</button><button type="button" className="secondary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>exportWorkoutJpeg(workoutExportPayload())}>JPEG</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></div></section>
 
-    <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>📋 Importar treino por texto</h2><p className="muted">Cole aqui o treino organizado e transforme em ficha para revisão. Nada é salvo automaticamente.</p></div></div><textarea rows={8} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7\n\nBloco 1\nSupino reto — 3x15 — 30 kg\nAgachamento livre — 3x15\n\nBloco 2\nSupino inclinado — 3x12 — 12 kg de cada lado\nCadeira extensora — 3x15'}/><div className="hero-actions"><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Interpretar texto</button><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar (experimental)"}</button></div><small className="muted">Depois de interpretar, confira protocolo, blocos, séries, repetições e cargas na tabela abaixo. O microfone continua disponível, mas é experimental.</small></section>
+    <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>📋 Importar treino por texto</h2><p className="muted">Cole aqui o treino organizado e transforme em ficha para revisão. Nada é salvo automaticamente.</p></div></div><textarea rows={8} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7\n\nBloco 1\nSupino reto — 3x15 — 30 kg\nAgachamento livre — 3x15\n\nBloco 2\nSupino inclinado — 3x12 — 12 kg de cada lado\nCadeira extensora — 3x15'}/><div className="hero-actions"><button className="primary" onClick={applyDictation} disabled={!dictation.trim()||dictating}>Interpretar texto</button><button className="secondary" onClick={listenWorkout}>{dictating?"■ Parar áudio":"🎤 Falar"}</button></div><small className="muted">Depois de interpretar, confira protocolo, blocos, séries, repetições e cargas na tabela abaixo. Toque em “Falar” para iniciar e em “Parar áudio” quando terminar. Depois revise antes de salvar.</small></section>
   </section></main>;
 }
 
