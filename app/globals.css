@@ -6682,11 +6682,7 @@ input:focus,textarea:focus{
 
 }
 
-/* HOME — remove pendencias/recados */
-.home-main-content .notes-keep,
-.home-main-content .notes-panel{
-  display:none!important;
-}
+
 
 /* DMP 09/09/2026 - editor ordem e exportacao */
 .workout-editor-actions{
