@@ -185,6 +185,13 @@ export async function restoreBackup(envelopeInput: unknown) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    // Restore é uma operação excepcional e precisa ser exclusiva:
+    // enquanto o snapshot é reaplicado, nenhuma outra gravação
+    // em dmp_data deve concorrer com a restauração.
+    await client.query(
+      "LOCK TABLE dmp_data IN EXCLUSIVE MODE"
+    );
     for (const row of envelope.rows) {
       await client.query(
         `INSERT INTO dmp_data (id, payload, updated_at)

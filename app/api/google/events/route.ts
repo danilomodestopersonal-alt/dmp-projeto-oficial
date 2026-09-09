@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getGoogleAccessToken, googleConfigured, setGoogleCookies } from "@/lib/google-calendar";
 
 async function tokenFor(request: NextRequest) {
@@ -218,7 +218,7 @@ export async function PATCH(request:NextRequest){
 
       if(!create.ok){
         // tenta restaurar a serie original caso a nova nao seja criada
-        await fetch(
+        const restore=await fetch(
           `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(recurringEventId)}`,
           {
             method:"PATCH",
@@ -228,7 +228,35 @@ export async function PATCH(request:NextRequest){
           }
         );
 
-        return NextResponse.json({error:"new_series_failed",status:create.status},{status:502});
+        if(!restore.ok){
+          console.error(
+            "Falha crítica ao restaurar série recorrente do Google.",
+            {
+              recurringEventId,
+              createStatus:create.status,
+              restoreStatus:restore.status
+            }
+          );
+
+          return NextResponse.json(
+            {
+              error:"series_restore_failed",
+              createStatus:create.status,
+              restoreStatus:restore.status,
+              message:"A nova série não foi criada e a restauração automática da série original também falhou."
+            },
+            {status:502}
+          );
+        }
+
+        return NextResponse.json(
+          {
+            error:"new_series_failed",
+            status:create.status,
+            restored:true
+          },
+          {status:502}
+        );
       }
 
       const event=await create.json();
