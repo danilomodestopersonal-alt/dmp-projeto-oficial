@@ -1,4 +1,4 @@
-import {hashPassword,legacyPasswordHash,needsPasswordUpgrade,verifyPassword} from "@/lib/password";
+import {hashPassword,needsPasswordUpgrade,verifyPassword} from "@/lib/password";
 import {NextRequest,NextResponse} from "next/server";
 import {pool} from "@/lib/db";
 import {
@@ -9,9 +9,6 @@ import {
 export const runtime="nodejs";
 
 const DATA_ID="access_v1";
-const DEFAULT_EMAIL="danilo@dmp.local";
-const DEFAULT_PASSWORD="Dmp@2026";
-
 async function readAccess(){
   try{
     const result=await pool.query(
@@ -35,10 +32,7 @@ async function readAccess(){
     throw error;
   }
 
-  return{
-    email:DEFAULT_EMAIL,
-    passwordHash:legacyPasswordHash(DEFAULT_PASSWORD)
-  };
+  return null;
 }
 
 export async function POST(request:NextRequest){
@@ -54,6 +48,13 @@ export async function POST(request:NextRequest){
       String(body.password||"");
 
     const access=await readAccess();
+
+    if(!access){
+      return NextResponse.json(
+        {message:"E-mail ou senha inválidos."},
+        {status:401}
+      );
+    }
 
     const passwordValid=
       verifyPassword(password,access.passwordHash);

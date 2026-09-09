@@ -1,4 +1,4 @@
-import {hashPassword,legacyPasswordHash,verifyPassword} from "@/lib/password";
+import {hashPassword,verifyPassword} from "@/lib/password";
 import {NextRequest,NextResponse} from "next/server";
 import {pool} from "@/lib/db";
 import {isAuthorized} from "@/lib/auth";
@@ -6,15 +6,12 @@ import {isAuthorized} from "@/lib/auth";
 export const runtime="nodejs";
 
 const DATA_ID="access_v1";
-const DEFAULT_EMAIL="danilo@dmp.local";
-const DEFAULT_PASSWORD="Dmp@2026";
-
 type AccessData={
   email:string;
   passwordHash:string;
 };
 
-async function readAccess():Promise<AccessData>{
+async function readAccess():Promise<AccessData|null>{
   try{
     const result=await pool.query(
       "SELECT payload FROM dmp_data WHERE id = $1",
@@ -34,10 +31,7 @@ async function readAccess():Promise<AccessData>{
     throw error;
   }
 
-  return{
-    email:DEFAULT_EMAIL,
-    passwordHash:legacyPasswordHash(DEFAULT_PASSWORD)
-  };
+  return null;
 }
 
 export async function GET(request:NextRequest){
@@ -49,6 +43,13 @@ export async function GET(request:NextRequest){
   }
 
   const access=await readAccess();
+
+  if(!access){
+    return NextResponse.json(
+      {message:"Acesso não configurado."},
+      {status:409}
+    );
+  }
 
   return NextResponse.json({
     email:access.email
@@ -112,6 +113,13 @@ export async function PUT(request:NextRequest){
     }
 
     const current=await readAccess();
+
+    if(!current){
+      return NextResponse.json(
+        {message:"Acesso não configurado."},
+        {status:409}
+      );
+    }
 
     if(
       !verifyPassword(
