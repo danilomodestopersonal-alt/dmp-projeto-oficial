@@ -625,8 +625,17 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       const now=new Date().toISOString();
       writeLocalStorage("dmp_calendar_daily_sync",now);
       setCalendarSync(current=>({...current,dailyAt:now}));
-    } catch {
-      if (force) setCalendarEvents([]);
+    } catch (error) {
+      console.error(
+        "Agenda: falha ao atualizar eventos do Google.",
+        error
+      );
+
+      if(force){
+        alert(
+          "Não foi possível atualizar a Agenda agora. Os compromissos já carregados foram mantidos."
+        );
+      }
     } finally {
       setCalendarLoading(false);
     }
@@ -646,7 +655,12 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       writeLocalStorage("dmp_calendar_weekly_sync",now);
       writeLocalStorage("dmp_calendar_weekly_count",String(events.length));
       setCalendarSync(current=>({...current,weeklyAt:now,weeklyCount:events.length}));
-    } catch {}
+    } catch (error) {
+      console.error(
+        "Agenda: falha na atualização semanal do Google.",
+        error
+      );
+    }
   }
 
   async function refreshCalendarAutomatic(forceDay=false) {
@@ -977,7 +991,12 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       return response.json();
     }).then(data=>{
       if(!cancelled)setCalendarEvents(matchCalendarEvents(data.events||[],students));
-    }).catch(()=>{}).finally(()=>{if(!cancelled)setCalendarLoading(false);});
+    }).catch(error=>{
+      console.error(
+        "Agenda: falha ao carregar a faixa selecionada.",
+        error
+      );
+    }).finally(()=>{if(!cancelled)setCalendarLoading(false);});
     return()=>{cancelled=true;};
   },[view,calendarStatus.connected,calendarAnchor,calendarRange,students]);
 
@@ -1718,7 +1737,69 @@ function GoogleEventForm({students,onClose,onSaved}:{students:Student[];onClose:
   const [saving,setSaving]=useState(false);
   const [repeatWeekly,setRepeatWeekly]=useState(false);const [repeatUntil,setRepeatUntil]=useState("");
   function chooseStudent(id:string){if(!id)return;setStudentIds(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);const names=students.filter(item=>[...studentIds,id].includes(item.id)).map(item=>calendarStudentDisplayName(item));if(names.length)setSummary(names.join(" "));}
-  async function save(event:FormEvent){event.preventDefault();if(!summary.trim())return;setSaving(true);const start=`${date}T${startTime}:00-03:00`;const end=`${date}T${endTime}:00-03:00`;const recurrence=repeatWeekly?[`RRULE:FREQ=WEEKLY${repeatUntil?`;UNTIL=${repeatUntil.replaceAll("-","")}T235959Z`:""}`]:[];const response=await fetch("/api/google/events",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({summary,description,location,start,end,recurrence})});setSaving(false);if(response.ok)onSaved();else alert("Não foi possível criar o compromisso. Confira a conexão com o Google.");}
+  async function save(event:FormEvent){
+    event.preventDefault();
+
+    if(!summary.trim())return;
+
+    setSaving(true);
+
+    try{
+      const start=
+        `${date}T${startTime}:00-03:00`;
+
+      const end=
+        `${date}T${endTime}:00-03:00`;
+
+      const recurrence=
+        repeatWeekly
+          ?[
+              `RRULE:FREQ=WEEKLY${
+                repeatUntil
+                  ?`;UNTIL=${repeatUntil.replaceAll("-","")}T235959Z`
+                  :""
+              }`
+            ]
+          :[];
+
+      const response=await fetch(
+        "/api/google/events",
+        {
+          method:"POST",
+          headers:{
+            "content-type":"application/json"
+          },
+          body:JSON.stringify({
+            summary,
+            description,
+            location,
+            start,
+            end,
+            recurrence
+          })
+        }
+      );
+
+      if(!response.ok){
+        throw new Error(
+          "google_event_create_failed"
+        );
+      }
+
+      onSaved();
+    }catch(error){
+      console.error(
+        "Agenda: falha ao criar compromisso no Google.",
+        error
+      );
+
+      alert(
+        "Não foi possível criar o compromisso. Confira a conexão com o Google e tente novamente."
+      );
+    }finally{
+      setSaving(false);
+    }
+  }
   return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Novo compromisso</h2><p className="muted">Cria diretamente no Google Calendar.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" onSubmit={save}><label className="full">Adicionar alunos<select value="" onChange={e=>chooseStudent(e.target.value)}><option value="">Selecione um ou mais alunos</option>{students.filter(s=>s.status==="ACTIVE"&&!studentIds.includes(s.id)).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>{studentIds.length?<div className="full selected-students">{studentIds.map(id=>{const student=students.find(item=>item.id===id);return student?<button type="button" key={id} onClick={()=>chooseStudent(id)}>{student.name} ×</button>:null;})}</div>:null}<label className="full">Título<input value={summary} onChange={e=>setSummary(e.target.value)} required/></label><label>Data<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label>Local<input value={location} onChange={e=>setLocation(e.target.value)} placeholder="Academia, DS Tennis..."/></label><label>Início<input type="time" value={startTime} onChange={e=>setStartTime(e.target.value)}/></label><label>Fim<input type="time" value={endTime} onChange={e=>setEndTime(e.target.value)}/></label><label className="full repeat-option"><input type="checkbox" checked={repeatWeekly} onChange={e=>setRepeatWeekly(e.target.checked)}/> Repetir semanalmente</label>{repeatWeekly?<label className="full">Repetir até<input type="date" value={repeatUntil} min={date} onChange={e=>setRepeatUntil(e.target.value)}/></label>:null}<label className="full">Observação<textarea rows={3} value={description} onChange={e=>setDescription(e.target.value)}/></label><button className="primary full" disabled={saving}>{saving?"Salvando...":"Salvar no Google Calendar"}</button></form></section></div>;
 }
 
@@ -1892,7 +1973,7 @@ function buildAttendanceLedger(students:Student[],_events:CalendarEvent[],key:st
 }function monthStudentStats(student:Student,ledger:AttendanceLedgerRow[]){const rows=ledger.filter(item=>item.student.id===student.id);const done=rows.filter(item=>item.source!=="ABSENCE").length;const absences=rows.filter(item=>item.source==="ABSENCE").length;return{done,absences,total:done+absences,presence:done+absences?Math.round(done/(done+absences)*100):0};}
 function PersonalReportsPage({students,calendarEvents,onStudent}:{students:Student[];calendarEvents:CalendarEvent[];onStudent:(id:string)=>void}){
   const [month,setMonth]=useState(today().slice(0,7));const [finance,setFinance]=useState<FinanceData|null>(null);
-  useEffect(()=>{let cancelled=false;const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>{if(!cancelled&&d)setFinance(d)}).catch(()=>{});return()=>{cancelled=true}},[]);
+  useEffect(()=>{let cancelled=false;const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>{if(!cancelled&&d)setFinance(d)}).catch(error=>{console.error("Relatórios: falha ao carregar Financeiro da nuvem.",error);});return()=>{cancelled=true}},[]);
   const previous=monthKeyOffset(month,-1);const active=students.filter(s=>s.status==="ACTIVE"&&normalizeName(s.name)!=="daniela lima");
   const makeStats=(key:string)=>{const ledger=buildAttendanceLedger(active,calendarEvents,key);const rows=active.map(student=>({student,...monthStudentStats(student,ledger)}));const done=rows.reduce((n,r)=>n+r.done,0),absences=rows.reduce((n,r)=>n+r.absences,0),evaluations=active.reduce((n,s)=>n+s.assessments.filter(a=>a.date.startsWith(key)).length,0);const fs=finance?financeSummary(finance,key):null;return{rows,done,absences,evaluations,studentsWithSessions:rows.filter(r=>r.done>0).length,received:fs?.personalReceived||0,expected:fs?.personalExpected||0};};
   const current=makeStats(month),prev=makeStats(previous);const rank=[...current.rows].filter(r=>r.total>0).sort((a,b)=>b.presence-a.presence||b.done-a.done||a.student.name.localeCompare(b.student.name,"pt-BR"));
@@ -1902,7 +1983,7 @@ function PersonalReportsPage({students,calendarEvents,onStudent}:{students:Stude
 }
 function ReportMetric({label,value,compare}:{label:string;value:string;compare:string}){return <article className="report-metric"><small>{label}</small><strong>{value}</strong><span>{compare}</span></article>}
 
-function StudentTimeline({student}:{student:Student}){const [filter,setFilter]=useState<"ALL"|"SESSION"|"ASSESSMENT"|"FINANCE"|"NOTE">("ALL");const [finance,setFinance]=useState<FinanceData|null>(null);useEffect(()=>{const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>d&&setFinance(d)).catch(()=>{})},[]);const items:any[]=[...student.sessions.map(x=>({type:"SESSION",date:x.date,title:x.source==="ABSENCE"?"Falta registrada":`Treino · ${x.workoutName||"Sessão"}`,detail:x.notes||x.focus||sessionSourceLabel(x)})),...student.assessments.map(x=>({type:"ASSESSMENT",date:x.date,title:"Avaliação física",detail:[x.weight!=null?`${x.weight} kg`:"",x.bodyFatPercent!=null?`${x.bodyFatPercent}% gordura`:""].filter(Boolean).join(" · ")})),...(student.notes?[{type:"NOTE",date:student.notesUpdatedAt?.slice(0,10)||student.startDate,title:"Observação do aluno",detail:student.notes}]:[]),...(finance?.personalInvoices||[]).filter(i=>i.studentId===student.id||normalizeName(i.studentName)===normalizeName(student.name)).flatMap(i=>[{type:"FINANCE",date:`${i.competence}-${String(i.dueDay||1).padStart(2,"0")}`,title:`Financeiro · ${i.competence}`,detail:`Previsto ${formatStudentMoney(i.expectedAmount)}`},...i.payments.map(p=>({type:"FINANCE",date:p.date,title:"Pagamento registrado",detail:formatStudentMoney(p.amount)}))])].sort((a,b)=>b.date.localeCompare(a.date));const shown=filter==="ALL"?items:items.filter(x=>x.type===filter);const labels:any={ALL:"Tudo",SESSION:"Treinos e presença",ASSESSMENT:"Avaliações",FINANCE:"Financeiro",NOTE:"Observações"};return <section className="panel student-timeline-panel"><div className="panel-head"><div><h2>Linha do tempo</h2><p className="muted">A história do aluno reunida em um só lugar.</p></div></div><div className="timeline-filters">{Object.keys(labels).map(k=><button key={k} className={filter===k?"active":""} onClick={()=>setFilter(k as any)}>{labels[k]}</button>)}</div><div className="timeline-list">{shown.map((item,index)=><article key={`${item.type}-${item.date}-${index}`}><div className={`timeline-dot ${item.type.toLowerCase()}`}/><time>{formatDate(item.date)}</time><div><strong>{item.title}</strong><p>{item.detail||"Sem observações adicionais."}</p></div></article>)}{!shown.length?<p className="muted">Nenhum registro neste filtro.</p>:null}</div></section>}
+function StudentTimeline({student}:{student:Student}){const [filter,setFilter]=useState<"ALL"|"SESSION"|"ASSESSMENT"|"FINANCE"|"NOTE">("ALL");const [finance,setFinance]=useState<FinanceData|null>(null);useEffect(()=>{const local=loadFinanceData(financeSeedAugust2026);setFinance(local);fetchFinanceCloud(financeSeedAugust2026).then(d=>d&&setFinance(d)).catch(error=>{console.error("Linha do tempo: falha ao carregar Financeiro da nuvem.",error);})},[]);const items:any[]=[...student.sessions.map(x=>({type:"SESSION",date:x.date,title:x.source==="ABSENCE"?"Falta registrada":`Treino · ${x.workoutName||"Sessão"}`,detail:x.notes||x.focus||sessionSourceLabel(x)})),...student.assessments.map(x=>({type:"ASSESSMENT",date:x.date,title:"Avaliação física",detail:[x.weight!=null?`${x.weight} kg`:"",x.bodyFatPercent!=null?`${x.bodyFatPercent}% gordura`:""].filter(Boolean).join(" · ")})),...(student.notes?[{type:"NOTE",date:student.notesUpdatedAt?.slice(0,10)||student.startDate,title:"Observação do aluno",detail:student.notes}]:[]),...(finance?.personalInvoices||[]).filter(i=>i.studentId===student.id||normalizeName(i.studentName)===normalizeName(student.name)).flatMap(i=>[{type:"FINANCE",date:`${i.competence}-${String(i.dueDay||1).padStart(2,"0")}`,title:`Financeiro · ${i.competence}`,detail:`Previsto ${formatStudentMoney(i.expectedAmount)}`},...i.payments.map(p=>({type:"FINANCE",date:p.date,title:"Pagamento registrado",detail:formatStudentMoney(p.amount)}))])].sort((a,b)=>b.date.localeCompare(a.date));const shown=filter==="ALL"?items:items.filter(x=>x.type===filter);const labels:any={ALL:"Tudo",SESSION:"Treinos e presença",ASSESSMENT:"Avaliações",FINANCE:"Financeiro",NOTE:"Observações"};return <section className="panel student-timeline-panel"><div className="panel-head"><div><h2>Linha do tempo</h2><p className="muted">A história do aluno reunida em um só lugar.</p></div></div><div className="timeline-filters">{Object.keys(labels).map(k=><button key={k} className={filter===k?"active":""} onClick={()=>setFilter(k as any)}>{labels[k]}</button>)}</div><div className="timeline-list">{shown.map((item,index)=><article key={`${item.type}-${item.date}-${index}`}><div className={`timeline-dot ${item.type.toLowerCase()}`}/><time>{formatDate(item.date)}</time><div><strong>{item.title}</strong><p>{item.detail||"Sem observações adicionais."}</p></div></article>)}{!shown.length?<p className="muted">Nenhum registro neste filtro.</p>:null}</div></section>}
 
 function AssessmentTrendChart({student}:{student:Student}){const [period,setPeriod]=useState<"ALL"|"3"|"6"|"12">("ALL");const sorted=[...student.assessments].sort((a,b)=>a.date.localeCompare(b.date));const cutoff=period==="ALL"?"":dateOffset(today(),-(Number(period)*30));const data=cutoff?sorted.filter(a=>a.date>=cutoff):sorted;const metrics=[{label:"Peso",unit:"kg",value:(a:Assessment)=>assessmentNumber(a.weight)},{label:"Gordura corporal",unit:"%",value:(a:Assessment)=>assessmentNumber(a.bodyFatPercent)},{label:"Massa muscular (kg)",unit:"kg",value:(a:Assessment)=>assessmentNumber(a.muscleMass)},{label:"Massa magra (kg)",unit:"kg",value:(a:Assessment)=>assessmentLeanMassKg(a)}];return <section className="assessment-trends"><div className="assessment-trends-head"><div><h3>Histórico visual</h3><p>Evolução de peso e composição corporal.</p></div><select value={period} onChange={e=>setPeriod(e.target.value as any)}><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">1 ano</option><option value="ALL">Todo histórico</option></select></div><div className="assessment-trend-grid">{metrics.map(metric=><MiniTrend key={metric.label} label={metric.label} unit={metric.unit} points={data.flatMap(a=>{const value=metric.value(a);return value===null?[]:[{date:a.date,value}]})}/>)}</div></section>}
 function MiniTrend({label,unit,points}:{label:string;unit:string;points:{date:string;value:number}[]}){if(points.length<2)return <article className="mini-trend"><strong>{label}</strong><p className="muted">Dados insuficientes para gráfico.</p></article>;const vals=points.map(p=>p.value),min=Math.min(...vals),max=Math.max(...vals),span=max-min||1;const coords=points.map((p,i)=>`${(i/(points.length-1))*100},${90-((p.value-min)/span)*70}`).join(" ");const last=points[points.length-1],first=points[0],diff=last.value-first.value;return <article className="mini-trend"><div><strong>{label}</strong><span>{last.value.toFixed(1)} {unit} <small>{diff>0?"+":""}{diff.toFixed(1)}</small></span></div><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={coords} fill="none" stroke="currentColor" strokeWidth="2.5" vectorEffect="non-scaling-stroke"/></svg><footer><span>{formatDate(first.date)}</span><span>{formatDate(last.date)}</span></footer></article>}

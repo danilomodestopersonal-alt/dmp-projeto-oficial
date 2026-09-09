@@ -179,7 +179,17 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
             }
           }
         }
-      } catch {}
+      } catch (error) {
+        console.error(
+          "Kids: falha na reconciliação financeira.",
+          error
+        );
+
+        setNotice(
+          "Os dados Kids foram carregados, mas a sincronização com o Financeiro não pôde ser concluída. Atualize a página antes de fazer alterações financeiras."
+        );
+      }
+
       setData(next);
       if (
         !payload.data ||
