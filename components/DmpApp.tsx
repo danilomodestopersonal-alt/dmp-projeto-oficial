@@ -804,7 +804,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
       if(!target)throw new Error();
       const updated={...target,sessions:target.sessions.filter(item=>item.id!==sessionId)};
       const next=latest.map(student=>student.id===studentId?updated:student);
-      const saveResponse=await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});
+      const saveResponse=await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json","X-DMP-Session-Delete":"1"},body:JSON.stringify(next)});
       if(!saveResponse.ok)throw new Error();
       setStudents(next);
       saveStudents(next);
