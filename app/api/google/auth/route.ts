@@ -1,7 +1,14 @@
+import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { appOrigin, buildGoogleAuthUrl, googleConfigured } from "@/lib/google-calendar";
 
 export async function GET(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   if (!googleConfigured()) {
     return NextResponse.redirect(new URL("/app?google=not-configured", appOrigin(request)));
   }

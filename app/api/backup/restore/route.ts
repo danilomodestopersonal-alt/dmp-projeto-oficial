@@ -1,9 +1,16 @@
+import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getStoredBackup, restoreBackup } from "@/lib/backup";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   try {
     const body = await request.json();
     let input: unknown = body?.backup;

@@ -1,3 +1,4 @@
+import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 async function spotifyFetch(request: NextRequest, url: string, init?: RequestInit) {
@@ -94,6 +95,12 @@ function applyTokens(
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   const result = await spotifyFetch(
     request,
     "https://api.spotify.com/v1/me/player"
@@ -152,6 +159,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   const body = await request.json().catch(() => ({}));
   const action = body?.action;
 

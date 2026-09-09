@@ -1,4 +1,5 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { isAuthorized } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -31,7 +32,13 @@ function getSessionIds(value: unknown): Set<string> {
   return ids;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   try {
     const result = await pool.query(
       "SELECT payload, updated_at FROM dmp_data WHERE id = $1",
@@ -62,6 +69,12 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   const client = await pool.connect();
 
   try {

@@ -1,3 +1,4 @@
+import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleAccessToken, googleConfigured, setGoogleCookies } from "@/lib/google-calendar";
 
@@ -90,6 +91,12 @@ function newSeriesPayload(parent:any,body:any){
 }
 
 export async function POST(request:NextRequest){
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   const auth=await tokenFor(request);
   if(auth.error)return auth.error;
 
@@ -121,6 +128,12 @@ export async function POST(request:NextRequest){
 }
 
 export async function PATCH(request:NextRequest){
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   const auth=await tokenFor(request);
   if(auth.error)return auth.error;
 
@@ -276,6 +289,12 @@ export async function PATCH(request:NextRequest){
 }
 
 export async function DELETE(request:NextRequest){
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   const auth=await tokenFor(request);
   if(auth.error)return auth.error;
 

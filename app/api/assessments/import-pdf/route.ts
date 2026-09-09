@@ -1,3 +1,5 @@
+import { isAuthorized } from "@/lib/auth";
+import { NextRequest } from "next/server";
 import {NextResponse} from "next/server";
 
 export const runtime="nodejs";
@@ -55,7 +57,13 @@ function parseGalileuText(raw:string){
   };
 }
 
-export async function POST(request:Request){
+export async function POST(request:NextRequest){
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   try{
     const form=await request.formData();
     const file=form.get("file");

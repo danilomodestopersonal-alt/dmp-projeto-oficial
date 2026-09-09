@@ -1,3 +1,4 @@
+import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { stravaConfigured, stravaRedirectUri } from "@/lib/strava";
@@ -5,6 +6,12 @@ import { stravaConfigured, stravaRedirectUri } from "@/lib/strava";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   if (!stravaConfigured()) return NextResponse.json({ ok: false, error: "Strava não configurado no servidor." }, { status: 503 });
   const state = randomBytes(24).toString("hex");
   const authorize = new URL("https://www.strava.com/oauth/authorize");

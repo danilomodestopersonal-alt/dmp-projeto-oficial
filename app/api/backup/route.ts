@@ -1,9 +1,17 @@
+import { isAuthorized } from "@/lib/auth";
+import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createStoredBackup, listBackups, maybeCreateDailyBackup } from "@/lib/backup";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   try {
     const automatic = await maybeCreateDailyBackup();
     const backups = await listBackups(40);
@@ -14,7 +22,13 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  if (!(await isAuthorized(request))) {
+    return NextResponse.json(
+      { message: "Sessão inválida. Entre novamente no DMP." },
+      { status: 401 }
+    );
+  }
   try {
     const created = await createStoredBackup("MANUAL");
     return NextResponse.json({
