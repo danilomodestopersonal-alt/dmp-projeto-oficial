@@ -1914,12 +1914,17 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
 
   const pending=notes.filter(note=>!note.done);
   const monthKey=today().slice(0,7);
-  const monthAgendaRows=monthEvents
-    .filter(event=>calendarEventDate(event)<=today())
-    .flatMap(event=>getCalendarEventStudents(event,students).map(student=>({student,event})))
-    .sort((a,b)=>calendarEventDate(b.event).localeCompare(calendarEventDate(a.event))||String(b.event.start||"").localeCompare(String(a.event.start||"")));
-  const monthAttended=monthAgendaRows.length;
-  const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(item=>item.date.slice(0,7)===monthKey).map(assessment=>({student,assessment}))).sort((a,b)=>b.assessment.date.localeCompare(a.assessment.date));
+  const monthSessionRows=students.flatMap(student=>
+    student.sessions
+      .filter(session=>
+        session.date.slice(0,7)===monthKey&&
+        session.date<=today()&&
+        session.source!=="ABSENCE"
+      )
+      .map(session=>({student,session}))
+  );
+  const monthAttended=monthSessionRows.length;
+const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(item=>item.date.slice(0,7)===monthKey).map(assessment=>({student,assessment}))).sort((a,b)=>b.assessment.date.localeCompare(a.assessment.date));
   const monthAssessments=monthAssessmentRows.length;
   const monthPerformance=monthPerformanceActivities.filter(item=>item.date.slice(0,7)===monthKey);
   const monthKids=monthKidsCount??monthEvents.filter(event=>Boolean(kidsCalendarRequest(event))).length;
@@ -2086,7 +2091,7 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
         <div className="month-closing-detail-grid">
           <article>
             <header><strong>Atendimentos</strong><b>{monthAttended}</b></header>
-            <div className="month-closing-detail-list">{monthAgendaRows.slice(0,6).map(({student,event})=><button key={student.id+event.id} onClick={()=>onStudent(student.id)}><span>{formatDate(calendarEventDate(event))}</span><strong>{student.name}</strong></button>)}</div>
+            <div className="month-closing-detail-list">{monthSessionRows.slice(0,6).map(({student,session})=><button key={student.id+session.id} onClick={()=>onStudent(student.id)}><span>{formatDate(session.date)}</span><strong>{student.name}</strong></button>)}</div>
             <button className="secondary compact-action" onClick={onHistory}>Abrir Histórico</button>
           </article>
           <article>
