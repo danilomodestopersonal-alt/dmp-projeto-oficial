@@ -6687,3 +6687,42 @@ input:focus,textarea:focus{
 .home-main-content .notes-panel{
   display:none!important;
 }
+
+/* DMP 09/09/2026 - editor ordem e exportacao */
+.workout-editor-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.workout-row-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:4px;
+}
+.workout-move{
+  width:32px!important;
+  min-width:32px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0!important;
+  font-size:1rem!important;
+}
+.workout-move:disabled{
+  opacity:.3!important;
+  cursor:not-allowed!important;
+}
+@media(max-width:700px){
+  .workout-editor-actions{
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .workout-editor-actions .primary{
+    grid-column:1/-1;
+  }
+  .workout-row-actions{
+    justify-content:flex-start;
+  }
+}

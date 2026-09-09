@@ -7,6 +7,7 @@ import type { Assessment, CalendarEvent, Exercise, Measurements, Session, Studen
 import { importedStudents2026 } from "@/lib/imported-data";
 import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
+import { exportWorkoutJpeg, exportWorkoutPdf } from "@/lib/workout-export";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
@@ -3223,6 +3224,37 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
 
   function updateExercise(id:string,patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
   function addExercise(){setExercises(current=>[...current,{id:crypto.randomUUID(),block:"",name:"",sets:"3",reps:"12",load:"",notes:""}]);}
+  function moveExercise(id:string,direction:-1|1){
+    setExercises(current=>{
+      const index=current.findIndex(item=>item.id===id);
+      if(index<0)return current;
+      const target=index+direction;
+      if(target<0||target>=current.length)return current;
+      const next=[...current];
+      const temporary=next[index];
+      next[index]=next[target];
+      next[target]=temporary;
+      return next;
+    });
+  }
+
+  function workoutExportPayload(){
+    return {
+      studentName:student.name,
+      slot,
+      workoutName:name||`Treino ${slot}`,
+      protocolLabel:workoutProtocolLabel(protocol),
+      week,
+      notes:workoutNotes,
+      exercises:exercises
+        .filter(exercise=>exercise.name.trim())
+        .map((exercise,index)=>({
+          ...exercise,
+          block:exercise.block?.trim()||sequenceBlockLabel(protocol,index,sequenceSize),
+          name:exercise.name.trim()
+        }))
+    };
+  }
   function removeExercise(id:string){setExercises(current=>{const index=current.findIndex(item=>item.id===id);if(index<0)return current;setRemovedExercise({exercise:current[index],index});return current.filter(item=>item.id!==id);});}
   function undoExerciseRemoval(){if(!removedExercise)return;setExercises(current=>{const next=[...current];next.splice(Math.min(removedExercise.index,next.length),0,removedExercise.exercise);return next;});setRemovedExercise(null);}
   function changeProtocol(next:WorkoutProtocol){setProtocol(next);setSequenceSize(defaultSequenceSize(next));}
@@ -3632,7 +3664,7 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
       </div>
     </section>
 
-    <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><button className="danger-link workout-remove" onClick={()=>removeExercise(exercise.id)}>×</button></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}{removedExercise?<div className="undo-strip"><span>Exercício removido.</span><button onClick={undoExerciseRemoval}>Desfazer</button></div>:null}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></section>
+    <section className="panel workout-grid-panel"><div className="panel-head"><div><h2>Exercícios do Treino {slot}</h2><p className="muted">Comece a digitar um exercício já usado para ver sugestões.</p></div><button className="primary" onClick={addExercise}>+ Exercício</button></div><datalist id="dmp-exercise-catalog">{exerciseCatalog.map(name=><option key={name} value={name}/>)}</datalist>{exercises.length?<div className="workout-table"><div className="workout-table-head"><span>#</span><span>Seq.</span><span>Exercício</span><span>Séries</span><span>Reps</span><span>Carga</span><span>Observação</span><span></span></div>{exercises.map((exercise,index)=><div className="workout-table-row" key={exercise.id}><strong>{index+1}</strong><input aria-label="Sequência" placeholder={sequenceBlockLabel(protocol,index,sequenceSize)||"—"} value={exercise.block||""} onChange={e=>updateExercise(exercise.id,{block:e.target.value})}/><input className="workout-exercise-name" list="dmp-exercise-catalog" placeholder="Exercício" value={exercise.name} onChange={e=>updateExercise(exercise.id,{name:e.target.value})}/><input placeholder="Séries" value={exercise.sets} onChange={e=>updateExercise(exercise.id,{sets:e.target.value})}/><input placeholder="Reps" value={exercise.reps} onChange={e=>updateExercise(exercise.id,{reps:e.target.value})}/><input placeholder="Carga" value={exercise.load} onChange={e=>updateExercise(exercise.id,{load:e.target.value})}/><input placeholder="Observação" value={exercise.notes||""} onChange={e=>updateExercise(exercise.id,{notes:e.target.value})}/><div className="workout-row-actions"><button type="button" className="secondary workout-move" disabled={index===0} onClick={()=>moveExercise(exercise.id,-1)} title="Mover para cima">↑</button><button type="button" className="secondary workout-move" disabled={index===exercises.length-1} onClick={()=>moveExercise(exercise.id,1)} title="Mover para baixo">↓</button><button className="danger-link workout-remove" onClick={()=>removeExercise(exercise.id)}>×</button></div></div>)}</div>:<div className="empty-review"><strong>Nenhum exercício ainda</strong><span>Toque em “+ Exercício” para começar a montar o Treino {slot}.</span></div>}{removedExercise?<div className="undo-strip"><span>Exercício removido.</span><button onClick={undoExerciseRemoval}>Desfazer</button></div>:null}<div className="workout-editor-footer"><button className="secondary" onClick={addExercise}>+ Adicionar exercício</button><div className="workout-editor-actions"><button type="button" className="secondary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>exportWorkoutPdf(workoutExportPayload())}>PDF</button><button type="button" className="secondary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>exportWorkoutJpeg(workoutExportPayload())}>JPEG</button><button className="primary" disabled={!exercises.some(ex=>ex.name.trim())} onClick={save}>Salvar Treino {slot}</button></div></div></section>
 
     <section className="panel workout-dictation-panel"><div className="panel-head"><div><h2>📋 Importar treino por texto</h2><p className="muted">Cole aqui o treino organizado e transforme em ficha para revisão. Nada é salvo automaticamente.</p></div></div><textarea rows={8} value={dictation} onChange={e=>setDictation(e.target.value)} placeholder={'Treino em sistema B7\n\nBloco 1\nSupino reto — 3x15 — 30 kg\nAgachamento livre — 3x15\n\nBloco 2\nSupino inclinado — 3x12 — 12 kg de cada lado\nCadeira extensora — 3x15'}/><div className="hero-actions"><button className="primary" onClick={applyDictation} disabled={!dictation.trim()}>Interpretar texto</button><button className="secondary" onClick={listenWorkout}>{dictating?"Ouvindo...":"🎤 Falar (experimental)"}</button></div><small className="muted">Depois de interpretar, confira protocolo, blocos, séries, repetições e cargas na tabela abaixo. O microfone continua disponível, mas é experimental.</small></section>
   </section></main>;
