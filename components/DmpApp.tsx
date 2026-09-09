@@ -16,7 +16,7 @@ import type {KidsCategory,KidsData,KidsStudent} from "@/types/kids";
 import {normalizeKidsData} from "@/lib/kids/seed";
 import type {FinanceData} from "@/types/financeiro";
 import { financeSeedAugust2026 } from "@/lib/financeiro/agosto2026";
-import { fetchFinanceCloud, loadFinanceData } from "@/lib/financeiro/storage";
+import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud } from "@/lib/financeiro/storage";
 import { financeSummary } from "@/lib/financeiro/calculos";
 import type { PerformanceActivity } from "@/types/performance";
 
@@ -2511,7 +2511,7 @@ function StudentFinancePaymentModal({invoice,payment,onClose,onSaved}:{invoice:F
     if(numeric>available+0.005){alert(`O valor informado ultrapassa o saldo disponível de ${formatStudentMoney(available)}.`);return;}
     setSaving(true);
     try{
-      const response=await fetch("/api/finance",{cache:"no-store"});if(!response.ok)throw new Error();const payload=await response.json();let finance=payload.data as FinanceData;
+      const latest=await fetchFinanceCloud(financeSeedAugust2026);if(!latest)throw new Error();let finance=latest;
       if(finance.competences[invoice.competence]?.status==="CLOSED"){alert("Esta competência está fechada. Reabra o mês no Financeiro geral antes de alterar pagamentos históricos.");return;}
       const occurredAt=new Date().toISOString();
       if(payment){
@@ -2519,7 +2519,7 @@ function StudentFinancePaymentModal({invoice,payment,onClose,onSaved}:{invoice:F
       }
       const newPayment={id:`payment-${crypto.randomUUID()}`,date,amount:numeric,note:note.trim()||undefined};
       finance={...finance,personalInvoices:finance.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:[...item.payments,newPayment]}:item),history:[...(finance.history||[]),{id:`history-${crypto.randomUUID()}`,occurredAt:new Date().toISOString(),competence:invoice.competence,kind:"PERSONAL_PAYMENT_ADDED",description:`Recebimento de ${invoice.studentName} ${payment?"atualizado":"registrado"}.`,amount:numeric,entityId:invoice.id}]};
-      const put=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(finance)});if(!put.ok)throw new Error();onSaved(finance);onClose();
+      await saveFinanceCloud(finance);onSaved(finance);onClose();
     }catch{alert("Não foi possível salvar o pagamento. Nenhum outro dado do aluno foi alterado.");}finally{setSaving(false);}
   }
   return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>{payment?"Editar pagamento":"Registrar pagamento"}</h2><p className="muted">{invoice.studentName} · {financeMonthLabel(invoice.competence)}</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><div className="form-grid"><label>Valor recebido<input autoFocus inputMode="decimal" value={amount} onChange={event=>setAmount(event.target.value)}/></label><label>Data<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label className="full">Observação<input value={note} onChange={event=>setNote(event.target.value)} placeholder="Opcional"/></label><button className="primary full" disabled={saving} onClick={()=>void save()}>{saving?"Salvando...":"Salvar pagamento"}</button></div></section></div>;
@@ -2535,10 +2535,107 @@ function StudentFinancePanel({student,onEditProfile}:{student:Student;onEditProf
   const totalExpected=state.invoices.reduce((sum,invoice)=>sum+invoice.expectedAmount,0);const totalPaid=state.invoices.reduce((sum,invoice)=>sum+financePaid(invoice),0);
   const paymentHistory=state.invoices.flatMap(invoice=>invoice.payments.map(payment=>({invoice,payment}))).sort((a,b)=>b.payment.date.localeCompare(a.payment.date));
   const latestPayment=paymentHistory[0]||null;
-  async function deletePayment(invoice:FinanceData["personalInvoices"][number],payment:FinanceData["personalInvoices"][number]["payments"][number]){
-    if(!state.finance)return;if(state.finance.competences[invoice.competence]?.status==="CLOSED"){alert("Esta competência está fechada. Reabra o mês no Financeiro geral antes de excluir um pagamento histórico.");return;}if(!confirm(`Excluir o recebimento de ${formatStudentMoney(payment.amount)} em ${formatDate(payment.date)}?`))return;
-    const next={...state.finance,personalInvoices:state.finance.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:item.payments.filter(value=>value.id!==payment.id)}:item),history:[...(state.finance.history||[]),{id:`history-${crypto.randomUUID()}`,occurredAt:new Date().toISOString(),competence:invoice.competence,kind:"PERSONAL_PAYMENT_DELETED" as const,description:`Recebimento de ${invoice.studentName} removido.`,amount:payment.amount,entityId:invoice.id}]};
-    try{const response=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});if(!response.ok)throw new Error();state.setFinance(next);}catch{alert("Não foi possível excluir o pagamento.");}
+  async function deletePayment(
+    invoice:FinanceData["personalInvoices"][number],
+    payment:FinanceData["personalInvoices"][number]["payments"][number]
+  ){
+    if(!state.finance)return;
+
+    if(
+      state.finance.competences[invoice.competence]?.status==="CLOSED"
+    ){
+      alert(
+        "Esta competência está fechada. Reabra o mês no Financeiro geral antes de excluir um pagamento histórico."
+      );
+      return;
+    }
+
+    if(
+      !confirm(
+        `Excluir o recebimento de ${formatStudentMoney(payment.amount)} em ${formatDate(payment.date)}?`
+      )
+    )return;
+
+    try{
+      const latest=await fetchFinanceCloud(financeSeedAugust2026);
+
+      if(!latest)throw new Error();
+
+      const latestInvoice=latest.personalInvoices.find(
+        item=>item.id===invoice.id
+      );
+
+      if(!latestInvoice){
+        state.setFinance(latest);
+        alert(
+          "Este lançamento financeiro não existe mais. Os dados atuais foram recarregados."
+        );
+        return;
+      }
+
+      const latestPayment=latestInvoice.payments.find(
+        item=>item.id===payment.id
+      );
+
+      if(!latestPayment){
+        state.setFinance(latest);
+        alert(
+          "Este pagamento já foi alterado ou excluído. Os dados atuais foram recarregados."
+        );
+        return;
+      }
+
+      if(
+        latest.competences[invoice.competence]?.status==="CLOSED"
+      ){
+        state.setFinance(latest);
+        alert(
+          "Esta competência foi fechada desde que a ficha foi aberta. Os dados atuais foram recarregados."
+        );
+        return;
+      }
+
+      const next={
+        ...latest,
+        personalInvoices:latest.personalInvoices.map(item=>
+          item.id===invoice.id
+            ?{
+                ...item,
+                payments:item.payments.filter(
+                  value=>value.id!==payment.id
+                )
+              }
+            :item
+        ),
+        history:[
+          ...(latest.history||[]),
+          {
+            id:`history-${crypto.randomUUID()}`,
+            occurredAt:new Date().toISOString(),
+            competence:invoice.competence,
+            kind:"PERSONAL_PAYMENT_DELETED" as const,
+            description:`Recebimento de ${invoice.studentName} removido.`,
+            amount:latestPayment.amount,
+            entityId:invoice.id
+          }
+        ]
+      };
+
+      await saveFinanceCloud(next);
+      state.setFinance(next);
+    }catch(error){
+      if(
+        error instanceof Error &&
+        error.message==="FINANCE_CONFLICT"
+      ){
+        alert(
+          "O Financeiro foi alterado em outra aba ou dispositivo. A exclusão foi bloqueada para proteger os dados. Atualize a ficha antes de tentar novamente."
+        );
+        return;
+      }
+
+      alert("Não foi possível excluir o pagamento.");
+    }
   }
   return <section className="student-finance-panel"><div className="student-section-title"><div><span>FINANCEIRO DO ALUNO</span><h2>Mensalidade e pagamentos</h2></div><button className="secondary" onClick={onEditProfile}>✎ Editar valor e vencimento</button></div>
     {state.loading?<div className="student-empty-soft">Carregando histórico financeiro...</div>:state.error?<div className="student-empty-soft">{state.error}</div>:<>

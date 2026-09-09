@@ -137,6 +137,17 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       const response = await fetch("/api/kids", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error);
+
+      if(payload.updatedAt){
+        window.sessionStorage.setItem(
+          "dmp_kids_cloud_updated_at",
+          String(payload.updatedAt)
+        );
+      }else{
+        window.sessionStorage.removeItem(
+          "dmp_kids_cloud_updated_at"
+        );
+      }
       let next = normalizeKidsData(payload.data || createKidsSeed());
       try {
         const financeResponse = await fetch("/api/finance", {
@@ -150,7 +161,20 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
             next=mergeFinanceProfiles(next,reconciled.data);
             if(reconciled.changed){
               await createFinanceSafetyBackup();
-              const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
+              const financeHeaders:Record<string,string>={
+                "Content-Type":"application/json"
+              };
+
+              if(financePayload.updatedAt){
+                financeHeaders["X-DMP-Expected-Updated-At"]=
+                  String(financePayload.updatedAt);
+              }
+
+              const save=await fetch("/api/finance",{
+                method:"PUT",
+                headers:financeHeaders,
+                body:JSON.stringify(reconciled.data)
+              });
               if(!save.ok)throw new Error("Falha ao salvar reconciliação Kids.");
             }
           }
@@ -173,12 +197,42 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     setData(stamped);
     setSaving(true);
     try {
+      const expected =
+        window.sessionStorage.getItem(
+          "dmp_kids_cloud_updated_at"
+        ) || "";
+
+      const headers: Record<string,string> = {
+        "Content-Type": "application/json",
+      };
+
+      if(expected){
+        headers["X-DMP-Expected-Updated-At"] = expected;
+      }
+
       const response = await fetch("/api/kids", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(stamped),
       });
+
+      const saved = await response.json().catch(() => ({}));
+
+      if(response.status === 409){
+        setNotice(
+          "As Aulas Kids foram alteradas em outra aba ou dispositivo. Atualize a página antes de continuar."
+        );
+        return false;
+      }
+
       if (!response.ok) throw new Error();
+
+      if(saved.updatedAt){
+        window.sessionStorage.setItem(
+          "dmp_kids_cloud_updated_at",
+          String(saved.updatedAt)
+        );
+      }
       setNotice(message);
       return true;
     } catch {
@@ -203,7 +257,20 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setFinanceData(reconciled.data);
       if(reconciled.changed){
         await createFinanceSafetyBackup();
-        const save=await fetch("/api/finance",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(reconciled.data)});
+        const financeHeaders:Record<string,string>={
+          "Content-Type":"application/json"
+        };
+
+        if(payload.updatedAt){
+          financeHeaders["X-DMP-Expected-Updated-At"]=
+            String(payload.updatedAt);
+        }
+
+        const save=await fetch("/api/finance",{
+          method:"PUT",
+          headers:financeHeaders,
+          body:JSON.stringify(reconciled.data)
+        });
         if(!save.ok)throw new Error();
       }
       void student;

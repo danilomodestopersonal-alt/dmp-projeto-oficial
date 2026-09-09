@@ -259,7 +259,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
               studentsSaved = true;
             }
             if (financeChanged) {
-              await putJson("/api/finance", next);
+              await saveFinanceCloud(next);
             }
           } catch (saveError) {
             // Rollback imediato do cadastro se o Financeiro falhar depois.
@@ -311,7 +311,13 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
     const timer = window.setTimeout(() => {
       setSyncing(true);
       void saveFinanceCloud(data)
-        .catch(error => console.error("Financeiro: erro ao salvar na nuvem.", error))
+        .catch(error => {
+          console.error("Financeiro: erro ao salvar na nuvem.", error);
+          if(error instanceof Error&&error.message==="FINANCE_CONFLICT"){
+            setCloudWritable(false);
+            window.alert("O Financeiro foi alterado em outra aba ou dispositivo. Esta gravação foi bloqueada para proteger os dados. Atualize a página antes de continuar.");
+          }
+        })
         .finally(() => setSyncing(false));
     }, 450);
     return () => window.clearTimeout(timer);

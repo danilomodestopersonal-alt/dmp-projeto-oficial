@@ -1,6 +1,7 @@
 import type { FinanceData, FinanceHistoryEntry } from "@/types/financeiro";
 
 const STORAGE_KEY = "dmp_finance_v1";
+const CLOUD_VERSION_KEY = "dmp_finance_cloud_updated_at";
 
 function hasCurrentShape(value: unknown): value is FinanceData {
   if (!value || typeof value !== "object") return false;
@@ -88,20 +89,64 @@ export function saveFinanceData(data: FinanceData) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+function rememberFinanceCloudVersion(value: unknown) {
+  if (typeof window === "undefined") return;
+  const text = typeof value === "string" ? value : "";
+  if (text) window.sessionStorage.setItem(CLOUD_VERSION_KEY, text);
+  else window.sessionStorage.removeItem(CLOUD_VERSION_KEY);
+}
+
+function readFinanceCloudVersion() {
+  if (typeof window === "undefined") return "";
+  return window.sessionStorage.getItem(CLOUD_VERSION_KEY) || "";
+}
+
 export async function fetchFinanceCloud(fallback: FinanceData): Promise<FinanceData | null> {
   const response = await fetch("/api/finance", { cache: "no-store" });
-  if (!response.ok) throw new Error("Falha ao carregar o Financeiro da nuvem.");
+
+  if (!response.ok) {
+    throw new Error("Falha ao carregar o Financeiro da nuvem.");
+  }
+
   const result = await response.json();
+
+  rememberFinanceCloudVersion(result?.updatedAt);
+
   if (!hasCurrentShape(result?.data)) return null;
+
   return normalizeFinanceData(result.data, fallback);
 }
 
 export async function saveFinanceCloud(data: FinanceData) {
+  const expected = readFinanceCloudVersion();
+
+  const headers: Record<string,string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (expected) {
+    headers["X-DMP-Expected-Updated-At"] = expected;
+  }
+
   const response = await fetch("/api/finance", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Falha ao salvar o Financeiro na nuvem.");
-  return response.json();
+
+  const result = await response.json().catch(() => ({}));
+
+  if (response.status === 409) {
+    throw new Error("FINANCE_CONFLICT");
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      result?.error || "Falha ao salvar o Financeiro na nuvem."
+    );
+  }
+
+  rememberFinanceCloudVersion(result?.updatedAt);
+
+  return result;
 }
