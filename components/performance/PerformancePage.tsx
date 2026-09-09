@@ -391,6 +391,18 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "Falha ao carregar Performance.");
       const incoming = result.data ?? EMPTY_DATA;
+
+      if(result.updatedAt){
+        window.sessionStorage.setItem(
+          "dmp_performance_cloud_updated_at",
+          String(result.updatedAt)
+        );
+      }else{
+        window.sessionStorage.removeItem(
+          "dmp_performance_cloud_updated_at"
+        );
+      }
+
       setData({ ...EMPTY_DATA, ...incoming });
     } catch (err) {
       console.error(err);
@@ -404,13 +416,47 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     setSaving(true);
     setError("");
     try {
+      const expected =
+        window.sessionStorage.getItem(
+          "dmp_performance_cloud_updated_at"
+        ) || "";
+
+      const headers: Record<string,string> = {
+        "Content-Type": "application/json",
+      };
+
+      if(expected){
+        headers["X-DMP-Expected-Updated-At"] = expected;
+      }
+
       const response = await fetch("/api/performance", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(next),
       });
+
       const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "Falha ao salvar Performance.");
+
+      if(response.status === 409){
+        setError(
+          "O Performance foi alterado em outra aba ou dispositivo. Esta gravação foi bloqueada para proteger os dados. Atualize a página antes de continuar."
+        );
+        return false;
+      }
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.error || "Falha ao salvar Performance."
+        );
+      }
+
+      if(result.updatedAt){
+        window.sessionStorage.setItem(
+          "dmp_performance_cloud_updated_at",
+          String(result.updatedAt)
+        );
+      }
+
       setData(next);
       return true;
     } catch (err) {

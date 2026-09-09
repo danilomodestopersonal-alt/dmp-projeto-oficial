@@ -169,39 +169,110 @@ const [cloudWritable, setCloudWritable] = useState(false);
 
 
   useEffect(()=>{
-    let cancelled=false;
+  let cancelled=false;
 
-    fetch("/api/workout-templates",{cache:"no-store"})
-      .then(response=>response.json())
-      .then(result=>{
-        if(cancelled)return;
-        setPersonalWorkoutTemplates(Array.isArray(result.data)?result.data:[]);
-      })
-      .catch(error=>{
-        console.error("Erro ao carregar biblioteca de treinos:",error);
-      })
-      .finally(()=>{
-        if(!cancelled)setWorkoutTemplatesLoaded(true);
-      });
+  fetch("/api/workout-templates",{cache:"no-store"})
+    .then(async response=>{
+      const result=await response.json();
 
-    return()=>{cancelled=true;};
-  },[]);
+      if(!response.ok||!result.ok){
+        throw new Error(
+          result.error||
+          "Falha ao carregar biblioteca de treinos."
+        );
+      }
+
+      if(cancelled)return;
+
+      if(result.updatedAt){
+        window.sessionStorage.setItem(
+          "dmp_workout_templates_cloud_updated_at",
+          String(result.updatedAt)
+        );
+      }else{
+        window.sessionStorage.removeItem(
+          "dmp_workout_templates_cloud_updated_at"
+        );
+      }
+
+      setPersonalWorkoutTemplates(
+        Array.isArray(result.data)
+          ?result.data
+          :[]
+      );
+
+      setWorkoutTemplatesLoaded(true);
+    })
+    .catch(error=>{
+      console.error(
+        "Erro ao carregar biblioteca de treinos:",
+        error
+      );
+    });
+
+  return()=>{cancelled=true;};
+},[]);
 
   useEffect(()=>{
-    if(!workoutTemplatesLoaded)return;
+  if(!workoutTemplatesLoaded)return;
 
-    const timer=window.setTimeout(()=>{
-      void fetch("/api/workout-templates",{
-        method:"PUT",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(personalWorkoutTemplates)
-      }).catch(error=>{
-        console.error("Erro ao salvar biblioteca de treinos:",error);
+  const timer=window.setTimeout(()=>{
+    const expected=
+      window.sessionStorage.getItem(
+        "dmp_workout_templates_cloud_updated_at"
+      )||"";
+
+    const headers:Record<string,string>={
+      "Content-Type":"application/json"
+    };
+
+    if(expected){
+      headers["X-DMP-Expected-Updated-At"]=expected;
+    }
+
+    void fetch("/api/workout-templates",{
+      method:"PUT",
+      headers,
+      body:JSON.stringify(personalWorkoutTemplates)
+    })
+      .then(async response=>{
+        const result=
+          await response.json().catch(()=>({}));
+
+        if(response.status===409){
+          alert(
+            "A Biblioteca de Treinos foi alterada em outra aba ou dispositivo. Esta gravação foi bloqueada para proteger os dados. Atualize a página antes de continuar."
+          );
+          return;
+        }
+
+        if(!response.ok||!result.ok){
+          throw new Error(
+            result.error||
+            "Falha ao salvar biblioteca de treinos."
+          );
+        }
+
+        if(result.updatedAt){
+          window.sessionStorage.setItem(
+            "dmp_workout_templates_cloud_updated_at",
+            String(result.updatedAt)
+          );
+        }
+      })
+      .catch(error=>{
+        console.error(
+          "Erro ao salvar biblioteca de treinos:",
+          error
+        );
       });
-    },350);
+  },350);
 
-    return()=>window.clearTimeout(timer);
-  },[personalWorkoutTemplates,workoutTemplatesLoaded]);
+  return()=>window.clearTimeout(timer);
+},[
+  personalWorkoutTemplates,
+  workoutTemplatesLoaded
+]);
 
   useEffect(() => setStudents(loadStudents(importedStudents2026)), []);
 useEffect(() => {
@@ -302,17 +373,94 @@ useEffect(() => {
 }, []);
 useEffect(() => {
   let cancelled=false;
-  fetch("/api/notes",{cache:"no-store"}).then(r=>r.json()).then(result=>{
-    if(!cancelled&&Array.isArray(result.data)){setNotes(result.data);}
-  }).catch(()=>{}).finally(()=>{if(!cancelled)setNotesLoaded(true);});
+
+  fetch("/api/notes",{cache:"no-store"})
+    .then(async response=>{
+      const result=await response.json();
+
+      if(!response.ok||!result.ok){
+        throw new Error(
+          result.error||"Falha ao carregar recados."
+        );
+      }
+
+      if(cancelled)return;
+
+      if(result.updatedAt){
+        window.sessionStorage.setItem(
+          "dmp_notes_cloud_updated_at",
+          String(result.updatedAt)
+        );
+      }else{
+        window.sessionStorage.removeItem(
+          "dmp_notes_cloud_updated_at"
+        );
+      }
+
+      if(Array.isArray(result.data)){
+        setNotes(result.data);
+      }
+    })
+    .catch(error=>{
+      console.error("Erro ao carregar recados:",error);
+    })
+    .finally(()=>{
+      if(!cancelled)setNotesLoaded(true);
+    });
+
   return()=>{cancelled=true;};
 },[]);
 
 useEffect(()=>{
   if(!notesLoaded)return;
+
   const timer=window.setTimeout(()=>{
-    void fetch("/api/notes",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(notes)}).catch(()=>{});
+    const expected=
+      window.sessionStorage.getItem(
+        "dmp_notes_cloud_updated_at"
+      )||"";
+
+    const headers:Record<string,string>={
+      "Content-Type":"application/json"
+    };
+
+    if(expected){
+      headers["X-DMP-Expected-Updated-At"]=expected;
+    }
+
+    void fetch("/api/notes",{
+      method:"PUT",
+      headers,
+      body:JSON.stringify(notes)
+    })
+      .then(async response=>{
+        const result=await response.json().catch(()=>({}));
+
+        if(response.status===409){
+          alert(
+            "Os Recados foram alterados em outra aba ou dispositivo. Esta gravação foi bloqueada para proteger os dados. Atualize a página antes de continuar."
+          );
+          return;
+        }
+
+        if(!response.ok||!result.ok){
+          throw new Error(
+            result.error||"Falha ao salvar recados."
+          );
+        }
+
+        if(result.updatedAt){
+          window.sessionStorage.setItem(
+            "dmp_notes_cloud_updated_at",
+            String(result.updatedAt)
+          );
+        }
+      })
+      .catch(error=>{
+        console.error("Erro ao salvar recados:",error);
+      });
   },350);
+
   return()=>window.clearTimeout(timer);
 },[notes,notesLoaded]);
 
