@@ -1276,7 +1276,7 @@ fetch("/api/google/status")
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
                 <div className="panel-head todoist-panel-head">
@@ -2334,7 +2334,13 @@ function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessi
     .map(event=>({event,kids:kidsCalendarRequest(event)}))
     .filter((item):item is {event:CalendarEvent;kids:KidsLessonOpenRequest}=>Boolean(item.kids));
 
-  const pending=notes.filter(note=>!note.done);
+  const scheduledNotes=notes
+    .filter(note=>!note.done&&Boolean(note.dueDate))
+    .sort((a,b)=>{
+      const aKey=`${a.dueDate||""}T${a.dueTime||"23:59"}`;
+      const bKey=`${b.dueDate||""}T${b.dueTime||"23:59"}`;
+      return aKey.localeCompare(bKey);
+    });
   const monthKey=today().slice(0,7);
   const monthSessionRows=students.flatMap(student=>
     student.sessions
@@ -2414,27 +2420,62 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
       <MiniMonthCalendar onSelect={onAgenda}/>
 
-      <section className="today-highlight-card today-notes-card todoist-inbox-widget">
+      <section
+        className="today-highlight-card today-notes-card todoist-inbox-widget todoist-inbox-clickable"
+        role="link"
+        tabIndex={0}
+        aria-label="Abrir Todoist"
+        onClick={()=>window.open("https://app.todoist.com/app/inbox","_blank","noopener,noreferrer")}
+        onKeyDown={event=>{
+          if(event.key==="Enter"){
+            event.preventDefault();
+            window.open("https://app.todoist.com/app/inbox","_blank","noopener,noreferrer");
+          }
+        }}
+      >
         <div className="todoist-widget-head">
-          <div className="todoist-widget-title"><span className="todoist-widget-logo">✓</span><strong>Entrada</strong></div>
-          <button type="button" className="todoist-widget-add" onClick={onNotes} aria-label="Adicionar tarefa">+</button>
+          <div className="todoist-widget-title"><span className="todoist-widget-logo">✓</span><strong>Todoist</strong></div>
+          <button
+            type="button"
+            className="todoist-widget-add"
+            onClick={event=>{event.stopPropagation();onNotes();}}
+            aria-label="Adicionar tarefa"
+            title="Adicionar tarefa"
+          >+</button>
         </div>
 
-        {pending.length?
+        {scheduledNotes.length?
           <div className="todoist-widget-list">
-            {pending.slice(0,4).map(note=>
+            {scheduledNotes.slice(0,5).map(note=>
               <div className={`todoist-widget-task priority-${todoistPriorityValue(note)}`} key={note.id}>
-                <button className="todoist-widget-circle" onClick={()=>onCompleteNote(note)} aria-label={`Concluir ${note.title||"tarefa"}`}><span/></button>
-                <button className="todoist-widget-copy" onClick={()=>onOpenNote(note)}>
+                <button
+                  className="todoist-widget-circle"
+                  onClick={event=>{event.stopPropagation();onCompleteNote(note);}}
+                  aria-label={`Concluir ${note.title||"tarefa"}`}
+                  title="Concluir tarefa"
+                ><span/></button>
+                <button
+                  className="todoist-widget-copy"
+                  onClick={event=>{event.stopPropagation();onOpenNote(note);}}
+                  title="Abrir tarefa no Todoist"
+                >
                   <strong>{note.title||"Sem título"}</strong>
-                  {note.dueDate?<small>{todoistDueLabel(note,true)}</small>:null}
+                  <small>{todoistDueLabel(note,true)}</small>
                 </button>
               </div>
             )}
           </div>
-        :<div className="todoist-widget-empty"><strong>Entrada vazia</strong><small>Crie uma tarefa pelo + ou no Todoist.</small></div>}
+        :<div className="todoist-widget-empty"><strong>Nenhuma tarefa com data</strong><small>As tarefas sem data continuam no Todoist.</small></div>}
 
-        {pending.length>4?<button className="todoist-widget-more" onClick={onNotes}>+ {pending.length-4} tarefa{pending.length-4===1?"":"s"}</button>:null}
+        {scheduledNotes.length>5?
+          <button
+            className="todoist-widget-more"
+            onClick={event=>{
+              event.stopPropagation();
+              window.open("https://app.todoist.com/app/inbox","_blank","noopener,noreferrer");
+            }}
+          >+ {scheduledNotes.length-5} com data</button>
+        :null}
       </section>
 
       <button

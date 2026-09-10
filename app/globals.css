@@ -7281,3 +7281,117 @@ input:focus,textarea:focus{
     line-height:1.35!important;
   }
 }
+
+
+/* DMP_TODOIST_CARD_COMPACT_20260910 */
+@media(min-width:901px){
+  .todoist-inbox-clickable{
+    cursor:pointer!important;
+  }
+
+  .todoist-inbox-clickable:focus-visible{
+    outline:3px solid rgba(220,76,62,.22)!important;
+    outline-offset:2px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-head{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 30px!important;
+    align-items:center!important;
+    gap:8px!important;
+    margin-bottom:8px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-title{
+    min-width:0!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:8px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-title strong{
+    font-size:17px!important;
+    line-height:1.1!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-add{
+    width:28px!important;
+    height:28px!important;
+    min-width:28px!important;
+    min-height:28px!important;
+    padding:0!important;
+    border-radius:8px!important;
+    font-size:20px!important;
+    line-height:26px!important;
+    display:grid!important;
+    place-items:center!important;
+    justify-self:end!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-list{
+    width:100%!important;
+    gap:0!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-task{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:22px minmax(0,1fr)!important;
+    align-items:center!important;
+    gap:7px!important;
+    padding:6px 0!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-circle{
+    align-self:center!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-copy{
+    width:100%!important;
+    min-width:0!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:8px!important;
+    text-align:left!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-copy strong{
+    display:block!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    font-size:14px!important;
+    font-weight:700!important;
+    line-height:1.25!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-copy small{
+    display:block!important;
+    margin:0!important;
+    white-space:nowrap!important;
+    font-size:11px!important;
+    line-height:1.2!important;
+    color:#dc4c3e!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-more{
+    margin-top:5px!important;
+    padding:3px 0 0!important;
+    font-size:11px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-empty{
+    min-height:0!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-empty strong{
+    font-size:14px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-empty small{
+    font-size:11px!important;
+  }
+}
