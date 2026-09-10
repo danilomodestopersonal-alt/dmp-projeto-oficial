@@ -2422,7 +2422,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
         {pending.length?
           <div className="todoist-widget-list">
-            {pending.slice(0,5).map(note=>
+            {pending.slice(0,4).map(note=>
               <div className={`todoist-widget-task priority-${todoistPriorityValue(note)}`} key={note.id}>
                 <button className="todoist-widget-circle" onClick={()=>onCompleteNote(note)} aria-label={`Concluir ${note.title||"tarefa"}`}><span/></button>
                 <button className="todoist-widget-copy" onClick={()=>onOpenNote(note)}>
@@ -2434,63 +2434,82 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
           </div>
         :<div className="todoist-widget-empty"><strong>Entrada vazia</strong><small>Crie uma tarefa pelo + ou no Todoist.</small></div>}
 
-        {pending.length>5?<button className="todoist-widget-more" onClick={onNotes}>+ {pending.length-5} tarefa{pending.length-5===1?"":"s"}</button>:null}
+        {pending.length>4?<button className="todoist-widget-more" onClick={onNotes}>+ {pending.length-4} tarefa{pending.length-4===1?"":"s"}</button>:null}
       </section>
 
-      <div className="today-compact-stack">
-        <button
-          className="today-highlight-card today-summary-card compact-home-card"
-          onClick={()=>setShowSummary(value=>!value)}
-          aria-expanded={showSummary}
-        >
-          <div>
-            <strong>Resumo do dia</strong>
-            <span className="compact-metrics">
-              <small><b>{programmed}</b> programados</small>
-              <small><b>{attended.length}</b> atendidos</small>
-              <small><b>{absent.length}</b> ausências</small>
-              <small><b>{remaining.length}</b> faltam</small>
-            </span>
-            <i><b style={{width:`${progress}%`}}/></i>
-            {kids.length?
-              <span className="today-kids-inline compact-kids-inline">
-                {kids.slice(0,2).map(({event,kids:item})=>
-                  <span className="today-kids-inline-row" key={event.id} onClick={click=>{click.stopPropagation();onKids(event);}}>
-                    <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
-                    <b>{formatCalendarTime(event)}</b><span> · {kidsCategoryName(item.category)}</span>
-                  </span>
-                )}
-              </span>
-            :null}
-          </div>
-        </button>
+      <button
+        className="today-highlight-card today-summary-card"
+        onClick={()=>setShowSummary(value=>!value)}
+        aria-expanded={showSummary}
+      >
+        <div>
+          <strong>Resumo do dia</strong>
 
-        <button className="today-highlight-card month-closing-today-card compact-home-card" onClick={()=>setShowMonthClosing(value=>!value)} aria-expanded={showMonthClosing}>
-          <div>
-            <strong>Fechamento do mês</strong>
-            <span className="compact-metrics">
-              <small><b>{monthAttended}</b> atendimentos</small>
-              <small><b>{monthAssessments}</b> avaliações · <b>{monthKids}</b> Kids</small>
-              <small><b>{monthCycling.length}</b> bike · <b>{monthStrength.length}</b> musculação · <b>{monthPilates.length}</b> pilates</small>
-            </span>
-          </div>
-        </button>
+          <span className="highlight-lines">
+            <small><b>{programmed}</b> alunos programados</small>
+            <small><b>{attended.length}</b> atendidos</small>
+            <small><b>{absent.length}</b> ausências</small>
+            <small><b>{remaining.length}</b> ainda faltam</small>
+          </span>
 
-        <button className="today-highlight-card performance-today-card compact-home-card" onClick={onPerformance}>
-          <div>
-            <strong>Treino do dia</strong>
-            {performanceActivities.length?
-              <span className="performance-today-list compact-performance-list">
-                {performanceActivities.slice(0,3).map(activity=>
-                  <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
-                    <b style={{fontWeight:400}}>{activityTodayLine(activity)}</b>
-                  </span>
-                )}
-              </span>
-            :<span className="highlight-lines"><small>Nenhum treino pessoal registrado hoje.</small></span>}
-          </div>
-        </button>
-      </div>
+          <i><b style={{width:`${progress}%`}}/></i>
+
+          {kids.length?
+            <span className="today-kids-inline">
+              {kids.map(({event,kids:item})=>
+                <span
+                  className="today-kids-inline-row"
+                  key={event.id}
+                  onClick={click=>{
+                    click.stopPropagation();
+                    onKids(event);
+                  }}
+                >
+                  <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
+                  <b>{formatCalendarTime(event)}</b>
+                  <span> · {kidsCategoryName(item.category)}</span>
+                </span>
+              )}
+            </span>
+          :null}
+        </div>
+      </button>
+
+      <button
+        className="today-highlight-card month-closing-today-card"
+        onClick={()=>setShowMonthClosing(value=>!value)}
+        aria-expanded={showMonthClosing}
+      >
+        <div>
+          <strong>Fechamento do mês</strong>
+          <span className="highlight-lines">
+            <small><b>{monthAttended}</b> atendimentos</small>
+            <small><b>{monthAssessments}</b> avaliações</small>
+            <small><b>{monthKids}</b> aulas Kids</small>
+            <small><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
+            <small><b>{monthStrength.length}</b> musculação</small>
+            <small><b>{monthPilates.length}</b> pilates</small>
+          </span>
+        </div>
+      </button>
+
+      <button
+        className="today-highlight-card performance-today-card"
+        onClick={onPerformance}
+      >
+        <div>
+          <strong>Treino do dia</strong>
+          {performanceActivities.length?
+            <span className="performance-today-list">
+              {performanceActivities.map(activity=>
+                <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
+                  <b style={{fontWeight:400}}>{activityTodayLine(activity)}</b>
+                </span>
+              )}
+            </span>
+          :<span className="highlight-lines"><small>Nenhum treino pessoal registrado hoje.</small></span>}
+        </div>
+      </button>
 
     </div>
 

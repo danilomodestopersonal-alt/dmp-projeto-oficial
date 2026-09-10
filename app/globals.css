@@ -7225,3 +7225,59 @@ input:focus,textarea:focus{
     grid-column:1 / -1;
   }
 }
+
+
+/* DMP_HOME_BALANCE_TODOIST_20260910 */
+@media(min-width:901px){
+  .today-highlight-grid.todoist-home-grid{
+    display:grid!important;
+    grid-template-columns:
+      minmax(200px,.86fr)
+      minmax(235px,1fr)
+      repeat(3,minmax(150px,.72fr))!important;
+    gap:12px!important;
+    align-items:stretch!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .mini-month,
+  .today-highlight-grid.todoist-home-grid > .todoist-inbox-widget,
+  .today-highlight-grid.todoist-home-grid > .today-highlight-card{
+    min-width:0!important;
+    min-height:215px!important;
+    height:auto!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .mini-month{
+    width:auto!important;
+    padding-left:14px!important;
+    padding-right:14px!important;
+  }
+
+  .todoist-inbox-widget{
+    padding:14px 16px!important;
+  }
+
+  .todoist-widget-head{
+    margin-bottom:7px!important;
+  }
+
+  .todoist-widget-task{
+    padding:6px 0!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .today-summary-card,
+  .today-highlight-grid.todoist-home-grid > .month-closing-today-card,
+  .today-highlight-grid.todoist-home-grid > .performance-today-card{
+    padding:16px 14px!important;
+    text-align:center!important;
+    overflow:hidden!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .today-highlight-card .highlight-lines{
+    margin-top:10px!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .today-highlight-card .highlight-lines small{
+    line-height:1.35!important;
+  }
+}
