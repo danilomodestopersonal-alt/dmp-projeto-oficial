@@ -6797,3 +6797,24 @@ input:focus,textarea:focus{
     stroke-width:2.8!important;
   }
 }
+
+
+/* DMP_HOME_TOOLS_LAYOUT_FIX_20260910 */
+@media(min-width:901px){
+  .today-tools{
+    grid-template-columns:
+      minmax(175px,1.25fr)
+      minmax(125px,.72fr)
+      minmax(160px,.90fr)
+      84px
+      84px!important;
+  }
+
+  .today-tools .drive-shortcut:not(.bioimpedance-shortcut):not(.whatsapp-shortcut){
+    min-width:160px!important;
+  }
+
+  .today-tools .drive-shortcut:not(.bioimpedance-shortcut):not(.whatsapp-shortcut) strong{
+    white-space:nowrap!important;
+  }
+}
