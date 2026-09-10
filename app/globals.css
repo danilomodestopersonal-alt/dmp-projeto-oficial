@@ -6779,3 +6779,21 @@ input:focus,textarea:focus{
     stroke-width:2.3!important;
   }
 }
+
+
+/* DMP_WHATSAPP_ICON_REFINO_2_20260910 */
+@media(min-width:901px){
+  .today-tools .whatsapp-shortcut .whatsapp-icon{
+    width:50px!important;
+    height:50px!important;
+  }
+
+  .today-tools .whatsapp-shortcut svg{
+    width:48px!important;
+    height:48px!important;
+  }
+
+  .today-tools .whatsapp-shortcut svg path:last-of-type{
+    stroke-width:2.8!important;
+  }
+}
