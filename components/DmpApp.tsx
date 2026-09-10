@@ -22,7 +22,7 @@ import type { PerformanceActivity } from "@/types/performance";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "timeline" | "workouts" | "history" | "assessments" | "finance" | "files";
-type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string };
+type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string; dueDate?:string; dueString?:string };
 type AgendaRange = "day" | "week" | "month" | "year" | "list";
 
 type PersonalWorkoutTemplate = {
@@ -92,7 +92,8 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [notes, setNotes] = useState<DmpNote[]>([]);
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNote, setNewNote] = useState("");
-  const [notesLoaded, setNotesLoaded] = useState(false);
+  const [notesBusy, setNotesBusy] = useState(false);
+  const [notesError, setNotesError] = useState("");
   const [removedNote, setRemovedNote] = useState<{note:DmpNote;index:number}|null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string|null>(null);
   const [editingNoteTitle, setEditingNoteTitle] = useState("");
@@ -393,95 +394,42 @@ useEffect(() => {
 useEffect(() => {
   let cancelled=false;
 
-  fetch("/api/notes",{cache:"no-store"})
-    .then(async response=>{
-      const result=await response.json();
-
+  const refresh=async()=>{
+    try{
+      const response=await fetch("/api/notes",{cache:"no-store"});
+      const result=await response.json().catch(()=>({}));
       if(!response.ok||!result.ok){
-        throw new Error(
-          result.error||"Falha ao carregar recados."
-        );
+        throw new Error(result.error||"Falha ao carregar recados do Todoist.");
       }
-
       if(cancelled)return;
-
-      if(result.updatedAt){
-        window.sessionStorage.setItem(
-          "dmp_notes_cloud_updated_at",
-          String(result.updatedAt)
-        );
-      }else{
-        window.sessionStorage.removeItem(
-          "dmp_notes_cloud_updated_at"
-        );
-      }
-
-      if(Array.isArray(result.data)){
-        setNotes(result.data);
-      }
-    })
-    .catch(error=>{
-      console.error("Erro ao carregar recados:",error);
-    })
-    .finally(()=>{
-      if(!cancelled)setNotesLoaded(true);
-    });
-
-  return()=>{cancelled=true;};
-},[]);
-
-useEffect(()=>{
-  if(!notesLoaded)return;
-
-  const timer=window.setTimeout(()=>{
-    const expected=
-      window.sessionStorage.getItem(
-        "dmp_notes_cloud_updated_at"
-      )||"";
-
-    const headers:Record<string,string>={
-      "Content-Type":"application/json"
-    };
-
-    if(expected){
-      headers["X-DMP-Expected-Updated-At"]=expected;
+      setNotes(Array.isArray(result.data)?result.data:[]);
+      setNotesError("");
+    }catch(error){
+      if(cancelled)return;
+      console.error("Erro ao carregar recados do Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao carregar recados do Todoist.");
     }
+  };
 
-    void fetch("/api/notes",{
-      method:"PUT",
-      headers,
-      body:JSON.stringify(notes)
-    })
-      .then(async response=>{
-        const result=await response.json().catch(()=>({}));
+  const onFocus=()=>{void refresh();};
+  const onVisibility=()=>{
+    if(document.visibilityState==="visible")void refresh();
+  };
 
-        if(response.status===409){
-          alert(
-            "Os Recados foram alterados em outra aba ou dispositivo. Esta gravação foi bloqueada para proteger os dados. Atualize a página antes de continuar."
-          );
-          return;
-        }
+  void refresh();
+  window.addEventListener("focus",onFocus);
+  document.addEventListener("visibilitychange",onVisibility);
+  const timer=window.setInterval(()=>{
+    if(document.visibilityState==="visible")void refresh();
+  },60000);
 
-        if(!response.ok||!result.ok){
-          throw new Error(
-            result.error||"Falha ao salvar recados."
-          );
-        }
-
-        if(result.updatedAt){
-          window.sessionStorage.setItem(
-            "dmp_notes_cloud_updated_at",
-            String(result.updatedAt)
-          );
-        }
-      })
-      .catch(error=>{
-        console.error("Erro ao salvar recados:",error);
-      });
-  },350);
-
-  return()=>window.clearTimeout(timer);
-},[notes,notesLoaded]);
+  return()=>{
+    cancelled=true;
+    window.removeEventListener("focus",onFocus);
+    document.removeEventListener("visibilitychange",onVisibility);
+    window.clearInterval(timer);
+  };
+},[]);
 
 useEffect(()=>{
   if(view!=="today")return;
@@ -609,12 +557,109 @@ useEffect(()=>{
     finally{setSpotifyBusy(false);}
   }
 
-  function addNote(){const title=newNoteTitle.trim();const text=newNote.trim();if(!title&&!text)return;const now=new Date().toISOString();setNotes(current=>[{id:crypto.randomUUID(),title,text,done:false,createdAt:now,updatedAt:now},...current]);setNewNoteTitle("");setNewNote("");}
-  function patchNote(id:string,patch:Partial<DmpNote>){setNotes(current=>current.map(note=>note.id===id?{...note,...patch,updatedAt:new Date().toISOString()}:note));}
-  function removeNote(id:string){if(!confirm("Excluir este recado?"))return;setNotes(current=>{const index=current.findIndex(note=>note.id===id);if(index<0)return current;setRemovedNote({note:current[index],index});return current.filter(note=>note.id!==id);});}
-  function undoNoteRemoval(){if(!removedNote)return;setNotes(current=>{const next=[...current];next.splice(Math.min(removedNote.index,next.length),0,removedNote.note);return next;});setRemovedNote(null);}
+  async function addNote(){
+    const title=newNoteTitle.trim();
+    const text=newNote.trim();
+    if(!title&&!text)return;
+    setNotesBusy(true);
+    setNotesError("");
+    try{
+      const response=await fetch("/api/notes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,text})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao criar recado no Todoist.");
+      setNotes(current=>[result.data as DmpNote,...current.filter(note=>note.id!==result.data.id)]);
+      setNewNoteTitle("");
+      setNewNote("");
+    }catch(error){
+      console.error("Erro ao criar recado no Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao criar recado no Todoist.");
+    }finally{
+      setNotesBusy(false);
+    }
+  }
+  async function patchNote(id:string,patch:Partial<DmpNote>){
+    const current=notes.find(note=>note.id===id);
+    if(!current)return false;
+    setNotesBusy(true);
+    setNotesError("");
+    try{
+      const response=await fetch(`/api/notes?id=${encodeURIComponent(id)}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok)throw new Error(result.error||"Falha ao atualizar recado no Todoist.");
+      if(patch.done===true){
+        setNotes(items=>items.filter(note=>note.id!==id));
+      }else if(result.data){
+        setNotes(items=>items.map(note=>note.id===id?result.data as DmpNote:note));
+      }
+      return true;
+    }catch(error){
+      console.error("Erro ao atualizar recado no Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao atualizar recado no Todoist.");
+      return false;
+    }finally{
+      setNotesBusy(false);
+    }
+  }
+  async function removeNote(id:string){
+    if(!confirm("Excluir este recado do Todoist?"))return;
+    const index=notes.findIndex(note=>note.id===id);
+    if(index<0)return;
+    const note=notes[index];
+    setNotesBusy(true);
+    setNotesError("");
+    try{
+      const response=await fetch(`/api/notes?id=${encodeURIComponent(id)}`,{method:"DELETE"});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok)throw new Error(result.error||"Falha ao excluir recado do Todoist.");
+      setRemovedNote({note,index});
+      setNotes(current=>current.filter(item=>item.id!==id));
+    }catch(error){
+      console.error("Erro ao excluir recado do Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao excluir recado do Todoist.");
+    }finally{
+      setNotesBusy(false);
+    }
+  }
+  async function undoNoteRemoval(){
+    if(!removedNote)return;
+    setNotesBusy(true);
+    setNotesError("");
+    try{
+      const response=await fetch("/api/notes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:removedNote.note.title||"",text:removedNote.note.text||""})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao recriar recado no Todoist.");
+      setNotes(current=>{
+        const next=[...current];
+        next.splice(Math.min(removedNote.index,next.length),0,result.data as DmpNote);
+        return next;
+      });
+      setRemovedNote(null);
+    }catch(error){
+      console.error("Erro ao recriar recado no Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao recriar recado no Todoist.");
+    }finally{
+      setNotesBusy(false);
+    }
+  }
   function startEditingNote(note:DmpNote){setEditingNoteId(note.id);setEditingNoteTitle(note.title||"");setEditingNoteText(note.text);}
-  function saveEditedNote(){if(!editingNoteId)return;const title=editingNoteTitle.trim();const text=editingNoteText.trim();if(title||text)patchNote(editingNoteId,{title,text});setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}
+  async function saveEditedNote(){
+    if(!editingNoteId)return;
+    const title=editingNoteTitle.trim();
+    const text=editingNoteText.trim();
+    if(!title&&!text)return;
+    const saved=await patchNote(editingNoteId,{title,text});
+    if(!saved)return;
+    setEditingNoteId(null);
+    setEditingNoteTitle("");
+    setEditingNoteText("");
+  }
+  function formatNoteDue(note:DmpNote){
+    if(!note.dueDate)return "";
+    const raw=note.dueDate.slice(0,10);
+    const parsed=new Date(`${raw}T12:00:00`);
+    if(Number.isNaN(parsed.getTime()))return note.dueString||note.dueDate;
+    return parsed.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+  }
 
 useEffect(() => {
 fetch("/api/google/status")
@@ -1168,7 +1213,7 @@ fetch("/api/google/status")
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
               <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
-              <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Anotações rápidas sincronizadas entre seus dispositivos.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" onClick={addNote}>+ Adicionar</button></div>{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id} onClick={()=>startEditingNote(note)} role="button" tabIndex={0}><div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p></div><div className="note-actions" onClick={e=>e.stopPropagation()}><label><input type="checkbox" checked={note.done} onChange={e=>patchNote(note.id,{done:e.target.checked})}/> Concluído</label><button className="danger-link" onClick={()=>removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado</strong><span>Use este mural para lembretes rápidos do dia a dia.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído.</span><button onClick={undoNoteRemoval}>Desfazer</button></div>:null}{editingNoteId?<div className="note-modal-backdrop" onMouseDown={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}><section className="note-modal" onMouseDown={e=>e.stopPropagation()}><div className="note-modal-head"><span>Editar recado</span><button className="text-button" onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}} aria-label="Fechar">×</button></div><input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Escreva seu recado..."/><div className="note-modal-actions"><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button><button className="primary" onClick={saveEditedNote}>Salvar</button></div></section></div>:null}</section>
+              <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Todoist · seus recados ficam centralizados e sincronizados por lá.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" disabled={notesBusy} onClick={()=>void addNote()}>{notesBusy?"Sincronizando...":"+ Adicionar no Todoist"}</button></div>{notesError?<p className="muted">{notesError}</p>:null}{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id} onClick={()=>startEditingNote(note)} role="button" tabIndex={0}><div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p>{note.dueDate?<small className="muted">Prazo: {formatNoteDue(note)}</small>:null}</div><div className="note-actions" onClick={e=>e.stopPropagation()}><label><input type="checkbox" checked={note.done} disabled={notesBusy} onChange={e=>void patchNote(note.id,{done:e.target.checked})}/> Concluir</label><button className="danger-link" disabled={notesBusy} onClick={()=>void removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado no Todoist</strong><span>Crie aqui ou pelo Todoist do celular.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído do Todoist.</span><button disabled={notesBusy} onClick={()=>void undoNoteRemoval()}>Desfazer</button></div>:null}{editingNoteId?<div className="note-modal-backdrop" onMouseDown={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}><section className="note-modal" onMouseDown={e=>e.stopPropagation()}><div className="note-modal-head"><span>Editar recado do Todoist</span><button className="text-button" onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}} aria-label="Fechar">×</button></div><input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Escreva seu recado..."/><div className="note-modal-actions"><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button><button className="primary" disabled={notesBusy} onClick={()=>void saveEditedNote()}>{notesBusy?"Salvando...":"Salvar no Todoist"}</button></div></section></div>:null}</section>
               <HomePendingSection students={students}/>
               <SpecialDatesHome students={students} onStudent={openStudent} />
               <div className="home-search-bottom" data-home-size-key="search"><GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}} onKidsStudent={openKidsStudent}/></div>
