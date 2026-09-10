@@ -6751,3 +6751,31 @@ input:focus,textarea:focus{
 @media(max-width:900px){
   .today-tools .whatsapp-shortcut{display:none!important}
 }
+
+
+/* DMP_WHATSAPP_ICON_REFINO_20260910 */
+@media(min-width:901px){
+  .today-tools .whatsapp-shortcut .whatsapp-icon{
+    width:38px!important;
+    height:38px!important;
+  }
+
+  .today-tools .whatsapp-shortcut svg{
+    width:36px!important;
+    height:36px!important;
+  }
+
+  .today-tools .whatsapp-shortcut svg circle{
+    display:none!important;
+  }
+
+  .today-tools .whatsapp-shortcut svg path:first-of-type{
+    fill:#25D366!important;
+  }
+
+  .today-tools .whatsapp-shortcut svg path:last-of-type{
+    fill:none!important;
+    stroke:#25D366!important;
+    stroke-width:2.3!important;
+  }
+}
