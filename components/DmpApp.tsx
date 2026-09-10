@@ -2434,7 +2434,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
         }}
       >
         <div className="todoist-widget-head">
-          <div className="todoist-widget-title"><span className="todoist-widget-logo">✓</span><strong>Todoist</strong></div>
+          <div className="todoist-widget-title"><span className="todoist-widget-logo">✓</span><strong>Compromissos</strong></div>
           <button
             type="button"
             className="todoist-widget-add"

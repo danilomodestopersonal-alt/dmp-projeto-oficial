@@ -7364,7 +7364,7 @@ input:focus,textarea:focus{
     text-overflow:ellipsis!important;
     white-space:nowrap!important;
     font-size:14px!important;
-    font-weight:700!important;
+    font-weight:400!important;
     line-height:1.25!important;
   }
 
