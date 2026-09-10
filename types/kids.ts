@@ -41,6 +41,8 @@ export type KidsLesson = {
   plannedPlan:string;
   actualPlan:string;
   notes:string;
+  cancelReason?:"RAIN"|"OTHER";
+  cancelReasonOther?:string;
   image?:KidsLessonImage;
   replacementEligible:boolean;
   replacementStatus:KidsReplacementStatus;

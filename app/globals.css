@@ -6722,3 +6722,32 @@ input:focus,textarea:focus{
     justify-content:flex-start;
   }
 }
+
+/* DMP_UPDATE_2026_09_10_WHATSAPP_HOME_V5 */
+@media(min-width:901px){
+  .today-tools{
+    grid-template-columns:minmax(195px,1.45fr) minmax(125px,.72fr) minmax(112px,.72fr) 84px 84px!important;
+  }
+  .today-tools .whatsapp-shortcut{
+    display:grid!important;
+    place-items:center!important;
+    padding:8px!important;
+    min-width:0!important;
+    width:100%!important;
+    box-sizing:border-box!important;
+    overflow:hidden;
+    background:#fff;
+  }
+  .today-tools .whatsapp-shortcut .whatsapp-icon{
+    display:grid!important;
+    place-items:center!important;
+    width:100%!important;
+    height:100%!important;
+    grid-row:auto!important;
+    color:inherit!important;
+  }
+  .today-tools .whatsapp-shortcut svg{width:48px;height:48px;display:block}
+}
+@media(max-width:900px){
+  .today-tools .whatsapp-shortcut{display:none!important}
+}

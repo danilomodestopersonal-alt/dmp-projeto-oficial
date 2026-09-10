@@ -377,8 +377,10 @@
   align-items: flex-end;
   flex-wrap: wrap;
 }
-.cancelBox label:first-child {
-  display: flex;
+.cancelCheck {
+  display: flex !important;
+  align-items: center;
+  gap: 7px !important;
 }
 .imageBox {
   display: grid;

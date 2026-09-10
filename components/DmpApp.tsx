@@ -119,6 +119,25 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const sessionReturnView = useRef<View>("student");
   const browserHistoryReady = useRef(false);
   const browserBackRestoring = useRef(false);
+  useEffect(() => {
+    const nativeFetch = window.fetch.bind(window);
+    let redirecting = false;
+    const guardedFetch: typeof window.fetch = async (...args) => {
+      const response = await nativeFetch(...args);
+      if (!redirecting && response.status === 401) {
+        const payload = await response.clone().json().catch(() => null);
+        if (payload?.message === "Sessão inválida. Entre novamente no DMP.") {
+          redirecting = true;
+          window.location.replace("/login");
+        }
+      }
+      return response;
+    };
+    window.fetch = guardedFetch;
+    return () => {
+      if (window.fetch === guardedFetch) window.fetch = nativeFetch;
+    };
+  }, []);
 
   // Histórico real de navegação: cada tela do DMP vira uma etapa do botão/gesto Voltar.
   useEffect(() => {
@@ -598,7 +617,13 @@ useEffect(()=>{
   function saveEditedNote(){if(!editingNoteId)return;const title=editingNoteTitle.trim();const text=editingNoteText.trim();if(title||text)patchNote(editingNoteId,{title,text});setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}
 
 useEffect(() => {
-fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>{});
+fetch("/api/google/status")
+  .then(async response=>{
+    const payload=await response.json().catch(()=>null);
+    return response.ok?payload:null;
+  })
+  .then(payload=>{if(payload)setCalendarStatus(payload);})
+  .catch(()=>{});
     try {
       const dailyAt=localStorage.getItem("dmp_calendar_daily_sync")||"";
       const weeklyAt=localStorage.getItem("dmp_calendar_weekly_sync")||"";
@@ -1139,7 +1164,7 @@ fetch("/api/google/status").then(r=>r.json()).then(setCalendarStatus).catch(()=>
         <Sidebar current={view} onNavigate={navigateMain} logout={logout} students={students} onStudent={openStudent} onKidsStudent={openKidsStudent} onMobileQuick={()=>setShowMobileActions(true)} onMobileVoice={()=>{sessionStorage.setItem("dmp_finance_voice_start","1");navigateMain("finance");}} />
         <div className="dashboard-main">
           {view === "today" ? <>
-            <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a></div></div></header>
+            <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
               <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>

@@ -48,6 +48,17 @@ const localeCompare = (a: string, b: string) => a.localeCompare(b, "pt-BR");
 const formatDate = (value: string) =>
   new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR");
 const currentMonth = () => new Date().toISOString().slice(0, 7);
+function cancelReasonText(lesson:KidsLesson){
+  if(lesson.cancelReason==="RAIN")return "Chuva";
+  if(lesson.cancelReason==="OTHER")return lesson.cancelReasonOther?.trim()||"Outros";
+  return "";
+}
+function calendarLocalSlot(value:string){
+  const date=new Date(value);
+  const parts=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(date);
+  const read=(type:string)=>parts.find(part=>part.type===type)?.value||"";
+  return {date:`${read("year")}-${read("month")}-${read("day")}`,time:`${read("hour")}:${read("minute")}`};
+}
 const groupName=(classes:KidsClass[],id:string)=>classes.find(group=>group.id===id)?.name||"Turma";
 const normalizeName=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
 function whatsappNumber(phone?:string){
@@ -407,12 +418,46 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     setAgendaFilter(filter);
     setTab("agenda");
   }
-  function updateLesson(next: KidsLesson) {
+  async function removeLessonFromGoogleCalendar(lesson:KidsLesson,relatedGroup:KidsClass){
+    const response=await fetch(`/api/google/calendar?date=${encodeURIComponent(lesson.date)}&days=1`,{cache:"no-store"});
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok){
+      if(response.status===401&&payload?.error==="not_connected")throw new Error("google_not_connected");
+      if(response.status===401&&payload?.message==="Sessão inválida. Entre novamente no DMP.")throw new Error("session_invalid");
+      throw new Error("google_read_failed");
+    }
+    const terms:Record<KidsCategory,string[]>={
+      RED:["vermelho","vermelha"],
+      ORANGE:["laranja"],
+      GREEN:["verde"],
+      YELLOW:["amarelo","amarela"],
+    };
+    const events=Array.isArray(payload.events)?payload.events:[];
+    const candidates=events.filter((event:any)=>{
+      if(event?.allDay||!event?.start)return false;
+      const slot=calendarLocalSlot(String(event.start));
+      if(slot.date!==lesson.date||slot.time!==lessonTime(lesson))return false;
+      const summary=normalizeName(String(event.summary||""));
+      return terms[relatedGroup.category].some(term=>summary.includes(normalizeName(term)));
+    });
+    if(!candidates.length)return "missing" as const;
+    if(candidates.length>1)throw new Error("google_ambiguous");
+    const target=candidates[0];
+    const deleted=await fetch(`/api/google/events?id=${encodeURIComponent(String(target.id))}`,{method:"DELETE"});
+    if(!deleted.ok)throw new Error("google_delete_failed");
+    return "removed" as const;
+  }
+  async function updateLesson(next: KidsLesson) {
     if (!data) return;
     const current=data.lessons.find(item=>item.id===next.id);
     const currentReplacementIds=new Set(current?.replacementStudentIds||[]);
     const nextReplacementIds=new Set(next.replacementStudentIds||[]);
     const relatedGroup = lessonGroup(next);
+    const cancellationStarted=current?.status!=="CANCELLED"&&next.status==="CANCELLED";
+    if(next.status==="CANCELLED"&&!cancelReasonText(next)){
+      setNotice("Informe o motivo do cancelamento antes de salvar.");
+      return;
+    }
     let replacements = [...(data.replacements || [])];
     if (
       next.status === "CANCELLED" &&
@@ -435,7 +480,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
             classId: next.classId,
             sourceLessonId: next.id,
             sourceDate: next.date,
-            reason: next.notes || "Aula cancelada com direito à reposição",
+            reason: cancelReasonText(next) || next.notes || "Aula cancelada com direito à reposição",
             status: "PENDING",
           });
       }
@@ -462,7 +507,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
         delete credit.destinationLessonId;
       }
     }
-    void persist(
+    const saved=await persist(
       {
         ...data,
         lessons: data.lessons.map((item) =>
@@ -470,8 +515,26 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
         ),
         replacements,
       },
-      "Aula salva com sucesso.",
+      cancellationStarted?"Aula cancelada no DMP.":"Aula salva com sucesso.",
     );
+    if(!saved)return;
+    if(next.status==="CANCELLED"&&relatedGroup){
+      try{
+        const googleResult=await removeLessonFromGoogleCalendar(next,relatedGroup);
+        setNotice(googleResult==="removed"
+          ?"Aula cancelada. O compromisso foi removido da Agenda Google."
+          :"Aula cancelada. Nenhum compromisso correspondente estava na Agenda Google.");
+      }catch(error){
+        const code=error instanceof Error?error.message:"";
+        if(code==="session_invalid")return;
+        if(code==="google_ambiguous")
+          setNotice("Aula cancelada no DMP, mas há mais de um compromisso Google nesse horário. Nenhum evento foi excluído para evitar remover o compromisso errado.");
+        else if(code==="google_not_connected")
+          setNotice("Aula cancelada no DMP, mas a Agenda Google não está conectada. O compromisso não pôde ser removido.");
+        else
+          setNotice("Aula cancelada no DMP, mas não foi possível remover o compromisso da Agenda Google.");
+      }
+    }
     setLessonId(null);
   }
   function createReplacementLesson(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]}){
@@ -1260,6 +1323,9 @@ function LessonRow({
           {lesson.status === "SCHEDULED" && lessonHasPassed(lesson, [group])
             ? "Realizada"
             : statusLabel[lesson.status]}
+          {lesson.status === "CANCELLED" && cancelReasonText(lesson)
+            ? ` · ${cancelReasonText(lesson)}`
+            : ""}
           {lesson.theme ? ` — ${lesson.theme}` : ""}
           {lesson.status === "COMPLETED"
             ? ` · ${present}/${group.students.filter((item) => item.active).length} presentes`
@@ -1346,12 +1412,18 @@ function LessonEditor({
     setDraft((current) => ({
       ...current,
       status: value,
+      cancelReason:value === "CANCELLED" ? current.cancelReason : undefined,
+      cancelReasonOther:value === "CANCELLED" ? current.cancelReasonOther : undefined,
       replacementEligible:
         value === "CANCELLED" ? current.replacementEligible : false,
       replacementStatus:
         value === "CANCELLED" ? current.replacementStatus : "NONE",
     }));
   }
+  const cancellationReasonValid =
+    draft.status !== "CANCELLED" ||
+    draft.cancelReason === "RAIN" ||
+    (draft.cancelReason === "OTHER" && Boolean(draft.cancelReasonOther?.trim()));
   return (
     <div className={styles.modalBackdrop}>
       <section className={styles.modal}>
@@ -1388,6 +1460,43 @@ function LessonEditor({
             {draft.status === "CANCELLED" ? (
               <div className={styles.cancelBox}>
                 <label>
+                  Motivo do cancelamento
+                  <select
+                    value={draft.cancelReason || ""}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        cancelReason: event.target.value
+                          ? (event.target.value as "RAIN" | "OTHER")
+                          : undefined,
+                        cancelReasonOther:
+                          event.target.value === "OTHER"
+                            ? current.cancelReasonOther
+                            : undefined,
+                      }))
+                    }
+                  >
+                    <option value="">Selecione o motivo</option>
+                    <option value="RAIN">Chuva</option>
+                    <option value="OTHER">Outros</option>
+                  </select>
+                </label>
+                {draft.cancelReason === "OTHER" ? (
+                  <label>
+                    Qual motivo?
+                    <input
+                      value={draft.cancelReasonOther || ""}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          cancelReasonOther: event.target.value,
+                        }))
+                      }
+                      placeholder="Escreva o motivo do cancelamento"
+                    />
+                  </label>
+                ) : null}
+                <label className={styles.cancelCheck}>
                   <input
                     type="checkbox"
                     checked={draft.replacementEligible}
@@ -1639,9 +1748,11 @@ function LessonEditor({
           <button onClick={onClose}>Cancelar</button>
           <button
             className={styles.primary}
+            disabled={!cancellationReasonValid}
             onClick={() =>
-              onSave({
+              void onSave({
                 ...draft,
+                cancelReasonOther:draft.cancelReason==="OTHER"?draft.cancelReasonOther?.trim():undefined,
                 updatedAt: new Date().toISOString(),
               })
             }
@@ -1734,7 +1845,7 @@ function ClassEditor({
           <div className={styles.classLessonHistoryHead}><strong>{lessonSummary==="COMPLETED"?"Aulas realizadas":"Aulas canceladas"} no semestre</strong><button type="button" onClick={()=>setLessonSummary(null)}>Fechar lista</button></div>
           {summaryLessons.length?summaryLessons.map(lesson=><button type="button" key={lesson.id} onClick={()=>onOpenLesson(lesson.id)}>
             <span>{formatDate(lesson.date)}</span>
-            <small>{statusLabel[lesson.status]}{lesson.theme?` · ${lesson.theme}`:""}</small>
+            <small>{statusLabel[lesson.status]}{lesson.status==="CANCELLED"&&cancelReasonText(lesson)?` · ${cancelReasonText(lesson)}`:""}{lesson.theme?` · ${lesson.theme}`:""}</small>
             <b>Abrir</b>
           </button>):<p>Nenhuma aula nesta situação.</p>}
         </div>:null}
@@ -2089,7 +2200,7 @@ function StudentEditor({
       title:lesson.attendance[studentId]==="ABSENT"?"Falta registrada":"Aula realizada",
       detail:groupName(classes,lesson.classId),
     })),
-    ...cancelledLessons.map(lesson=>({date:lesson.date,type:"Cancelamento",title:"Aula cancelada",detail:`${groupName(classes,lesson.classId)}${lesson.notes?` · ${lesson.notes}`:""}`})),
+    ...cancelledLessons.map(lesson=>({date:lesson.date,type:"Cancelamento",title:"Aula cancelada",detail:`${groupName(classes,lesson.classId)}${cancelReasonText(lesson)?` · ${cancelReasonText(lesson)}`:""}${lesson.notes?` · ${lesson.notes}`:""}`})),
     ...credits.map(item=>({
       date:item.completedDate||item.scheduledDate||item.sourceDate,
       type:"Reposição",
@@ -2366,7 +2477,7 @@ function StudentEditor({
           )}
         </div>
         <h3>Aulas canceladas da criança ({cancelledLessons.length})</h3>
-        <div className={styles.lessonList}>{cancelledLessons.length?cancelledLessons.map(lesson=><article key={lesson.id} className={styles.lessonRow}><span><strong>{formatDate(lesson.date)} · {groupName(classes,lesson.classId)}</strong><small>{lesson.notes||"Aula cancelada"}{lesson.replacementEligible?" · com direito à reposição":" · sem reposição"}</small></span></article>):<p>Nenhuma aula cancelada registrada.</p>}</div>
+        <div className={styles.lessonList}>{cancelledLessons.length?cancelledLessons.map(lesson=><article key={lesson.id} className={styles.lessonRow}><span><strong>{formatDate(lesson.date)} · {groupName(classes,lesson.classId)}</strong><small>{cancelReasonText(lesson)||lesson.notes||"Aula cancelada"}{lesson.notes&&cancelReasonText(lesson)?` · ${lesson.notes}`:""}{lesson.replacementEligible?" · com direito à reposição":" · sem reposição"}</small></span></article>):<p>Nenhuma aula cancelada registrada.</p>}</div>
         <h3>Turmas da criança</h3>
         <div className={styles.enrollmentList}>
           {memberships.map((group) => {
