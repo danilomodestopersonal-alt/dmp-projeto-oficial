@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const TODOIST_API = "https://api.todoist.com/api/v1";
-const PROJECT_NAME = "DMP | Recados";
 
 type TodoistProject = {
   id: string;
   name: string;
+  inbox_project?: boolean;
   is_archived?: boolean;
 };
 
@@ -18,11 +18,13 @@ type TodoistTask = {
   content: string;
   description?: string;
   checked?: boolean;
+  priority?: number;
   added_at?: string;
   updated_at?: string;
   due?: {
     date?: string;
     string?: string;
+    timezone?: string | null;
     is_recurring?: boolean;
   } | null;
 };
@@ -41,7 +43,7 @@ class TodoistError extends Error {
   }
 }
 
-let cachedProjectId = "";
+let cachedInboxProjectId = "";
 
 function todoistToken() {
   const token = process.env.TODOIST_API_TOKEN?.trim();
@@ -96,7 +98,7 @@ async function todoistRequest<T>(
     }
 
     throw new TodoistError(
-      "O Todoist não respondeu como esperado.",
+      `O Todoist não respondeu como esperado (${response.status}).`,
       502
     );
   }
@@ -135,35 +137,85 @@ async function allPages<T>(
   return items;
 }
 
-async function ensureProject() {
-  if (cachedProjectId) return cachedProjectId;
+async function inboxProjectId() {
+  if (cachedInboxProjectId) return cachedInboxProjectId;
 
   const projects = await allPages<TodoistProject>("/projects");
-  const existing = projects.find(
-    project =>
-      project.name === PROJECT_NAME &&
-      project.is_archived !== true
+  const inbox = projects.find(
+    project => project.inbox_project === true && project.is_archived !== true
   );
 
-  if (existing) {
-    cachedProjectId = String(existing.id);
-    return cachedProjectId;
+  if (!inbox) {
+    throw new TodoistError(
+      "Não foi possível localizar a Caixa de Entrada do Todoist.",
+      502
+    );
   }
 
-  const created = await todoistRequest<TodoistProject>("/projects", {
-    method: "POST",
-    body: JSON.stringify({
-      name: PROJECT_NAME,
-      view_style: "list",
-    }),
-  });
+  cachedInboxProjectId = String(inbox.id);
+  return cachedInboxProjectId;
+}
 
-  cachedProjectId = String(created.id);
-  return cachedProjectId;
+function todoistDueFields(task: TodoistTask) {
+  const raw = task.due?.date || "";
+
+  if (!raw) {
+    return {
+      dueDate: "",
+      dueTime: "",
+      dueString: task.due?.string || "",
+    };
+  }
+
+  if (!raw.includes("T")) {
+    return {
+      dueDate: raw.slice(0, 10),
+      dueTime: "",
+      dueString: task.due?.string || "",
+    };
+  }
+
+  // Datas "flutuantes" do Todoist já vêm no horário local do usuário.
+  if (!raw.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(raw)) {
+    return {
+      dueDate: raw.slice(0, 10),
+      dueTime: raw.slice(11, 16),
+      dueString: task.due?.string || "",
+    };
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return {
+      dueDate: raw.slice(0, 10),
+      dueTime: raw.slice(11, 16),
+      dueString: task.due?.string || "",
+    };
+  }
+
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(parsed);
+
+  const read = (type: string) =>
+    parts.find(part => part.type === type)?.value || "";
+
+  return {
+    dueDate: `${read("year")}-${read("month")}-${read("day")}`,
+    dueTime: `${read("hour")}:${read("minute")}`,
+    dueString: task.due?.string || "",
+  };
 }
 
 function mapTask(task: TodoistTask) {
   const now = new Date().toISOString();
+  const due = todoistDueFields(task);
 
   return {
     id: String(task.id),
@@ -172,17 +224,26 @@ function mapTask(task: TodoistTask) {
     done: Boolean(task.checked),
     createdAt: task.added_at || now,
     updatedAt: task.updated_at || task.added_at || now,
-    dueDate: task.due?.date || "",
-    dueString: task.due?.string || "",
+    dueDate: due.dueDate,
+    dueTime: due.dueTime,
+    dueString: due.dueString,
+    priority:
+      Number.isFinite(Number(task.priority)) &&
+      Number(task.priority) >= 1 &&
+      Number(task.priority) <= 4
+        ? Number(task.priority)
+        : 4,
   };
 }
 
-function taskText(body: unknown) {
-  const record =
-    body && typeof body === "object"
-      ? (body as Record<string, unknown>)
-      : {};
+function bodyRecord(body: unknown) {
+  return body && typeof body === "object"
+    ? (body as Record<string, unknown>)
+    : {};
+}
 
+function taskText(body: unknown) {
+  const record = bodyRecord(body);
   const title = String(record.title || "").trim();
   const text = String(record.text || "").trim();
 
@@ -204,17 +265,40 @@ function taskText(body: unknown) {
   };
 }
 
-async function assertTaskInProject(
-  taskId: string,
-  projectId: string
-) {
+function taskSchedule(body: unknown, includeClear = false) {
+  const record = bodyRecord(body);
+  const dueDate = String(record.dueDate || "").trim();
+  const dueTime = String(record.dueTime || "").trim();
+  const priorityRaw = Number(record.priority);
+  const priority =
+    Number.isInteger(priorityRaw) && priorityRaw >= 1 && priorityRaw <= 4
+      ? priorityRaw
+      : 4;
+
+  const payload: Record<string, unknown> = { priority };
+
+  if (dueDate) {
+    if (dueTime) {
+      payload.due_datetime = `${dueDate}T${dueTime}:00`;
+    } else {
+      payload.due_date = dueDate;
+    }
+  } else if (includeClear) {
+    // Forma oficial/suportada pelo Todoist para remover o vencimento.
+    payload.due_string = "no date";
+  }
+
+  return payload;
+}
+
+async function assertTaskInInbox(taskId: string, projectId: string) {
   const task = await todoistRequest<TodoistTask>(
     `/tasks/${encodeURIComponent(taskId)}`
   );
 
   if (String(task.project_id) !== String(projectId)) {
     throw new TodoistError(
-      "Esse recado não pertence ao projeto DMP | Recados.",
+      "Essa tarefa não pertence à Caixa de Entrada do Todoist.",
       403
     );
   }
@@ -258,7 +342,7 @@ export async function GET(request: NextRequest) {
   if (unauthorized) return unauthorized;
 
   try {
-    const projectId = await ensureProject();
+    const projectId = await inboxProjectId();
     const tasks = await allPages<TodoistTask>("/tasks", {
       project_id: projectId,
     });
@@ -268,7 +352,8 @@ export async function GET(request: NextRequest) {
       source: "todoist",
       project: {
         id: projectId,
-        name: PROJECT_NAME,
+        name: "Entrada",
+        inbox: true,
       },
       data: tasks.map(mapTask),
     });
@@ -283,14 +368,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const projectId = await ensureProject();
     const { content, description } = taskText(body);
 
     if (!content) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Escreva um título ou conteúdo para o recado.",
+          error: "Escreva um título para a tarefa.",
         },
         { status: 400 }
       );
@@ -301,7 +385,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         content,
         description,
-        project_id: projectId,
+        ...taskSchedule(body),
+        // Sem project_id: o próprio Todoist cria na Caixa de Entrada.
       }),
     });
 
@@ -323,19 +408,16 @@ export async function PATCH(request: NextRequest) {
 
     if (!taskId) {
       return NextResponse.json(
-        { ok: false, error: "Recado não informado." },
+        { ok: false, error: "Tarefa não informada." },
         { status: 400 }
       );
     }
 
     const body = await request.json();
-    const record =
-      body && typeof body === "object"
-        ? (body as Record<string, unknown>)
-        : {};
-    const projectId = await ensureProject();
+    const record = bodyRecord(body);
+    const projectId = await inboxProjectId();
 
-    await assertTaskInProject(taskId, projectId);
+    await assertTaskInInbox(taskId, projectId);
 
     if (record.done === true) {
       await todoistRequest<unknown>(
@@ -349,6 +431,8 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
+    const updatePayload: Record<string, unknown> = {};
+
     if (
       Object.prototype.hasOwnProperty.call(record, "title") ||
       Object.prototype.hasOwnProperty.call(record, "text")
@@ -359,31 +443,39 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            error: "O recado precisa ter um título ou conteúdo.",
+            error: "A tarefa precisa ter um título.",
           },
           { status: 400 }
         );
       }
 
-      const task = await todoistRequest<TodoistTask>(
-        `/tasks/${encodeURIComponent(taskId)}`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            content,
-            description,
-          }),
-        }
-      );
-
-      return NextResponse.json({
-        ok: true,
-        data: mapTask(task),
-      });
+      updatePayload.content = content;
+      updatePayload.description = description;
     }
+
+    if (
+      Object.prototype.hasOwnProperty.call(record, "dueDate") ||
+      Object.prototype.hasOwnProperty.call(record, "dueTime") ||
+      Object.prototype.hasOwnProperty.call(record, "priority")
+    ) {
+      Object.assign(updatePayload, taskSchedule(record, true));
+    }
+
+    if (!Object.keys(updatePayload).length) {
+      return NextResponse.json({ ok: true });
+    }
+
+    const task = await todoistRequest<TodoistTask>(
+      `/tasks/${encodeURIComponent(taskId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify(updatePayload),
+      }
+    );
 
     return NextResponse.json({
       ok: true,
+      data: mapTask(task),
     });
   } catch (error) {
     return errorResponse(error);
@@ -399,13 +491,13 @@ export async function DELETE(request: NextRequest) {
 
     if (!taskId) {
       return NextResponse.json(
-        { ok: false, error: "Recado não informado." },
+        { ok: false, error: "Tarefa não informada." },
         { status: 400 }
       );
     }
 
-    const projectId = await ensureProject();
-    await assertTaskInProject(taskId, projectId);
+    const projectId = await inboxProjectId();
+    await assertTaskInInbox(taskId, projectId);
 
     await todoistRequest<unknown>(
       `/tasks/${encodeURIComponent(taskId)}`,

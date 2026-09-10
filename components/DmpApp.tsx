@@ -22,8 +22,37 @@ import type { PerformanceActivity } from "@/types/performance";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "timeline" | "workouts" | "history" | "assessments" | "finance" | "files";
-type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string; dueDate?:string; dueString?:string };
+type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string; dueDate?:string; dueTime?:string; dueString?:string; priority?:number };
+
 type AgendaRange = "day" | "week" | "month" | "year" | "list";
+
+function todoistPriorityValue(note:DmpNote){
+  const value=Number(note.priority||4);
+  return value>=1&&value<=4?value:4;
+}
+
+function todoistPriorityLabel(priority:number){
+  if(priority===1)return "P1";
+  if(priority===2)return "P2";
+  if(priority===3)return "P3";
+  return "P4";
+}
+
+function todoistDueLabel(note:DmpNote,compact=false){
+  if(!note.dueDate)return "";
+  const raw=note.dueDate.slice(0,10);
+  const base=new Date(`${raw}T12:00:00`);
+  if(Number.isNaN(base.getTime()))return note.dueString||note.dueDate;
+  const todayKey=today();
+  const tomorrowDate=new Date(`${todayKey}T12:00:00`);
+  tomorrowDate.setDate(tomorrowDate.getDate()+1);
+  const tomorrowKey=localDateKey(tomorrowDate);
+  const dateLabel=raw===todayKey?"Hoje":raw===tomorrowKey?"Amanhã":compact
+    ?base.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})
+    :base.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+  return note.dueTime?`${dateLabel} · ${note.dueTime}`:dateLabel;
+}
+
 
 type PersonalWorkoutTemplate = {
   id:string;
@@ -92,12 +121,18 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [notes, setNotes] = useState<DmpNote[]>([]);
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNote, setNewNote] = useState("");
+  const [newNoteDate, setNewNoteDate] = useState("");
+  const [newNoteTime, setNewNoteTime] = useState("");
+  const [newNotePriority, setNewNotePriority] = useState(4);
   const [notesBusy, setNotesBusy] = useState(false);
   const [notesError, setNotesError] = useState("");
   const [removedNote, setRemovedNote] = useState<{note:DmpNote;index:number}|null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string|null>(null);
   const [editingNoteTitle, setEditingNoteTitle] = useState("");
   const [editingNoteText, setEditingNoteText] = useState("");
+  const [editingNoteDate, setEditingNoteDate] = useState("");
+  const [editingNoteTime, setEditingNoteTime] = useState("");
+  const [editingNotePriority, setEditingNotePriority] = useState(4);
   const [kidsLessonRequest,setKidsLessonRequest]=useState<KidsLessonOpenRequest|null>(null);
   const [kidsStudentRequest,setKidsStudentRequest]=useState<string|null>(null);
   const [kidsEntryKey,setKidsEntryKey]=useState(0);
@@ -560,19 +595,28 @@ useEffect(()=>{
   async function addNote(){
     const title=newNoteTitle.trim();
     const text=newNote.trim();
-    if(!title&&!text)return;
+    if(!title)return;
     setNotesBusy(true);
     setNotesError("");
     try{
-      const response=await fetch("/api/notes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,text})});
+      const response=await fetch("/api/notes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        title,
+        text,
+        dueDate:newNoteDate,
+        dueTime:newNoteDate?newNoteTime:"",
+        priority:newNotePriority
+      })});
       const result=await response.json().catch(()=>({}));
-      if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao criar recado no Todoist.");
+      if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao criar tarefa no Todoist.");
       setNotes(current=>[result.data as DmpNote,...current.filter(note=>note.id!==result.data.id)]);
       setNewNoteTitle("");
       setNewNote("");
+      setNewNoteDate("");
+      setNewNoteTime("");
+      setNewNotePriority(4);
     }catch(error){
-      console.error("Erro ao criar recado no Todoist:",error);
-      setNotesError(error instanceof Error?error.message:"Falha ao criar recado no Todoist.");
+      console.error("Erro ao criar tarefa no Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao criar tarefa no Todoist.");
     }finally{
       setNotesBusy(false);
     }
@@ -625,9 +669,15 @@ useEffect(()=>{
     setNotesBusy(true);
     setNotesError("");
     try{
-      const response=await fetch("/api/notes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:removedNote.note.title||"",text:removedNote.note.text||""})});
+      const response=await fetch("/api/notes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        title:removedNote.note.title||"",
+        text:removedNote.note.text||"",
+        dueDate:removedNote.note.dueDate||"",
+        dueTime:removedNote.note.dueTime||"",
+        priority:todoistPriorityValue(removedNote.note)
+      })});
       const result=await response.json().catch(()=>({}));
-      if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao recriar recado no Todoist.");
+      if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao recriar tarefa no Todoist.");
       setNotes(current=>{
         const next=[...current];
         next.splice(Math.min(removedNote.index,next.length),0,result.data as DmpNote);
@@ -635,30 +685,45 @@ useEffect(()=>{
       });
       setRemovedNote(null);
     }catch(error){
-      console.error("Erro ao recriar recado no Todoist:",error);
-      setNotesError(error instanceof Error?error.message:"Falha ao recriar recado no Todoist.");
+      console.error("Erro ao recriar tarefa no Todoist:",error);
+      setNotesError(error instanceof Error?error.message:"Falha ao recriar tarefa no Todoist.");
     }finally{
       setNotesBusy(false);
     }
   }
-  function startEditingNote(note:DmpNote){setEditingNoteId(note.id);setEditingNoteTitle(note.title||"");setEditingNoteText(note.text);}
+  function startEditingNote(note:DmpNote){
+    setEditingNoteId(note.id);
+    setEditingNoteTitle(note.title||"");
+    setEditingNoteText(note.text);
+    setEditingNoteDate(note.dueDate||"");
+    setEditingNoteTime(note.dueTime||"");
+    setEditingNotePriority(todoistPriorityValue(note));
+  }
+  function closeEditingNote(){
+    setEditingNoteId(null);
+    setEditingNoteTitle("");
+    setEditingNoteText("");
+    setEditingNoteDate("");
+    setEditingNoteTime("");
+    setEditingNotePriority(4);
+  }
   async function saveEditedNote(){
     if(!editingNoteId)return;
     const title=editingNoteTitle.trim();
     const text=editingNoteText.trim();
-    if(!title&&!text)return;
-    const saved=await patchNote(editingNoteId,{title,text});
+    if(!title)return;
+    const saved=await patchNote(editingNoteId,{
+      title,
+      text,
+      dueDate:editingNoteDate,
+      dueTime:editingNoteDate?editingNoteTime:"",
+      priority:editingNotePriority
+    });
     if(!saved)return;
-    setEditingNoteId(null);
-    setEditingNoteTitle("");
-    setEditingNoteText("");
+    closeEditingNote();
   }
   function formatNoteDue(note:DmpNote){
-    if(!note.dueDate)return "";
-    const raw=note.dueDate.slice(0,10);
-    const parsed=new Date(`${raw}T12:00:00`);
-    if(Number.isNaN(parsed.getTime()))return note.dueString||note.dueDate;
-    return parsed.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    return todoistDueLabel(note,false);
   }
 
 useEffect(() => {
@@ -1211,9 +1276,88 @@ fetch("/api/google/status")
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onNotes={()=>{const note=notes.find(item=>!item.done)||notes[0];if(note)startEditingNote(note);}}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={startEditingNote} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
-              <section className="panel notes-panel" data-home-size-key="notes"><div className="panel-head"><div><h2>Meus recados</h2><p className="muted">Todoist · seus recados ficam centralizados e sincronizados por lá.</p></div></div><div className="note-create"><input className="note-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Título do recado"/><textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Escreva o conteúdo do recado..." rows={3}/><button className="primary" disabled={notesBusy} onClick={()=>void addNote()}>{notesBusy?"Sincronizando...":"+ Adicionar no Todoist"}</button></div>{notesError?<p className="muted">{notesError}</p>:null}{notes.length?<div className="note-grid">{notes.map(note=><article className={`note-card ${note.done?"done":""}`} key={note.id} onClick={()=>startEditingNote(note)} role="button" tabIndex={0}><div className="note-card-content">{note.title?<strong>{note.title}</strong>:null}<p>{note.text}</p>{note.dueDate?<small className="muted">Prazo: {formatNoteDue(note)}</small>:null}</div><div className="note-actions" onClick={e=>e.stopPropagation()}><label><input type="checkbox" checked={note.done} disabled={notesBusy} onChange={e=>void patchNote(note.id,{done:e.target.checked})}/> Concluir</label><button className="danger-link" disabled={notesBusy} onClick={()=>void removeNote(note.id)}>Excluir</button></div></article>)}</div>:<div className="empty-review compact-empty"><strong>Nenhum recado no Todoist</strong><span>Crie aqui ou pelo Todoist do celular.</span></div>}{removedNote?<div className="undo-strip"><span>Recado excluído do Todoist.</span><button disabled={notesBusy} onClick={()=>void undoNoteRemoval()}>Desfazer</button></div>:null}{editingNoteId?<div className="note-modal-backdrop" onMouseDown={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}><section className="note-modal" onMouseDown={e=>e.stopPropagation()}><div className="note-modal-head"><span>Editar recado do Todoist</span><button className="text-button" onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}} aria-label="Fechar">×</button></div><input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Título"/><textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Escreva seu recado..."/><div className="note-modal-actions"><button onClick={()=>{setEditingNoteId(null);setEditingNoteTitle("");setEditingNoteText("");}}>Cancelar</button><button className="primary" disabled={notesBusy} onClick={()=>void saveEditedNote()}>{notesBusy?"Salvando...":"Salvar no Todoist"}</button></div></section></div>:null}</section>
+              <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
+                <div className="panel-head todoist-panel-head">
+                  <div>
+                    <p className="todoist-kicker">TODOIST</p>
+                    <h2>Entrada</h2>
+                    <p className="muted">A mesma Caixa de Entrada que você usa no celular.</p>
+                  </div>
+                  <a className="secondary todoist-open-link" href="https://app.todoist.com/app/inbox" target="_blank" rel="noreferrer">Abrir Todoist</a>
+                </div>
+
+                <div className="todoist-create-box">
+                  <input className="note-title-input todoist-task-title-input" value={newNoteTitle} onChange={e=>setNewNoteTitle(e.target.value)} placeholder="Nome da tarefa"/>
+                  <textarea value={newNote} onChange={e=>setNewNote(e.target.value)} placeholder="Descrição (opcional)" rows={2}/>
+                  <div className="todoist-create-meta">
+                    <label>
+                      <span>Data</span>
+                      <input type="date" value={newNoteDate} onChange={e=>{setNewNoteDate(e.target.value);if(!e.target.value)setNewNoteTime("");}}/>
+                    </label>
+                    <label>
+                      <span>Horário</span>
+                      <input type="time" value={newNoteTime} disabled={!newNoteDate} onChange={e=>setNewNoteTime(e.target.value)}/>
+                    </label>
+                    <label>
+                      <span>Prioridade</span>
+                      <select value={newNotePriority} onChange={e=>setNewNotePriority(Number(e.target.value))}>
+                        <option value={1}>P1 · Urgente</option>
+                        <option value={2}>P2 · Importante</option>
+                        <option value={3}>P3 · Normal</option>
+                        <option value={4}>P4 · Sem prioridade</option>
+                      </select>
+                    </label>
+                    <button className="primary todoist-add-button" disabled={notesBusy||!newNoteTitle.trim()} onClick={()=>void addNote()}>{notesBusy?"Sincronizando...":"+ Adicionar tarefa"}</button>
+                  </div>
+                </div>
+
+                {notesError?<div className="todoist-error"><strong>Todoist</strong><span>{notesError}</span></div>:null}
+
+                {notes.length?
+                  <div className="todoist-task-list">
+                    {notes.map(note=>
+                      <article className={`todoist-task-row priority-${todoistPriorityValue(note)}`} key={note.id}>
+                        <button className="todoist-complete-button" disabled={notesBusy} onClick={()=>void patchNote(note.id,{done:true})} aria-label={`Concluir ${note.title||"tarefa"}`}><span/></button>
+                        <button className="todoist-task-main" onClick={()=>startEditingNote(note)}>
+                          <strong>{note.title||"Sem título"}</strong>
+                          {note.text?<small>{note.text}</small>:null}
+                          <span className="todoist-task-meta">
+                            {note.dueDate?<b>{formatNoteDue(note)}</b>:null}
+                            <i className={`todoist-priority-dot priority-${todoistPriorityValue(note)}`}>{todoistPriorityLabel(todoistPriorityValue(note))}</i>
+                          </span>
+                        </button>
+                        <button className="todoist-row-delete" disabled={notesBusy} onClick={()=>void removeNote(note.id)} aria-label="Excluir tarefa">×</button>
+                      </article>
+                    )}
+                  </div>
+                :<div className="empty-review compact-empty"><strong>Caixa de Entrada vazia</strong><span>Crie aqui ou pelo Todoist do celular.</span></div>}
+
+                {removedNote?<div className="undo-strip"><span>Tarefa excluída do Todoist.</span><button disabled={notesBusy} onClick={()=>void undoNoteRemoval()}>Desfazer</button></div>:null}
+
+                {editingNoteId?
+                  <div className="note-modal-backdrop" onMouseDown={closeEditingNote}>
+                    <section className="note-modal todoist-edit-modal" onMouseDown={e=>e.stopPropagation()}>
+                      <div className="note-modal-head">
+                        <span>Editar tarefa do Todoist</span>
+                        <button className="text-button" onClick={closeEditingNote} aria-label="Fechar">×</button>
+                      </div>
+                      <input className="note-modal-title" value={editingNoteTitle} onChange={e=>setEditingNoteTitle(e.target.value)} placeholder="Nome da tarefa"/>
+                      <textarea className="note-modal-text" value={editingNoteText} onChange={e=>setEditingNoteText(e.target.value)} placeholder="Descrição (opcional)"/>
+                      <div className="todoist-edit-meta">
+                        <label><span>Data</span><input type="date" value={editingNoteDate} onChange={e=>{setEditingNoteDate(e.target.value);if(!e.target.value)setEditingNoteTime("");}}/></label>
+                        <label><span>Horário</span><input type="time" value={editingNoteTime} disabled={!editingNoteDate} onChange={e=>setEditingNoteTime(e.target.value)}/></label>
+                        <label><span>Prioridade</span><select value={editingNotePriority} onChange={e=>setEditingNotePriority(Number(e.target.value))}><option value={1}>P1 · Urgente</option><option value={2}>P2 · Importante</option><option value={3}>P3 · Normal</option><option value={4}>P4 · Sem prioridade</option></select></label>
+                      </div>
+                      <div className="note-modal-actions">
+                        <button onClick={closeEditingNote}>Cancelar</button>
+                        <button className="primary" disabled={notesBusy||!editingNoteTitle.trim()} onClick={()=>void saveEditedNote()}>{notesBusy?"Salvando...":"Salvar no Todoist"}</button>
+                      </div>
+                    </section>
+                  </div>
+                :null}
+              </section>
               <HomePendingSection students={students}/>
               <SpecialDatesHome students={students} onStudent={openStudent} />
               <div className="home-search-bottom" data-home-size-key="search"><GlobalSearch value={globalSearch} onChange={setGlobalSearch} students={students} events={calendarEvents} onStudent={openStudent} onAgenda={(date)=>{setGlobalSearch("");setCalendarAnchor(date);setView("agenda");}} onKidsStudent={openKidsStudent}/></div>
@@ -2148,7 +2292,7 @@ function GlobalSearch({value,onChange,students,events,onStudent,onAgenda,onKidsS
   const eventHits=events.filter(event=>normalizeName(`${event.summary} ${event.description||""} ${event.location||""}`).includes(q)).slice(0,5);
   return <div className="global-search global-search-open"><span>⌕</span><input autoFocus value={value} onChange={e=>onChange(e.target.value)} placeholder="Buscar Personal, Kids, treino, avaliação, financeiro..."/><div className="global-search-results">{studentHits.map(hit=><button key={`${hit.student.id}-${hit.label}`} onClick={()=>{onChange("");onStudent(hit.student.id)}}><b>{hit.student.name}</b><small>{hit.label} · {hit.detail}</small></button>)}{kidsHits.map(student=><button key={`kids-${student.id}`} onClick={()=>{onChange("");onKidsStudent(student.id)}}><b>{student.name}</b><small>Kids · Abrir ficha da criança</small></button>)}{financeHits.map(item=>{const st=students.find(s=>normalizeName(s.name)===normalizeName(item.studentName));return <button key={`fin-${item.id}`} onClick={()=>{onChange("");if(st)onStudent(st.id)}}><b>{item.studentName}</b><small>Financeiro · {item.competence} · {formatStudentMoney(item.expectedAmount)}</small></button>})}{eventHits.map(event=><button key={`ev-${event.id}`} onClick={()=>{onChange("");onAgenda(calendarEventDate(event))}}><b>{event.summary}</b><small>Agenda · {formatDate(calendarEventDate(event))}</small></button>)}{!studentHits.length&&!kidsHits.length&&!financeHits.length&&!eventHits.length?<p>Nenhum resultado encontrado.</p>:null}</div></div>;
 }
-function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void}){
+function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote,onCompleteNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void;onCompleteNote:(note:DmpNote)=>void}){
   const [showSummary,setShowSummary]=useState(false);
   const [showMonthClosing,setShowMonthClosing]=useState(false);
 
@@ -2266,94 +2410,87 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
   };
 
   return <>
-    <div className="today-highlight-grid">
+    <div className="today-highlight-grid todoist-home-grid">
 
       <MiniMonthCalendar onSelect={onAgenda}/>
 
-      <button
-        className="today-highlight-card today-summary-card"
-        onClick={()=>setShowSummary(value=>!value)}
-        aria-expanded={showSummary}
-      >
-        <div>
-          <strong>Resumo do dia</strong>
+      <section className="today-highlight-card today-notes-card todoist-inbox-widget">
+        <div className="todoist-widget-head">
+          <div className="todoist-widget-title"><span className="todoist-widget-logo">✓</span><strong>Entrada</strong></div>
+          <button type="button" className="todoist-widget-add" onClick={onNotes} aria-label="Adicionar tarefa">+</button>
+        </div>
 
-          <span className="highlight-lines">
-            <small><b>{programmed}</b> alunos programados</small>
-            <small><b>{attended.length}</b> atendidos</small>
-            <small><b>{absent.length}</b> {"aus\u00EAncias"}</small>
-            <small><b>{remaining.length}</b> ainda faltam</small>
-          </span>
+        {pending.length?
+          <div className="todoist-widget-list">
+            {pending.slice(0,5).map(note=>
+              <div className={`todoist-widget-task priority-${todoistPriorityValue(note)}`} key={note.id}>
+                <button className="todoist-widget-circle" onClick={()=>onCompleteNote(note)} aria-label={`Concluir ${note.title||"tarefa"}`}><span/></button>
+                <button className="todoist-widget-copy" onClick={()=>onOpenNote(note)}>
+                  <strong>{note.title||"Sem título"}</strong>
+                  {note.dueDate?<small>{todoistDueLabel(note,true)}</small>:null}
+                </button>
+              </div>
+            )}
+          </div>
+        :<div className="todoist-widget-empty"><strong>Entrada vazia</strong><small>Crie uma tarefa pelo + ou no Todoist.</small></div>}
 
-          <i><b style={{width:`${progress}%`}}/></i>
+        {pending.length>5?<button className="todoist-widget-more" onClick={onNotes}>+ {pending.length-5} tarefa{pending.length-5===1?"":"s"}</button>:null}
+      </section>
 
-          {kids.length?
-            <span className="today-kids-inline">
-              {kids.map(({event,kids:item})=>
-                <span
-                  className="today-kids-inline-row"
-                  key={event.id}
-                  onClick={click=>{
-                    click.stopPropagation();
-                    onKids(event);
-                  }}
-                >
-                  <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
-                  <b>{formatCalendarTime(event)}</b>
-                  <span> {"\u00b7"} {kidsCategoryName(item.category)}</span>
-                </span>
-              )}
+      <div className="today-compact-stack">
+        <button
+          className="today-highlight-card today-summary-card compact-home-card"
+          onClick={()=>setShowSummary(value=>!value)}
+          aria-expanded={showSummary}
+        >
+          <div>
+            <strong>Resumo do dia</strong>
+            <span className="compact-metrics">
+              <small><b>{programmed}</b> programados</small>
+              <small><b>{attended.length}</b> atendidos</small>
+              <small><b>{absent.length}</b> ausências</small>
+              <small><b>{remaining.length}</b> faltam</small>
             </span>
-          :null}
-        </div>
+            <i><b style={{width:`${progress}%`}}/></i>
+            {kids.length?
+              <span className="today-kids-inline compact-kids-inline">
+                {kids.slice(0,2).map(({event,kids:item})=>
+                  <span className="today-kids-inline-row" key={event.id} onClick={click=>{click.stopPropagation();onKids(event);}}>
+                    <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
+                    <b>{formatCalendarTime(event)}</b><span> · {kidsCategoryName(item.category)}</span>
+                  </span>
+                )}
+              </span>
+            :null}
+          </div>
+        </button>
 
-
-      </button>
-
-
-
-      <button className="today-highlight-card month-closing-today-card" onClick={()=>setShowMonthClosing(value=>!value)} aria-expanded={showMonthClosing}>
-        <div>
-          <strong>Fechamento do mês</strong>
-          <span className="highlight-lines">
-            <small><b>{monthAttended}</b> atendimentos</small>
-            <small><b>{monthAssessments}</b> avaliações</small>
-            <small><b>{monthKids}</b> aulas Kids</small>
-            <small><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
-            <small><b>{monthStrength.length}</b> musculação</small>
-            <small><b>{monthPilates.length}</b> pilates</small>
-          </span>
-        </div>
-      </button>
-
-      <button className="today-highlight-card today-notes-card" onClick={onNotes}>
-        <div>
-          <strong>Recados</strong>
-          <span className="highlight-lines">
-            <small><b>{pending.length}</b> pendente{pending.length===1?"":"s"}</small>
-            {pending.slice(0,4).map(note=><small key={note.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenNote(note);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenNote(note);}}}>{note.title || "Sem título"}</small>)}
-          </span>
-        </div>
-      </button>
-
-      <button
-        className="today-highlight-card performance-today-card"
-        onClick={onPerformance}
-      >
-        <div>
-          <strong>Treino do dia</strong>
-          {performanceActivities.length?
-            <span className="performance-today-list">
-              {performanceActivities.map(activity=>
-                <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
-                  <b style={{fontWeight:400}}>{activityTodayLine(activity)}</b>
-                </span>
-              )}
+        <button className="today-highlight-card month-closing-today-card compact-home-card" onClick={()=>setShowMonthClosing(value=>!value)} aria-expanded={showMonthClosing}>
+          <div>
+            <strong>Fechamento do mês</strong>
+            <span className="compact-metrics">
+              <small><b>{monthAttended}</b> atendimentos</small>
+              <small><b>{monthAssessments}</b> avaliações · <b>{monthKids}</b> Kids</small>
+              <small><b>{monthCycling.length}</b> bike · <b>{monthStrength.length}</b> musculação · <b>{monthPilates.length}</b> pilates</small>
             </span>
-          :<span className="highlight-lines"><small>Nenhum treino pessoal registrado hoje.</small></span>}
-        </div>
-      </button>
+          </div>
+        </button>
 
+        <button className="today-highlight-card performance-today-card compact-home-card" onClick={onPerformance}>
+          <div>
+            <strong>Treino do dia</strong>
+            {performanceActivities.length?
+              <span className="performance-today-list compact-performance-list">
+                {performanceActivities.slice(0,3).map(activity=>
+                  <span className="performance-today-row" key={activity.id} role="button" tabIndex={0} onClick={event=>{event.stopPropagation();onOpenPerformanceActivity(activity);}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();event.stopPropagation();onOpenPerformanceActivity(activity);}}}>
+                    <b style={{fontWeight:400}}>{activityTodayLine(activity)}</b>
+                  </span>
+                )}
+              </span>
+            :<span className="highlight-lines"><small>Nenhum treino pessoal registrado hoje.</small></span>}
+          </div>
+        </button>
+      </div>
 
     </div>
 

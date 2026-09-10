@@ -6818,3 +6818,410 @@ input:focus,textarea:focus{
     white-space:nowrap!important;
   }
 }
+
+
+/* DMP_TODOIST_INBOX_HOME_V2_20260910 */
+@media(min-width:901px){
+  .today-highlight-grid.todoist-home-grid{
+    display:grid!important;
+    grid-template-columns:minmax(238px,.95fr) minmax(300px,1.12fr) minmax(190px,.72fr)!important;
+    gap:14px!important;
+    align-items:stretch!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .mini-month,
+  .today-highlight-grid.todoist-home-grid > .todoist-inbox-widget,
+  .today-highlight-grid.todoist-home-grid > .today-compact-stack{
+    min-height:270px!important;
+    height:270px!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .mini-month{
+    width:auto!important;
+    min-width:0!important;
+  }
+
+  .todoist-inbox-widget{
+    display:flex!important;
+    flex-direction:column!important;
+    text-align:left!important;
+    padding:16px 18px!important;
+    overflow:hidden!important;
+    background:#fff!important;
+  }
+
+  .todoist-widget-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:10px;
+  }
+
+  .todoist-widget-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+
+  .todoist-widget-title strong{
+    font-size:18px;
+  }
+
+  .todoist-widget-logo{
+    display:grid;
+    place-items:center;
+    width:22px;
+    height:22px;
+    border-radius:6px;
+    background:#dc4c3e;
+    color:#fff;
+    font-weight:900;
+    font-size:14px;
+  }
+
+  .todoist-widget-add{
+    width:32px;
+    height:32px;
+    border:0;
+    border-radius:50%;
+    background:#dc4c3e;
+    color:#fff;
+    font-size:22px;
+    line-height:1;
+    cursor:pointer;
+  }
+
+  .todoist-widget-list{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    min-height:0;
+    overflow:hidden;
+  }
+
+  .todoist-widget-task{
+    display:grid;
+    grid-template-columns:24px minmax(0,1fr);
+    align-items:start;
+    gap:8px;
+    padding:7px 0;
+    border-bottom:1px solid rgba(17,24,39,.07);
+  }
+
+  .todoist-widget-circle,
+  .todoist-complete-button{
+    border:0;
+    background:transparent;
+    padding:2px;
+    cursor:pointer;
+  }
+
+  .todoist-widget-circle span,
+  .todoist-complete-button span{
+    display:block;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    border:2px solid #b8bcc2;
+    background:#fff;
+  }
+
+  .priority-1 .todoist-widget-circle span,
+  .todoist-task-row.priority-1 .todoist-complete-button span{border-color:#d1453b}
+  .priority-2 .todoist-widget-circle span,
+  .todoist-task-row.priority-2 .todoist-complete-button span{border-color:#eb8909}
+  .priority-3 .todoist-widget-circle span,
+  .todoist-task-row.priority-3 .todoist-complete-button span{border-color:#246fe0}
+
+  .todoist-widget-copy{
+    border:0;
+    background:transparent;
+    padding:0;
+    text-align:left;
+    min-width:0;
+    cursor:pointer;
+  }
+
+  .todoist-widget-copy strong{
+    display:block;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:15px;
+    font-weight:600;
+  }
+
+  .todoist-widget-copy small{
+    display:block;
+    margin-top:2px;
+    color:#dc4c3e;
+    font-size:12px;
+  }
+
+  .todoist-widget-empty{
+    display:grid;
+    place-items:center;
+    align-content:center;
+    gap:4px;
+    flex:1;
+    color:#6b7280;
+    text-align:center;
+  }
+
+  .todoist-widget-empty strong{color:#374151}
+  .todoist-widget-more{
+    margin-top:auto;
+    border:0;
+    background:transparent;
+    color:#dc4c3e;
+    text-align:left;
+    padding:8px 0 0;
+    cursor:pointer;
+  }
+
+  .today-compact-stack{
+    display:grid!important;
+    grid-template-rows:repeat(3,minmax(0,1fr))!important;
+    gap:10px!important;
+  }
+
+  .today-compact-stack .compact-home-card{
+    min-width:0!important;
+    min-height:0!important;
+    height:auto!important;
+    padding:12px 14px!important;
+    text-align:left!important;
+    overflow:hidden!important;
+  }
+
+  .today-compact-stack .compact-home-card > div{
+    width:100%;
+    min-width:0;
+  }
+
+  .today-compact-stack .compact-home-card strong{
+    font-size:14px;
+  }
+
+  .compact-metrics{
+    display:flex;
+    flex-wrap:wrap;
+    gap:2px 8px;
+    margin-top:4px;
+  }
+
+  .compact-metrics small{
+    font-size:11px!important;
+    line-height:1.25!important;
+    white-space:nowrap;
+  }
+
+  .compact-home-card > div > i{
+    margin-top:6px!important;
+  }
+
+  .compact-kids-inline{
+    margin-top:4px!important;
+  }
+
+  .compact-performance-list{
+    margin-top:4px!important;
+  }
+
+  .compact-performance-list .performance-today-row{
+    font-size:11px!important;
+    line-height:1.25!important;
+  }
+}
+
+.todoist-notes-panel{
+  scroll-margin-top:18px;
+}
+
+.todoist-panel-head{
+  align-items:flex-start!important;
+}
+
+.todoist-kicker{
+  margin:0 0 4px;
+  color:#dc4c3e;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+}
+
+.todoist-open-link{
+  text-decoration:none;
+}
+
+.todoist-create-box{
+  display:grid;
+  gap:10px;
+  padding:14px;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#fff;
+  margin-bottom:14px;
+}
+
+.todoist-create-box textarea,
+.todoist-create-box input,
+.todoist-create-box select,
+.todoist-edit-modal input,
+.todoist-edit-modal textarea,
+.todoist-edit-modal select{
+  width:100%;
+  box-sizing:border-box;
+}
+
+.todoist-task-title-input{
+  font-weight:700;
+}
+
+.todoist-create-meta,
+.todoist-edit-meta{
+  display:grid;
+  grid-template-columns:minmax(145px,.8fr) minmax(120px,.65fr) minmax(175px,1fr) auto;
+  gap:10px;
+  align-items:end;
+}
+
+.todoist-edit-meta{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  margin-top:10px;
+}
+
+.todoist-create-meta label,
+.todoist-edit-meta label{
+  display:grid;
+  gap:5px;
+}
+
+.todoist-create-meta label span,
+.todoist-edit-meta label span{
+  font-size:12px;
+  font-weight:700;
+  color:#6b7280;
+}
+
+.todoist-add-button{
+  min-height:44px;
+}
+
+.todoist-error{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin:10px 0;
+  padding:10px 12px;
+  border-radius:10px;
+  background:#fff1f0;
+  color:#9f2d24;
+}
+
+.todoist-task-list{
+  display:flex;
+  flex-direction:column;
+  border-top:1px solid #ececec;
+}
+
+.todoist-task-row{
+  display:grid;
+  grid-template-columns:30px minmax(0,1fr) 30px;
+  gap:8px;
+  align-items:start;
+  padding:11px 2px;
+  border-bottom:1px solid #ececec;
+}
+
+.todoist-task-main{
+  border:0;
+  background:transparent;
+  text-align:left;
+  padding:0;
+  min-width:0;
+  cursor:pointer;
+}
+
+.todoist-task-main strong{
+  display:block;
+  font-size:15px;
+}
+
+.todoist-task-main > small{
+  display:block;
+  margin-top:3px;
+  color:#6b7280;
+  white-space:pre-wrap;
+}
+
+.todoist-task-meta{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:5px;
+  min-height:18px;
+}
+
+.todoist-task-meta b{
+  font-size:12px;
+  font-weight:600;
+  color:#dc4c3e;
+}
+
+.todoist-priority-dot{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:1px 6px;
+  font-size:10px;
+  font-style:normal;
+  font-weight:800;
+  background:#f3f4f6;
+  color:#6b7280;
+}
+
+.todoist-priority-dot.priority-1{background:#fff0ef;color:#d1453b}
+.todoist-priority-dot.priority-2{background:#fff4e5;color:#b96b00}
+.todoist-priority-dot.priority-3{background:#eef5ff;color:#246fe0}
+
+.todoist-row-delete{
+  border:0;
+  background:transparent;
+  color:#9ca3af;
+  font-size:22px;
+  cursor:pointer;
+}
+
+.todoist-row-delete:hover{
+  color:#d1453b;
+}
+
+@media(max-width:900px){
+  .today-highlight-grid.todoist-home-grid{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+  }
+
+  .today-compact-stack{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+
+  .todoist-inbox-widget{
+    padding:14px!important;
+    text-align:left!important;
+  }
+
+  .todoist-create-meta,
+  .todoist-edit-meta{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .todoist-add-button{
+    grid-column:1 / -1;
+  }
+}
