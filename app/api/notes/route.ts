@@ -263,6 +263,7 @@ type GoogleSyncSummary = {
 type GoogleEventPayload = {
   summary: string;
   description: string;
+  colorId: string;
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
   extendedProperties: {
@@ -335,6 +336,7 @@ function googlePayload(task: TodoistTask): GoogleEventPayload | null {
   return {
     summary: String(task.content || "Compromisso"),
     description: String(task.description || ""),
+    colorId: "3",
     start: {
       dateTime: start,
       timeZone: GOOGLE_TIME_ZONE,
@@ -356,6 +358,7 @@ function googleFingerprint(payload: GoogleEventPayload) {
   return JSON.stringify({
     summary: payload.summary,
     description: payload.description,
+    colorId: payload.colorId,
     start: payload.start.dateTime,
     end: payload.end.dateTime,
   });
