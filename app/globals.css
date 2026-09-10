@@ -7395,3 +7395,197 @@ input:focus,textarea:focus{
     font-size:11px!important;
   }
 }
+
+/* DMP_COMPROMISSOS_MOBILE_FIX_20260910 */
+@media(max-width:900px){
+  .today-highlight-grid.todoist-home-grid > .todoist-inbox-widget{
+    width:100%!important;
+    min-width:0!important;
+    min-height:0!important;
+    height:auto!important;
+    box-sizing:border-box!important;
+    display:flex!important;
+    flex-direction:column!important;
+    padding:12px 14px!important;
+    text-align:left!important;
+    overflow:hidden!important;
+  }
+
+  .todoist-inbox-clickable{
+    cursor:pointer!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-head{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 30px!important;
+    align-items:center!important;
+    gap:8px!important;
+    margin:0 0 7px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-title{
+    min-width:0!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:8px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-title strong{
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    font-size:16px!important;
+    line-height:1.15!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-logo{
+    flex:0 0 20px!important;
+    width:20px!important;
+    height:20px!important;
+    display:grid!important;
+    place-items:center!important;
+    border-radius:6px!important;
+    background:#dc4c3e!important;
+    color:#fff!important;
+    font-size:12px!important;
+    font-weight:900!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-add{
+    width:28px!important;
+    height:28px!important;
+    min-width:28px!important;
+    min-height:28px!important;
+    max-width:28px!important;
+    padding:0!important;
+    margin:0!important;
+    justify-self:end!important;
+    display:grid!important;
+    place-items:center!important;
+    border:0!important;
+    border-radius:8px!important;
+    background:#dc4c3e!important;
+    color:#fff!important;
+    font-size:20px!important;
+    font-weight:500!important;
+    line-height:1!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-list{
+    width:100%!important;
+    min-width:0!important;
+    display:grid!important;
+    gap:0!important;
+    overflow:hidden!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-task{
+    width:100%!important;
+    min-width:0!important;
+    display:grid!important;
+    grid-template-columns:20px minmax(0,1fr)!important;
+    align-items:center!important;
+    gap:7px!important;
+    padding:6px 0!important;
+    border-bottom:1px solid rgba(17,24,39,.07)!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-circle{
+    width:20px!important;
+    height:20px!important;
+    min-width:20px!important;
+    padding:2px!important;
+    margin:0!important;
+    border:0!important;
+    background:transparent!important;
+    display:grid!important;
+    place-items:center!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-circle span{
+    display:block!important;
+    width:15px!important;
+    height:15px!important;
+    border-radius:50%!important;
+    border:2px solid #b8bcc2!important;
+    background:#fff!important;
+  }
+
+  .todoist-inbox-widget .priority-1 .todoist-widget-circle span{
+    border-color:#d1453b!important;
+  }
+
+  .todoist-inbox-widget .priority-2 .todoist-widget-circle span{
+    border-color:#eb8909!important;
+  }
+
+  .todoist-inbox-widget .priority-3 .todoist-widget-circle span{
+    border-color:#246fe0!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-copy{
+    width:100%!important;
+    min-width:0!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    background:transparent!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:8px!important;
+    text-align:left!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-copy strong{
+    display:block!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    font-size:14px!important;
+    font-weight:400!important;
+    line-height:1.25!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-copy small{
+    display:block!important;
+    margin:0!important;
+    white-space:nowrap!important;
+    font-size:11px!important;
+    line-height:1.2!important;
+    color:#dc4c3e!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-more{
+    width:auto!important;
+    min-height:0!important;
+    margin:5px 0 0!important;
+    padding:3px 0 0!important;
+    border:0!important;
+    background:transparent!important;
+    color:#dc4c3e!important;
+    text-align:left!important;
+    font-size:11px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-empty{
+    min-height:0!important;
+    display:grid!important;
+    gap:3px!important;
+    padding:6px 0!important;
+    text-align:left!important;
+    color:#6b7280!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-empty strong{
+    font-size:13px!important;
+    color:#374151!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-empty small{
+    font-size:11px!important;
+  }
+}

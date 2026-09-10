@@ -1,5 +1,8 @@
 import { isAuthorized } from "@/lib/auth";
+import { pool } from "@/lib/db";
+import { getGoogleAccessToken, googleConfigured, setGoogleCookies } from "@/lib/google-calendar";
 import { NextRequest, NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 
 export const runtime = "nodejs";
 
@@ -21,6 +24,10 @@ type TodoistTask = {
   priority?: number;
   added_at?: string;
   updated_at?: string;
+  duration?: {
+    amount?: number;
+    unit?: string;
+  } | null;
   due?: {
     date?: string;
     string?: string;
@@ -236,6 +243,458 @@ function mapTask(task: TodoistTask) {
   };
 }
 
+
+const GOOGLE_CALENDAR_EVENTS =
+  "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const GOOGLE_TIME_ZONE = "America/Sao_Paulo";
+const DEFAULT_EVENT_MINUTES = 60;
+const GOOGLE_SYNC_LOCK = "dmp_todoist_google_sync_v1";
+
+type GoogleSyncSummary = {
+  changed: boolean;
+  created: number;
+  updated: number;
+  removedSchedule: number;
+  connected: boolean;
+  warning?: string;
+  refreshed?: any;
+};
+
+type GoogleEventPayload = {
+  summary: string;
+  description: string;
+  start: { dateTime: string; timeZone: string };
+  end: { dateTime: string; timeZone: string };
+  extendedProperties: {
+    private: {
+      dmpSource: string;
+      dmpTodoistTaskId: string;
+    };
+  };
+};
+
+type GoogleLinkClient = PoolClient;
+
+function eventDurationMinutes(task: TodoistTask) {
+  const amount = Number(task.duration?.amount || 0);
+  const unit = String(task.duration?.unit || "").toLowerCase();
+
+  if (!Number.isFinite(amount) || amount <= 0) return DEFAULT_EVENT_MINUTES;
+
+  if (unit === "day") {
+    return Math.min(Math.round(amount * 24 * 60), 7 * 24 * 60);
+  }
+
+  if (unit === "minute") {
+    return Math.min(Math.max(5, Math.round(amount)), 7 * 24 * 60);
+  }
+
+  return DEFAULT_EVENT_MINUTES;
+}
+
+function addWallClockMinutes(
+  dueDate: string,
+  dueTime: string,
+  minutes: number
+) {
+  const [year, month, day] = dueDate.split("-").map(Number);
+  const [hour, minute] = dueTime.split(":").map(Number);
+
+  const stamp = new Date(
+    Date.UTC(
+      year,
+      Math.max(0, month - 1),
+      day,
+      hour,
+      minute + minutes,
+      0
+    )
+  );
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+
+  return (
+    `${stamp.getUTCFullYear()}-${pad(stamp.getUTCMonth() + 1)}-` +
+    `${pad(stamp.getUTCDate())}T${pad(stamp.getUTCHours())}:` +
+    `${pad(stamp.getUTCMinutes())}:00`
+  );
+}
+
+function googlePayload(task: TodoistTask): GoogleEventPayload | null {
+  const due = todoistDueFields(task);
+
+  if (!due.dueDate || !due.dueTime) return null;
+
+  const start = `${due.dueDate}T${due.dueTime}:00`;
+  const end = addWallClockMinutes(
+    due.dueDate,
+    due.dueTime,
+    eventDurationMinutes(task)
+  );
+
+  return {
+    summary: String(task.content || "Compromisso"),
+    description: String(task.description || ""),
+    start: {
+      dateTime: start,
+      timeZone: GOOGLE_TIME_ZONE,
+    },
+    end: {
+      dateTime: end,
+      timeZone: GOOGLE_TIME_ZONE,
+    },
+    extendedProperties: {
+      private: {
+        dmpSource: "todoist",
+        dmpTodoistTaskId: String(task.id),
+      },
+    },
+  };
+}
+
+function googleFingerprint(payload: GoogleEventPayload) {
+  return JSON.stringify({
+    summary: payload.summary,
+    description: payload.description,
+    start: payload.start.dateTime,
+    end: payload.end.dateTime,
+  });
+}
+
+function googleHeaders(accessToken: string) {
+  return {
+    authorization: `Bearer ${accessToken}`,
+    "content-type": "application/json",
+  };
+}
+
+async function ensureGoogleLinkTable(client: GoogleLinkClient) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS dmp_todoist_google_links (
+      todoist_task_id TEXT PRIMARY KEY,
+      google_event_id TEXT NOT NULL,
+      last_fingerprint TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+async function readGoogleLink(
+  client: GoogleLinkClient,
+  todoistTaskId: string
+) {
+  const result = await client.query(
+    `
+      SELECT google_event_id, last_fingerprint
+      FROM dmp_todoist_google_links
+      WHERE todoist_task_id = $1
+      LIMIT 1
+    `,
+    [todoistTaskId]
+  );
+
+  return result.rows[0] as
+    | { google_event_id: string; last_fingerprint: string }
+    | undefined;
+}
+
+async function saveGoogleLink(
+  client: GoogleLinkClient,
+  todoistTaskId: string,
+  googleEventId: string,
+  fingerprint: string
+) {
+  await client.query(
+    `
+      INSERT INTO dmp_todoist_google_links
+        (todoist_task_id, google_event_id, last_fingerprint, updated_at)
+      VALUES
+        ($1, $2, $3, NOW())
+      ON CONFLICT (todoist_task_id)
+      DO UPDATE SET
+        google_event_id = EXCLUDED.google_event_id,
+        last_fingerprint = EXCLUDED.last_fingerprint,
+        updated_at = NOW()
+    `,
+    [todoistTaskId, googleEventId, fingerprint]
+  );
+}
+
+async function removeGoogleLink(
+  client: GoogleLinkClient,
+  todoistTaskId: string
+) {
+  await client.query(
+    "DELETE FROM dmp_todoist_google_links WHERE todoist_task_id = $1",
+    [todoistTaskId]
+  );
+}
+
+async function findTaggedGoogleEvent(
+  accessToken: string,
+  todoistTaskId: string
+) {
+  const params = new URLSearchParams({
+    privateExtendedProperty: `dmpTodoistTaskId=${todoistTaskId}`,
+    showDeleted: "false",
+    singleEvents: "true",
+    maxResults: "1",
+  });
+
+  const response = await fetch(
+    `${GOOGLE_CALENDAR_EVENTS}?${params.toString()}`,
+    {
+      headers: { authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Falha ao procurar vínculo no Google Agenda (${response.status}).`
+    );
+  }
+
+  const data = (await response.json()) as { items?: Array<{ id?: string }> };
+  return data.items?.find(item => item.id)?.id || "";
+}
+
+async function patchGoogleEvent(
+  accessToken: string,
+  googleEventId: string,
+  payload: GoogleEventPayload
+) {
+  const response = await fetch(
+    `${GOOGLE_CALENDAR_EVENTS}/${encodeURIComponent(googleEventId)}`,
+    {
+      method: "PATCH",
+      headers: googleHeaders(accessToken),
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    }
+  );
+
+  if (response.status === 404 || response.status === 410) {
+    return false;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Falha ao atualizar compromisso no Google Agenda (${response.status}).`
+    );
+  }
+
+  return true;
+}
+
+async function createGoogleEvent(
+  accessToken: string,
+  payload: GoogleEventPayload
+) {
+  const response = await fetch(GOOGLE_CALENDAR_EVENTS, {
+    method: "POST",
+    headers: googleHeaders(accessToken),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Falha ao criar compromisso no Google Agenda (${response.status}).`
+    );
+  }
+
+  const event = (await response.json()) as { id?: string };
+
+  if (!event.id) {
+    throw new Error("Google Agenda criou um evento sem identificador.");
+  }
+
+  return String(event.id);
+}
+
+async function deleteGoogleEvent(
+  accessToken: string,
+  googleEventId: string
+) {
+  const response = await fetch(
+    `${GOOGLE_CALENDAR_EVENTS}/${encodeURIComponent(googleEventId)}`,
+    {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    }
+  );
+
+  if (
+    !response.ok &&
+    response.status !== 404 &&
+    response.status !== 410
+  ) {
+    throw new Error(
+      `Falha ao retirar compromisso sem horário do Google Agenda (${response.status}).`
+    );
+  }
+}
+
+async function syncOneTodoistTask(
+  client: GoogleLinkClient,
+  accessToken: string,
+  task: TodoistTask
+) {
+  const taskId = String(task.id);
+  const payload = googlePayload(task);
+  const link = await readGoogleLink(client, taskId);
+
+  if (!payload) {
+    if (!link) return "none" as const;
+
+    await deleteGoogleEvent(accessToken, link.google_event_id);
+    await removeGoogleLink(client, taskId);
+    return "removedSchedule" as const;
+  }
+
+  const fingerprint = googleFingerprint(payload);
+
+  if (link && link.last_fingerprint === fingerprint) {
+    return "none" as const;
+  }
+
+  if (link) {
+    const updated = await patchGoogleEvent(
+      accessToken,
+      link.google_event_id,
+      payload
+    );
+
+    if (updated) {
+      await saveGoogleLink(
+        client,
+        taskId,
+        link.google_event_id,
+        fingerprint
+      );
+      return "updated" as const;
+    }
+  }
+
+  const tagged = await findTaggedGoogleEvent(accessToken, taskId);
+
+  if (tagged) {
+    await patchGoogleEvent(accessToken, tagged, payload);
+    await saveGoogleLink(client, taskId, tagged, fingerprint);
+    return "updated" as const;
+  }
+
+  const eventId = await createGoogleEvent(accessToken, payload);
+  await saveGoogleLink(client, taskId, eventId, fingerprint);
+  return "created" as const;
+}
+
+async function syncTodoistTasksToGoogle(
+  request: NextRequest,
+  tasks: TodoistTask[]
+): Promise<GoogleSyncSummary> {
+  const summary: GoogleSyncSummary = {
+    changed: false,
+    created: 0,
+    updated: 0,
+    removedSchedule: 0,
+    connected: false,
+  };
+
+  if (!googleConfigured()) return summary;
+
+  try {
+    const { accessToken, refreshed } = await getGoogleAccessToken(request);
+    summary.refreshed = refreshed || undefined;
+
+    if (!accessToken) return summary;
+
+    summary.connected = true;
+
+    const client = await pool.connect();
+    let lockAcquired = false;
+
+    try {
+      await client.query(
+        "SELECT pg_advisory_lock(hashtext($1))",
+        [GOOGLE_SYNC_LOCK]
+      );
+      lockAcquired = true;
+
+      await ensureGoogleLinkTable(client);
+
+      for (const task of tasks) {
+        const result = await syncOneTodoistTask(
+          client,
+          accessToken,
+          task
+        );
+
+        if (result === "created") summary.created += 1;
+        if (result === "updated") summary.updated += 1;
+        if (result === "removedSchedule") {
+          summary.removedSchedule += 1;
+        }
+      }
+    } finally {
+      if (lockAcquired) {
+        try {
+          await client.query(
+            "SELECT pg_advisory_unlock(hashtext($1))",
+            [GOOGLE_SYNC_LOCK]
+          );
+        } catch {}
+      }
+      client.release();
+    }
+
+    summary.changed =
+      summary.created > 0 ||
+      summary.updated > 0 ||
+      summary.removedSchedule > 0;
+
+    return summary;
+  } catch (error) {
+    console.error("Erro ao sincronizar Todoist com Google Agenda:", error);
+
+    return {
+      ...summary,
+      warning:
+        "Todoist foi atualizado, mas o Google Agenda não pôde ser sincronizado agora.",
+    };
+  }
+}
+
+function publicGoogleSync(summary: GoogleSyncSummary) {
+  return {
+    changed: summary.changed,
+    created: summary.created,
+    updated: summary.updated,
+    removedSchedule: summary.removedSchedule,
+    connected: summary.connected,
+    warning: summary.warning || "",
+  };
+}
+
+function responseWithGoogle(
+  payload: Record<string, unknown>,
+  google: GoogleSyncSummary
+) {
+  const response = NextResponse.json({
+    ...payload,
+    google: publicGoogleSync(google),
+  });
+
+  if (google.refreshed) {
+    setGoogleCookies(response, google.refreshed);
+  }
+
+  return response;
+}
+
 function bodyRecord(body: unknown) {
   return body && typeof body === "object"
     ? (body as Record<string, unknown>)
@@ -347,16 +806,21 @@ export async function GET(request: NextRequest) {
       project_id: projectId,
     });
 
-    return NextResponse.json({
-      ok: true,
-      source: "todoist",
-      project: {
-        id: projectId,
-        name: "Entrada",
-        inbox: true,
+    const google = await syncTodoistTasksToGoogle(request, tasks);
+
+    return responseWithGoogle(
+      {
+        ok: true,
+        source: "todoist",
+        project: {
+          id: projectId,
+          name: "Entrada",
+          inbox: true,
+        },
+        data: tasks.map(mapTask),
       },
-      data: tasks.map(mapTask),
-    });
+      google
+    );
   } catch (error) {
     return errorResponse(error);
   }
@@ -390,10 +854,15 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    return NextResponse.json({
-      ok: true,
-      data: mapTask(task),
-    });
+    const google = await syncTodoistTasksToGoogle(request, [task]);
+
+    return responseWithGoogle(
+      {
+        ok: true,
+        data: mapTask(task),
+      },
+      google
+    );
   } catch (error) {
     return errorResponse(error);
   }
@@ -473,10 +942,15 @@ export async function PATCH(request: NextRequest) {
       }
     );
 
-    return NextResponse.json({
-      ok: true,
-      data: mapTask(task),
-    });
+    const google = await syncTodoistTasksToGoogle(request, [task]);
+
+    return responseWithGoogle(
+      {
+        ok: true,
+        data: mapTask(task),
+      },
+      google
+    );
   } catch (error) {
     return errorResponse(error);
   }

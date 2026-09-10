@@ -438,7 +438,7 @@ useEffect(() => {
       }
       if(cancelled)return;
       setNotes(Array.isArray(result.data)?result.data:[]);
-      setNotesError("");
+      setNotesError(String(result.google?.warning||""));
     }catch(error){
       if(cancelled)return;
       console.error("Erro ao carregar recados do Todoist:",error);
@@ -456,7 +456,7 @@ useEffect(() => {
   document.addEventListener("visibilitychange",onVisibility);
   const timer=window.setInterval(()=>{
     if(document.visibilityState==="visible")void refresh();
-  },60000);
+  },30000);
 
   return()=>{
     cancelled=true;
@@ -609,6 +609,8 @@ useEffect(()=>{
       const result=await response.json().catch(()=>({}));
       if(!response.ok||!result.ok||!result.data)throw new Error(result.error||"Falha ao criar tarefa no Todoist.");
       setNotes(current=>[result.data as DmpNote,...current.filter(note=>note.id!==result.data.id)]);
+      setNotesError(String(result.google?.warning||""));
+      if(result.google?.changed)void refreshCalendarAutomatic(true);
       setNewNoteTitle("");
       setNewNote("");
       setNewNoteDate("");
@@ -635,6 +637,8 @@ useEffect(()=>{
       }else if(result.data){
         setNotes(items=>items.map(note=>note.id===id?result.data as DmpNote:note));
       }
+      setNotesError(String(result.google?.warning||""));
+      if(result.google?.changed)void refreshCalendarAutomatic(true);
       return true;
     }catch(error){
       console.error("Erro ao atualizar recado no Todoist:",error);
@@ -1313,7 +1317,7 @@ fetch("/api/google/status")
                   </div>
                 </div>
 
-                {notesError?<div className="todoist-error"><strong>Todoist</strong><span>{notesError}</span></div>:null}
+                {notesError?<div className="todoist-error"><strong>Integrações</strong><span>{notesError}</span></div>:null}
 
                 {notes.length?
                   <div className="todoist-task-list">
