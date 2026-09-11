@@ -369,6 +369,10 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const [filterCyclingKind, setFilterCyclingKind] = useState<"ALL" | PerformanceCyclingKind>("ALL");
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
   const [detailActivity, setDetailActivity] = useState<PerformanceActivity | null>(null);
+  const [performanceCalendar, setPerformanceCalendar] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  });
 
   useEffect(() => {
     void loadData();
@@ -471,6 +475,45 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
+
+  const calendarYear = performanceCalendar.year;
+  const calendarMonth = performanceCalendar.month;
+  const calendarMonthKey = `${calendarYear}-${String(calendarMonth).padStart(2, "0")}`;
+  const calendarActivities = useMemo(
+    () => data.activities.filter(activity => activity.date.startsWith(calendarMonthKey)),
+    [data.activities, calendarMonthKey]
+  );
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(calendarYear, calendarMonth - 1, 1);
+    const daysInMonth = new Date(calendarYear, calendarMonth, 0).getDate();
+    const leading = (firstDay.getDay() + 6) % 7;
+    const cells: Array<{ day:number; date:string; activities:PerformanceActivity[] } | null> = [];
+
+    for (let index = 0; index < leading; index += 1) cells.push(null);
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      cells.push({
+        day,
+        date,
+        activities: calendarActivities.filter(activity => activity.date === date),
+      });
+    }
+
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [calendarActivities, calendarMonth, calendarYear]);
+  const calendarLegendTypes = useMemo(
+    () => Array.from(new Set(calendarActivities.map(activity => activity.type))),
+    [calendarActivities]
+  );
+
+  function movePerformanceCalendar(delta:number) {
+    setPerformanceCalendar(current => {
+      const date = new Date(current.year, current.month - 1 + delta, 1);
+      return { year: date.getFullYear(), month: date.getMonth() + 1 };
+    });
+  }
 
   const monthActivities = useMemo(
     () => data.activities.filter(a => a.date.startsWith(`${currentYear}-${String(currentMonth).padStart(2, "0")}`)),
@@ -869,7 +912,59 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <span><strong>{fmtNumber(monthTotals.elevation)}</strong> m de subida</span>
             </div>
           </div>
-          <img src="/performance-mural.png" alt="Mural pessoal de ciclismo" className={styles.heroImage} />
+          <section className={styles.activityCalendar} aria-label={`Calendário de atividades de ${MONTHS[calendarMonth - 1]} de ${calendarYear}`}>
+            <div className={styles.calendarHead}>
+              <button type="button" onClick={() => movePerformanceCalendar(-1)} aria-label="Mês anterior">‹</button>
+              <div>
+                <strong>{MONTHS[calendarMonth - 1]}</strong>
+                <span>{calendarYear}</span>
+              </div>
+              <button type="button" onClick={() => movePerformanceCalendar(1)} aria-label="Próximo mês">›</button>
+            </div>
+
+            <div className={styles.calendarWeekdays} aria-hidden="true">
+              {["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(label => <span key={label}>{label}</span>)}
+            </div>
+
+            <div className={styles.calendarGrid}>
+              {calendarDays.map((cell,index) => {
+                if (!cell) return <span className={styles.calendarDayEmpty} key={`empty-${index}`} />;
+
+                const activityTypes = Array.from(new Set(cell.activities.map(activity => activity.type)));
+                const isToday = cell.date === localToday();
+
+                return <div
+                  className={`${styles.calendarDay} ${isToday ? styles.calendarToday : ""} ${cell.activities.length ? styles.calendarDayActive : ""}`}
+                  key={cell.date}
+                  title={cell.activities.length ? cell.activities.map(activity => `${ACTIVITY_LABELS[activity.type]}: ${activity.title}`).join("\n") : undefined}
+                >
+                  <span className={styles.calendarDayNumber}>{cell.day}</span>
+                  <div className={styles.calendarDayActivities}>
+                    {activityTypes.slice(0,3).map(type => {
+                      const activity = cell.activities.find(item => item.type === type);
+                      if (!activity) return null;
+                      return <button
+                        type="button"
+                        key={type}
+                        onClick={() => setDetailActivity(activity)}
+                        title={`${ACTIVITY_LABELS[type]} — ${activity.title}`}
+                        aria-label={`${ACTIVITY_LABELS[type]} em ${fmtDate(cell.date)}: ${activity.title}`}
+                      >
+                        {ACTIVITY_ICONS[type]}
+                      </button>;
+                    })}
+                    {activityTypes.length > 3 ? <small>+{activityTypes.length - 3}</small> : null}
+                  </div>
+                </div>;
+              })}
+            </div>
+
+            <div className={styles.calendarLegend}>
+              {calendarLegendTypes.length
+                ? calendarLegendTypes.map(type => <span key={type}>{ACTIVITY_ICONS[type]} {ACTIVITY_LABELS[type]}</span>)
+                : <span>Sem atividades neste mês</span>}
+            </div>
+          </section>
         </div>
 
         <nav className={styles.tabs} aria-label="Áreas do Performance">
