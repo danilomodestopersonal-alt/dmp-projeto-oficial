@@ -7589,3 +7589,11 @@ input:focus,textarea:focus{
     font-size:11px!important;
   }
 }
+
+
+/* DMP_COMPROMISSOS_FONTE_13PX_20260911 */
+@media(min-width:901px){
+  .todoist-inbox-widget .todoist-widget-copy strong{
+    font-size:13px!important;
+  }
+}
