@@ -30,3 +30,126 @@
 @media(max-width:1100px) and (min-width:761px){.hero{grid-template-columns:minmax(0,1fr) 390px!important}}
 @media(max-width:760px){.hero{grid-template-columns:1fr!important;padding:22px!important}.activityCalendar{margin-top:2px;padding:12px 11px 10px}.calendarDay,.calendarDayEmpty{min-height:42px}.calendarDayActivities button{width:21px;height:21px;font-size:.8rem}.calendarLegend{justify-content:flex-start}}
 @media(max-width:460px){.activityCalendar{padding:10px 8px 9px;border-radius:16px}.calendarGrid,.calendarWeekdays{gap:3px}.calendarDay,.calendarDayEmpty{min-height:39px;border-radius:8px}.calendarDay{padding:3px 2px 2px}.calendarDayActivities button{width:18px;height:18px;font-size:.7rem}.calendarLegend{gap:6px 8px;font-size:.54rem}}
+
+/* DMP_PERFORMANCE_RESUMO_MENSAL_20260911 */
+.heroMonthlyBreakdown{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:end;
+  margin-top:24px;
+}
+.heroMonthlyList{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.heroMonthlyItem{
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  padding:8px 10px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:12px;
+  background:rgba(255,255,255,.075);
+}
+.heroMonthlyIcon{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  background:rgba(185,220,63,.12);
+  font-size:1rem;
+  line-height:1;
+}
+.heroMonthlyItem>div{
+  min-width:0;
+  display:grid;
+  gap:1px;
+}
+.heroMonthlyItem strong{
+  color:#fff;
+  font-size:.82rem;
+  line-height:1.1;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.heroMonthlyItem small{
+  color:#bdc7ce;
+  font-size:.67rem;
+  line-height:1.2;
+}
+.heroMonthlyTotal{
+  min-width:138px;
+  display:grid;
+  grid-template-columns:30px 1fr;
+  align-items:center;
+  gap:8px;
+  padding:10px 11px;
+  border:1px solid rgba(185,220,63,.34);
+  border-radius:13px;
+  background:rgba(185,220,63,.10);
+}
+.heroMonthlyTotal>span{
+  width:30px;
+  height:30px;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  background:#b9dc3f;
+  color:#20242a;
+  font-weight:1000;
+}
+.heroMonthlyTotal>div{
+  display:grid;
+  gap:1px;
+}
+.heroMonthlyTotal small{
+  color:#bdc7ce;
+  font-size:.64rem;
+  font-weight:800;
+}
+.heroMonthlyTotal strong{
+  color:#fff;
+  font-size:.88rem;
+  line-height:1.15;
+}
+.heroMonthlyEmpty{
+  grid-column:1/-1;
+  color:#bdc7ce;
+  font-size:.78rem;
+  padding:9px 0;
+}
+@media(max-width:1180px){
+  .heroMonthlyBreakdown{
+    grid-template-columns:1fr;
+  }
+  .heroMonthlyTotal{
+    width:max-content;
+    min-width:0;
+  }
+}
+@media(max-width:760px){
+  .heroMonthlyBreakdown{
+    margin-top:18px;
+  }
+  .heroMonthlyList{
+    grid-template-columns:1fr 1fr;
+  }
+  .heroMonthlyTotal{
+    width:100%;
+    box-sizing:border-box;
+  }
+}
+@media(max-width:460px){
+  .heroMonthlyList{
+    grid-template-columns:1fr;
+  }
+  .heroMonthlyItem{
+    padding:8px 9px;
+  }
+}

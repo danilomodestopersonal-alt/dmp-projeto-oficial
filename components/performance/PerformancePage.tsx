@@ -527,6 +527,19 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
 
   const monthTotals = useMemo(() => summarize(monthActivities), [monthActivities]);
   const yearTotals = useMemo(() => summarize(yearActivities), [yearActivities]);
+  const monthByType = useMemo(
+    () => (Object.keys(ACTIVITY_LABELS) as PerformanceActivityType[])
+      .map(type => {
+        const activities = monthActivities.filter(activity => activity.type === type);
+        return {
+          type,
+          count: activities.length,
+          distance: activities.reduce((total, activity) => total + (activity.distanceKm || 0), 0),
+        };
+      })
+      .filter(item => item.count > 0),
+    [monthActivities]
+  );
 
   const monthlySeries = useMemo(() => {
     const output = Array.from({ length: 12 }, (_, index) => ({
@@ -906,10 +919,31 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             <span className={styles.heroBadge}>DMP PERFORMANCE</span>
             <h2>{MONTHS[currentMonth - 1]} em movimento.</h2>
             <p>Seu painel pessoal de consistência, volume e evolução física.</p>
-            <div className={styles.heroMiniStats}>
-              <span><strong>{fmtNumber(monthTotals.distance, 1)}</strong> km no mês</span>
-              <span><strong>{monthTotals.count}</strong> atividades</span>
-              <span><strong>{fmtNumber(monthTotals.elevation)}</strong> m de subida</span>
+            <div className={styles.heroMonthlyBreakdown}>
+              <div className={styles.heroMonthlyList}>
+                {monthByType.length ? monthByType.map(item => (
+                  <div className={styles.heroMonthlyItem} key={item.type}>
+                    <span className={styles.heroMonthlyIcon}>{ACTIVITY_ICONS[item.type]}</span>
+                    <div>
+                      <strong>{ACTIVITY_LABELS[item.type]}</strong>
+                      <small>
+                        {item.count} {item.count === 1 ? "atividade" : "atividades"}
+                        {item.distance > 0 ? ` · ${fmtNumber(item.distance, 1)} km` : ""}
+                      </small>
+                    </div>
+                  </div>
+                )) : (
+                  <div className={styles.heroMonthlyEmpty}>Nenhuma atividade registrada neste mês.</div>
+                )}
+              </div>
+
+              <div className={styles.heroMonthlyTotal}>
+                <span>✓</span>
+                <div>
+                  <small>Total no mês</small>
+                  <strong>{monthTotals.count} {monthTotals.count === 1 ? "atividade" : "atividades"}</strong>
+                </div>
+              </div>
             </div>
           </div>
           <section className={styles.activityCalendar} aria-label={`Calendário de atividades de ${MONTHS[calendarMonth - 1]} de ${calendarYear}`}>
