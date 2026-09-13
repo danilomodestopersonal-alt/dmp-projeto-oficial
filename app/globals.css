@@ -7639,3 +7639,26 @@ input:focus,textarea:focus{
     max-width:100%!important;
   }
 }
+
+/* DMP_MOBILE_CENTRALIZA_TITULO_FECHAMENTO_20260913 */
+@media(max-width:700px){
+  .month-closing-today-card>div{
+    width:100%!important;
+    max-width:100%!important;
+  }
+
+  .month-closing-today-card>div>strong{
+    display:block!important;
+    width:100%!important;
+    text-align:center!important;
+    justify-content:center!important;
+  }
+
+  .month-closing-today-card .highlight-lines,
+  .month-closing-today-card .month-closing-lines{
+    width:max-content!important;
+    max-width:100%!important;
+    margin-left:auto!important;
+    margin-right:auto!important;
+  }
+}
