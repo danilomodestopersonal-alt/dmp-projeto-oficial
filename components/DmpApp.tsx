@@ -2406,7 +2406,10 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
       const distance=activity.distanceKm&&activity.distanceKm>0
         ?` — ${activity.distanceKm.toLocaleString("pt-BR",{maximumFractionDigits:1})} km`
         :"";
-      return `🚴 ${cyclingTodayKind(activity)}${distance}`;
+      const stravaTitle=activity.source==="STRAVA"?(activity.title||"").trim():"";
+      const genericStravaTitle=/^(ciclismo|pedalada|ride|bike|speed|mtb|indoor)$/i.test(stravaTitle);
+      const stravaName=stravaTitle&&!genericStravaTitle?` — ${stravaTitle}`:"";
+      return `🚴 ${cyclingTodayKind(activity)}${stravaName}${distance}`;
     }
     if(activity.type==="PILATES")return "🤸 Pilates";
     if(activity.type==="TENNIS"){

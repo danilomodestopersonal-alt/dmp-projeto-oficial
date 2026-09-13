@@ -7597,3 +7597,45 @@ input:focus,textarea:focus{
     font-size:13px!important;
   }
 }
+
+/* DMP_HOME_MOBILE_FECHAMENTO_STRAVA_V3_20260913 */
+@media(max-width:700px){
+  .month-closing-today-card{
+    align-items:center!important;
+    text-align:center!important;
+  }
+
+  .month-closing-today-card>div{
+    align-items:center!important;
+    text-align:center!important;
+    width:auto!important;
+    max-width:100%!important;
+    justify-items:center!important;
+    margin-left:auto!important;
+    margin-right:auto!important;
+  }
+
+  .month-closing-today-card>div>strong{
+    justify-content:center!important;
+    text-align:center!important;
+    width:100%!important;
+  }
+
+  .month-closing-today-card .highlight-lines,
+  .month-closing-today-card .month-closing-lines{
+    align-items:flex-start!important;
+    text-align:left!important;
+    width:max-content!important;
+    max-width:100%!important;
+    justify-items:start!important;
+    margin-left:auto!important;
+    margin-right:auto!important;
+  }
+
+  .month-closing-today-card .highlight-lines small,
+  .month-closing-today-card .month-closing-lines small{
+    text-align:left!important;
+    width:auto!important;
+    max-width:100%!important;
+  }
+}
