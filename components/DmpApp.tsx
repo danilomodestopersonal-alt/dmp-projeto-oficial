@@ -4460,6 +4460,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   }
   const completedCount=exercises.filter(ex=>completed[ex.id]).length;
   const currentExercise=exercises[currentIndex];
+  const currentPrevious=currentExercise?findPreviousExercise(student,currentExercise.name):null; // DMP_CARGA_ANTERIOR_V2
   const slot=workout?.slot||inferWorkoutSlot(workout,0);
   const protocol=workout?.protocol||"CONVENTIONAL";
   const sessionSequenceSize=workout?.sequenceSize||defaultSequenceSize(protocol);
@@ -4516,7 +4517,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
 return <main className="app-page lesson-mode-page"><Header title={`${student.name} — Treino ${slot}`} back={()=>setLessonMode(false)} titleClassName="workout-student-header-title"/><section className="content lesson-mode-content"><div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>Treino {slot}</small></div>
       {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
       <div className="lesson-progress"><span>{workoutProtocolLabel(protocol)} · Exercício {currentIndex+1} de {exercises.length}</span><div><i style={{width:`${((currentIndex+1)/Math.max(1,exercises.length))*100}%`}}/></div></div>
-      <article className="panel lesson-card"><div className="lesson-card-top"><span className="status-chip">{currentExercise.block||`#${currentIndex+1}`}</span><label className="exercise-check"><input type="checkbox" checked={completed[currentExercise.id]??true} onChange={e=>setCompleted(current=>({...current,[currentExercise.id]:e.target.checked}))}/><span>Realizado</span></label></div><h1>{currentExercise.name}</h1>{currentExercise.notes?<div className="planned-note">📌 {currentExercise.notes}</div>:null}<div className="planned-fields lesson-fields"><label>Séries<input value={currentExercise.sets} onChange={e=>updateExercise(currentExercise.id,{sets:e.target.value})}/></label><label>Repetições<input value={currentExercise.reps} onChange={e=>updateExercise(currentExercise.id,{reps:e.target.value})}/></label><label>Carga<input value={currentExercise.load} onChange={e=>updateExercise(currentExercise.id,{load:e.target.value})}/></label></div><label className="lesson-exercise-note">Observação de hoje<input value={currentExercise.notes||""} onChange={e=>updateExercise(currentExercise.id,{notes:e.target.value})} placeholder="Ajuste feito hoje..."/></label><div className="lesson-actions"><button className="secondary" disabled={currentIndex===0} onClick={()=>setCurrentIndex(i=>Math.max(0,i-1))}>← Anterior</button><button className="primary" onClick={()=>{setCompleted(current=>({...current,[currentExercise.id]:true}));setCurrentIndex(i=>Math.min(exercises.length-1,i+1));}}>{currentIndex===exercises.length-1?"✓ Último exercício":"Concluir e próximo →"}</button></div></article>
+      <article className="panel lesson-card"><div className="lesson-card-top"><span className="status-chip">{currentExercise.block||`#${currentIndex+1}`}</span><label className="exercise-check"><input type="checkbox" checked={completed[currentExercise.id]??true} onChange={e=>setCompleted(current=>({...current,[currentExercise.id]:e.target.checked}))}/><span>Realizado</span></label></div><h1>{currentExercise.name}</h1>{currentExercise.notes?<div className="planned-note">📌 {currentExercise.notes}</div>:null}{currentPrevious?<div className="previous-load"><span>Última execução</span><strong>{currentPrevious.sets&&currentPrevious.reps?`${currentPrevious.sets}×${currentPrevious.reps}`:""}{currentPrevious.load?` · ${currentPrevious.load}`:""}</strong><small>{formatDate(currentPrevious.date)}</small></div>:<div className="previous-load muted">Sem execução anterior encontrada.</div>}<div className="planned-fields lesson-fields"><label>Séries<input value={currentExercise.sets} onChange={e=>updateExercise(currentExercise.id,{sets:e.target.value})}/></label><label>Repetições<input value={currentExercise.reps} onChange={e=>updateExercise(currentExercise.id,{reps:e.target.value})}/></label><label>Carga<input value={currentExercise.load} onChange={e=>updateExercise(currentExercise.id,{load:e.target.value})}/></label></div><label className="lesson-exercise-note">Observação de hoje<input value={currentExercise.notes||""} onChange={e=>updateExercise(currentExercise.id,{notes:e.target.value})} placeholder="Ajuste feito hoje..."/></label><div className="lesson-actions"><button className="secondary" disabled={currentIndex===0} onClick={()=>setCurrentIndex(i=>Math.max(0,i-1))}>← Anterior</button><button className="primary" onClick={()=>{setCompleted(current=>({...current,[currentExercise.id]:true}));setCurrentIndex(i=>Math.min(exercises.length-1,i+1));}}>{currentIndex===exercises.length-1?"✓ Último exercício":"Concluir e próximo →"}</button></div></article>
       <button className="secondary" onClick={()=>setLessonMode(false)}>Voltar para ficha completa</button>
     </section></main>;
   }
@@ -4611,6 +4612,16 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
                   />
 
                 </div>
+
+                {(()=>{
+                  const previous=findPreviousExercise(student,ex.name);
+                  return previous?
+                    <small className="last-load-inline">
+                      Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}
+                      {previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}
+                    </small>
+                  :null;
+                })()}
 
                 <div className="planned-fields planned-fields-core">
 
