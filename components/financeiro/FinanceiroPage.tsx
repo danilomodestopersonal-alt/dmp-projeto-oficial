@@ -357,7 +357,8 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
     try {
       const raw=window.localStorage.getItem("dmp_finance_voice_categories");
       const map=raw?JSON.parse(raw) as Record<string,string>:{};
-      return map[voiceCategoryKey(label)]||"";
+      const learned=map[voiceCategoryKey(label)]||"";
+      return learned&&data.categories.includes(learned)?learned:"";
     } catch {
       return "";
     }
@@ -639,7 +640,64 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
               <div className={styles.extraPanoramaTotal}><span>Total no mês</span><strong>{money.format(summary.extrasTotal)}</strong></div>
               <div className={styles.extraCategoryBreakdown}>{categoryTotals(data, competence).length ? categoryTotals(data, competence).map(item => { const pct=summary.extrasTotal?Math.round((item.value/summary.extrasTotal)*100):0; return <div key={item.label}><span><strong>{item.label}</strong><small>{pct}% do total</small></span><b>{money.format(item.value)}</b></div>; }) : <Empty text="Sem gastos extras nesta competência." />}</div>
               <div className={styles.extraQuickAdd}><div><strong>Incluir gasto</strong><small>Abra o lançamento rápido e registre valor, categoria e forma de pagamento.</small></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "extra-create" })}>+ Incluir gasto</button></div>
-              <details className={styles.categoryManager}><summary>Gerenciar categorias</summary><div className={styles.categoryList}>{data.categories.map(category => { const used = data.extraExpenses.some(item => item.category === category); return <div className={styles.categoryChip} key={category}><span>{category}</span><button disabled={!editable || used} title={used ? "Categoria em uso" : "Excluir categoria"} onClick={() => { if (window.confirm(`Excluir a categoria “${category}”?`)) dispatch({ type: "CATEGORY_DELETE", name: category, competence }); }}>×</button></div>; })}</div><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "category-create" })}>+ Categoria</button></details>
+              <div className={styles.categoryManagerCard}>
+                <div className={styles.categoryManagerHead}>
+                  <div>
+                    <strong>Categorias de gastos</strong>
+                    <small>Crie, renomeie ou arquive categorias sem perder os lançamentos antigos.</small>
+                  </div>
+                  <button className="secondary" type="button" disabled={!editable} onClick={() => openAction({ type: "category-create" })}>+ Nova categoria</button>
+                </div>
+                <div className={styles.categoryManagerList}>
+                  {data.categories.map(category => {
+                    const usageCount = data.extraExpenses.filter(item => item.category === category).length;
+                    const used = usageCount > 0;
+                    return (
+                      <div className={styles.categoryManagerRow} key={category}>
+                        <div className={styles.categoryManagerName}>
+                          <strong>{category}</strong>
+                          <small>{used ? usageCount + " lançamento" + (usageCount === 1 ? "" : "s") + " no histórico" : "Ainda não utilizada"}</small>
+                        </div>
+                        <div className={styles.categoryManagerActions}>
+                          <button
+                            type="button"
+                            disabled={!editable}
+                            onClick={() => {
+                              const nextName = window.prompt("Novo nome para “" + category + "”:", category)?.trim();
+                              if (!nextName || nextName === category) return;
+                              const duplicate = data.categories.some(item => item !== category && item.toLocaleLowerCase("pt-BR") === nextName.toLocaleLowerCase("pt-BR"));
+                              if (duplicate) {
+                                window.alert("Já existe uma categoria com esse nome.");
+                                return;
+                              }
+                              if (used && !window.confirm("Renomear “" + category + "” para “" + nextName + "”? Os " + usageCount + " lançamentos antigos também passarão a usar o novo nome.")) return;
+                              dispatch({ type: "CATEGORY_RENAME", oldName: category, newName: nextName, competence });
+                            }}
+                          >
+                            Renomear
+                          </button>
+                          <button
+                            className={styles.categoryManagerDanger}
+                            type="button"
+                            disabled={!editable}
+                            onClick={() => {
+                              if (used) {
+                                if (!window.confirm("Arquivar “" + category + "”? Ela deixará de aparecer nos novos lançamentos. Os " + usageCount + " lançamentos já registrados continuarão no histórico.")) return;
+                                dispatch({ type: "CATEGORY_ARCHIVE", name: category, competence });
+                                return;
+                              }
+                              if (!window.confirm("Excluir a categoria “" + category + "”?")) return;
+                              dispatch({ type: "CATEGORY_DELETE", name: category, competence });
+                            }}
+                          >
+                            {used ? "Arquivar" : "Excluir"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </section>
           </div>
         ) : null}
@@ -679,6 +737,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
   const [name, setName] = useState(invoice?.studentName || kid?.studentName || expense?.name || "");
   const [description, setDescription] = useState(extra?.description || "");
   const [category, setCategory] = useState(extra?.category || data.categories[0] || "Outros");
+  const categoryOptions = data.categories.includes(category) ? data.categories : [category, ...data.categories]; // DMP_CATEGORIAS_GASTOS_V4_20260916
   const [method, setMethod] = useState(extra?.paymentMethod || "");
   const [dueDay, setDueDay] = useState(String(invoice?.dueDay || kid?.dueDay || expense?.dueDay || 10));
   const [kind, setKind] = useState<FinanceExpenseKind>(defaultKind);
@@ -830,7 +889,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     {action.type === "carry-create" || action.type === "carry-edit" ? <><label>Criança<select value={carryStudentId} onChange={event=>{const id=event.target.value;const option=kidsStudentOptions.find(item=>item.id===id);const name=option?.name||"";setCarryStudentId(id);setCarryStudentName(name);pullCarryAmount(id,name,carryOrigin,carryKind);}} autoFocus><option value="">Selecione...</option>{kidsStudentOptions.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{(!kidsStudentOptions.length||(carryStudentId&&!kidsStudentOptions.some(item=>item.id===carryStudentId)))?<label>Nome da criança<input value={carryStudentName} onChange={event=>{const name=event.target.value;setCarryStudentName(name);}} onBlur={()=>pullCarryAmount(carryStudentId,carryStudentName,carryOrigin,carryKind)} placeholder="Digite o nome" /></label>:null}<div className={styles.formGrid}><label>Competência de origem<select value={carryOrigin} onChange={event=>{const origin=event.target.value;setCarryOrigin(origin);pullCarryAmount(carryStudentId,carryStudentName,origin,carryKind);}}>{originOptions.map(item=><option key={item} value={item}>{competenceLabel(item)}</option>)}</select></label><label>Valor<input value={amount} onChange={event=>setAmount(event.target.value)} placeholder="0,00" /><small>Preenchido automaticamente pela competência de origem quando encontrado; continua editável.</small></label></div><label>Tipo<select value={carryKind} onChange={event=>{const kind=event.target.value as FinanceCarryoverKind;setCarryKind(kind);pullCarryAmount(carryStudentId,carryStudentName,carryOrigin,kind);}}><option value="SINGLE">Uma parcela</option><option value="MONTHLY">Mensalidade</option><option value="INSTALLMENT">Parcela</option><option value="OTHER">Outro</option></select></label><label>Observação<input value={note} onChange={event=>setNote(event.target.value)} placeholder="Opcional" /></label><p className={styles.formHint}>Entra somente em {competenceLabel(competence)}. Não será renovada no mês seguinte. Se houver lançamento correspondente na origem, ele deixa de contar lá enquanto esta pendência existir.</p></> : null}
 
-    {action.type === "extra-create" || action.type === "extra-edit" ? <><label>Descrição<input value={description} onChange={event => { setDescription(event.target.value); if (!category) setCategory(suggestCategory(event.target.value)); }} placeholder="Ex.: Padaria" autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><div className={styles.formGrid}><label>Categoria<select value={category} onChange={event => setCategory(event.target.value)}>{data.categories.map(item => <option key={item}>{item}</option>)}</select></label><label>Forma de pagamento<input value={method} onChange={event => setMethod(event.target.value)} placeholder="Pix, Débito..." /></label></div></> : null}
+    {action.type === "extra-create" || action.type === "extra-edit" ? <><label>Descrição<input value={description} onChange={event => { setDescription(event.target.value); if (!category) setCategory(suggestCategory(event.target.value)); }} placeholder="Ex.: Padaria" autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><div className={styles.formGrid}><label>Categoria<select value={category} onChange={event => setCategory(event.target.value)}>{categoryOptions.map(item => <option key={item}>{item}</option>)}</select></label><label>Forma de pagamento<input value={method} onChange={event => setMethod(event.target.value)} placeholder="Pix, Débito..." /></label></div></> : null}
 
     {action.type === "category-create" ? <label>Nova categoria<input value={newCategory} onChange={event => setNewCategory(event.target.value)} autoFocus placeholder="Ex.: Saúde" /></label> : null}
 

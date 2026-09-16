@@ -36,6 +36,8 @@ export type FinanceCommand =
   | { type: "EXTRA_UPDATE"; id: string; date: string; description: string; category: string; paymentMethod?: string; amount: number }
   | { type: "EXTRA_DELETE"; id: string }
   | { type: "CATEGORY_CREATE"; name: string; competence: string }
+  | { type: "CATEGORY_RENAME"; oldName: string; newName: string; competence: string }
+  | { type: "CATEGORY_ARCHIVE"; name: string; competence: string }
   | { type: "CATEGORY_DELETE"; name: string; competence: string }
   | { type: "CARRYOVER_CREATE"; competence: string; originCompetence: string; studentId?: string | null; studentName: string; amount: number; kind: FinanceCarryoverKind; note?: string; sourceEntryId?: string | null }
   | { type: "CARRYOVER_UPDATE"; id: string; originCompetence: string; studentId?: string | null; studentName: string; amount: number; kind: FinanceCarryoverKind; note?: string; sourceEntryId?: string | null }
@@ -286,14 +288,33 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory({ ...data, extraExpenses: data.extraExpenses.filter(item => item.id !== command.id) }, historyEntry(current.competence, "EXTRA_DELETED", `Gasto extra ${current.description} excluído.`, current.amount, current.id));
     }
 
-    case "CATEGORY_CREATE": { const name = command.name.trim(); if (!name || data.categories.some(item => item.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"))) return data;
-      return withHistory({ ...data, categories: [...data.categories, name].sort((a, b) => a.localeCompare(b, "pt-BR")) }, historyEntry(command.competence, "CATEGORY_CREATED", `Categoria ${name} criada.`));
+    case "CATEGORY_CREATE": { // DMP_CATEGORIAS_GASTOS_V4_20260916
+      const name = command.name.trim();
+      if (!name || data.categories.some(item => item.toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"))) return data;
+      const categories = [...data.categories, name].sort((a, b) => a.localeCompare(b, "pt-BR"));
+      return withHistory({ ...data, categories }, historyEntry(command.competence, "CATEGORY_CREATED", "Categoria " + name + " criada."));
     }
-
-    case "CATEGORY_DELETE": { if (data.extraExpenses.some(item => item.category === command.name)) return data;
-      return withHistory({ ...data, categories: data.categories.filter(item => item !== command.name) }, historyEntry(command.competence, "CATEGORY_DELETED", `Categoria ${command.name} excluída.`));
+    case "CATEGORY_RENAME": {
+      const oldName = command.oldName.trim();
+      const newName = command.newName.trim();
+      if (!oldName || !newName || oldName === newName || !data.categories.includes(oldName)) return data;
+      const duplicate = data.categories.some(item => item !== oldName && item.toLocaleLowerCase("pt-BR") === newName.toLocaleLowerCase("pt-BR"));
+      if (duplicate) return data;
+      const categories = data.categories.map(item => item === oldName ? newName : item).sort((a, b) => a.localeCompare(b, "pt-BR"));
+      const extraExpenses = data.extraExpenses.map(item => item.category === oldName ? { ...item, category: newName } : item);
+      return withHistory({ ...data, categories, extraExpenses }, historyEntry(command.competence, "CATEGORY_RENAMED", "Categoria " + oldName + " renomeada para " + newName + "."));
     }
-
+    case "CATEGORY_ARCHIVE": {
+      if (!data.categories.includes(command.name)) return data;
+      const categories = data.categories.filter(item => item !== command.name);
+      return withHistory({ ...data, categories }, historyEntry(command.competence, "CATEGORY_ARCHIVED", "Categoria " + command.name + " arquivada. Lançamentos antigos preservados."));
+    }
+    case "CATEGORY_DELETE": {
+      if (data.extraExpenses.some(item => item.category === command.name)) return data;
+      if (!data.categories.includes(command.name)) return data;
+      const categories = data.categories.filter(item => item !== command.name);
+      return withHistory({ ...data, categories }, historyEntry(command.competence, "CATEGORY_DELETED", "Categoria " + command.name + " excluída."));
+    }
     case "CARRYOVER_CREATE": {
       const entry: FinanceCarryoverEntry = {
         id: id("carryover"),

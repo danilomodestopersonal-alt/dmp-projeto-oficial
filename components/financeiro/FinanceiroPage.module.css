@@ -84,3 +84,96 @@
 .paymentLinkButton{display:flex;align-items:center;justify-content:center;min-height:46px;border-radius:12px;background:#20242a;color:#fff;text-decoration:none;font-weight:900}
 .paymentLinkButton:hover{background:#2d333a}
 @media(max-width:640px){.expenseDetailHero{display:grid}.expenseDetailHero>strong{font-size:22px}.expenseDetail dl{grid-template-columns:1fr}.weeklyDueValue small{display:block!important}}
+
+
+/* DMP_CATEGORIAS_GASTOS_V4_20260916 */
+.categoryManagerCard {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.78);
+}
+.categoryManagerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.categoryManagerHead > div {
+  display: grid;
+  gap: 3px;
+}
+.categoryManagerHead strong {
+  font-size: 14px;
+}
+.categoryManagerHead small,
+.categoryManagerName small {
+  color: var(--muted, #64748b);
+  font-size: 12px;
+}
+.categoryManagerList {
+  display: grid;
+  gap: 8px;
+}
+.categoryManagerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #fff;
+}
+.categoryManagerName {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.categoryManagerName strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.categoryManagerActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+.categoryManagerActions button {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 9px;
+  background: #fff;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.categoryManagerActions button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.categoryManagerActions .categoryManagerDanger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.18);
+  background: rgba(254, 243, 242, 0.9);
+}
+@media (max-width: 720px) {
+  .categoryManagerHead,
+  .categoryManagerRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .categoryManagerHead button {
+    width: 100%;
+  }
+  .categoryManagerActions {
+    width: 100%;
+  }
+  .categoryManagerActions button {
+    flex: 1 1 0;
+  }
+}
