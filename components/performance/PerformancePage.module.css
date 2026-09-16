@@ -153,3 +153,25 @@
     padding:8px 9px;
   }
 }
+
+/* DMP_PERFORMANCE_SEMANA_CLICAVEL_20260916 */
+.calendarGrid{display:grid!important;grid-template-columns:1fr!important;gap:4px!important}
+.calendarWeekRow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:2px;border:1px solid transparent;border-radius:11px;cursor:pointer;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.calendarWeekRow:hover{background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.08)}
+.calendarWeekSelected{background:rgba(185,220,63,.09)!important;border-color:rgba(185,220,63,.42)!important;box-shadow:inset 0 0 0 1px rgba(185,220,63,.12)}
+.calendarWeekHint{margin-top:8px;text-align:center;color:#87939c;font-size:.57rem;font-weight:800}
+.calendarWeekSummary{display:grid;gap:10px;margin-top:10px;padding:12px;border:1px solid rgba(185,220,63,.26);border-radius:14px;background:rgba(6,10,13,.38)}
+.calendarWeekSummaryHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.calendarWeekSummaryHead>div{display:grid;gap:2px}
+.calendarWeekSummaryHead small{color:#9aa6ae;font-size:.57rem;font-weight:900;letter-spacing:.06em}
+.calendarWeekSummaryHead strong{color:#fff;font-size:.9rem}
+.calendarWeekSummaryHead button{width:28px;height:28px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.12);border-radius:9px;background:rgba(255,255,255,.06);color:#fff;font:inherit;font-size:1rem;cursor:pointer}
+.calendarWeekSummaryStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.calendarWeekSummaryStats span{display:grid;gap:2px;padding:7px 8px;border-radius:9px;background:rgba(255,255,255,.055);color:#aeb9c2;font-size:.56rem}
+.calendarWeekSummaryStats b{color:#fff;font-size:.76rem}
+.calendarWeekSummaryTypes{display:flex;gap:6px;flex-wrap:wrap}
+.calendarWeekSummaryTypes span{padding:5px 7px;border-radius:8px;background:rgba(185,220,63,.08);color:#dce4e8;font-size:.58rem;font-weight:800}
+.calendarWeekSummaryTypes b{color:#b9dc3f}
+.calendarWeekEmpty{margin:0;color:#9aa6ae;font-size:.66rem}
+@media(max-width:760px){.calendarWeekRow{gap:3px}.calendarWeekSummaryStats{grid-template-columns:1fr 1fr}.calendarWeekHint{text-align:left}}
+@media(max-width:460px){.calendarWeekRow{gap:2px;padding:1px}.calendarWeekSummary{padding:10px}.calendarWeekSummaryStats{gap:5px}}

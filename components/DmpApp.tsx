@@ -1037,7 +1037,7 @@ fetch("/api/google/status")
     setWorkoutEditorSlot(nextSlot);
     setView("workout-editor");
   }
-  async function saveSession(session: Session) {
+  async function saveSession(session: Session, applyToCycle = false) {
     if (!selectedStudent) return;
     try {
       const response = await fetch("/api/data", {cache:"no-store"});
@@ -1047,8 +1047,26 @@ fetch("/api/google/status")
       const latest = result.data as Student[];
       const target = latest.find(student => student.id === selectedStudent.id);
       if (!target) throw new Error();
+
       const savedSession={...session,finishedAt:session.finishedAt||new Date().toISOString()};
-      const updated = {...target,sessions:[savedSession,...target.sessions.filter(item=>item.id!==session.id)]};
+      const sessionExercises=session.completedExercises.map(exercise=>({...exercise}));
+      let nextWorkouts=target.workouts;
+
+      if(applyToCycle){
+        if(!session.workoutId) throw new Error("planned_workout_missing");
+        if(!target.workouts.some(item=>item.id===session.workoutId)) throw new Error("planned_workout_not_found");
+        nextWorkouts=target.workouts.map(item=>
+          item.id===session.workoutId
+            ? {...item,exercises:sessionExercises}
+            : item
+        );
+      }
+
+      const updated = {
+        ...target,
+        workouts:nextWorkouts,
+        sessions:[savedSession,...target.sessions.filter(item=>item.id!==session.id)]
+      }; // DMP_ESCOPO_SESSAO_V3_20260916
       const next = latest.map(student=>student.id===updated.id?updated:student);
       const saveResponse = await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});
       if (!saveResponse.ok) throw new Error();
@@ -4420,12 +4438,13 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
   </section></main>;
 }
 
-function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session)=>void}) {
+function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void}) {
   const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
   const [completed,setCompleted]=useState<Record<string,boolean>>(() => Object.fromEntries((workout?.exercises||[]).map(ex=>[ex.id,false])));
   const [notes,setNotes]=useState("");
   const [sessionDate,setSessionDate]=useState(today());
   const [lessonMode,setLessonMode]=useState(false);
+  const [applyToCycle,setApplyToCycle]=useState(false);
   const [currentIndex,setCurrentIndex]=useState(0);
   const [startedAt]=useState(()=>new Date().toISOString());
   function updateExercise(id:string, patch:Partial<Exercise>){setExercises(current=>current.map(item=>item.id===id?{...item,...patch}:item));}
@@ -4442,7 +4461,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
   function removeSessionExercise(id:string){
     const target=exercises.find(ex=>ex.id===id);
     if(!target)return;
-    if(!confirm(`Excluir "${target.name||"este exercício"}" somente da sessão de hoje?`))return;
+    if(!confirm(`Excluir "${target.name||"este exercício"}" ${applyToCycle?"da sessão de hoje e da ficha do ciclo":"somente da sessão de hoje"}?`))return;
     setExercises(current=>current.filter(ex=>ex.id!==id));
     setCompleted(current=>{const next={...current};delete next[id];return next;});
     setCurrentIndex(current=>Math.max(0,Math.min(current,Math.max(0,exercises.length-2))));
@@ -4452,7 +4471,7 @@ function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout
     if(!clean)return;
     const group=exercises.filter(ex=>(ex.block||"").trim()===clean);
     if(!group.length)return;
-    if(!confirm(`Excluir ${clean} inteiro (${group.length} exercício${group.length===1?"":"s"}) somente da sessão de hoje?`))return;
+    if(!confirm(`Excluir ${clean} inteiro (${group.length} exercício${group.length===1?"":"s"}) ${applyToCycle?"da sessão de hoje e da ficha do ciclo":"somente da sessão de hoje"}?`))return;
     const ids=new Set(group.map(ex=>ex.id));
     setExercises(current=>current.filter(ex=>!ids.has(ex.id)));
     setCompleted(current=>{const next={...current};ids.forEach(id=>delete next[id]);return next;});
@@ -4524,7 +4543,20 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
 
   return <main className="app-page"><Header title={`${student.name} — Treino ${slot}`} back={onBack} titleClassName="workout-student-header-title"/><section className="content narrow"><div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>Treino {slot}</small></div>
     {student.restrictions||student.injuries ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div> : null}<div className="session-mode-banner"><span>📋 Treino {slot} · {workoutProtocolLabel(protocol)}</span><strong>{workout?.name||`Treino ${slot}`}</strong><small>{completedCount}/{exercises.length} exercícios marcados{workout?.notes?` · ${workout.notes}`:""}</small><button className="secondary compact-button" disabled={!exercises.length} onClick={()=>setLessonMode(true)}>▶ Modo aula</button></div>
-    <div className="hero-actions" style={{marginBottom:12}}><button type="button" className="secondary compact-button" onClick={()=>addSessionExercise(exercises[exercises.length-1]?.block||"")}>+ Exercício</button><button type="button" className="secondary compact-button" onClick={addSessionBlock}>+ Bloco</button><small className="muted">Só muda a sessão de hoje; a ficha original não é alterada.</small></div>
+    <div className="session-edit-toolbar">
+      <div className="hero-actions session-edit-actions">
+        <button type="button" className="secondary compact-button" onClick={()=>addSessionExercise(exercises[exercises.length-1]?.block||"")}>+ Exercício</button>
+        <button type="button" className="secondary compact-button" onClick={addSessionBlock}>+ Bloco</button>
+      </div>
+      <div className="session-scope-wrap">
+        <span>Alterações</span>
+        <div className="session-scope-toggle" role="group" aria-label="Onde aplicar as alterações do treino">
+          <button type="button" className={!applyToCycle?"active":""} aria-pressed={!applyToCycle} onClick={()=>setApplyToCycle(false)}>Somente hoje</button>
+          <button type="button" className={applyToCycle?"active":""} aria-pressed={applyToCycle} disabled={!workout?.id} onClick={()=>setApplyToCycle(true)}>Aplicar ao ciclo</button>
+        </div>
+        <small className="muted">{applyToCycle?"Ao salvar, exercício, bloco, séries, repetições, carga e observação também atualizam a ficha deste ciclo. O histórico anterior permanece intacto.":"As mudanças valem apenas para esta sessão. A ficha original não é alterada."}</small>
+      </div>
+    </div>
     <div className="session-list">{sessionGroups.map((group,groupIndex)=>{
 
       const groupType=group.grouped
@@ -4720,7 +4752,7 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
 
     })}</div>
     {!exercises.length?<div className="empty-review"><strong>Sessão sem exercícios</strong><span>Use “+ Exercício” ou “+ Bloco” para montar o que será realizado hoje.</span></div>:null}
-    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,workoutId:workout?.id,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()})}>✓ Treino concluído — salvar no histórico</button></div>
+    <div className="panel form-stack"><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Alterações / observações<textarea rows={6} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex.: exercício substituído, carga alterada, bloco não realizado..."/></label><button className="primary finish-button" disabled={!exercises.some(ex=>ex.name.trim())} onClick={()=>onSave({id:crypto.randomUUID(),date:sessionDate,workoutName:workout?.name||`Treino ${slot}`,workoutId:workout?.id,notes,completedExercises:exercises.filter(ex=>ex.name.trim()),source:"PLANNED",startedAt,finishedAt:new Date().toISOString()},applyToCycle)}>✓ Treino concluído — salvar no histórico</button></div>
   </section></main>;
 }
 

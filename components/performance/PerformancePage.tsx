@@ -373,6 +373,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() + 1 };
   });
+  const [selectedCalendarWeek,setSelectedCalendarWeek]=useState<string|null>(null); // DMP_PERFORMANCE_SEMANA_CLICAVEL_20260916
 
   useEffect(() => {
     void loadData();
@@ -509,6 +510,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   );
 
   function movePerformanceCalendar(delta:number) {
+    setSelectedCalendarWeek(null);
     setPerformanceCalendar(current => {
       const date = new Date(current.year, current.month - 1 + delta, 1);
       return { year: date.getFullYear(), month: date.getMonth() + 1 };
@@ -880,19 +882,29 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     await persist({ ...data, assessments: data.assessments.filter(item => item.id !== id) });
   }
 
-  const weekNow=new Date();
-  const weekStartDate=new Date(weekNow);
-  const weekDay=(weekNow.getDay()+6)%7;
-  weekStartDate.setDate(weekNow.getDate()-weekDay);
-  weekStartDate.setHours(0,0,0,0);
   const performanceDateKey=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
-  const weekStartKey=performanceDateKey(weekStartDate);
-  const weekEndKey=performanceDateKey(weekNow);
-  const weekActivities=data.activities.filter(activity=>activity.date>=weekStartKey&&activity.date<=weekEndKey);
-  const weekTotals=summarize(weekActivities);
-  const weekByType=(Object.keys(ACTIVITY_LABELS) as PerformanceActivityType[])
-    .map(type=>({type,count:weekActivities.filter(activity=>activity.type===type).length}))
+  function performanceWeekStartKey(dateKey:string){
+    const date=new Date(`${dateKey}T12:00:00`);
+    const weekday=(date.getDay()+6)%7;
+    date.setDate(date.getDate()-weekday);
+    return performanceDateKey(date);
+  }
+  function performanceWeekEndKey(startKey:string){
+    const date=new Date(`${startKey}T12:00:00`);
+    date.setDate(date.getDate()+6);
+    return performanceDateKey(date);
+  }
+  const selectedWeekEndKey=selectedCalendarWeek?performanceWeekEndKey(selectedCalendarWeek):"";
+  const selectedWeekActivities=selectedCalendarWeek
+    ? data.activities.filter(activity=>activity.date>=selectedCalendarWeek&&activity.date<=selectedWeekEndKey)
+    : [];
+  const selectedWeekTotals=summarize(selectedWeekActivities);
+  const selectedWeekByType=(Object.keys(ACTIVITY_LABELS) as PerformanceActivityType[])
+    .map(type=>({type,count:selectedWeekActivities.filter(activity=>activity.type===type).length}))
     .filter(item=>item.count>0);
+  const selectedWeekCyclingActivities=selectedWeekActivities.filter(activity=>activity.type==="CYCLING");
+  const selectedWeekCyclingTotals=summarize(selectedWeekCyclingActivities);
+  const shortPerformanceDate=(dateKey:string)=>new Date(`${dateKey}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
 
   if (loading) {
     return <section className={styles.loading}>Carregando Performance...</section>;
@@ -961,43 +973,77 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             </div>
 
             <div className={styles.calendarGrid}>
-              {calendarDays.map((cell,index) => {
-                if (!cell) return <span className={styles.calendarDayEmpty} key={`empty-${index}`} />;
-
-                const activityTypes = Array.from(new Set(cell.activities.map(activity => activity.type)));
-                const isToday = cell.date === localToday();
+              {Array.from({length:Math.ceil(calendarDays.length/7)},(_,weekIndex)=>{
+                const weekCells=calendarDays.slice(weekIndex*7,weekIndex*7+7);
+                const firstCell=weekCells.find(cell=>cell!==null) as {day:number;date:string;activities:PerformanceActivity[]}|undefined;
+                const rowWeekStart=firstCell?performanceWeekStartKey(firstCell.date):"";
+                const rowWeekEnd=rowWeekStart?performanceWeekEndKey(rowWeekStart):"";
+                const selected=rowWeekStart&&selectedCalendarWeek===rowWeekStart;
 
                 return <div
-                  className={`${styles.calendarDay} ${isToday ? styles.calendarToday : ""} ${cell.activities.length ? styles.calendarDayActive : ""}`}
-                  key={cell.date}
-                  title={cell.activities.length ? cell.activities.map(activity => `${ACTIVITY_LABELS[activity.type]}: ${activity.title}`).join("\n") : undefined}
+                  className={`${styles.calendarWeekRow} ${selected?styles.calendarWeekSelected:""}`}
+                  key={`week-${weekIndex}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={rowWeekStart?`Semana de ${shortPerformanceDate(rowWeekStart)} a ${shortPerformanceDate(rowWeekEnd)}`:"Semana"}
+                  onClick={()=>rowWeekStart&&setSelectedCalendarWeek(current=>current===rowWeekStart?null:rowWeekStart)}
+                  onKeyDown={event=>{
+                    if((event.key==="Enter"||event.key===" ")&&rowWeekStart){
+                      event.preventDefault();
+                      setSelectedCalendarWeek(current=>current===rowWeekStart?null:rowWeekStart);
+                    }
+                  }}
                 >
-                  <span className={styles.calendarDayNumber}>{cell.day}</span>
-                  <div className={styles.calendarDayActivities}>
-                    {activityTypes.slice(0,3).map(type => {
-                      const activity = cell.activities.find(item => item.type === type);
-                      if (!activity) return null;
-                      return <button
-                        type="button"
-                        key={type}
-                        onClick={() => setDetailActivity(activity)}
-                        title={`${ACTIVITY_LABELS[type]} — ${activity.title}`}
-                        aria-label={`${ACTIVITY_LABELS[type]} em ${fmtDate(cell.date)}: ${activity.title}`}
-                      >
-                        {ACTIVITY_ICONS[type]}
-                      </button>;
-                    })}
-                    {activityTypes.length > 3 ? <small>+{activityTypes.length - 3}</small> : null}
-                  </div>
+                  {weekCells.map((cell,cellIndex)=>{
+                    if(!cell)return <span className={styles.calendarDayEmpty} key={`empty-${weekIndex}-${cellIndex}`}/>;
+
+                    const activityTypes=Array.from(new Set(cell.activities.map(activity=>activity.type)));
+                    const isToday=cell.date===localToday();
+
+                    return <div
+                      className={`${styles.calendarDay} ${isToday?styles.calendarToday:""} ${cell.activities.length?styles.calendarDayActive:""}`}
+                      key={cell.date}
+                      title={cell.activities.length?cell.activities.map(activity=>`${ACTIVITY_LABELS[activity.type]}: ${activity.title}`).join("\n"):undefined}
+                    >
+                      <span className={styles.calendarDayNumber}>{cell.day}</span>
+                      <div className={styles.calendarDayActivities}>
+                        {activityTypes.slice(0,3).map(type=>{
+                          const activity=cell.activities.find(item=>item.type===type);
+                          if(!activity)return null;
+                          return <button
+                            type="button"
+                            key={type}
+                            onClick={event=>{event.stopPropagation();setDetailActivity(activity);}}
+                            title={`${ACTIVITY_LABELS[type]} — ${activity.title}`}
+                            aria-label={`${ACTIVITY_LABELS[type]} em ${fmtDate(cell.date)}: ${activity.title}`}
+                          >
+                            {ACTIVITY_ICONS[type]}
+                          </button>;
+                        })}
+                        {activityTypes.length>3?<small>+{activityTypes.length-3}</small>:null}
+                      </div>
+                    </div>;
+                  })}
                 </div>;
               })}
             </div>
-
             <div className={styles.calendarLegend}>
               {calendarLegendTypes.length
                 ? calendarLegendTypes.map(type => <span key={type}>{ACTIVITY_ICONS[type]} {ACTIVITY_LABELS[type]}</span>)
                 : <span>Sem atividades neste mês</span>}
             </div>
+            <div className={styles.calendarWeekHint}>Toque em uma semana para ver o resumo.</div>
+            {selectedCalendarWeek?<div className={styles.calendarWeekSummary}>
+              <div className={styles.calendarWeekSummaryHead}>
+                <div><small>SEMANA SELECIONADA</small><strong>{shortPerformanceDate(selectedCalendarWeek)} a {shortPerformanceDate(selectedWeekEndKey)}</strong></div>
+                <button type="button" onClick={()=>setSelectedCalendarWeek(null)} aria-label="Fechar resumo da semana">×</button>
+              </div>
+              <div className={styles.calendarWeekSummaryStats}>
+                <span><b>{selectedWeekTotals.count}</b> atividade{selectedWeekTotals.count===1?"":"s"}</span>
+                {selectedWeekCyclingActivities.length?<><span><b>{fmtNumber(selectedWeekCyclingTotals.distance,1)} km</b> ciclismo</span><span><b>{fmtHours(selectedWeekCyclingTotals.minutes)}</b> tempo</span><span><b>{fmtNumber(selectedWeekCyclingTotals.elevation)} m</b> altimetria</span></>:null}
+              </div>
+              {selectedWeekByType.length?<div className={styles.calendarWeekSummaryTypes}>{selectedWeekByType.map(item=><span key={item.type}>{ACTIVITY_ICONS[item.type]} {ACTIVITY_LABELS[item.type]} <b>{item.count}</b></span>)}</div>:<p className={styles.calendarWeekEmpty}>Sem atividades registradas nesta semana.</p>}
+            </div>:null}
           </section>
         </div>
 
@@ -1015,52 +1061,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
 
         {tab === "summary" ? (
           <div className={styles.stack}>
-            {(()=>{
-              const now=new Date();
-              const weekday=(now.getDay()+6)%7;
-              const start=new Date(now);
-              start.setHours(0,0,0,0);
-              start.setDate(start.getDate()-weekday);
 
-              const weekActivities=data.activities.filter(activity=>{
-                const date=new Date(activity.date+"T12:00:00");
-                return date>=start&&date<=now;
-              });
-
-              const weekTotals=summarize(weekActivities);
-              const modalities=(Object.keys(ACTIVITY_LABELS) as PerformanceActivityType[])
-                .map(type=>({type,count:weekActivities.filter(activity=>activity.type===type).length}))
-                .filter(item=>item.count>0);
-
-              return <section className={styles.panel}>
-                <div className={styles.panelHeader}>
-                  <div>
-                    <span className={styles.kicker}>RESUMO DA SEMANA</span>
-                    <h2>Esta semana</h2>
-                  </div>
-                  <span className={styles.statusChip}>{weekTotals.count} atividade{weekTotals.count===1?"":"s"}</span>
-                </div>
-
-                <div className={styles.measureGrid}>
-                  <div className={styles.measure}><span>Distância</span><strong>{fmtNumber(weekTotals.distance,1)} km</strong></div>
-                  <div className={styles.measure}><span>Tempo</span><strong>{fmtHours(weekTotals.minutes)}</strong></div>
-                  <div className={styles.measure}><span>Altimetria</span><strong>{fmtNumber(weekTotals.elevation)} m</strong></div>
-                  <div className={styles.measure}><span>Treinos</span><strong>{weekTotals.count}</strong></div>
-                </div>
-
-                {modalities.length?<div className={styles.recordBySport}>
-                  {modalities.map(item=>
-                    <div key={item.type}>
-                      <span>{ACTIVITY_ICONS[item.type]}</span>
-                      <div>
-                        <strong>{ACTIVITY_LABELS[item.type]}</strong>
-                        <small>{item.count} atividade{item.count===1?"":"s"} nesta semana</small>
-                      </div>
-                    </div>
-                  )}
-                </div>:null}
-              </section>;
-            })()}
 
             <div className={styles.statsGrid}>
               <Metric label="Distância no mês" value={`${fmtNumber(monthTotals.distance, 1)} km`} detail={`${fmtNumber(yearTotals.distance, 1)} km no ano`} icon="↗" />
@@ -1068,32 +1069,6 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <Metric label="Altimetria no mês" value={`${fmtNumber(monthTotals.elevation)} m`} detail={`${fmtNumber(yearTotals.elevation)} m no ano`} icon="△" />
               <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} icon="✓" />
             </div>
-
-            {/* PERFORMANCE SEMANAL DMP */}
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <div><span className={styles.kicker}>ESTA SEMANA</span><h2>Performance semanal</h2></div>
-                <span className={styles.statusChip}>{weekActivities.length} atividade{weekActivities.length===1?"":"s"}</span>
-              </div>
-
-              <div className={styles.measureGrid}>
-                <div className={styles.measure}><span>Dist&acirc;ncia</span><strong>{fmtNumber(weekTotals.distance,1)} km</strong></div>
-                <div className={styles.measure}><span>Tempo</span><strong>{fmtHours(weekTotals.minutes)}</strong></div>
-                <div className={styles.measure}><span>Eleva&ccedil;&atilde;o</span><strong>{fmtNumber(weekTotals.elevation)} m</strong></div>
-                <div className={styles.measure}><span>Treinos</span><strong>{weekTotals.count}</strong></div>
-              </div>
-
-              {weekByType.length?
-                <div className={styles.recordBySport}>
-                  {weekByType.map(item=>
-                    <div key={item.type}>
-                      <span>{ACTIVITY_ICONS[item.type]}</span>
-                      <div><strong>{ACTIVITY_LABELS[item.type]}</strong><small>{item.count} atividade{item.count===1?"":"s"} nesta semana</small></div>
-                    </div>
-                  )}
-                </div>
-              :null}
-            </section>
 
             <div className={styles.twoColumns}>
               <section className={styles.panel}>
