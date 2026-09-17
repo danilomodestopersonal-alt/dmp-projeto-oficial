@@ -7742,3 +7742,312 @@ input:focus,textarea:focus{
     scrollbar-width:thin;
   }
 }
+
+/* =========================================================
+   DMP 17/09/2026 - TREINO PLANEJADO COMPACTO DESKTOP V10
+   Objetivo: maximizar a quantidade de exercicios visiveis
+   sem alterar logica, dados, mobile ou modo aula.
+   ========================================================= */
+
+@media (min-width:1100px){
+
+  /* aproveita melhor a largura e reduz o vazio acima da ficha */
+  .content.narrow:has(.session-mode-banner){
+    max-width:1480px!important;
+    width:calc(100% - 28px)!important;
+    padding-top:10px!important;
+  }
+
+  /* o Header ja mostra aluno + treino; remove a repeticao grande */
+  .content.narrow:has(.session-mode-banner) > .planned-student-identity{
+    display:none!important;
+  }
+
+  /* alerta de restricao continua visivel, mas sem ocupar um card alto */
+  .content.narrow:has(.session-mode-banner) > .session-alert{
+    margin:0 0 6px!important;
+    padding:8px 12px!important;
+    min-height:0!important;
+    gap:4px!important;
+  }
+
+  /* faixa do treino vira uma barra operacional de uma linha */
+  .content.narrow:has(.session-mode-banner) > .session-mode-banner{
+    min-height:0!important;
+    margin:0 0 6px!important;
+    padding:8px 12px!important;
+    border-radius:12px!important;
+    display:grid!important;
+    grid-template-columns:auto minmax(170px,1fr) auto auto!important;
+    grid-template-areas:"meta title progress action";
+    align-items:center!important;
+    gap:6px 14px!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .session-mode-banner > span{
+    grid-area:meta;
+    margin:0!important;
+    font-size:.70rem!important;
+    line-height:1.15!important;
+    white-space:nowrap;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .session-mode-banner > strong{
+    grid-area:title;
+    margin:0!important;
+    font-size:1rem!important;
+    line-height:1.15!important;
+    min-width:0;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .session-mode-banner > small{
+    grid-area:progress;
+    margin:0!important;
+    font-size:.72rem!important;
+    line-height:1.15!important;
+    white-space:nowrap;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .session-mode-banner > button{
+    grid-area:action;
+    min-height:34px!important;
+    padding:6px 12px!important;
+    white-space:nowrap;
+  }
+
+  /* barra +Exercicio / +Bloco / escopo de alteracao */
+  .content.narrow:has(.session-mode-banner) > .hero-actions{
+    margin:0 0 6px!important;
+    padding:7px 10px!important;
+    min-height:0!important;
+    gap:7px!important;
+    align-items:center!important;
+    border-radius:12px!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .hero-actions button{
+    min-height:34px!important;
+    padding:6px 11px!important;
+    font-size:.78rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .hero-actions > small.muted{
+    display:none!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) > .hero-actions label,
+  .content.narrow:has(.session-mode-banner) > .hero-actions div{
+    margin-top:0!important;
+    margin-bottom:0!important;
+  }
+
+  /* grupos mais proximos */
+  .content.narrow:has(.session-mode-banner) .session-list{
+    gap:7px!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-group.combined{
+    border-radius:12px!important;
+    border-left-width:4px!important;
+    box-shadow:none!important;
+  }
+
+  /* cabecalho do bi/tri-set bem baixo */
+  .content.narrow:has(.session-mode-banner) .planned-sequence-header{
+    min-height:0!important;
+    padding:5px 10px!important;
+    gap:8px!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-sequence-heading{
+    gap:7px!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-sequence-heading > span{
+    padding:3px 7px!important;
+    font-size:.62rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-sequence-heading > strong{
+    font-size:.72rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-sequence-header > small{
+    font-size:.64rem!important;
+  }
+
+  /* A1/A2 ja deixa a sequencia clara; rodape repetitivo sai no desktop */
+  .content.narrow:has(.session-mode-banner) .planned-sequence-footer{
+    display:none!important;
+  }
+
+  /* cada exercicio vira uma faixa operacional compacta */
+  .content.narrow:has(.session-mode-banner) .session-exercise.planned-row,
+  .content.narrow:has(.session-mode-banner) .planned-exercise-group.single .session-exercise.planned-row,
+  .content.narrow:has(.session-mode-banner) .planned-exercise-group.combined .session-exercise.planned-row{
+    grid-template-columns:52px minmax(0,1fr)!important;
+    gap:7px!important;
+    align-items:center!important;
+    padding:6px 9px!important;
+    min-height:0!important;
+    border-radius:0!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .session-exercise.planned-row > .exercise-check{
+    min-height:0!important;
+    padding:0!important;
+    gap:4px!important;
+    align-self:center!important;
+    font-size:.67rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .exercise-check input{
+    width:17px!important;
+    height:17px!important;
+  }
+
+  /* nome | series/reps/carga | observacao | acoes na mesma faixa */
+  .content.narrow:has(.session-mode-banner) .planned-exercise-main{
+    min-width:0;
+    display:grid!important;
+    grid-template-columns:minmax(300px,1.65fr) minmax(250px,1fr) minmax(250px,1.15fr) minmax(72px,.32fr)!important;
+    grid-template-rows:auto auto!important;
+    grid-template-areas:
+      "title fields note actions"
+      "last  fields note actions"!important;
+    column-gap:8px!important;
+    row-gap:3px!important;
+    align-items:center!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-title-line{
+    grid-area:title;
+    grid-template-columns:44px minmax(0,1fr)!important;
+    gap:6px!important;
+    align-items:center!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-sequence-code{
+    width:40px!important;
+    min-width:40px!important;
+    min-height:32px!important;
+    border-radius:8px!important;
+    font-size:.68rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-block-input{
+    width:70px!important;
+    max-width:70px!important;
+    min-height:34px!important;
+    height:34px!important;
+    padding:0 6px!important;
+    font-size:.72rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-name{
+    min-height:34px!important;
+    height:34px!important;
+    padding:0 9px!important;
+    font-size:.90rem!important;
+    line-height:1!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .last-load-inline{
+    grid-area:last;
+    min-width:0;
+    margin:0!important;
+    padding:2px 6px!important;
+    border-radius:6px!important;
+    font-size:.64rem!important;
+    line-height:1.15!important;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-fields-core{
+    grid-area:fields;
+    display:grid!important;
+    grid-template-columns:64px 82px minmax(105px,1fr)!important;
+    gap:5px!important;
+    align-items:center!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-fields-core input{
+    min-height:34px!important;
+    height:34px!important;
+    padding:0 7px!important;
+    font-size:.80rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-observation{
+    grid-area:note;
+    display:block!important;
+    margin:0!important;
+    min-width:0;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-observation > span{
+    display:none!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-observation input{
+    min-height:34px!important;
+    height:34px!important;
+    padding:0 9px!important;
+    font-size:.78rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-actions{
+    grid-area:actions;
+    margin:0!important;
+    gap:1px!important;
+    align-self:center!important;
+    justify-content:flex-end!important;
+    flex-direction:column!important;
+    flex-wrap:nowrap!important;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-actions .danger-link{
+    min-height:auto!important;
+    padding:2px 3px!important;
+    font-size:.56rem!important;
+    line-height:1.05!important;
+    opacity:.42!important;
+    white-space:nowrap;
+  }
+
+  .content.narrow:has(.session-mode-banner) .planned-exercise-actions .danger-link:hover{
+    opacity:1!important;
+  }
+
+  /* o botao Excluir bloco deixa de flutuar sobre o cabecalho */
+  .content.narrow:has(.session-mode-banner)
+  .planned-exercise-group.combined
+  .planned-sequence-items
+  .session-exercise:first-child
+  .planned-exercise-actions
+  .danger-link:nth-child(2){
+    position:static!important;
+    z-index:auto!important;
+    top:auto!important;
+    right:auto!important;
+    min-height:auto!important;
+    padding:2px 3px!important;
+    background:transparent!important;
+    font-size:.56rem!important;
+  }
+
+  .content.narrow:has(.session-mode-banner)
+  .planned-exercise-group.combined
+  .planned-sequence-header{
+    padding-right:10px!important;
+  }
+}
+
+/* desktop intermediario: preserva a densidade sem esmagar campos */
+@media (min-width:1100px) and (max-width:1320px){
+  .content.narrow:has(.session-mode-banner) .planned-exercise-main{
+    grid-template-columns:minmax(250px,1.45fr) minmax(220px,.95fr) minmax(210px,1fr) minmax(68px,.30fr)!important;
+  }
+}
