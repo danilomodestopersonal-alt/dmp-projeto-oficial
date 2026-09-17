@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
-import { KidsReplacementBalanceOverview, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
+import { KidsReplacementBalanceOverview, KidsReplacementOperationSummary, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
 import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
 import {
   createKidsSeed,
@@ -703,6 +703,7 @@ const relatedGroup = lessonGroup(next);
               <button onClick={() => {setVacanciesOnly(true);setTab("classes");}}><small>Vagas disponíveis</small><strong>{totalVacancies}</strong><span>{occupancy}% de ocupação média</span></button>
             </div>
           </section>
+          <KidsReplacementOperationSummary data={data} />
           <section className={styles.capacityPanel}>
             <div className={styles.panelHead}>
               <div>
@@ -2778,6 +2779,7 @@ function kidsReplacementBalanceReportHtml(balance: KidsReplacementBalance) {
 // DMP_KIDS_CORRECAO_PAINEL_ORDEM_V4_20260917
 // DMP_KIDS_REPOSICAO_INDIVIDUAL_SALDO_V6_20260917
 // DMP_KIDS_SELECAO_NIVEL_CORES_V7_20260917
+// DMP_KIDS_VISAO_REAL_REPOSICOES_V8_20260917
 function buildReport(
   data: KidsData,
   kind: "student" | "class",
