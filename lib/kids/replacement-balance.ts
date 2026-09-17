@@ -1,0 +1,168 @@
+import type { KidsClass, KidsData, KidsLesson } from "@/types/kids";
+
+export const KIDS_REPLACEMENT_BALANCE_START = "2026-08-01";
+
+export type KidsReplacementBalanceEvent = {
+  id: string;
+  classId: string;
+  className: string;
+  date: string;
+  type: "DUE" | "REPLACED";
+  source: "CANCELLED_CONTRACTED" | "FIFTH_CLASS";
+  label: string;
+  lessonId: string;
+};
+
+export type KidsReplacementBalance = {
+  classId: string;
+  className: string;
+  due: number;
+  replaced: number;
+  balance: number;
+  events: KidsReplacementBalanceEvent[];
+};
+
+function localDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function effectiveStart(data: KidsData) {
+  return data.semesterStart && data.semesterStart > KIDS_REPLACEMENT_BALANCE_START
+    ? data.semesterStart
+    : KIDS_REPLACEMENT_BALANCE_START;
+}
+
+function lessonHeld(lesson: KidsLesson, group: KidsClass) {
+  if (lesson.status === "COMPLETED") return true;
+  if (lesson.status !== "SCHEDULED") return false;
+  const end = group.endTime || group.startTime || "23:59";
+  return new Date(`${lesson.date}T${end}:00`).getTime() <= Date.now();
+}
+
+function latestLessonPerDate(lessons: KidsLesson[]) {
+  const byDate = new Map<string, KidsLesson>();
+  for (const lesson of lessons) {
+    const current = byDate.get(lesson.date);
+    const currentUpdated = String(current?.updatedAt || "");
+    const nextUpdated = String(lesson.updatedAt || "");
+    if (!current || nextUpdated >= currentUpdated) byDate.set(lesson.date, lesson);
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function computeKidsClassReplacementBalance(
+  data: KidsData,
+  classId: string,
+  throughDate = localDateKey(),
+): KidsReplacementBalance {
+  const group = data.classes.find((item) => item.id === classId);
+  const className = group?.name || "Turma";
+  if (!group) return { classId, className, due: 0, replaced: 0, balance: 0, events: [] };
+
+  const start = effectiveStart(data);
+  const regularLessons = latestLessonPerDate(
+    data.lessons.filter(
+      (lesson) =>
+        lesson.classId === classId &&
+        lesson.kind !== "REPLACEMENT" &&
+        lesson.date >= start &&
+        lesson.date <= throughDate,
+    ),
+  );
+
+  const byMonth = new Map<string, KidsLesson[]>();
+  for (const lesson of regularLessons) {
+    const month = lesson.date.slice(0, 7);
+    const bucket = byMonth.get(month) || [];
+    bucket.push(lesson);
+    byMonth.set(month, bucket);
+  }
+
+  const events: KidsReplacementBalanceEvent[] = [];
+  for (const monthLessons of byMonth.values()) {
+    monthLessons.sort((a, b) => a.date.localeCompare(b.date));
+    monthLessons.forEach((lesson, index) => {
+      if (index < 4) {
+        if (lesson.status === "CANCELLED") {
+          events.push({
+            id: `${classId}-${lesson.date}-due`,
+            classId,
+            className,
+            date: lesson.date,
+            type: "DUE",
+            source: "CANCELLED_CONTRACTED",
+            label: "Aula regular cancelada",
+            lessonId: lesson.id,
+          });
+        }
+        return;
+      }
+
+      // O pacote mensal cobre quatro aulas. A 5ª ocorrência só vira crédito se aconteceu.
+      // Se a 5ª for cancelada/feriado, não gera crédito e também não cria nova dívida.
+      if (lessonHeld(lesson, group)) {
+        events.push({
+          id: `${classId}-${lesson.date}-replaced`,
+          classId,
+          className,
+          date: lesson.date,
+          type: "REPLACED",
+          source: "FIFTH_CLASS",
+          label: "5ª aula do mês · aula reposta",
+          lessonId: lesson.id,
+        });
+      }
+    });
+  }
+
+  events.sort((a, b) => b.date.localeCompare(a.date) || a.type.localeCompare(b.type));
+  const due = events.filter((item) => item.type === "DUE").length;
+  const replaced = events.filter((item) => item.type === "REPLACED").length;
+  return { classId, className, due, replaced, balance: replaced - due, events };
+}
+
+export function computeKidsReplacementBalances(data: KidsData, throughDate = localDateKey()) {
+  return data.classes
+    .map((group) => computeKidsClassReplacementBalance(data, group.id, throughDate))
+    .sort((a, b) => a.className.localeCompare(b.className, "pt-BR"));
+}
+
+export function computeKidsStudentReplacementBalance(
+  data: KidsData,
+  studentId: string,
+  throughDate = localDateKey(),
+): KidsReplacementBalance {
+  const memberships = data.classes.flatMap((group) =>
+    group.students
+      .filter((student) => student.id === studentId)
+      .map((student) => ({ group, student })),
+  );
+
+  const events = memberships.flatMap(({ group, student }) => {
+    const start = student.startDate || data.semesterStart || KIDS_REPLACEMENT_BALANCE_START;
+    return computeKidsClassReplacementBalance(data, group.id, throughDate).events.filter(
+      (event) => event.date >= start,
+    );
+  });
+
+  const unique = new Map<string, KidsReplacementBalanceEvent>();
+  for (const event of events) unique.set(`${event.classId}:${event.date}:${event.type}`, event);
+  const ordered = [...unique.values()].sort(
+    (a, b) => b.date.localeCompare(a.date) || a.className.localeCompare(b.className, "pt-BR"),
+  );
+  const due = ordered.filter((item) => item.type === "DUE").length;
+  const replaced = ordered.filter((item) => item.type === "REPLACED").length;
+
+  return {
+    classId: `student:${studentId}`,
+    className: "Saldo da criança",
+    due,
+    replaced,
+    balance: replaced - due,
+    events: ordered,
+  };
+}
+
+export function kidsBalanceSigned(value: number) {
+  return value > 0 ? `+${value}` : String(value);
+}

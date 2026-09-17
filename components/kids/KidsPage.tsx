@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
+import { KidsReplacementBalanceOverview, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
+import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
 import {
   createKidsSeed,
   kidsClassName,
@@ -1012,6 +1014,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
             <div><h2>Controle de reposições</h2><p>Créditos individuais, aulas agendadas e histórico de utilização.</p></div>
             <button className={styles.primary} onClick={()=>setShowReplacementForm(true)}>+ Aula avulsa de reposição</button>
           </div>
+          <KidsReplacementBalanceOverview data={data!} />
           <ReplacementBoard replacements={data.replacements||[]} students={allKids}/>
         </section>
       ) : null}
@@ -2449,6 +2452,7 @@ function StudentEditor({
             </article>):<p>Nenhum registro disponível para este semestre.</p>}
           </div>
         </section>
+        <KidsStudentReplacementBalance data={{ ...data, classes: draft }} studentId={studentId} />
         <h3>
           Reposições da criança (
           {credits.filter((item) => item.status !== "COMPLETED").length}{" "}
@@ -2719,6 +2723,16 @@ function buildKidsFinancialReport(data:KidsData,finance:FinanceData|null):Report
 
   return {title:"Conferência financeira Kids",subtitle:`Competência: ${label}`,body,text};
 }
+function kidsReplacementBalanceReportHtml(balance: KidsReplacementBalance) {
+  const due = balance.events.filter((item) => item.type === "DUE");
+  const replaced = balance.events.filter((item) => item.type === "REPLACED");
+  const renderRows = (items: typeof balance.events) => items.length
+    ? items.map((item) => `<li><b>${formatDate(item.date)}</b> — ${escapeHtml(item.className)} · ${escapeHtml(item.label)}</li>`).join("")
+    : "<li>Nenhum registro.</li>";
+  return `<h3>Saldo de reposições</h3><div class="metrics"><b>${balance.due}<small>Aulas a repor</small></b><b>${balance.replaced}<small>Aulas repostas</small></b><b>${kidsBalanceSigned(balance.balance)}<small>Saldo</small></b></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px"><div><h4>A repor</h4><ul>${renderRows(due)}</ul></div><div><h4>Repostas</h4><ul>${renderRows(replaced)}</ul></div></div>`;
+}
+
+// DMP_KIDS_SALDO_REPOSICOES_20260917
 function buildReport(
   data: KidsData,
   kind: "student" | "class",
@@ -2761,7 +2775,9 @@ function buildReport(
       .sort((a, b) => b.date.localeCompare(a.date))
       .map((item) => `<li><b>${formatDate(item.date)}</b> — ${item.status === "SCHEDULED" && lessonHasPassed(item, [group]) ? "Realizada" : statusLabel[item.status]}${item.theme ? ` — ${escapeHtml(item.theme)}` : ""}</li>`)
       .join("");
-    const body = `<div class="metrics"><b>${completed.length}<small>Aulas realizadas</small></b><b>${cancelled.length}<small>Canceladas</small></b><b>${holiday.length}<small>Feriados</small></b><b>${lessons.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><table><thead><tr><th>Aluno</th><th>Presenças</th><th>Faltas</th><th>Frequência</th></tr></thead><tbody>${rows}</tbody></table><h3>Histórico das aulas</h3><ul>${history || "<li>Nenhuma aula no período.</li>"}</ul>`;
+    const classReplacementBalance = computeKidsClassReplacementBalance(data, id);
+    const baseBody = `<div class="metrics"><b>${completed.length}<small>Aulas realizadas</small></b><b>${cancelled.length}<small>Canceladas</small></b><b>${holiday.length}<small>Feriados</small></b><b>${lessons.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><table><thead><tr><th>Aluno</th><th>Presenças</th><th>Faltas</th><th>Frequência</th></tr></thead><tbody>${rows}</tbody></table><h3>Histórico das aulas</h3><ul>${history || "<li>Nenhuma aula no período.</li>"}</ul>`;
+    const body = `${kidsReplacementBalanceReportHtml(classReplacementBalance)}${baseBody}`;
     return {
       title: group.name,
       subtitle: `Bola ${categoryLabel[group.category]} · ${weekdayLabel[group.weekday]}, ${group.startTime}`,
@@ -2811,7 +2827,9 @@ function buildReport(
         `<li><b>${formatDate(item.date)}</b> — ${item.status === "SCHEDULED" && lessonHasPassed(item, data.classes) ? "Realizada" : statusLabel[item.status]}${item.theme ? ` — ${escapeHtml(item.theme)}` : ""}${item.objective ? `<br>${escapeHtml(item.objective)}` : ""}</li>`,
     )
     .join("");
-  const body = `<div class="metrics"><b>${present}<small>Presenças</small></b><b>${absent}<small>Faltas</small></b><b>${cancelled}<small>Aulas canceladas</small></b><b>${rate}%<small>Frequência</small></b><b>${replacements.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><h3>Turmas</h3><p>${occurrences.map((item) => escapeHtml(item.group.name)).join(" · ")}</p><h3>Objetivos e conteúdos</h3><ul>${contents || "<li>Nenhum conteúdo registrado.</li>"}</ul>`;
+  const studentReplacementBalance = computeKidsStudentReplacementBalance(data, id);
+    const baseBody = `<div class="metrics"><b>${present}<small>Presenças</small></b><b>${absent}<small>Faltas</small></b><b>${cancelled}<small>Aulas canceladas</small></b><b>${rate}%<small>Frequência</small></b><b>${replacements.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><h3>Turmas</h3><p>${occurrences.map((item) => escapeHtml(item.group.name)).join(" · ")}</p><h3>Objetivos e conteúdos</h3><ul>${contents || "<li>Nenhum conteúdo registrado.</li>"}</ul>`;
+    const body = `${kidsReplacementBalanceReportHtml(studentReplacementBalance)}${baseBody}`;
   return {
     title: `Relatório de ${name}`,
     subtitle: `Período: ${formatDate(data.semesterStart)} a ${formatDate(data.semesterEnd)}`,

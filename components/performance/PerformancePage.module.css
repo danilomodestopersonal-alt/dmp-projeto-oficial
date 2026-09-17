@@ -200,3 +200,10 @@
   height:1.05em;
   vertical-align:-.18em;
 }
+
+/* DMP_PERFORMANCE_HALTER_BRANCO_CALENDARIO_20260917
+   Somente o halter dentro do calendario fica branco. O restante do calendario permanece inalterado. */
+.calendarDayActivities .dmpDumbbellIcon{
+  color:#fff!important;
+  fill:#fff!important;
+}
