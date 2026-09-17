@@ -662,7 +662,12 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       </section>
     );
 
-  const semesterCancelled=lessons.filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd&&item.status==="CANCELLED").length;
+  const semesterLessons=lessons.filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd&&item.status!=="HOLIDAY");
+  const semesterCompleted=semesterLessons.filter(item=>item.status==="COMPLETED"||(item.status==="SCHEDULED"&&lessonHasPassed(item,classes))).length;
+  const semesterCancelled=semesterLessons.filter(item=>item.status==="CANCELLED").length;
+  const semesterScheduled=semesterLessons.length;
+  const totalVacancies=Math.max(0,capacity-occupied);
+  const occupancy=capacity?Math.round((occupied/capacity)*100):0;
   const activeClassesByCapacity=classes.filter(item=>item.active).map(item=>{
     const classCapacity=item.category==="RED"||item.category==="ORANGE"?6:4;
     const enrolled=item.students.filter(student=>student.active).length;
@@ -728,7 +733,11 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
               <button onClick={() => openAgenda("ALL")}>Abrir agenda do semestre</button>
             </div>
             <div className={styles.semesterStats}>
-              <button onClick={() => openAgenda("CANCELLED")}><small>Aulas canceladas</small><strong>{semesterCancelled}</strong></button>
+              <button onClick={() => setTab("students")}><small>Alunos ativos</small><strong>{allKids.length}</strong><span>cadastros ativos</span></button>
+              <button onClick={() => {setVacanciesOnly(false);setTab("classes");}}><small>Turmas ativas</small><strong>{classes.filter(item=>item.active).length}</strong><span>{occupied}/{capacity} vagas ocupadas</span></button>
+              <button onClick={() => openAgenda("COMPLETED")}><small>Aulas realizadas</small><strong>{semesterCompleted}</strong><span>de {semesterScheduled} previstas</span></button>
+              <button onClick={() => openAgenda("CANCELLED")}><small>Aulas canceladas</small><strong>{semesterCancelled}</strong><span>feriados não entram</span></button>
+              <button onClick={() => {setVacanciesOnly(true);setTab("classes");}}><small>Vagas disponíveis</small><strong>{totalVacancies}</strong><span>{occupancy}% de ocupação média</span></button>
             </div>
           </section>
           <section className={styles.capacityPanel}>
@@ -2693,6 +2702,7 @@ function kidsReplacementBalanceReportHtml(balance: KidsReplacementBalance) {
 
 // DMP_KIDS_SALDO_REPOSICOES_20260917
 // DMP_KIDS_VISUAL_REPOSICOES_V2_20260917
+// DMP_KIDS_CORRECAO_PAINEL_ORDEM_V4_20260917
 function buildReport(
   data: KidsData,
   kind: "student" | "class",

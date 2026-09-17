@@ -25,6 +25,23 @@ function normalizeSearch(value: string) {
     .trim();
 }
 
+const KIDS_WEEKDAY_ORDER = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
+
+function classScheduleOrder(name: string) {
+  const normalized = normalizeSearch(name);
+  const foundDay = KIDS_WEEKDAY_ORDER.findIndex(day => normalized.includes(day));
+  const timeMatch = normalized.match(/(?:^|[,\s])(\d{1,2})(?::(\d{2}))?\s*h\b/);
+  const hour = timeMatch ? Number(timeMatch[1]) : 99;
+  const minute = timeMatch?.[2] ? Number(timeMatch[2]) : 0;
+  return { day: foundDay >= 0 ? foundDay : 99, minutes: hour * 60 + minute };
+}
+
+function compareClassSchedule(a: string, b: string) {
+  const left = classScheduleOrder(a);
+  const right = classScheduleOrder(b);
+  return left.day - right.day || left.minutes - right.minutes || a.localeCompare(b, "pt-BR");
+}
+
 function EventList({title,events,empty}:{title:string;events:KidsReplacementBalanceEvent[];empty:string}) {
   return <div className={styles.eventColumn}>
     <strong>{title} <span>{events.length}</span></strong>
@@ -51,7 +68,8 @@ export function KidsReplacementBalanceOverview({data}:{data:KidsData}) {
   const [search,setSearch]=useState("");
   const [expanded,setExpanded]=useState<string|null>(null);
   const balances = computeKidsReplacementBalances(data)
-    .filter(item => data.classes.find(group => group.id === item.classId)?.active !== false || item.events.length > 0);
+    .filter(item => data.classes.find(group => group.id === item.classId)?.active !== false || item.events.length > 0)
+    .sort((a,b)=>compareClassSchedule(a.className,b.className));
   const total: KidsReplacementBalance = {
     classId: "all",
     className: "Todas as turmas",
