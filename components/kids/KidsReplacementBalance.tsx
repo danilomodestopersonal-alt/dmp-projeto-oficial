@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { KidsData } from "@/types/kids";
 import {
   KIDS_REPLACEMENT_BALANCE_START,
@@ -14,6 +15,14 @@ import styles from "./KidsReplacementBalance.module.css";
 function fmtDate(value: string) {
   const [year, month, day] = value.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function EventList({title,events,empty}:{title:string;events:KidsReplacementBalanceEvent[];empty:string}) {
@@ -38,19 +47,9 @@ function Metrics({balance}:{balance:KidsReplacementBalance}) {
   </div>;
 }
 
-function BalanceDetails({balance}:{balance:KidsReplacementBalance}) {
-  const due = balance.events.filter(item => item.type === "DUE");
-  const replaced = balance.events.filter(item => item.type === "REPLACED");
-  return <>
-    <Metrics balance={balance}/>
-    <div className={styles.twoColumns}>
-      <EventList title="A repor" events={due} empty="Nenhuma aula a repor."/>
-      <EventList title="Repostas" events={replaced} empty="Nenhuma aula reposta ainda."/>
-    </div>
-  </>;
-}
-
 export function KidsReplacementBalanceOverview({data}:{data:KidsData}) {
+  const [search,setSearch]=useState("");
+  const [expanded,setExpanded]=useState<string|null>(null);
   const balances = computeKidsReplacementBalances(data)
     .filter(item => data.classes.find(group => group.id === item.classId)?.active !== false || item.events.length > 0);
   const total: KidsReplacementBalance = {
@@ -61,6 +60,11 @@ export function KidsReplacementBalanceOverview({data}:{data:KidsData}) {
     balance: balances.reduce((sum,item)=>sum+item.balance,0),
     events: balances.flatMap(item=>item.events).sort((a,b)=>b.date.localeCompare(a.date)),
   };
+  const filtered=useMemo(()=>{
+    const query=normalizeSearch(search);
+    if(!query)return balances;
+    return balances.filter(balance=>normalizeSearch(balance.className).includes(query));
+  },[balances,search]);
 
   return <section className={styles.overview}>
     <div className={styles.heading}>
@@ -71,11 +75,32 @@ export function KidsReplacementBalanceOverview({data}:{data:KidsData}) {
       </div>
     </div>
     <Metrics balance={total}/>
-    <div className={styles.classGrid}>
-      {balances.map(balance => <article className={styles.classCard} key={balance.classId}>
-        <header><strong>{balance.className}</strong><small>Saldo {kidsBalanceSigned(balance.balance)}</small></header>
-        <BalanceDetails balance={balance}/>
-      </article>)}
+    <label className={styles.searchBox}>
+      <span>⌕</span>
+      <input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Pesquisar aula, dia ou horário..." autoComplete="off" />
+    </label>
+    <div className={styles.compactList}>
+      <div className={styles.listHeader}>
+        <span>Aula</span><span>A repor</span><span>Repostas</span><span>Saldo</span><span></span>
+      </div>
+      {filtered.length ? filtered.map(balance=>{
+        const open=expanded===balance.classId;
+        const due=balance.events.filter(item=>item.type==="DUE");
+        const replaced=balance.events.filter(item=>item.type==="REPLACED");
+        return <article className={styles.classLine} key={balance.classId}>
+          <button type="button" className={styles.classLineButton} onClick={()=>setExpanded(current=>current===balance.classId?null:balance.classId)} aria-expanded={open}>
+            <strong>{balance.className}</strong>
+            <span>{balance.due}</span>
+            <span>{balance.replaced}</span>
+            <b className={balance.balance>0?styles.balancePositive:balance.balance<0?styles.balanceNegative:styles.balanceNeutral}>{kidsBalanceSigned(balance.balance)}</b>
+            <i>{open?"−":"+"}</i>
+          </button>
+          {open?<div className={styles.lineDetails}>
+            <EventList title="A repor" events={due} empty="Nenhuma aula a repor."/>
+            <EventList title="Repostas" events={replaced} empty="Nenhuma aula reposta ainda."/>
+          </div>:null}
+        </article>;
+      }):<div className={styles.noResults}>Nenhuma aula encontrada para “{search}”.</div>}
     </div>
   </section>;
 }
@@ -85,11 +110,26 @@ export function KidsStudentReplacementBalance({data,studentId}:{data:KidsData;st
   return <section className={styles.studentBox}>
     <div className={styles.heading}>
       <div>
-        <span>REPOSIÇÕES DA TURMA</span>
-        <h3>Saldo de aulas da criança</h3>
-        <p>O crédito pertence à turma: uma 5ª aula realizada conta mesmo se a criança faltou.</p>
+        <span>CONTROLE DE AULAS</span>
+        <h3>Canceladas e reposições da criança</h3>
+        <p>A reposição pertence à turma e conta mesmo quando a criança faltou no dia.</p>
       </div>
     </div>
-    <BalanceDetails balance={balance}/>
+    <div className={styles.studentMetrics}>
+      <div><span>Aulas canceladas</span><strong>{balance.due}</strong></div>
+      <div><span>Reposições feitas</span><strong>{balance.replaced}</strong></div>
+      <div className={balance.balance > 0 ? styles.positive : balance.balance < 0 ? styles.negative : styles.neutral}>
+        <span>Saldo</span><strong>{kidsBalanceSigned(balance.balance)}</strong>
+      </div>
+    </div>
+    <div className={styles.historyTable}>
+      <div className={styles.historyHead}><span>Data</span><span>Turma</span><span>Tipo</span><span>Observação</span></div>
+      {balance.events.length ? balance.events.map(event=><div className={styles.historyRow} key={event.id}>
+        <time>{fmtDate(event.date)}</time>
+        <strong>{event.className}</strong>
+        <span className={event.type==="DUE"?styles.typeCancelled:styles.typeReplaced}>{event.type==="DUE"?"Cancelada":"Reposta"}</span>
+        <small>{event.label}</small>
+      </div>):<div className={styles.noHistory}>Nenhuma aula cancelada ou reposta desde agosto.</div>}
+    </div>
   </section>;
 }

@@ -795,7 +795,7 @@
 }
 .semesterStats {
   display:grid;
-  grid-template-columns:repeat(6,minmax(0,1fr));
+  grid-template-columns:minmax(220px,320px);
   gap:10px;
 }
 .semesterStats button {

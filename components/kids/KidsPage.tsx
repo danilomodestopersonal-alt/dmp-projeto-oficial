@@ -627,7 +627,6 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
         total + item.students.filter((student) => student.active).length,
       0,
     );
-  const occupancy = capacity ? Math.round((occupied / capacity) * 100) : 0;
   const displayedLessons = (
     agendaFilter === "ALL"
       ? monthLessons
@@ -663,13 +662,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       </section>
     );
 
-  const semesterLessons=lessons.filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd&&item.status!=="HOLIDAY");
-  const semesterCompleted=semesterLessons.filter(item=>item.status==="COMPLETED"||(item.status==="SCHEDULED"&&lessonHasPassed(item,classes))).length;
-  const semesterCancelled=semesterLessons.filter(item=>item.status==="CANCELLED").length;
-  const semesterScheduled=semesterLessons.length;
-  const replacementPending=(data.replacements||[]).filter(item=>item.status==="PENDING").length;
-  const replacementCompleted=(data.replacements||[]).filter(item=>item.status==="COMPLETED").length;
-  const totalVacancies=Math.max(0,capacity-occupied);
+  const semesterCancelled=lessons.filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd&&item.status==="CANCELLED").length;
   const activeClassesByCapacity=classes.filter(item=>item.active).map(item=>{
     const classCapacity=item.category==="RED"||item.category==="ORANGE"?6:4;
     const enrolled=item.students.filter(student=>student.active).length;
@@ -735,12 +728,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
               <button onClick={() => openAgenda("ALL")}>Abrir agenda do semestre</button>
             </div>
             <div className={styles.semesterStats}>
-              <button onClick={() => setTab("students")}><small>Alunos ativos</small><strong>{allKids.length}</strong><span>cadastros ativos</span></button>
-              <button onClick={() => {setVacanciesOnly(false);setTab("classes");}}><small>Turmas ativas</small><strong>{classes.filter(item=>item.active).length}</strong><span>{occupied}/{capacity} vagas ocupadas</span></button>
-              <button onClick={() => openAgenda("COMPLETED")}><small>Aulas realizadas</small><strong>{semesterCompleted}</strong><span>de {semesterScheduled} previstas</span></button>
-              <button onClick={() => openAgenda("CANCELLED")}><small>Canceladas reais</small><strong>{semesterCancelled}</strong><span>feriados não entram</span></button>
-              <button onClick={() => setTab("replacements")}><small>Reposições</small><strong>{replacementPending}</strong><span>{replacementCompleted} concluídas</span></button>
-              <button onClick={() => {setVacanciesOnly(true);setTab("classes");}}><small>Vagas disponíveis</small><strong>{totalVacancies}</strong><span>{occupancy}% de ocupação média</span></button>
+              <button onClick={() => openAgenda("CANCELLED")}><small>Aulas canceladas</small><strong>{semesterCancelled}</strong></button>
             </div>
           </section>
           <section className={styles.capacityPanel}>
@@ -2453,35 +2441,6 @@ function StudentEditor({
           </div>
         </section>
         <KidsStudentReplacementBalance data={{ ...data, classes: draft }} studentId={studentId} />
-        <h3>
-          Reposições da criança (
-          {credits.filter((item) => item.status !== "COMPLETED").length}{" "}
-          pendentes)
-        </h3>
-        <div className={styles.lessonList}>
-          {credits.length ? (
-            credits.map((item) => (
-              <article key={item.id} className={styles.lessonRow}>
-                <span>
-                  <strong>
-                    {formatDate(item.sourceDate)} · {item.reason}
-                  </strong>
-                  <small>
-                    {item.status === "COMPLETED"
-                      ? `Reposta em ${formatDate(item.completedDate || item.scheduledDate || item.sourceDate)}`
-                      : item.status === "SCHEDULED"
-                        ? `Agendada para ${formatDate(item.scheduledDate || item.sourceDate)}`
-                        : "Pendente"}
-                  </small>
-                </span>
-              </article>
-            ))
-          ) : (
-            <p>Nenhuma reposição registrada.</p>
-          )}
-        </div>
-        <h3>Aulas canceladas da criança ({cancelledLessons.length})</h3>
-        <div className={styles.lessonList}>{cancelledLessons.length?cancelledLessons.map(lesson=><article key={lesson.id} className={styles.lessonRow}><span><strong>{formatDate(lesson.date)} · {groupName(classes,lesson.classId)}</strong><small>{cancelReasonText(lesson)||lesson.notes||"Aula cancelada"}{lesson.notes&&cancelReasonText(lesson)?` · ${lesson.notes}`:""}{lesson.replacementEligible?" · com direito à reposição":" · sem reposição"}</small></span></article>):<p>Nenhuma aula cancelada registrada.</p>}</div>
         <h3>Turmas da criança</h3>
         <div className={styles.enrollmentList}>
           {memberships.map((group) => {
@@ -2733,6 +2692,7 @@ function kidsReplacementBalanceReportHtml(balance: KidsReplacementBalance) {
 }
 
 // DMP_KIDS_SALDO_REPOSICOES_20260917
+// DMP_KIDS_VISUAL_REPOSICOES_V2_20260917
 function buildReport(
   data: KidsData,
   kind: "student" | "class",
