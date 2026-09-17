@@ -1199,6 +1199,7 @@ function ReplacementBoard({replacements,students}:{replacements:KidsReplacement[
 }
 
 
+
 function ReplacementLessonForm({
   replacements,
   students,
@@ -1226,9 +1227,20 @@ function ReplacementLessonForm({
   const activeClasses=classes.filter(item=>item.active).sort((a,b)=>localeCompare(a.name,b.name));
   const activeStudents=students.filter(item=>item.active).sort((a,b)=>localeCompare(a.name,b.name));
   const destinationClass=activeClasses.find(item=>item.id===classId);
+  const selectedCategory=destinationClass?.category||category;
+  const levelStudentIds=Array.from(new Set(
+    classes
+      .filter(group=>group.active&&group.category===selectedCategory)
+      .flatMap(group=>group.students.filter(student=>student.active).map(student=>student.id))
+  ));
+  const selectedLevelCount=levelStudentIds.filter(id=>selected.includes(id)).length;
 
   function toggleStudent(id:string) {
     setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);
+  }
+
+  function selectAllLevel() {
+    setSelected(levelStudentIds);
   }
 
   function save() {
@@ -1237,7 +1249,7 @@ function ReplacementLessonForm({
       date,
       startTime:destinationClass?.startTime||startTime,
       endTime:destinationClass?.endTime||endTime,
-      category:destinationClass?.category||category,
+      category:selectedCategory,
       studentIds:selected,
       classId:destinationClass?.id,
     });
@@ -1256,7 +1268,7 @@ function ReplacementLessonForm({
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:12}}>
         <label style={{gridColumn:"1 / -1"}}>
           Turma onde fará a reposição
-          <select value={classId} onChange={event=>setClassId(event.target.value)}>
+          <select value={classId} onChange={event=>{setClassId(event.target.value);setSelected([]);}}>
             <option value="">Aula avulsa / sem turma específica</option>
             {activeClasses.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
@@ -1267,7 +1279,7 @@ function ReplacementLessonForm({
         </label>
         {!destinationClass?<label>
           Bola
-          <select value={category} onChange={event=>setCategory(event.target.value as KidsCategory)}>
+          <select value={category} onChange={event=>{setCategory(event.target.value as KidsCategory);setSelected([]);}}>
             <option value="RED">Vermelha</option>
             <option value="ORANGE">Laranja</option>
             <option value="GREEN">Verde</option>
@@ -1287,8 +1299,20 @@ function ReplacementLessonForm({
         </label></>:null}
       </div>
 
-      <h3>Crianças convidadas ({selected.length})</h3>
-      <p className="muted">Pode lançar reposição mesmo com saldo zero ou positivo. A aula vira crédito individual quando for realizada.</p>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginTop:16}}>
+        <div>
+          <h3 style={{margin:0}}>Crianças convidadas ({selected.length})</h3>
+          <p className="muted" style={{margin:"4px 0 0"}}>Pode lançar reposição mesmo com saldo zero ou positivo. Depois de selecionar todos do nível, desmarque individualmente quem não participará.</p>
+        </div>
+        <button type="button" onClick={selectAllLevel} disabled={!levelStudentIds.length}>
+          Selecionar todos da Bola {categoryLabel[selectedCategory]} ({levelStudentIds.length})
+        </button>
+      </div>
+
+      <div style={{margin:"8px 0 10px",fontSize:13}}>
+        {selectedLevelCount} de {levelStudentIds.length} alunos da Bola {categoryLabel[selectedCategory]} selecionados.
+      </div>
+
       <div className={styles.lessonList} style={{maxHeight:320,overflowY:"auto"}}>
         {activeStudents.map(student=><label key={student.id} className={styles.lessonRow}>
           <span><strong>{student.name}</strong><small>{selected.includes(student.id)?"Selecionada para esta reposição":"Toque para selecionar"}</small></span>
@@ -2753,6 +2777,7 @@ function kidsReplacementBalanceReportHtml(balance: KidsReplacementBalance) {
 // DMP_KIDS_VISUAL_REPOSICOES_V2_20260917
 // DMP_KIDS_CORRECAO_PAINEL_ORDEM_V4_20260917
 // DMP_KIDS_REPOSICAO_INDIVIDUAL_SALDO_V6_20260917
+// DMP_KIDS_SELECAO_NIVEL_CORES_V7_20260917
 function buildReport(
   data: KidsData,
   kind: "student" | "class",

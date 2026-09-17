@@ -42,6 +42,14 @@ function compareClassSchedule(a: string, b: string) {
   return left.day - right.day || left.minutes - right.minutes || a.localeCompare(b, "pt-BR");
 }
 
+function categoryTextColor(category?: string) {
+  if (category === "RED") return "#c62828";
+  if (category === "ORANGE") return "#d85b00";
+  if (category === "GREEN") return "#238b45";
+  if (category === "YELLOW") return "#9a7200";
+  return "inherit";
+}
+
 function EventList({title,events,empty}:{title:string;events:KidsReplacementBalanceEvent[];empty:string}) {
   return <div className={styles.eventColumn}>
     <strong>{title} <span>{events.length}</span></strong>
@@ -105,9 +113,10 @@ export function KidsReplacementBalanceOverview({data}:{data:KidsData}) {
         const open=expanded===balance.classId;
         const due=balance.events.filter(item=>item.type==="DUE");
         const replaced=balance.events.filter(item=>item.type==="REPLACED");
+        const category=data.classes.find(group=>group.id===balance.classId)?.category;
         return <article className={styles.classLine} key={balance.classId}>
           <button type="button" className={styles.classLineButton} onClick={()=>setExpanded(current=>current===balance.classId?null:balance.classId)} aria-expanded={open}>
-            <strong>{balance.className}</strong>
+            <strong style={{color:categoryTextColor(category)}}>{balance.className}</strong>
             <span>{balance.due}</span>
             <span>{balance.replaced}</span>
             <b className={balance.balance>0?styles.balancePositive:balance.balance<0?styles.balanceNegative:styles.balanceNeutral}>{kidsBalanceSigned(balance.balance)}</b>
