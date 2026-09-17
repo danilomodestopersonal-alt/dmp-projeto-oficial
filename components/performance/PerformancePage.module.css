@@ -175,3 +175,28 @@
 .calendarWeekEmpty{margin:0;color:#9aa6ae;font-size:.66rem}
 @media(max-width:760px){.calendarWeekRow{gap:3px}.calendarWeekSummaryStats{grid-template-columns:1fr 1fr}.calendarWeekHint{text-align:left}}
 @media(max-width:460px){.calendarWeekRow{gap:2px;padding:1px}.calendarWeekSummary{padding:10px}.calendarWeekSummaryStats{gap:5px}}
+
+/* DMP_PERFORMANCE_SEM_METAS_ICONES_20260917 */
+.summaryEvolutionOnly{
+  grid-template-columns:1fr!important;
+}
+.dmpActivityEmoji{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+}
+.dmpDumbbellIcon{
+  width:1.35em;
+  height:1.35em;
+  display:inline-block;
+  vertical-align:-.22em;
+  fill:currentColor;
+  color:currentColor;
+  flex:0 0 auto;
+}
+.calendarDayActivities .dmpDumbbellIcon{
+  width:1.05em;
+  height:1.05em;
+  vertical-align:-.18em;
+}

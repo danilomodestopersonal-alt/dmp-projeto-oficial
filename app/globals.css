@@ -7674,3 +7674,71 @@ input:focus,textarea:focus{
 .session-scope-toggle button:disabled{opacity:.45;cursor:not-allowed}
 .session-scope-wrap small{max-width:430px;text-align:right;line-height:1.35}
 @media(max-width:760px){.session-edit-toolbar{display:grid;grid-template-columns:1fr;padding:12px}.session-edit-actions{display:grid!important;grid-template-columns:1fr 1fr;width:100%}.session-scope-wrap{justify-items:stretch;min-width:0}.session-scope-wrap>span{text-align:left}.session-scope-toggle{width:100%}.session-scope-wrap small{text-align:left;max-width:none}}
+
+/* DMP_HOME_COMPACT_SCROLL_20260917
+   Desktop: a faixa superior volta ao tamanho compacto de referencia (215px).
+   Conteudo excedente rola dentro do proprio card, sem alongar a Home. */
+@media(min-width:901px){
+  .today-highlight-grid.todoist-home-grid{
+    align-items:start!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .mini-month,
+  .today-highlight-grid.todoist-home-grid > .todoist-inbox-widget,
+  .today-highlight-grid.todoist-home-grid > .today-summary-card,
+  .today-highlight-grid.todoist-home-grid > .month-closing-today-card,
+  .today-highlight-grid.todoist-home-grid > .performance-today-card{
+    height:215px!important;
+    min-height:215px!important;
+    max-height:215px!important;
+    align-self:start!important;
+    box-sizing:border-box!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .mini-month{
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    scrollbar-width:thin;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .todoist-inbox-widget{
+    display:flex!important;
+    flex-direction:column!important;
+    overflow:hidden!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-head{
+    flex:0 0 auto!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-list{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    padding-right:4px!important;
+  }
+
+  .todoist-inbox-widget .todoist-widget-more{
+    flex:0 0 auto!important;
+    margin-top:4px!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .today-summary-card,
+  .today-highlight-grid.todoist-home-grid > .month-closing-today-card,
+  .today-highlight-grid.todoist-home-grid > .performance-today-card{
+    overflow:hidden!important;
+  }
+
+  .today-highlight-grid.todoist-home-grid > .today-summary-card > div,
+  .today-highlight-grid.todoist-home-grid > .month-closing-today-card > div,
+  .today-highlight-grid.todoist-home-grid > .performance-today-card > div{
+    min-height:0!important;
+    max-height:100%!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    scrollbar-width:thin;
+  }
+}

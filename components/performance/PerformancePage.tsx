@@ -79,12 +79,27 @@ const ACTIVITY_LABELS: Record<PerformanceActivityType, string> = {
 
 const ACTIVITY_ICONS: Record<PerformanceActivityType, string> = {
   CYCLING: "🚴",
-  STRENGTH: "🏋️",
-  PILATES: "🧘",
+  STRENGTH: "",
+  PILATES: "🤸",
   RUNNING: "🏃",
   TENNIS: "🎾",
   OTHER: "⚡",
 };
+
+function DmpActivityIcon({type}:{type:PerformanceActivityType}) {
+  if(type === "STRENGTH") {
+    return <svg className={styles.dmpDumbbellIcon} viewBox="0 0 36 24" aria-hidden="true" focusable="false">
+      <rect x="2" y="7" width="4" height="10" rx="1.4"/>
+      <rect x="7" y="5" width="4" height="14" rx="1.5"/>
+      <rect x="11" y="10.5" width="14" height="3" rx="1.5"/>
+      <rect x="25" y="5" width="4" height="14" rx="1.5"/>
+      <rect x="30" y="7" width="4" height="10" rx="1.4"/>
+    </svg>;
+  }
+  return <span className={styles.dmpActivityEmoji}>{ACTIVITY_ICONS[type]}</span>;
+}
+
+// DMP_PERFORMANCE_SEM_METAS_ICONES_20260917
 
 const CYCLING_KIND_OPTIONS: { value: PerformanceCyclingKind; label: string }[] = [
   { value: "SPEED", label: "Speed / estrada" },
@@ -916,7 +931,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
         <div>
           <p className="dashboard-eyebrow">Seu centro de desempenho</p>
           <h1>Performance</h1>
-          <p>Treinos, evolução, metas, avaliações e recordes em um só lugar.</p>
+          <p>Treinos, evolução, avaliações e recordes em um só lugar.</p>
         </div>
         <div className="hero-actions">
           <button className="primary" onClick={openNewActivity}>+ Registrar atividade</button>
@@ -935,7 +950,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <div className={styles.heroMonthlyList}>
                 {monthByType.length ? monthByType.map(item => (
                   <div className={styles.heroMonthlyItem} key={item.type}>
-                    <span className={styles.heroMonthlyIcon}>{ACTIVITY_ICONS[item.type]}</span>
+                    <span className={styles.heroMonthlyIcon}><DmpActivityIcon type={item.type} /></span>
                     <div>
                       <strong>{ACTIVITY_LABELS[item.type]}</strong>
                       <small>
@@ -1017,7 +1032,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
                             title={`${ACTIVITY_LABELS[type]} — ${activity.title}`}
                             aria-label={`${ACTIVITY_LABELS[type]} em ${fmtDate(cell.date)}: ${activity.title}`}
                           >
-                            {ACTIVITY_ICONS[type]}
+                            <DmpActivityIcon type={type} />
                           </button>;
                         })}
                         {activityTypes.length>3?<small>+{activityTypes.length-3}</small>:null}
@@ -1029,7 +1044,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             </div>
             <div className={styles.calendarLegend}>
               {calendarLegendTypes.length
-                ? calendarLegendTypes.map(type => <span key={type}>{ACTIVITY_ICONS[type]} {ACTIVITY_LABELS[type]}</span>)
+                ? calendarLegendTypes.map(type => <span key={type}><DmpActivityIcon type={type} /> {ACTIVITY_LABELS[type]}</span>)
                 : <span>Sem atividades neste mês</span>}
             </div>
             <div className={styles.calendarWeekHint}>Toque em uma semana para ver o resumo.</div>
@@ -1042,7 +1057,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
                 <span><b>{selectedWeekTotals.count}</b> atividade{selectedWeekTotals.count===1?"":"s"}</span>
                 {selectedWeekCyclingActivities.length?<><span><b>{fmtNumber(selectedWeekCyclingTotals.distance,1)} km</b> ciclismo</span><span><b>{fmtHours(selectedWeekCyclingTotals.minutes)}</b> tempo</span><span><b>{fmtNumber(selectedWeekCyclingTotals.elevation)} m</b> altimetria</span></>:null}
               </div>
-              {selectedWeekByType.length?<div className={styles.calendarWeekSummaryTypes}>{selectedWeekByType.map(item=><span key={item.type}>{ACTIVITY_ICONS[item.type]} {ACTIVITY_LABELS[item.type]} <b>{item.count}</b></span>)}</div>:<p className={styles.calendarWeekEmpty}>Sem atividades registradas nesta semana.</p>}
+              {selectedWeekByType.length?<div className={styles.calendarWeekSummaryTypes}>{selectedWeekByType.map(item=><span key={item.type}><DmpActivityIcon type={item.type} /> {ACTIVITY_LABELS[item.type]} <b>{item.count}</b></span>)}</div>:<p className={styles.calendarWeekEmpty}>Sem atividades registradas nesta semana.</p>}
             </div>:null}
           </section>
         </div>
@@ -1051,7 +1066,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
           {([
             ["summary", "Resumo"],
             ["activities", "Atividades"],
-            ["goals", "Metas"],
+
             ["assessments", "Avaliações"],
             ["records", "Recordes"],
           ] as [Tab, string][]).map(([key, label]) => (
@@ -1070,7 +1085,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} icon="✓" />
             </div>
 
-            <div className={styles.twoColumns}>
+            <div className={`${styles.twoColumns} ${styles.summaryEvolutionOnly}`}>
               <section className={styles.panel}>
                 <div className={styles.panelHeader}>
                   <div><span className={styles.kicker}>EVOLUÇÃO {currentYear}</span><h2>Distância por mês</h2></div>
@@ -1079,13 +1094,6 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
                 <MonthlyBars series={monthlySeries.map(item => item.km)} currentMonth={currentMonth} />
               </section>
 
-              <section className={styles.panel}>
-                <div className={styles.panelHeader}>
-                  <div><span className={styles.kicker}>METAS</span><h2>Progresso atual</h2></div>
-                  <button className="secondary" onClick={() => setTab("goals")}>Ver metas</button>
-                </div>
-                {activeGoals.length ? activeGoals.slice(0, 4).map(goal => <GoalProgress key={goal.id} goal={goal} progress={goalProgress(goal)} />) : <Empty text="Crie sua primeira meta mensal ou anual." action="Criar meta" onClick={openNewGoal} />}
-              </section>
             </div>
 
             <div className={styles.twoColumns}>
@@ -1135,28 +1143,6 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
           </section>
         ) : null}
 
-        {tab === "goals" ? (
-          <section className={styles.panel}>
-            <div className={styles.panelHeaderWrap}>
-              <div><span className={styles.kicker}>PLANEJAMENTO</span><h2>Metas mensais e anuais</h2><p>Transforme consistência em números claros.</p></div>
-              <button className="primary" onClick={openNewGoal}>+ Nova meta</button>
-            </div>
-            <div className={styles.goalGrid}>
-              {activeGoals.length ? activeGoals.map(goal => {
-                const progress = goalProgress(goal);
-                return <article className={styles.goalCard} key={goal.id}>
-                  <div className={styles.goalTop}><span>{goal.activityType ? ACTIVITY_LABELS[goal.activityType] : "Todas as atividades"}</span><strong>{progress.percent}%</strong></div>
-                  <h3>{METRIC_LABELS[goal.metric]}</h3>
-                  <p>{goal.period === "MONTHLY" ? `${MONTHS[(goal.month || 1) - 1]} ${goal.year}` : `Ano ${goal.year}`}</p>
-                  <Progress value={progress.percent} />
-                  <div className={styles.goalValues}><span>{formatMetric(progress.value, goal.metric)}</span><span>de {formatMetric(goal.target, goal.metric)}</span></div>
-                  <div className={styles.rowActions}><button className="secondary" onClick={() => openEditGoal(goal)}>Editar</button><button className={styles.dangerButton} onClick={() => void deleteGoal(goal.id)}>Excluir</button></div>
-                </article>;
-              }) : <Empty text="Nenhuma meta criada ainda." action="Criar primeira meta" onClick={openNewGoal} />}
-            </div>
-          </section>
-        ) : null}
-
         {tab === "assessments" ? (
           <section className={styles.panel}>
             <div className={styles.panelHeaderWrap}>
@@ -1194,7 +1180,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
                   const activities = data.activities.filter(a => a.type === type);
                   if (!activities.length) return null;
                   const best = [...activities].sort((a,b) => (b.distanceKm || 0) - (a.distanceKm || 0))[0];
-                  return <div key={type}><span>{ACTIVITY_ICONS[type]}</span><div><strong>{ACTIVITY_LABELS[type]}</strong><small>{best.distanceKm ? `${fmtNumber(best.distanceKm,1)} km · ${fmtDate(best.date)}` : `${activities.length} atividade${activities.length === 1 ? "" : "s"}`}</small></div></div>;
+                  return <div key={type}><span><DmpActivityIcon type={type} /></span><div><strong>{ACTIVITY_LABELS[type]}</strong><small>{best.distanceKm ? `${fmtNumber(best.distanceKm,1)} km · ${fmtDate(best.date)}` : `${activities.length} atividade${activities.length === 1 ? "" : "s"}`}</small></div></div>;
                 })}
               </div>
             </section>
@@ -1340,7 +1326,7 @@ function formatMetric(value:number,metric:PerformanceGoalMetric) {
 }
 
 function ActivityRow({activity,compact=false,onClick}:{activity:PerformanceActivity;compact?:boolean;onClick?:()=>void}) {
-  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}>{ACTIVITY_ICONS[activity.type]}</div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.type === "CYCLING" ? " · " + cyclingKindLabel(activity.cyclingKind) : ""}{activity.type === "STRENGTH" && activity.strengthSystem ? " · " + strengthSystemLabel(activity.strengthSystem) : ""}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.type === "STRENGTH" && activity.strengthExercises?.length ? <span><strong>{activity.strengthExercises.length}</strong> exercício{activity.strengthExercises.length === 1 ? "" : "s"}</span> : null}{activity.type === "TENNIS" ? <span><strong>{activity.tennisKind === "MATCH" ? "Partida" : "Treino"}</strong>{activity.tennisOpponent ? `vs. ${activity.tennisOpponent}` : ""}</span> : null}{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
+  return <div className={`${styles.activityRow} ${compact ? styles.activityCompact : ""}`} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined} onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}><div className={styles.activityIcon}><DmpActivityIcon type={activity.type} /></div><div className={styles.activityMain}><strong>{activity.title}</strong><span>{fmtDate(activity.date)} · {ACTIVITY_LABELS[activity.type]}{activity.type === "CYCLING" ? " · " + cyclingKindLabel(activity.cyclingKind) : ""}{activity.type === "STRENGTH" && activity.strengthSystem ? " · " + strengthSystemLabel(activity.strengthSystem) : ""}{activity.source === "STRAVA" ? " · Strava" : ""}</span></div><div className={styles.activityMetrics}>{activity.type === "STRENGTH" && activity.strengthExercises?.length ? <span><strong>{activity.strengthExercises.length}</strong> exercício{activity.strengthExercises.length === 1 ? "" : "s"}</span> : null}{activity.type === "TENNIS" ? <span><strong>{activity.tennisKind === "MATCH" ? "Partida" : "Treino"}</strong>{activity.tennisOpponent ? `vs. ${activity.tennisOpponent}` : ""}</span> : null}{activity.distanceKm ? <span><strong>{fmtNumber(activity.distanceKm,1)}</strong> km</span> : null}{activity.durationMinutes ? <span><strong>{fmtHours(activity.durationMinutes)}</strong></span> : null}{activity.averageSpeedKmh ? <span><strong>{fmtNumber(activity.averageSpeedKmh,1)}</strong> km/h</span> : null}{activity.elevationMeters ? <span><strong>{fmtNumber(activity.elevationMeters)}</strong> m ↑</span> : null}</div></div>;
 }
 
 function AssessmentSummary({item}:{item:PerformanceAssessment}) {

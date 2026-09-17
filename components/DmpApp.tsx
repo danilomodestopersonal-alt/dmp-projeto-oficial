@@ -2468,7 +2468,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
         {scheduledNotes.length?
           <div className="todoist-widget-list">
-            {scheduledNotes.slice(0,5).map(note=>
+            {scheduledNotes.map(note=>
               <div className={`todoist-widget-task priority-${todoistPriorityValue(note)}`} key={note.id}>
                 <button
                   className="todoist-widget-circle"
@@ -5711,3 +5711,5 @@ function performanceActivityEmoji(activity:any){
 function formatMonths(months:number){const years=Math.floor(months/12);const rest=months%12;return [years?`${years} ano${years>1?"s":""}`:"",rest?`${rest} ${rest===1?"mês":"meses"}`:""].filter(Boolean).join(" e ")||"menos de 1 mês";}
 function displayNumber(value:number|null|undefined,suffix:string){return value===null||value===undefined?"—":`${Number(value).toLocaleString("pt-BR",{maximumFractionDigits:1})} ${suffix}`;}
 function tabLabel(tab:StudentTab){return({summary:"Dashboard",timeline:"Linha do tempo",workouts:"Treinos",history:"Histórico",assessments:"Avaliações",finance:"Financeiro",files:"Arquivos"})[tab];}
+
+// DMP_HOME_COMPACT_SCROLL_20260917
