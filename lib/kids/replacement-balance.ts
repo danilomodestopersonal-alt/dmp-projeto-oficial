@@ -8,7 +8,7 @@ export type KidsReplacementBalanceEvent = {
   className: string;
   date: string;
   type: "DUE" | "REPLACED";
-  source: "CANCELLED_CONTRACTED" | "FIFTH_CLASS";
+  source: "CANCELLED_CONTRACTED" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
   label: string;
   lessonId: string;
 };
@@ -36,6 +36,16 @@ function lessonHeld(lesson: KidsLesson, group: KidsClass) {
   if (lesson.status === "COMPLETED") return true;
   if (lesson.status !== "SCHEDULED") return false;
   const end = group.endTime || group.startTime || "23:59";
+  return new Date(`${lesson.date}T${end}:00`).getTime() <= Date.now();
+}
+
+function individualLessonHeld(lesson: KidsLesson, group?: KidsClass) {
+  if (lesson.status === "COMPLETED") return true;
+  if (lesson.status !== "SCHEDULED") return false;
+  const end =
+    lesson.kind === "REPLACEMENT"
+      ? lesson.replacementEndTime || lesson.replacementStartTime || group?.endTime || group?.startTime || "23:59"
+      : group?.endTime || group?.startTime || "23:59";
   return new Date(`${lesson.date}T${end}:00`).getTime() <= Date.now();
 }
 
@@ -127,6 +137,61 @@ export function computeKidsReplacementBalances(data: KidsData, throughDate = loc
     .sort((a, b) => a.className.localeCompare(b.className, "pt-BR"));
 }
 
+function individualReplacementEvents(
+  data: KidsData,
+  studentId: string,
+  throughDate: string,
+): KidsReplacementBalanceEvent[] {
+  const start = effectiveStart(data);
+  const lessonEvents = data.lessons
+    .filter(
+      (lesson) =>
+        lesson.date >= start &&
+        lesson.date <= throughDate &&
+        (lesson.replacementStudentIds || []).includes(studentId),
+    )
+    .filter((lesson) => lesson.attendance?.[studentId] !== "ABSENT")
+    .filter((lesson) => individualLessonHeld(lesson, data.classes.find((group) => group.id === lesson.classId)))
+    .map((lesson): KidsReplacementBalanceEvent => {
+      const group = data.classes.find((item) => item.id === lesson.classId);
+      return {
+        id: `student:${studentId}:${lesson.id}:individual-replaced`,
+        classId: lesson.classId,
+        className: group?.name || lesson.replacementName || "Aula avulsa de reposição",
+        date: lesson.date,
+        type: "REPLACED",
+        source: "INDIVIDUAL_REPLACEMENT",
+        label: "Reposição individual realizada",
+        lessonId: lesson.id,
+      };
+    });
+
+  const lessonIds = new Set(
+    data.lessons
+      .filter((lesson) => (lesson.replacementStudentIds || []).includes(studentId))
+      .map((lesson) => lesson.id),
+  );
+
+  // Preserva eventuais reposições individuais antigas já concluídas antes da mudança de critério.
+  const legacyEvents = (data.replacements || [])
+    .filter((item) => item.studentId === studentId && item.status === "COMPLETED")
+    .filter((item) => (item.completedDate || item.scheduledDate || item.sourceDate) >= start)
+    .filter((item) => (item.completedDate || item.scheduledDate || item.sourceDate) <= throughDate)
+    .filter((item) => !item.destinationLessonId || !lessonIds.has(item.destinationLessonId))
+    .map((item): KidsReplacementBalanceEvent => ({
+      id: `student:${studentId}:${item.id}:legacy-replaced`,
+      classId: item.classId,
+      className: data.classes.find((group) => group.id === item.classId)?.name || "Reposição individual",
+      date: item.completedDate || item.scheduledDate || item.sourceDate,
+      type: "REPLACED",
+      source: "LEGACY_INDIVIDUAL_REPLACEMENT",
+      label: "Reposição individual realizada",
+      lessonId: item.destinationLessonId || item.sourceLessonId,
+    }));
+
+  return [...lessonEvents, ...legacyEvents];
+}
+
 export function computeKidsStudentReplacementBalance(
   data: KidsData,
   studentId: string,
@@ -138,15 +203,21 @@ export function computeKidsStudentReplacementBalance(
       .map((student) => ({ group, student })),
   );
 
-  const events = memberships.flatMap(({ group, student }) => {
+  const collectiveEvents = memberships.flatMap(({ group, student }) => {
     const start = student.startDate || data.semesterStart || KIDS_REPLACEMENT_BALANCE_START;
     return computeKidsClassReplacementBalance(data, group.id, throughDate).events.filter(
       (event) => event.date >= start,
     );
   });
 
+  const events = [
+    ...collectiveEvents,
+    ...individualReplacementEvents(data, studentId, throughDate),
+  ];
+
   const unique = new Map<string, KidsReplacementBalanceEvent>();
-  for (const event of events) unique.set(`${event.classId}:${event.date}:${event.type}`, event);
+  for (const event of events) unique.set(event.id, event);
+
   const ordered = [...unique.values()].sort(
     (a, b) => b.date.localeCompare(a.date) || a.className.localeCompare(b.className, "pt-BR"),
   );

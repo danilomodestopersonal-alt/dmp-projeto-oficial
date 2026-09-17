@@ -130,7 +130,7 @@ export function KidsStudentReplacementBalance({data,studentId}:{data:KidsData;st
       <div>
         <span>CONTROLE DE AULAS</span>
         <h3>Canceladas e reposições da criança</h3>
-        <p>A reposição pertence à turma e conta mesmo quando a criança faltou no dia.</p>
+        <p>5ª aula da turma conta para todos. Reposição individual soma só para a criança quando a aula é realizada.</p>
       </div>
     </div>
     <div className={styles.studentMetrics}>

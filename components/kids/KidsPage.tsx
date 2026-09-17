@@ -452,62 +452,11 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   async function updateLesson(next: KidsLesson) {
     if (!data) return;
     const current=data.lessons.find(item=>item.id===next.id);
-    const currentReplacementIds=new Set(current?.replacementStudentIds||[]);
-    const nextReplacementIds=new Set(next.replacementStudentIds||[]);
-    const relatedGroup = lessonGroup(next);
+const relatedGroup = lessonGroup(next);
     const cancellationStarted=current?.status!=="CANCELLED"&&next.status==="CANCELLED";
     if(next.status==="CANCELLED"&&!cancelReasonText(next)){
       setNotice("Informe o motivo do cancelamento antes de salvar.");
       return;
-    }
-    let replacements = [...(data.replacements || [])];
-    if (
-      next.status === "CANCELLED" &&
-      next.replacementEligible &&
-      relatedGroup && next.kind!=="REPLACEMENT"
-    ) {
-      for (const student of relatedGroup.students.filter(
-        (item) =>
-          item.active && (!item.startDate || item.startDate <= next.date),
-      )) {
-        if (
-          !replacements.some(
-            (item) =>
-              item.sourceLessonId === next.id && item.studentId === student.id,
-          )
-        )
-          replacements.push({
-            id: `replacement-${next.id}-${student.id}`,
-            studentId: student.id,
-            classId: next.classId,
-            sourceLessonId: next.id,
-            sourceDate: next.date,
-            reason: cancelReasonText(next) || next.notes || "Aula cancelada com direito à reposição",
-            status: "PENDING",
-          });
-      }
-    } else
-      replacements = replacements.filter(
-        (item) =>
-          item.sourceLessonId !== next.id || item.status === "COMPLETED",
-      );
-    for(const studentId of nextReplacementIds){
-      if(currentReplacementIds.has(studentId))continue;
-      const credit=replacements.find(item=>item.studentId===studentId&&item.status==="PENDING");
-      if(credit){
-        credit.status="SCHEDULED";
-        credit.scheduledDate=next.date;
-        credit.destinationLessonId=next.id;
-      }
-    }
-    for(const studentId of currentReplacementIds){
-      if(nextReplacementIds.has(studentId))continue;
-      const credit=replacements.find(item=>item.studentId===studentId&&item.destinationLessonId===next.id&&item.status==="SCHEDULED");
-      if(credit){
-        credit.status="PENDING";
-        delete credit.scheduledDate;
-        delete credit.destinationLessonId;
-      }
     }
     const saved=await persist(
       {
@@ -515,7 +464,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
         lessons: data.lessons.map((item) =>
           item.id === next.id ? next : item,
         ),
-        replacements,
+
       },
       cancellationStarted?"Aula cancelada no DMP.":"Aula salva com sucesso.",
     );
@@ -539,24 +488,38 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     }
     setLessonId(null);
   }
-  function createReplacementLesson(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]}){
+  function createReplacementLesson(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[];classId?:string}) {
     if(!data)return;
+    const destinationClass=input.classId?data.classes.find(item=>item.id===input.classId):undefined;
     const id=`replacement-lesson-${crypto.randomUUID()}`;
+    const category=destinationClass?.category||input.category;
+    const startTime=destinationClass?.startTime||input.startTime;
+    const endTime=destinationClass?.endTime||input.endTime;
     const nextLesson:KidsLesson={
-      id,classId:"replacement",date:input.date,status:"SCHEDULED",kind:"REPLACEMENT",
-      replacementName:`Reposição coletiva · Bola ${categoryLabel[input.category]}`,
-      replacementCategory:input.category,replacementStartTime:input.startTime,replacementEndTime:input.endTime,
-      replacementCapacity:input.studentIds.length,replacementStudentIds:input.studentIds,
+      id,
+      classId:destinationClass?.id||"replacement",
+      date:input.date,
+      status:"SCHEDULED",
+      kind:"REPLACEMENT",
+      replacementName:destinationClass?`Reposição individual · ${destinationClass.name}`:`Aula avulsa de reposição · Bola ${categoryLabel[category]}`,
+      replacementCategory:category,
+      replacementStartTime:startTime,
+      replacementEndTime:endTime,
+      replacementCapacity:input.studentIds.length,
+      replacementStudentIds:input.studentIds,
       attendance:Object.fromEntries(input.studentIds.map(studentId=>[studentId,"PRESENT"])),
-      objective:"",plannedPlan:"",actualPlan:"",notes:"",replacementEligible:false,replacementStatus:"NONE",updatedAt:new Date().toISOString(),
+      objective:"",
+      plannedPlan:"",
+      actualPlan:"",
+      notes:"",
+      replacementEligible:false,
+      replacementStatus:"NONE",
+      updatedAt:new Date().toISOString(),
     };
-    const replacements=(data.replacements||[]).map(item=>{
-      if(input.studentIds.includes(item.studentId)&&item.status==="PENDING")
-        return {...item,status:"SCHEDULED" as const,scheduledDate:input.date,destinationLessonId:id};
-      return item;
-    });
-    void persist({...data,lessons:[...data.lessons,nextLesson],replacements},"Aula avulsa de reposição criada.");
-    setShowReplacementForm(false);setTab("replacements");setLessonId(id);
+    void persist({...data,lessons:[...data.lessons,nextLesson]},"Reposição individual criada.");
+    setShowReplacementForm(false);
+    setTab("replacements");
+    setLessonId(id);
   }
   function updateClass(next: KidsClass) {
     if (!data) return;
@@ -1235,26 +1198,113 @@ function ReplacementBoard({replacements,students}:{replacements:KidsReplacement[
   return <div className={styles.grid2}>{sections.map(([status,label])=><article key={status} className={styles.cancelBox}><h3>{label} · {replacements.filter(item=>item.status===status).length}</h3>{replacements.filter(item=>item.status===status).sort((a,b)=>localeCompare(studentName(a.studentId),studentName(b.studentId))).map(item=><div key={item.id} className={styles.replacementLine}><strong>{studentName(item.studentId)}</strong><small>{status==="PENDING"?`Aula perdida em ${formatDate(item.sourceDate)}`:status==="SCHEDULED"?`Marcada para ${formatDate(item.scheduledDate||item.sourceDate)}`:`Reposta em ${formatDate(item.completedDate||item.scheduledDate||item.sourceDate)}${item.attendance==="ABSENT"?" · faltou, crédito consumido":""}`}</small></div>)}</article>)}</div>;
 }
 
-function ReplacementLessonForm({replacements,students,classes,lessons,onClose,onSave}:{replacements:KidsReplacement[];students:KidsStudent[];classes:KidsClass[];lessons:KidsLesson[];onClose:()=>void;onSave:(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[]})=>void}){
-  const replacementCategory=(item:KidsReplacement)=>{
-    const sourceLesson=lessons.find(lesson=>lesson.id===item.sourceLessonId);
-    const sourceClassId=sourceLesson?.classId||item.classId;
-    return classes.find(group=>group.id===sourceClassId)?.category;
-  };
-  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
+
+function ReplacementLessonForm({
+  replacements,
+  students,
+  classes,
+  lessons,
+  onClose,
+  onSave,
+}: {
+  replacements: KidsReplacement[];
+  students: KidsStudent[];
+  classes: KidsClass[];
+  lessons: KidsLesson[];
+  onClose: () => void;
+  onSave: (input: {date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[];classId?:string}) => void;
+}) {
+  void replacements;
+  void lessons;
+  const [date,setDate]=useState(localDate());
   const [startTime,setStartTime]=useState("16:00");
   const [endTime,setEndTime]=useState("17:00");
-  const [category,setCategory]=useState<KidsCategory>(()=>{
-    const firstPending=replacements.find(item=>item.status==="PENDING");
-    return firstPending?replacementCategory(firstPending)||"RED":"RED";
-  });
+  const [category,setCategory]=useState<KidsCategory>("RED");
+  const [classId,setClassId]=useState("");
   const [selected,setSelected]=useState<string[]>([]);
-  const [showStudents,setShowStudents]=useState(false);
-  const pending=replacements.filter(item=>item.status==="PENDING"&&replacementCategory(item)===category).map(item=>students.find(student=>student.id===item.studentId)).filter((item,index,array):item is KidsStudent=>Boolean(item)&&array.findIndex(candidate=>candidate?.id===item?.id)===index).sort((a,b)=>localeCompare(a.name,b.name));
-  useEffect(()=>{setSelected(current=>current.filter(id=>pending.some(student=>student.id===id)));setShowStudents(false);},[category]);
-  return <div className={styles.modalBackdrop}><section className={styles.modal}><div className={styles.modalHead}><div><h2>Nova aula avulsa de reposição</h2><p>Escolha individualmente as crianças confirmadas.</p></div><button onClick={onClose}>×</button></div><div className={styles.formGrid}><label>Data<input type="date" value={date} onChange={event=>setDate(event.target.value)}/></label><label>Categoria<select value={category} onChange={event=>setCategory(event.target.value as KidsCategory)}>{Object.entries(categoryLabel).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Início<input type="time" value={startTime} onChange={event=>setStartTime(event.target.value)}/></label><label>Fim<input type="time" value={endTime} onChange={event=>setEndTime(event.target.value)}/></label></div><button type="button" className={styles.primary} onClick={()=>setShowStudents(current=>!current)}>+ Adicionar alunos {pending.length?`(${pending.length} disponíveis)`:""}</button>{showStudents?<><h3>Crianças com reposição pendente · {selected.length} selecionada{selected.length===1?"":"s"}</h3><div className={styles.attendance}>{pending.map(student=><button type="button" key={student.id} className={selected.includes(student.id)?styles.present:""} onClick={()=>setSelected(current=>current.includes(student.id)?current.filter(id=>id!==student.id):[...current,student.id])}><span>{selected.includes(student.id)?"✓":"+"}</span><strong>{student.name}</strong><small>{selected.includes(student.id)?"Adicionada":"Adicionar"}</small></button>)}</div>{!pending.length?<Empty title={`Nenhuma reposição pendente na bola ${categoryLabel[category].toLowerCase()}`} text="Somente crianças com crédito pendente desta categoria aparecem aqui."/>:null}</>:null}<div className={styles.modalActions}><button onClick={onClose}>Cancelar</button><button className={styles.primary} disabled={!date||!startTime||!endTime||!selected.length} onClick={()=>onSave({date,startTime,endTime,category,studentIds:selected})}>Criar aula</button></div></section></div>;
-}
 
+  const activeClasses=classes.filter(item=>item.active).sort((a,b)=>localeCompare(a.name,b.name));
+  const activeStudents=students.filter(item=>item.active).sort((a,b)=>localeCompare(a.name,b.name));
+  const destinationClass=activeClasses.find(item=>item.id===classId);
+
+  function toggleStudent(id:string) {
+    setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);
+  }
+
+  function save() {
+    if(!date||!selected.length)return;
+    onSave({
+      date,
+      startTime:destinationClass?.startTime||startTime,
+      endTime:destinationClass?.endTime||endTime,
+      category:destinationClass?.category||category,
+      studentIds:selected,
+      classId:destinationClass?.id,
+    });
+  }
+
+  return <div className={styles.modalBackdrop}>
+    <section className={styles.modal}>
+      <div className={styles.modalHead}>
+        <div>
+          <h2>Reposição individual</h2>
+          <p>Escolha a criança e onde ela fará a aula. Não é necessário vincular uma aula cancelada.</p>
+        </div>
+        <button onClick={onClose}>Fechar</button>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:12}}>
+        <label style={{gridColumn:"1 / -1"}}>
+          Turma onde fará a reposição
+          <select value={classId} onChange={event=>setClassId(event.target.value)}>
+            <option value="">Aula avulsa / sem turma específica</option>
+            {activeClasses.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+        </label>
+        <label>
+          Data
+          <input type="date" value={date} onChange={event=>setDate(event.target.value)}/>
+        </label>
+        {!destinationClass?<label>
+          Bola
+          <select value={category} onChange={event=>setCategory(event.target.value as KidsCategory)}>
+            <option value="RED">Vermelha</option>
+            <option value="ORANGE">Laranja</option>
+            <option value="GREEN">Verde</option>
+            <option value="YELLOW">Amarela</option>
+          </select>
+        </label>:<label>
+          Aula escolhida
+          <input value={destinationClass.name} readOnly/>
+        </label>}
+        {!destinationClass?<><label>
+          Início
+          <input type="time" value={startTime} onChange={event=>setStartTime(event.target.value)}/>
+        </label>
+        <label>
+          Fim
+          <input type="time" value={endTime} onChange={event=>setEndTime(event.target.value)}/>
+        </label></>:null}
+      </div>
+
+      <h3>Crianças convidadas ({selected.length})</h3>
+      <p className="muted">Pode lançar reposição mesmo com saldo zero ou positivo. A aula vira crédito individual quando for realizada.</p>
+      <div className={styles.lessonList} style={{maxHeight:320,overflowY:"auto"}}>
+        {activeStudents.map(student=><label key={student.id} className={styles.lessonRow}>
+          <span><strong>{student.name}</strong><small>{selected.includes(student.id)?"Selecionada para esta reposição":"Toque para selecionar"}</small></span>
+          <input type="checkbox" checked={selected.includes(student.id)} onChange={()=>toggleStudent(student.id)}/>
+        </label>)}
+      </div>
+
+      <div className={styles.modalActions}>
+        <button onClick={onClose}>Cancelar</button>
+        <button className={styles.primary} disabled={!selected.length||!date} onClick={save}>
+          Salvar reposição
+        </button>
+      </div>
+    </section>
+  </div>;
+}
 function Stat({
   label,
   value,
@@ -2702,6 +2752,7 @@ function kidsReplacementBalanceReportHtml(balance: KidsReplacementBalance) {
 // DMP_KIDS_SALDO_REPOSICOES_20260917
 // DMP_KIDS_VISUAL_REPOSICOES_V2_20260917
 // DMP_KIDS_CORRECAO_PAINEL_ORDEM_V4_20260917
+// DMP_KIDS_REPOSICAO_INDIVIDUAL_SALDO_V6_20260917
 function buildReport(
   data: KidsData,
   kind: "student" | "class",
