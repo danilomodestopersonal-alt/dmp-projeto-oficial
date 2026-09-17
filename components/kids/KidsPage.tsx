@@ -1012,7 +1012,6 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
             <button className={styles.primary} onClick={()=>setShowReplacementForm(true)}>+ Aula avulsa de reposição</button>
           </div>
           <KidsReplacementBalanceOverview data={data!} />
-          <ReplacementBoard replacements={data.replacements||[]} students={allKids}/>
         </section>
       ) : null}
 
