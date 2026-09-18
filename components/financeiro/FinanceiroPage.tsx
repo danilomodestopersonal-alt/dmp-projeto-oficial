@@ -47,6 +47,8 @@ import { reconcileKidsFinance, type KidsFinanceAudit } from "@/lib/financeiro/ki
 import type { Student } from "@/types/models";
 import { preparePersonalRenewalForNextMonth, reconcilePersonalFinance, type PersonalFinanceAudit } from "@/lib/financeiro/personal-sync";
 
+import MercadoPagoTestPage from "@/components/mercado-pago/MercadoPagoTestPage";
+
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const today = () => localDateISO();
 
@@ -64,7 +66,7 @@ function normalizePaymentUrl(value:string){
   return /^https?:\/\//i.test(text)?text:`https://${text}`;
 }
 
-type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "closing" | "reports";
+type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "mercado-pago" | "closing" | "reports";
 type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
 
 type Action =
@@ -538,7 +540,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         <nav className={styles.tabs}>
           {([
             ["summary", "Resumo"], ["personal", "Personal"], ["ds", "DS Tênis"],
-            ["expenses", "Despesas"], ["extras", "Gastos extras"],
+            ["expenses", "Despesas"], ["extras", "Gastos extras"], ["mercado-pago", "Mercado Pago"],
             ["closing", "Fechamento"], ["reports", "Relatórios"],
           ] as [Tab, string][]).map(([key, label]) => (
             <button key={key} className={tab === key ? styles.activeTab : ""} onClick={() => setTab(key)}>{label}</button>
@@ -701,6 +703,8 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
             </section>
           </div>
         ) : null}
+
+        {tab === "mercado-pago" ? <MercadoPagoTestPage /> : null}
 
         {tab === "closing" ? <ClosingTab data={data} competence={competence} summary={summary} pendencies={pendencies} editable={editable} onClose={closeCompetence} onReopen={reopenCompetence} onCreateNext={createNextCompetence} onSwitch={value => dispatch({ type: "SWITCH_COMPETENCE", competence: value })} /> : null}
 
