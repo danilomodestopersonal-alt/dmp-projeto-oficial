@@ -66,7 +66,7 @@ function normalizePaymentUrl(value:string){
   return /^https?:\/\//i.test(text)?text:`https://${text}`;
 }
 
-type Tab = "summary" | "personal" | "ds" | "expenses" | "extras" | "mercado-pago" | "closing" | "reports";
+type Tab = "summary" | "mercado-pago" | "personal" | "ds" | "expenses" | "extras" | "closing" | "reports";
 type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
 
 type Action =
@@ -140,11 +140,45 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
   const [kidsAudit, setKidsAudit] = useState<KidsFinanceAudit | null>(null);
   const [personalAudit, setPersonalAudit] = useState<PersonalFinanceAudit | null>(null);
   const [kidsStudentOptions, setKidsStudentOptions] = useState<Array<{id:string;name:string}>>([]);
+  const [mercadoPagoBalance, setMercadoPagoBalance] = useState<number | null>(null);
   const competence = data.currentCompetence;
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
   const editable = isCompetenceEditable(data, competence);
   const competences = useMemo(() => Object.keys(data.competences).sort().reverse(), [data.competences]);
+  async function refreshFinanceAfterMercadoPago() {
+    try {
+      const cloud = await fetchFinanceCloud(financeSeedAugust2026);
+      if (!cloud) return;
+      const next = ensureCalendarCompetence(cloud);
+      setData(next);
+      saveFinanceData(next);
+      setCloudWritable(true);
+    } catch (error) {
+      console.error("Financeiro: falha ao recarregar apos conciliacao Mercado Pago.", error);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function readMercadoPagoBalance() {
+      try {
+        const response = await fetch("/api/mercado-pago", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (cancelled || !payload?.ok) return;
+        setMercadoPagoBalance(typeof payload.balance === "number" ? payload.balance : null);
+      } catch {
+        if (!cancelled) setMercadoPagoBalance(null);
+      }
+    }
+    void readMercadoPagoBalance();
+    const timer = window.setInterval(() => { void readMercadoPagoBalance(); }, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
   const weeklyDue = useMemo(() => {
     const now=new Date();const day=now.getDay();const monday=new Date(now);monday.setDate(now.getDate()-(day===0?6:day-1));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
     const start=localDateISO(monday),end=localDateISO(sunday);
@@ -539,8 +573,8 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         {undoDeletion ? <div className={styles.undoStrip}><span>Exclusão realizada.</span><button onClick={undoLastDeletion}>Desfazer</button></div> : null}
         <nav className={styles.tabs}>
           {([
-            ["summary", "Resumo"], ["personal", "Personal"], ["ds", "DS Tênis"],
-            ["expenses", "Despesas"], ["extras", "Gastos extras"], ["mercado-pago", "Mercado Pago"],
+            ["summary", "Resumo"], ["mercado-pago", "Mercado Pago"], ["personal", "Personal"], ["ds", "DS Tênis"],
+            ["expenses", "Despesas"], ["extras", "Gastos extras"],
             ["closing", "Fechamento"], ["reports", "Relatórios"],
           ] as [Tab, string][]).map(([key, label]) => (
             <button key={key} className={tab === key ? styles.activeTab : ""} onClick={() => setTab(key)}>{label}</button>
@@ -571,7 +605,9 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
               <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" onClick={()=>{setListFilter("ALL");setTab("personal");}} />
               <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" onClick={()=>{setListFilter("PAID");setTab("personal");}} />
               <Kpi label="A receber" value={summary.receivable} tone="income" onClick={()=>{setListFilter("OPEN");setTab("personal");}} />
-              <Kpi label="Saldo projetado" value={summary.projectedResult} />
+              <Kpi label="Saldo projetado DMP" value={summary.projectedResult} />
+              {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo Mercado Pago" value={mercadoPagoBalance} /> : <Kpi label="Saldo Mercado Pago" text="Aguardando saldo" />}
+              {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo projetado consolidado" value={summary.projectedResult + mercadoPagoBalance} emphasis /> : <Kpi label="Saldo projetado consolidado" text="Aguardando saldo MP" emphasis />}
               <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" onClick={()=>{setListFilter("ALL");setTab("expenses");}} />
               <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" onClick={()=>{setListFilter("PAID");setTab("expenses");}} />
               <Kpi label="A pagar" value={summary.payable} tone="expense" onClick={()=>{setListFilter("OPEN");setTab("expenses");}} />
@@ -704,7 +740,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
           </div>
         ) : null}
 
-        {tab === "mercado-pago" ? <MercadoPagoTestPage /> : null}
+        {tab === "mercado-pago" ? <MercadoPagoTestPage onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
 
         {tab === "closing" ? <ClosingTab data={data} competence={competence} summary={summary} pendencies={pendencies} editable={editable} onClose={closeCompetence} onReopen={reopenCompetence} onCreateNext={createNextCompetence} onSwitch={value => dispatch({ type: "SWITCH_COMPETENCE", competence: value })} /> : null}
 
