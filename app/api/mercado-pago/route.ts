@@ -266,12 +266,12 @@ async function taskReport(kind:ReportKind,taskId:string|undefined){
 }
 function isPending(report:MpReport|undefined|null){
   const s=String(report?.status||"").toLowerCase();
-  return ["pending","processing","in_process","in_progress","preparing"].some(value=>s.includes(value));
+  return ["pending","processing","in_process","in_progress","preparing","data-check","data_check"].some(value=>s.includes(value));
 }
 function isProcessed(report:MpReport|undefined|null){
   if(!report)return false;
   const s=String(report.status||"").toLowerCase();
-  return Boolean(report.file_name)||!s||["processed","ready","done","completed","generated"].some(value=>s.includes(value));
+  return Boolean(report.file_name)||!s||["processed","ready","done","completed","generated","available"].some(value=>s.includes(value));
 }
 async function resolveFileName(kind:ReportKind,report:MpReport|undefined|null){
   if(!report)return null;
@@ -573,7 +573,7 @@ async function buildOverview():Promise<OverviewInternal>{
   const settlementStatus=settlementTask||settlementReports[0]||null;
   const releaseStatus=releaseTask||releaseReports[0]||null;
   const latestDates=[reportDate(settlementCsv.report||{}),reportDate(releaseCsv.report||{}),reportDate(settlementTask||{}),reportDate(releaseTask||{})].filter(Boolean).sort().reverse();
-  const pending=isPending(settlementStatus)||isPending(releaseStatus);
+  const pending=isPending(settlementStatus);
   const learnedRules=Object.values(state.rules).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0,50);
   const operational=movements.filter(item=>!item.historical&&!item.technical);
   const response={
@@ -613,12 +613,12 @@ function recentlyRequested(state:MpState){
   const at=new Date(state.lastReportRequestAt).getTime();
   return Number.isFinite(at)&&Date.now()-at<AUTO_REFRESH_MINUTES*60*1000;
 }
-function reportTrackingDate(report:MpReport|undefined|null,fallback?:string){
-  return String(report?.last_modified||report?.generation_date||report?.date_created||fallback||"");
+function reportTrackingDate(report:MpReport|undefined|null,requestedAt?:string){
+  return String(requestedAt||report?.generation_date||report?.date_created||report?.last_modified||"");
 }
-function pendingStillFresh(report:MpReport|undefined|null,fallback:string|undefined,force:boolean){
+function pendingStillFresh(report:MpReport|undefined|null,requestedAt:string|undefined,force:boolean){
   if(!isPending(report))return false;
-  const at=new Date(reportTrackingDate(report,fallback)).getTime();
+  const at=new Date(reportTrackingDate(report,requestedAt)).getTime();
   if(!Number.isFinite(at))return true;
   const limit=(force?MANUAL_PENDING_RETRY_MINUTES:AUTOMATIC_PENDING_RETRY_MINUTES)*60*1000;
   return Date.now()-at<limit;
