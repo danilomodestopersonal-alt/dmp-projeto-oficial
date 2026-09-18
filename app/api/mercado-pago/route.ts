@@ -593,10 +593,18 @@ async function buildOverview():Promise<OverviewInternal>{
   return {response,movements,state};
 }
 
+function reportUtcDate(value:Date){
+  return value.toISOString().replace(/\.\d{3}Z$/,"Z");
+}
 function dateRange(days=35){
   const end=new Date();
   const begin=new Date(end.getTime()-days*24*60*60*1000);
-  return {begin_date:begin.toISOString(),end_date:end.toISOString()};
+  return {begin_date:reportUtcDate(begin),end_date:reportUtcDate(end)};
+}
+function missingDateParameter(error:unknown){
+  if(!(error instanceof MpUpstreamError))return false;
+  const text=`${error.code} ${error.message}`.toLowerCase();
+  return text.includes("begin_date")||text.includes("end_date")||text.includes("invalid_begin_date")||text.includes("invalid_end_date");
 }
 function recentlyRequested(state:MpState){
   if(!state.lastReportRequestAt)return false;
@@ -617,7 +625,15 @@ async function createReport(kind:ReportKind,state:MpState,force:boolean){
     return {created:false,pending:true,report:summaryReport(latest),taskId:id??null,reason:"pending"};
   }
   if(!force&&recentlyRequested(state))return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"throttled"};
-  const result=await mpRequest(reportBase(kind),{method:"POST",body:JSON.stringify(dateRange())});
+  const range=dateRange();
+  let result;
+  try{
+    result=await mpRequest(reportBase(kind),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(range)});
+  }catch(error){
+    if(!missingDateParameter(error))throw error;
+    const query=`?begin_date=${encodeURIComponent(range.begin_date)}&end_date=${encodeURIComponent(range.end_date)}`;
+    result=await mpRequest(`${reportBase(kind)}${query}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(range)});
+  }
   const report=(result.data&&typeof result.data==="object"?result.data:{}) as MpReport;
   const id=report.id??report.report_id;
   if(id!==undefined&&id!==null)state.tasks[kind]={id:String(id),kind,createdAt:new Date().toISOString()};
@@ -836,9 +852,19 @@ export async function POST(request:NextRequest){
     const auto=await processAutomatic(snapshot.movements);
     const state=await loadState();
     const setupResults=await Promise.all([ensureConfig("settlement"),ensureConfig("release")]);
-    const reports=await Promise.all([createReport("settlement",state,force),createReport("release",state,force)]);
+    const requested=await Promise.allSettled([createReport("settlement",state,force),createReport("release",state,force)]);
+    const reports=requested.map((item,index)=>item.status==="fulfilled"
+      ?item.value
+      :{created:false,pending:false,report:null,taskId:null,reason:"error",kind:index===0?"settlement":"release",error:item.reason instanceof Error?item.reason.message:"Falha ao solicitar relatório."}
+    );
+    const failures=requested.filter(item=>item.status==="rejected");
+    if(failures.length===requested.length){
+      const first=requested[0];
+      if(first.status==="rejected")throw first.reason;
+    }
     if(reports.some(item=>item.created))state.lastReportRequestAt=new Date().toISOString();
     await saveReportTracking(state);
-    return NextResponse.json({ok:true,action,configured:true,configCreated:setupResults.some(item=>item.created),configUpdated:setupResults.some(item=>item.updated),reports,auto,message:"Sincronização solicitada. O DMP acompanhará as tarefas sem duplicar relatórios em processamento."},{status:202});
+    const partial=failures.length>0;
+    return NextResponse.json({ok:true,action,configured:true,configCreated:setupResults.some(item=>item.created),configUpdated:setupResults.some(item=>item.updated),reports,auto,partial,message:partial?"Sincronização parcial: um dos relatórios do Mercado Pago ainda não respondeu. O DMP continuará usando o relatório disponível e tentará o outro novamente.":"Sincronização solicitada. O DMP acompanhará as tarefas sem duplicar relatórios em processamento."},{status:202});
   }catch(error){return errorResponse(error);}
 }
