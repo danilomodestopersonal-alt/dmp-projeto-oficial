@@ -16,6 +16,8 @@ const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
 const CUTOVER_DATE="2026-09-18";
 const AUTO_REFRESH_MINUTES=4;
+const MANUAL_PENDING_RETRY_MINUTES=3;
+const AUTOMATIC_PENDING_RETRY_MINUTES=12;
 
 type ReportKind="settlement"|"release";
 type AnyRow=Record<string,string>;
@@ -611,15 +613,25 @@ function recentlyRequested(state:MpState){
   const at=new Date(state.lastReportRequestAt).getTime();
   return Number.isFinite(at)&&Date.now()-at<AUTO_REFRESH_MINUTES*60*1000;
 }
+function reportTrackingDate(report:MpReport|undefined|null,fallback?:string){
+  return String(report?.last_modified||report?.generation_date||report?.date_created||fallback||"");
+}
+function pendingStillFresh(report:MpReport|undefined|null,fallback:string|undefined,force:boolean){
+  if(!isPending(report))return false;
+  const at=new Date(reportTrackingDate(report,fallback)).getTime();
+  if(!Number.isFinite(at))return true;
+  const limit=(force?MANUAL_PENDING_RETRY_MINUTES:AUTOMATIC_PENDING_RETRY_MINUTES)*60*1000;
+  return Date.now()-at<limit;
+}
 async function createReport(kind:ReportKind,state:MpState,force:boolean){
   const savedTask=state.tasks[kind];
   if(savedTask){
     const task=await taskReport(kind,savedTask.id);
-    if(task&&isPending(task))return {created:false,pending:true,report:summaryReport(task),taskId:savedTask.id,reason:"pending"};
+    if(task&&pendingStillFresh(task,savedTask.createdAt,force))return {created:false,pending:true,report:summaryReport(task),taskId:savedTask.id,reason:"pending"};
   }
   const reports=await listReports(kind);
   const latest=reports[0];
-  if(isPending(latest)){
+  if(pendingStillFresh(latest,undefined,force)){
     const id=latest.id??latest.report_id;
     if(id!==undefined&&id!==null)state.tasks[kind]={id:String(id),kind,createdAt:new Date().toISOString()};
     return {created:false,pending:true,report:summaryReport(latest),taskId:id??null,reason:"pending"};
