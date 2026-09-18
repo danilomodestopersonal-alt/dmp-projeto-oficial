@@ -4,7 +4,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import styles from "./MercadoPagoTestPage.module.css";
 
 type Status="AUTO_READY"|"REVIEW"|"PROCESSED"|"IGNORED"|"TECHNICAL"|"HISTORICAL";
-type Filter="ALL"|"REVIEW"|"PROCESSED"|"IN"|"OUT"|"TECHNICAL"|"HISTORICAL";
+type Filter="ALL"|"REVIEW"|"PROCESSED"|"IN_DAY"|"OUT_DAY"|"IN_MONTH"|"OUT_MONTH"|"TECHNICAL"|"HISTORICAL";
 type Target="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleChoice="ONCE"|"SUGGEST"|"AUTO";
 type Move={
@@ -44,6 +44,7 @@ function dateTime(v:string|null){
   return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 }
 function cutoverLabel(v:string){const [y,m,d]=v.split("-");return `${d}/${m}/${y}`;}
+function localDateKey(value=new Date()){return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`;}
 function reportStatus(value?:string){
   const s=(value||"").toLowerCase();
   if(!s)return "Sem relatório";
@@ -233,12 +234,16 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
   }),[moves]);
   const visible=useMemo(()=>{
     const n=q.trim().toLocaleLowerCase("pt-BR");
+    const todayKey=localDateKey();
+    const monthKey=todayKey.slice(0,7);
     return moves.filter(x=>{
       if(filter==="ALL"&&(x.technical||x.historical))return false;
       if(filter==="REVIEW"&&x.status!=="REVIEW"&&x.status!=="AUTO_READY")return false;
       if(filter==="PROCESSED"&&!(["PROCESSED","IGNORED"] as Status[]).includes(x.status))return false;
-      if(filter==="IN"&&(x.kind!=="IN"||x.technical||x.historical))return false;
-      if(filter==="OUT"&&(x.kind!=="OUT"||x.technical||x.historical))return false;
+      if(filter==="IN_DAY"&&(x.kind!=="IN"||x.technical||x.historical||x.dateKey!==todayKey))return false;
+      if(filter==="OUT_DAY"&&(x.kind!=="OUT"||x.technical||x.historical||x.dateKey!==todayKey))return false;
+      if(filter==="IN_MONTH"&&(x.kind!=="IN"||x.technical||x.historical||!x.dateKey.startsWith(monthKey)))return false;
+      if(filter==="OUT_MONTH"&&(x.kind!=="OUT"||x.technical||x.historical||!x.dateKey.startsWith(monthKey)))return false;
       if(filter==="TECHNICAL"&&!x.technical)return false;
       if(filter==="HISTORICAL"&&!x.historical)return false;
       return !n||`${x.description} ${x.detail} ${x.category} ${x.reason}`.toLocaleLowerCase("pt-BR").includes(n);
@@ -284,7 +289,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
     <div className={styles.grid}>
       <section className={`panel ${styles.statement}`}>
         <div className={styles.statementHead}><span><small>MOVIMENTAÇÕES REAIS</small><h2>Conciliação Mercado Pago</h2><em>Escolha o destino financeiro apenas quando o DMP não tiver certeza suficiente.</em></span><span className={styles.sync}><small>Status Mercado Pago</small><strong>{data?.pending?"Relatório em preparação":setupReady?"Pronto para uso":"Aguardando ativação"}</strong><em>{data?.reports?.settlement?.status?`Dinheiro em conta: ${reportStatus(data.reports.settlement.status)}`:""}</em></span></div>
-        <div className={styles.toolbar}><div>{([ ["ALL","Atuais"],["REVIEW",`Revisar · ${summary.review}`],["PROCESSED",`Processadas · ${summary.processed}`],["IN","Entradas"],["OUT","Saídas"],["TECHNICAL",`Técnicos · ${summary.technical}`],["HISTORICAL",`Histórico · ${summary.historical}`] ] as [Filter,string][]).map(([k,l])=><button key={k} className={filter===k?styles.active:""} onClick={()=>setFilter(k)}>{l}</button>)}</div><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar movimentação..."/></div>
+        <div className={styles.toolbar}><div>{([ ["ALL","Atuais"],["REVIEW",`Revisar · ${summary.review}`],["PROCESSED",`Processadas · ${summary.processed}`],["IN_DAY","Receitas do dia"],["OUT_DAY","Despesas do dia"],["IN_MONTH","Receitas do mês"],["OUT_MONTH","Despesas do mês"],["HISTORICAL",`Histórico · ${summary.historical}`],["TECHNICAL",`Técnicos · ${summary.technical}`] ] as [Filter,string][]).map(([k,l])=><button key={k} className={filter===k?styles.active:""} onClick={()=>setFilter(k)}>{l}</button>)}</div><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar movimentação..."/></div>
         <div>{visible.map(move=>{
           const choice=choiceFor(move);
           const resolved=move.status==="PROCESSED"||move.status==="IGNORED";

@@ -601,17 +601,23 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
         {tab === "summary" ? (
           <>
-            <div className={styles.kpiGrid}>
-              <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" onClick={()=>{setListFilter("ALL");setTab("personal");}} />
-              <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" onClick={()=>{setListFilter("PAID");setTab("personal");}} />
-              <Kpi label="A receber" value={summary.receivable} tone="income" onClick={()=>{setListFilter("OPEN");setTab("personal");}} />
-              <Kpi label="Saldo projetado DMP" value={summary.projectedResult} />
-              {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo Mercado Pago" value={mercadoPagoBalance} /> : <Kpi label="Saldo Mercado Pago" text="Aguardando saldo" />}
-              {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo projetado consolidado" value={summary.projectedResult + mercadoPagoBalance} emphasis /> : <Kpi label="Saldo projetado consolidado" text="Aguardando saldo MP" emphasis />}
-              <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" onClick={()=>{setListFilter("ALL");setTab("expenses");}} />
-              <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" onClick={()=>{setListFilter("PAID");setTab("expenses");}} />
-              <Kpi label="A pagar" value={summary.payable} tone="expense" onClick={()=>{setListFilter("OPEN");setTab("expenses");}} />
-              <Kpi label="Gastos extras do mês" value={summary.extrasTotal} tone="expense" onClick={()=>setTab("extras")} />
+            <div className={styles.summaryKpiRows}>
+              <div className={`${styles.kpiGrid} ${styles.kpiGridThree}`}>
+                <Kpi label="Saldo projetado das contas" value={summary.projectedResult} />
+                {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo Mercado Pago" value={mercadoPagoBalance} /> : <Kpi label="Saldo Mercado Pago" text="Aguardando saldo" />}
+                {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo projetado consolidado" value={summary.projectedResult + mercadoPagoBalance} emphasis /> : <Kpi label="Saldo projetado consolidado" text="Aguardando saldo MP" emphasis />}
+              </div>
+              <div className={`${styles.kpiGrid} ${styles.kpiGridThree}`}>
+                <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" onClick={()=>{setListFilter("ALL");setTab("personal");}} />
+                <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" onClick={()=>{setListFilter("PAID");setTab("personal");}} />
+                <Kpi label="Receitas a receber" value={summary.receivable} tone="income" onClick={()=>{setListFilter("OPEN");setTab("personal");}} />
+              </div>
+              <div className={`${styles.kpiGrid} ${styles.kpiGridFour}`}>
+                <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" onClick={()=>{setListFilter("ALL");setTab("expenses");}} />
+                <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" onClick={()=>{setListFilter("PAID");setTab("expenses");}} />
+                <Kpi label="A pagar" value={summary.payable} tone="expense" onClick={()=>{setListFilter("OPEN");setTab("expenses");}} />
+                <Kpi label="Gastos extras do mês" value={summary.extrasTotal} tone="expense" onClick={()=>setTab("extras")} />
+              </div>
             </div>
 
             <section className={`panel ${styles.weeklyDue}`}>
