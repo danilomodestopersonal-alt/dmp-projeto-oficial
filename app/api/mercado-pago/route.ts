@@ -7,9 +7,11 @@ export const dynamic="force-dynamic";
 const MP_API="https://api.mercadopago.com";
 const SETTLEMENT_BASE="/v1/account/settlement_report";
 const RELEASE_BASE="/v1/account/release_report";
+const CLASSIFICATION_VERSION="v4-smart-2026-09-18";
 
 type ReportKind="settlement"|"release";
 type AnyRow=Record<string,string>;
+type MoveStatus="AUTO"|"REVIEW"|"TECHNICAL";
 
 type MpReport={
   id?:number|string;
@@ -62,32 +64,28 @@ async function mpRequest(path:string,init:RequestInit={},allowMissing=false){
 
 function reportBase(kind:ReportKind){return kind==="settlement"?SETTLEMENT_BASE:RELEASE_BASE;}
 
-const settlementColumns=[
-  "TRANSACTION_DATE","SOURCE_ID","EXTERNAL_REFERENCE","TRANSACTION_TYPE","TRANSACTION_AMOUNT",
-  "SETTLEMENT_NET_AMOUNT","PAYMENT_METHOD","PAYMENT_METHOD_TYPE","DESCRIPTION","METADATA",
-  "OPERATION_TAGS","SALE_DETAIL","TRANSACTION_DATE_SHORT"
-].map(key=>({key}));
+const settlementColumnKeys=[
+  "TRANSACTION_DATE","SETTLEMENT_DATE","TRANSACTION_DATE_SHORT","SETTLEMENT_DATE_SHORT","SOURCE_ID","EXTERNAL_REFERENCE",
+  "TRANSACTION_TYPE","TRANSACTION_AMOUNT","SETTLEMENT_NET_AMOUNT","REAL_AMOUNT","FEE_AMOUNT","PAYMENT_METHOD","PAYMENT_METHOD_TYPE",
+  "DESCRIPTION","SALE_DETAIL","STORE_NAME","POS_NAME","BUSINESS_UNIT","SUB_UNIT","PURCHASE_ID","PAY_BANK_TRANSFER_ID","OPERATION_TAGS","METADATA"
+];
+const releaseColumnKeys=[
+  "DATE","SOURCE_ID","EXTERNAL_REFERENCE","RECORD_TYPE","DESCRIPTION","SALE_DETAIL","NET_CREDIT_AMOUNT","NET_DEBIT_AMOUNT","GROSS_AMOUNT",
+  "METADATA","PAYMENT_METHOD","BALANCE_AMOUNT","PAYOUT_BANK_ACCOUNT_NUMBER","ITEM_ID","CURRENCY"
+];
+const settlementColumns=settlementColumnKeys.map(key=>({key}));
+const releaseColumns=releaseColumnKeys.map(key=>({key}));
 
-const releaseColumns=[
-  "DATE","SOURCE_ID","EXTERNAL_REFERENCE","RECORD_TYPE","DESCRIPTION","NET_CREDIT_AMOUNT",
-  "NET_DEBIT_AMOUNT","GROSS_AMOUNT","METADATA","PAYMENT_METHOD","BALANCE_AMOUNT"
-].map(key=>({key}));
-
-async function getConfig(kind:ReportKind){
-  return mpRequest(`${reportBase(kind)}/config`,{method:"GET"},true);
-}
-
-async function ensureConfig(kind:ReportKind){
-  const current=await getConfig(kind);
-  if(current.ok)return {created:false,data:current.data};
-  const body=kind==="settlement"?{
+function configBody(kind:ReportKind){
+  if(kind==="settlement")return {
     columns:settlementColumns,
     file_name_prefix:"dmp-settlement-report",
     frequency:{hour:0,value:1,type:"monthly"},
     include_withdraw:true,
     refund_detailed:true,
     show_chargeback_cancel:true
-  }:{
+  };
+  return {
     columns:releaseColumns,
     file_name_prefix:"dmp-release-report",
     frequency:{hour:0,value:1,type:"monthly"},
@@ -96,11 +94,39 @@ async function ensureConfig(kind:ReportKind){
     compensate_detail:true,
     execute_after_withdrawal:false
   };
-  const created=await mpRequest(`${reportBase(kind)}/config`,{method:"POST",body:JSON.stringify(body)},true);
-  if(created.ok)return {created:true,data:created.data};
+}
+
+async function getConfig(kind:ReportKind){return mpRequest(`${reportBase(kind)}/config`,{method:"GET"},true);}
+
+function configColumnKeys(data:unknown){
+  if(!data||typeof data!=="object")return [] as string[];
+  const columns=(data as Record<string,unknown>).columns;
+  if(!Array.isArray(columns))return [] as string[];
+  return columns.map(item=>item&&typeof item==="object"?String((item as Record<string,unknown>).key||"").toUpperCase():"").filter(Boolean);
+}
+
+function configOptimized(kind:ReportKind,data:unknown){
+  const present=new Set(configColumnKeys(data));
+  const required=kind==="settlement"?settlementColumnKeys:releaseColumnKeys;
+  return required.every(key=>present.has(key));
+}
+
+async function ensureConfig(kind:ReportKind){
+  const current=await getConfig(kind);
+  if(current.ok){
+    if(configOptimized(kind,current.data))return {created:false,updated:false,data:current.data};
+    const updated=await mpRequest(`${reportBase(kind)}/config`,{method:"PUT",body:JSON.stringify(configBody(kind))});
+    return {created:false,updated:true,data:updated.data};
+  }
+  const created=await mpRequest(`${reportBase(kind)}/config`,{method:"POST",body:JSON.stringify(configBody(kind))},true);
+  if(created.ok)return {created:true,updated:false,data:created.data};
   if(created.status===409){
     const retry=await getConfig(kind);
-    if(retry.ok)return {created:false,data:retry.data};
+    if(retry.ok){
+      if(configOptimized(kind,retry.data))return {created:false,updated:false,data:retry.data};
+      const updated=await mpRequest(`${reportBase(kind)}/config`,{method:"PUT",body:JSON.stringify(configBody(kind))});
+      return {created:false,updated:true,data:updated.data};
+    }
   }
   throw new MpUpstreamError(created.status,"config_failed",`Não foi possível configurar o relatório ${kind==="settlement"?"Dinheiro em conta":"Liberações"}.`);
 }
@@ -114,23 +140,17 @@ function asReports(data:unknown):MpReport[]{
   return [];
 }
 
-function reportDate(report:MpReport){
-  return String(report.generation_date||report.date_created||report.last_modified||report.end_date||report.begin_date||"");
-}
-
+function reportDate(report:MpReport){return String(report.generation_date||report.date_created||report.last_modified||report.end_date||report.begin_date||"");}
 function sortReports(items:MpReport[]){return items.slice().sort((a,b)=>reportDate(b).localeCompare(reportDate(a)));}
-
 async function listReports(kind:ReportKind){
   const result=await mpRequest(`${reportBase(kind)}/list`,{method:"GET"},true);
   if(!result.ok)return [];
   return sortReports(asReports(result.data));
 }
-
 function isPending(report:MpReport|undefined){
   const s=String(report?.status||"").toLowerCase();
   return ["pending","processing","in_process","in_progress","preparing"].some(value=>s.includes(value));
 }
-
 function isProcessed(report:MpReport|undefined){
   if(!report)return false;
   const s=String(report.status||"").toLowerCase();
@@ -216,44 +236,126 @@ function numberValue(value:string|undefined){
   return Number.isFinite(parsed)?parsed:0;
 }
 
-function categoryFor(text:string){
-  const s=text.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-  const rules:[RegExp,string][]=[
-    [/(ifood|restaur|lanch|padar|panif|pizza|subway|mcdon|cafe|food)/,"Alimentação"],
-    [/(covabra|supermerc|mercado|mercadinho|hortifruti)/,"Mercado"],
-    [/(conectcar|posto|combust|gasolin|uber|99app|estacion|pedagio)/,"Transporte"],
-    [/(drogar|farmac|clinica|hospital|saude|medic)/,"Saúde"],
-    [/(cinema|pousada|hotel|evento|ingresso|lazer)/,"Lazer"],
-    [/(google|amazon|magalu|mercadolivre|shopping|loja|decathlon)/,"Compras"],
-    [/(escola|brinquedo|kids|crianca|filho)/,"Filho"],
-    [/(tarifa|fee|taxa)/,"Taxas bancárias"]
-  ];
-  for(const [pattern,category] of rules)if(pattern.test(s))return {category,confidence:94};
-  return {category:"Outros",confidence:45};
+function normalize(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/["']/g,"").replace(/\s+/g," ").trim();}
+function clean(value:string|undefined){return (value||"").trim().replace(/^['"]+|['"]+$/g,"").trim();}
+function compactRef(value:string|undefined){
+  const v=clean(value);
+  if(!v)return "";
+  if(v.length<=18)return `Ref. ${v}`;
+  return `Ref. …${v.slice(-10)}`;
+}
+function maskedAccount(value:string|undefined){
+  const digits=(value||"").replace(/\D/g,"");
+  if(!digits)return "";
+  return `Destino •••• ${digits.slice(-4)}`;
+}
+function genericDescription(value:string,type:string){
+  const n=normalize(value),t=normalize(type);
+  if(!n)return true;
+  return n===t||["settlement","settlements","payout","payouts","movement","movimentacao mercado pago"].includes(n);
+}
+function meaningfulDescription(row:AnyRow,type:string){
+  for(const candidate of [row.SALE_DETAIL,row.STORE_NAME,row.POS_NAME,row.DESCRIPTION]){
+    const value=clean(candidate);
+    if(value&&!genericDescription(value,type))return value;
+  }
+  return "";
 }
 
-function settlementMovements(rows:AnyRow[]){
+const categoryRules:{pattern:RegExp;category:string;reason:string;confidence:number}[]=[
+  {pattern:/(ifood|ifd\*|restaur|churrasc|marmit|lanch|padar|panif|pizza|pizzar|subway|mcdon|burger|cafe|cafeter|food|sushi|boulanger|kopenhagen|sorvet|doceria|confeit)/,category:"Alimentação",reason:"alimentação reconhecida pela descrição",confidence:96},
+  {pattern:/(covabra|supermerc|mercadinho|hortifruti|atacad|carrefour|assa[ií]|p[aã]o de a[cç][uú]car|mercearia)/,category:"Mercado",reason:"mercado/supermercado reconhecido",confidence:96},
+  {pattern:/(conectcar|sem parar|auto ?posto|posto|combust|gasolin|etanol|uber|99app|estacion|ped[aá]gio)/,category:"Transporte",reason:"transporte reconhecido pela descrição",confidence:96},
+  {pattern:/(drogar|farm[aá]c|clinica|cl[ií]nica|hospital|laborat|sa[uú]de|medic|odont|dentista)/,category:"Saúde",reason:"saúde reconhecida pela descrição",confidence:96},
+  {pattern:/(cinema|pousada|hotel|airbnb|booking|evento|ingresso|parque|lazer)/,category:"Lazer",reason:"lazer/viagem reconhecido",confidence:94},
+  {pattern:/(google brasil|amazon|magalu|magazine luiza|mercado ?livre|shopping|decathlon|loja|comercio de acessor|camposom)/,category:"Compras",reason:"compra reconhecida pela descrição",confidence:92},
+  {pattern:/(escola|brinquedo|toy ?kids|kids|crianca|crian[cç]a|filho)/,category:"Filho",reason:"gasto infantil reconhecido",confidence:94},
+  {pattern:/(tarifa|fee|taxa|comiss[aã]o)/,category:"Taxas bancárias",reason:"tarifa/taxa identificada",confidence:99}
+];
+function smartCategory(text:string){
+  const n=normalize(text);
+  for(const rule of categoryRules)if(rule.pattern.test(n))return {category:rule.category,confidence:rule.confidence,reason:rule.reason};
+  return null;
+}
+function operationLabel(type:string,kind:"IN"|"OUT",paymentType:string,description:string){
+  const t=normalize(type),p=normalize(paymentType);
+  if(t==="payout"||t==="payouts")return "PIX/transferência enviada";
+  if(t==="withdrawal")return "Transferência para banco";
+  if(t==="withdrawal_cancel")return "Cancelamento de transferência";
+  if(t==="refund")return "Estorno/devolução";
+  if(t==="cashback")return "Cashback";
+  if(t==="chargeback")return "Contestação";
+  if(t==="dispute")return "Disputa";
+  if(t.includes("trava_de_recebivel"))return "Trava de recebível";
+  if(t==="settlement"&&p==="bank_transfer")return kind==="IN"?"PIX/transferência recebida":"Pagamento/transferência via PIX";
+  if(t==="settlement")return description||"Liquidação Mercado Pago";
+  return description||type||"Movimentação Mercado Pago";
+}
+
+function releaseLookup(rows:AnyRow[]){
+  const map=new Map<string,AnyRow>();
+  for(const row of rows){const id=clean(row.SOURCE_ID);if(id&&!map.has(id))map.set(id,row);}
+  return map;
+}
+
+function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[]){
+  const releases=releaseLookup(releaseRows);
   return rows.map((row,index)=>{
     const amount=numberValue(row.SETTLEMENT_NET_AMOUNT)||numberValue(row.REAL_AMOUNT)||numberValue(row.TRANSACTION_AMOUNT);
     if(!amount)return null;
-    const date=row.TRANSACTION_DATE||row.SETTLEMENT_DATE||row.TRANSACTION_DATE_SHORT||"";
-    const type=row.TRANSACTION_TYPE||"MOVEMENT";
-    const primary=row.SALE_DETAIL||row.DESCRIPTION||type;
-    const detail=[type,row.PAYMENT_METHOD_TYPE||row.PAYMENT_METHOD,row.EXTERNAL_REFERENCE?`Ref. ${row.EXTERNAL_REFERENCE}`:""].filter(Boolean).join(" · ");
-    const suggestion=categoryFor(Object.values(row).join(" "));
+    const kind:"IN"|"OUT"=amount<0?"OUT":"IN";
+    const date=row.TRANSACTION_DATE||row.SETTLEMENT_DATE||row.TRANSACTION_DATE_SHORT||row.SETTLEMENT_DATE_SHORT||"";
+    const type=clean(row.TRANSACTION_TYPE)||"MOVEMENT";
+    const paymentType=clean(row.PAYMENT_METHOD_TYPE||row.PAYMENT_METHOD);
+    const useful=meaningfulDescription(row,type);
+    const sourceId=clean(row.SOURCE_ID);
+    const release=sourceId?releases.get(sourceId):undefined;
+    const payoutAccount=maskedAccount(release?.PAYOUT_BANK_ACCOUNT_NUMBER);
+    const typeNorm=normalize(type);
+    const fee=Math.abs(numberValue(row.FEE_AMOUNT));
+    const keyword=smartCategory([useful,row.DESCRIPTION,row.SALE_DETAIL,row.STORE_NAME,row.POS_NAME,row.BUSINESS_UNIT,row.SUB_UNIT].filter(Boolean).join(" "));
+
+    let technical=false;
+    let category="Outros";
+    let confidence=32;
+    let reason="descrição insuficiente para classificar com segurança";
+    let status:MoveStatus="REVIEW";
+
+    if(["withdrawal","withdrawal_cancel","chargeback","dispute","trava_de_recebivel"].includes(typeNorm)){
+      technical=true;status="TECHNICAL";confidence=100;reason="movimento operacional da conta separado dos gastos pessoais";
+    }else if(!useful&&typeNorm==="settlement"&&Math.abs(amount)<=5&&paymentType!=="bank_transfer"){
+      technical=true;status="TECHNICAL";confidence=100;reason="ajuste técnico de liquidação sem descrição comercial";
+    }else if(keyword){
+      category=keyword.category;confidence=keyword.confidence;reason=keyword.reason;status=confidence>=90?"AUTO":"REVIEW";
+    }else if(fee>0&&!useful&&kind==="OUT"){
+      category="Taxas bancárias";confidence=96;reason="tarifa identificada pelo campo de taxa";status="AUTO";
+    }else if(typeNorm==="settlement"&&normalize(paymentType)==="bank_transfer"&&kind==="IN"){
+      category="Recebimento";confidence=76;reason="entrada via PIX/transferência; precisa conciliar a origem";status="REVIEW";
+    }else if(typeNorm==="payout"||typeNorm==="payouts"){
+      confidence=28;reason="PIX/transferência enviada sem destinatário legível no relatório";status="REVIEW";
+    }
+
+    const fallback=operationLabel(type,kind,paymentType,useful);
+    const description=useful||fallback;
+    const reference=compactRef(row.EXTERNAL_REFERENCE||row.PURCHASE_ID||row.PAY_BANK_TRANSFER_ID);
+    const detail=[operationLabel(type,kind,paymentType,""),paymentType,payoutAccount,reference].filter(Boolean).join(" · ");
+
     return {
-      id:`${row.SOURCE_ID||"mp"}-${date||index}-${index}`,
-      sourceId:row.SOURCE_ID||"",
+      id:`${sourceId||"mp"}-${date||index}-${index}`,
+      sourceId,
       date,
-      description:primary||"Movimentação Mercado Pago",
+      description,
       detail,
-      kind:amount<0?"OUT":"IN",
+      operation:type,
+      kind,
       amount:Math.abs(amount),
-      category:suggestion.category,
-      confidence:suggestion.confidence,
-      status:suggestion.category==="Outros"?"REVIEW":"AUTO"
+      category,
+      confidence,
+      reason,
+      technical,
+      status
     };
-  }).filter(Boolean).sort((a,b)=>String((b as any).date).localeCompare(String((a as any).date))).slice(0,300);
+  }).filter(Boolean).sort((a,b)=>String((b as any).date).localeCompare(String((a as any).date))).slice(0,400);
 }
 
 function releaseBalance(rows:AnyRow[]){
@@ -262,11 +364,11 @@ function releaseBalance(rows:AnyRow[]){
     const ordered=withBalance.slice().sort((a,b)=>String(a.DATE||"").localeCompare(String(b.DATE||"")));
     return {value:numberValue(ordered[ordered.length-1].BALANCE_AMOUNT),source:"BALANCE_AMOUNT"};
   }
-  const initialIndex=rows.findIndex(row=>String(row.RECORD_TYPE||"").toLowerCase()==="initial_available_balance");
+  const initialIndex=rows.findIndex(row=>normalize(row.RECORD_TYPE||"")==="initial_available_balance");
   if(initialIndex>=0){
     let balance=numberValue(rows[initialIndex].NET_CREDIT_AMOUNT)-numberValue(rows[initialIndex].NET_DEBIT_AMOUNT);
     for(const row of rows.slice(initialIndex+1)){
-      const type=String(row.RECORD_TYPE||"").toLowerCase();
+      const type=normalize(row.RECORD_TYPE||"");
       if(["total","subtotal","initial_available_balance","available_balance"].includes(type))continue;
       balance+=numberValue(row.NET_CREDIT_AMOUNT)-numberValue(row.NET_DEBIT_AMOUNT);
     }
@@ -286,14 +388,7 @@ async function latestCsv(kind:ReportKind,reports:MpReport[]){
 
 function summaryReport(report:MpReport|undefined){
   if(!report)return null;
-  return {
-    id:report.report_id??report.id??null,
-    status:String(report.status||"unknown"),
-    beginDate:report.begin_date||null,
-    endDate:report.end_date||null,
-    generatedAt:report.generation_date||report.date_created||report.last_modified||null,
-    fileName:report.file_name||null
-  };
+  return {id:report.report_id??report.id??null,status:String(report.status||"unknown"),beginDate:report.begin_date||null,endDate:report.end_date||null,generatedAt:report.generation_date||report.date_created||report.last_modified||null,fileName:report.file_name||null};
 }
 
 async function overview(){
@@ -302,25 +397,18 @@ async function overview(){
   ]);
   const configured={settlement:settlementConfig.ok,release:releaseConfig.ok};
   const needsSetup=!configured.settlement||!configured.release;
-  const [settlementCsv,releaseCsv]=await Promise.all([
-    latestCsv("settlement",settlementReports),latestCsv("release",releaseReports)
-  ]);
-  const movements=settlementMovements(settlementCsv.rows);
+  const configurationOptimized=Boolean(settlementConfig.ok&&releaseConfig.ok&&configOptimized("settlement",settlementConfig.data)&&configOptimized("release",releaseConfig.data));
+  const [settlementCsv,releaseCsv]=await Promise.all([latestCsv("settlement",settlementReports),latestCsv("release",releaseReports)]);
+  const movements=settlementMovements(settlementCsv.rows,releaseCsv.rows);
   const balance=releaseBalance(releaseCsv.rows);
   const latestDates=[reportDate(settlementCsv.report||{}),reportDate(releaseCsv.report||{})].filter(Boolean).sort().reverse();
   const pending=isPending(settlementReports[0])||isPending(releaseReports[0]);
   return {
-    connected:true,
-    needsSetup,
-    configured,
-    pending,
-    balance:balance.value,
-    balanceSource:balance.source,
-    lastSync:latestDates[0]||null,
-    movements,
+    connected:true,needsSetup,configured,configurationOptimized,pending,balance:balance.value,balanceSource:balance.source,
+    lastSync:latestDates[0]||null,movements,classificationVersion:CLASSIFICATION_VERSION,
+    technicalCount:movements.filter(item=>item&&typeof item==="object"&&(item as any).technical).length,
     reports:{settlement:summaryReport(settlementReports[0]),release:summaryReport(releaseReports[0])},
-    firstCollectionNotice:configured.settlement&&movements.length===0,
-    readOnly:true
+    firstCollectionNotice:configured.settlement&&movements.length===0,readOnly:true
   };
 }
 
@@ -329,7 +417,6 @@ function dateRange(days=30){
   const begin=new Date(end.getTime()-days*24*60*60*1000);
   return {begin_date:begin.toISOString(),end_date:end.toISOString()};
 }
-
 async function createReport(kind:ReportKind){
   const reports=await listReports(kind);
   const latest=reports[0];
@@ -350,10 +437,7 @@ function errorResponse(error:unknown){
 
 export async function GET(request:NextRequest){
   if(!(await isAuthorized(request)))return NextResponse.json({ok:false,error:"Sessão inválida. Entre novamente no DMP."},{status:401});
-  try{
-    const data=await overview();
-    return NextResponse.json({ok:true,...data},{headers:{"Cache-Control":"no-store"}});
-  }catch(error){return errorResponse(error);}
+  try{return NextResponse.json({ok:true,...await overview()},{headers:{"Cache-Control":"no-store"}});}catch(error){return errorResponse(error);}
 }
 
 export async function POST(request:NextRequest){
@@ -364,6 +448,6 @@ export async function POST(request:NextRequest){
     if(action!=="setup"&&action!=="sync")return NextResponse.json({ok:false,error:"Ação inválida."},{status:400});
     const setupResults=await Promise.all([ensureConfig("settlement"),ensureConfig("release")]);
     const reports=await Promise.all([createReport("settlement"),createReport("release")]);
-    return NextResponse.json({ok:true,action,configured:true,configCreated:setupResults.some(item=>item.created),reports,message:"Sincronização solicitada ao Mercado Pago. Os relatórios podem levar alguns minutos para ficar prontos."},{status:202});
+    return NextResponse.json({ok:true,action,configured:true,configCreated:setupResults.some(item=>item.created),configUpdated:setupResults.some(item=>item.updated),reports,message:"Sincronização solicitada. O novo relatório usará a leitura inteligente aprimorada e pode levar alguns minutos para ficar pronto."},{status:202});
   }catch(error){return errorResponse(error);}
 }
