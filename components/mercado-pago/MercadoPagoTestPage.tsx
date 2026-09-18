@@ -224,18 +224,20 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
 
   const moves=data?.movements||[];
   const operational=moves.filter(x=>!x.historical&&!x.technical);
+  const todayKey=localDateKey();
+  const monthKey=todayKey.slice(0,7);
   const summary=useMemo(()=>({
-    incoming:operational.filter(x=>x.kind==="IN").reduce((s,x)=>s+x.amount,0),
-    outgoing:operational.filter(x=>x.kind==="OUT").reduce((s,x)=>s+x.amount,0),
+    incomingDay:operational.filter(x=>x.kind==="IN"&&x.dateKey===todayKey).reduce((s,x)=>s+x.amount,0),
+    outgoingDay:operational.filter(x=>x.kind==="OUT"&&x.dateKey===todayKey).reduce((s,x)=>s+x.amount,0),
+    incomingMonth:operational.filter(x=>x.kind==="IN"&&x.dateKey.startsWith(monthKey)).reduce((s,x)=>s+x.amount,0),
+    outgoingMonth:operational.filter(x=>x.kind==="OUT"&&x.dateKey.startsWith(monthKey)).reduce((s,x)=>s+x.amount,0),
     review:operational.filter(x=>x.status==="REVIEW").length,
     processed:operational.filter(x=>x.status==="PROCESSED"||x.status==="IGNORED").length,
     automatic:operational.filter(x=>x.status==="PROCESSED"&&x.processedAutomatic).length,
     technical:moves.filter(x=>x.technical).length,historical:moves.filter(x=>x.historical).length,
-  }),[moves]);
+  }),[moves,todayKey,monthKey]);
   const visible=useMemo(()=>{
     const n=q.trim().toLocaleLowerCase("pt-BR");
-    const todayKey=localDateKey();
-    const monthKey=todayKey.slice(0,7);
     return moves.filter(x=>{
       if(filter==="ALL"&&(x.technical||x.historical))return false;
       if(filter==="REVIEW"&&x.status!=="REVIEW"&&x.status!=="AUTO_READY")return false;
@@ -275,15 +277,15 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
     </section>
 
     <div className={styles.kpis}>
-      <article><span>Entradas desde o corte</span><strong className={styles.green}>{money.format(summary.incoming)}</strong><small>Movimentações operacionais</small></article>
-      <article><span>Saídas desde o corte</span><strong className={styles.red}>{money.format(summary.outgoing)}</strong><small>Movimentações operacionais</small></article>
-      <article><span>Processadas</span><strong>{summary.processed}</strong><small>{summary.automatic} automáticas</small></article>
-      <article className={summary.review?styles.warn:""}><span>Precisa de você</span><strong>{summary.review}</strong><small>{summary.review?"Só o que depende da sua decisão":"Nada pendente"}</small></article>
+      <article><span>Receitas do dia</span><strong className={styles.green}>{money.format(summary.incomingDay)}</strong><small>Entradas operacionais de hoje</small></article>
+      <article><span>Despesas do dia</span><strong className={styles.red}>{money.format(summary.outgoingDay)}</strong><small>Saídas operacionais de hoje</small></article>
+      <article><span>Receitas do mês</span><strong className={styles.green}>{money.format(summary.incomingMonth)}</strong><small>Entradas operacionais do mês</small></article>
+      <article><span>Despesas do mês</span><strong className={styles.red}>{money.format(summary.outgoingMonth)}</strong><small>Saídas operacionais do mês</small></article>
     </div>
 
     <section className={styles.attention}>
-      <b>{summary.review?"!":"✓"}</b><span><small>CENTRO DE ATENÇÃO</small><strong>{summary.review?`${summary.review} movimentações aguardam sua decisão`:"Tudo o que podia ser tratado já foi resolvido"}</strong><em>{summary.technical?`${summary.technical} movimentos técnicos ficam separados. `:""}Regras automáticas só são criadas quando você autoriza.</em></span>
-      <button className="primary" disabled={!summary.review} onClick={()=>setFilter("REVIEW")}>{summary.review?"Revisar agora":"Tudo certo"}</button>
+      <b>{summary.review?"!":"✓"}</b><span><small>PAINEL OPERACIONAL</small><strong>{summary.review?`${summary.review} movimentações aguardam sua decisão`:"Nenhuma pendência no momento"}</strong><em>Processadas automaticamente: {summary.automatic} · Histórico: {summary.historical} · Última sincronização: {dateTime(data?.lastSync||null)}</em></span>
+      <button className="primary" disabled={!summary.review} onClick={()=>setFilter("REVIEW")}>{summary.review?"Revisar agora":"Sem pendências"}</button>
     </section>
 
     <div className={styles.grid}>
