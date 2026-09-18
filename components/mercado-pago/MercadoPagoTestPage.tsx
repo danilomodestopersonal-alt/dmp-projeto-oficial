@@ -1,39 +1,90 @@
 "use client";
 
-import {useMemo,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import styles from "./MercadoPagoTestPage.module.css";
 
 type Status="AUTO"|"REVIEW"|"MATCHED"|"IGNORED";
 type Filter="ALL"|"IN"|"OUT"|"REVIEW";
-type Move={id:string;date:string;description:string;detail:string;kind:"IN"|"OUT";amount:number;category:string;confidence:number;status:Status};
+type Move={id:string;sourceId?:string;date:string;description:string;detail:string;kind:"IN"|"OUT";amount:number;category:string;confidence:number;status:Status};
+type ReportState={id?:string|number|null;status?:string;beginDate?:string|null;endDate?:string|null;generatedAt?:string|null;fileName?:string|null}|null;
+type ApiData={
+  connected:boolean;needsSetup:boolean;configured:{settlement:boolean;release:boolean};pending:boolean;
+  balance:number|null;balanceSource:string|null;lastSync:string|null;movements:Move[];
+  reports:{settlement:ReportState;release:ReportState};firstCollectionNotice:boolean;readOnly:boolean;
+};
 
 const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
-const demoBalance=4286.73;
 const categories=["Alimentação","Mercado","Transporte","Saúde","Lazer","Compras","Filho","Taxas bancárias","Recebimento","Outros"];
-const seed:Move[]=[
-{id:"1",date:"2026-09-18T06:31:00",description:"PIX recebido",detail:"Entrada encontrada no extrato",kind:"IN",amount:600,category:"Recebimento",confidence:99,status:"MATCHED"},
-{id:"2",date:"2026-09-17T19:42:00",description:"COVABRA",detail:"Pagamento no cartão",kind:"OUT",amount:187.32,category:"Mercado",confidence:98,status:"AUTO"},
-{id:"3",date:"2026-09-17T13:18:00",description:"iFood",detail:"Pagamento online",kind:"OUT",amount:49.90,category:"Alimentação",confidence:99,status:"AUTO"},
-{id:"4",date:"2026-09-17T08:02:00",description:"CONECTCAR",detail:"Pagamento automático",kind:"OUT",amount:14.30,category:"Transporte",confidence:99,status:"AUTO"},
-{id:"5",date:"2026-09-16T17:54:00",description:"MP*ABC SERVIÇOS",detail:"Descrição ainda não reconhecida",kind:"OUT",amount:84.90,category:"Outros",confidence:42,status:"REVIEW"},
-{id:"6",date:"2026-09-16T11:22:00",description:"PIX recebido",detail:"Entrada sem correspondência encontrada",kind:"IN",amount:350,category:"Recebimento",confidence:61,status:"REVIEW"},
-{id:"7",date:"2026-09-15T18:36:00",description:"DROGARIA",detail:"Pagamento no cartão",kind:"OUT",amount:95.39,category:"Saúde",confidence:96,status:"AUTO"},
-{id:"8",date:"2026-09-15T09:10:00",description:"Taxa Mercado Pago",detail:"Tarifa da conta",kind:"OUT",amount:6.45,category:"Taxas bancárias",confidence:100,status:"AUTO"}
-];
 
 function date(v:string){
+  if(!v)return "Data não informada";
   const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return v;
   return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 }
 
-function status(s:Status){
-  return s==="AUTO"?"Identificado":s==="MATCHED"?"Conciliado":s==="IGNORED"?"Ignorado":"Revisar";
+function dateTime(v:string|null){
+  if(!v)return "Ainda não sincronizado";
+  const d=new Date(v);
+  if(Number.isNaN(d.getTime()))return v;
+  return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 }
 
+function statusLabel(s:Status){return s==="AUTO"?"Sugestão":s==="MATCHED"?"Conciliado":s==="IGNORED"?"Ignorado":"Revisar";}
+
 export default function MercadoPagoTestPage(){
- const [moves,setMoves]=useState(seed);
+ const [data,setData]=useState<ApiData|null>(null);
+ const [moves,setMoves]=useState<Move[]>([]);
  const [filter,setFilter]=useState<Filter>("ALL");
  const [q,setQ]=useState("");
+ const [loading,setLoading]=useState(true);
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState("");
+ const pollRef=useRef<number|null>(null);
+
+ async function load(silent=false){
+  if(!silent)setLoading(true);
+  try{
+    const response=await fetch("/api/mercado-pago",{cache:"no-store"});
+    const payload=await response.json();
+    if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Falha ao consultar Mercado Pago.");
+    const next:ApiData={
+      connected:Boolean(payload.connected),needsSetup:Boolean(payload.needsSetup),configured:payload.configured||{settlement:false,release:false},
+      pending:Boolean(payload.pending),balance:typeof payload.balance==="number"?payload.balance:null,balanceSource:payload.balanceSource||null,
+      lastSync:payload.lastSync||null,movements:Array.isArray(payload.movements)?payload.movements:[],reports:payload.reports||{settlement:null,release:null},
+      firstCollectionNotice:Boolean(payload.firstCollectionNotice),readOnly:true
+    };
+    setData(next);setMoves(next.movements);setError("");
+    return next;
+  }catch(err){setError(err instanceof Error?err.message:"Não foi possível consultar o Mercado Pago.");return null;}
+  finally{if(!silent)setLoading(false);}
+ }
+
+ useEffect(()=>{void load();return()=>{if(pollRef.current)window.clearInterval(pollRef.current);};},[]);
+
+ function startPolling(){
+  if(pollRef.current)window.clearInterval(pollRef.current);
+  let tries=0;
+  pollRef.current=window.setInterval(async()=>{
+    tries++;
+    const next=await load(true);
+    if(!next?.pending||tries>=12){
+      if(pollRef.current)window.clearInterval(pollRef.current);
+      pollRef.current=null;
+      setBusy(false);
+    }
+  },10000);
+ }
+
+ async function sync(){
+  setBusy(true);setError("");
+  try{
+    const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:data?.needsSetup?"setup":"sync"})});
+    const payload=await response.json();
+    if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível iniciar a sincronização.");
+    await load(true);startPolling();
+  }catch(err){setBusy(false);setError(err instanceof Error?err.message:"Não foi possível iniciar a sincronização.");}
+ }
 
  const summary=useMemo(()=>{
    const a=moves.filter(x=>x.status!=="IGNORED");
@@ -41,67 +92,72 @@ export default function MercadoPagoTestPage(){
      incoming:a.filter(x=>x.kind==="IN").reduce((s,x)=>s+x.amount,0),
      outgoing:a.filter(x=>x.kind==="OUT").reduce((s,x)=>s+x.amount,0),
      review:a.filter(x=>x.status==="REVIEW").length,
-     ok:a.filter(x=>x.status==="AUTO"||x.status==="MATCHED").length
+     suggested:a.filter(x=>x.status==="AUTO"||x.status==="MATCHED").length
    };
  },[moves]);
 
  const visible=useMemo(()=>{
    const n=q.trim().toLowerCase();
-   return moves.filter(x=>
-     (filter==="ALL"||filter===x.kind||(filter==="REVIEW"&&x.status==="REVIEW"))&&
-     (!n||`${x.description} ${x.detail} ${x.category}`.toLowerCase().includes(n))
-   );
+   return moves.filter(x=>(filter==="ALL"||filter===x.kind||(filter==="REVIEW"&&x.status==="REVIEW"))&&(!n||`${x.description} ${x.detail} ${x.category}`.toLowerCase().includes(n)));
  },[moves,filter,q]);
 
  const patch=(id:string,c:Partial<Move>)=>setMoves(m=>m.map(x=>x.id===id?{...x,...c}:x));
+ const connected=Boolean(data?.connected&&!error);
+ const setupReady=Boolean(data&&!data.needsSetup);
 
  return <section className={styles.page}>
   <section className={styles.moduleHead}>
     <div>
-      <div className={styles.kicker}><span>CONCILIAÇÃO BANCÁRIA</span><b>MODO TESTE</b></div>
+      <div className={styles.kicker}><span>CONCILIAÇÃO BANCÁRIA</span><b>SOMENTE LEITURA</b></div>
       <h2>Mercado Pago</h2>
-      <p>Nesta fase, o módulo observa e aprende sem lançar nada no Financeiro oficial.</p>
+      <p>Dados reais da conta, isolados do Financeiro oficial enquanto validamos a integração.</p>
     </div>
-    <div className={styles.connection}><i/><span><strong>Conexão real ainda não ativada</strong><small>Prévia operacional com dados demonstrativos.</small></span></div>
+    <div className={`${styles.connection} ${connected?styles.connected:""}`}><i/><span><strong>{connected?"Credencial de produção conectada":"Conexão indisponível"}</strong><small>{connected?setupReady?"Relatórios habilitados para sincronização.":"Token reconhecido · falta iniciar os relatórios.":"Confira a mensagem abaixo."}</small></span></div>
   </section>
+
+  {error?<section className={styles.errorBox}><strong>⚠ Não foi possível conectar</strong><span>{error}</span><button className="secondary" onClick={()=>void load()}>Tentar novamente</button></section>:null}
 
   <section className={styles.balanceHero}>
     <div className={styles.balanceIcon}>$</div>
     <div className={styles.balanceMain}>
       <span>Saldo disponível Mercado Pago</span>
-      <strong>{money.format(demoBalance)}</strong>
-      <small><b>DEMO</b> · após a conexão, este espaço mostrará o último saldo sincronizado da sua conta.</small>
+      <strong>{loading?"Carregando...":data?.balance!==null&&data?.balance!==undefined?money.format(data.balance):"Aguardando relatório"}</strong>
+      <small>{data?.balance!==null&&data?.balance!==undefined?"Último saldo sincronizado pelo relatório de Liberações.":"O saldo aparecerá assim que o primeiro relatório de Liberações ficar pronto."}</small>
     </div>
     <div className={styles.balanceSync}>
-      <span>Última atualização</span>
-      <strong>Hoje · 06:38</strong>
-      <button className="secondary" disabled>Atualizar agora</button>
+      <span>Última sincronização</span>
+      <strong>{dateTime(data?.lastSync||null)}</strong>
+      <button className="secondary" disabled={loading||busy||!connected} onClick={()=>void sync()}>{busy||data?.pending?"Sincronizando...":data?.needsSetup?"Ativar sincronização real":"Atualizar agora"}</button>
     </div>
   </section>
 
   <section className={styles.safe}>
-    <div><b>🛡️</b><span><strong>Ambiente seguro de teste</strong><small>Aprovar, classificar ou ignorar aqui não grava nada em Gastos extras, receitas ou despesas do Financeiro.</small></span></div>
-    <button className="secondary" disabled>Conectar Mercado Pago · próxima etapa</button>
+    <div><b>🛡️</b><span><strong>Financeiro oficial protegido</strong><small>Esta fase consulta Mercado Pago em modo leitura. Nenhuma movimentação vira Gasto extra, receita ou despesa automaticamente.</small></span></div>
+    <span className={styles.readOnlyTag}>READ ONLY</span>
   </section>
 
+  {data?.needsSetup?<section className={styles.setupBox}><div><strong>Primeira conexão</strong><span>O Access Token já está no servidor. Falta apenas criar as configurações oficiais dos relatórios Dinheiro em conta e Liberações.</span></div><button className="primary" disabled={busy} onClick={()=>void sync()}>{busy?"Ativando...":"Ativar agora"}</button></section>:null}
+
+  {data?.firstCollectionNotice?<section className={styles.noticeBox}><strong>Primeira coleta do Dinheiro em conta</strong><span>O Mercado Pago informa que esse relatório começa a registrar dados depois da configuração e da primeira execução. Por isso, a primeira coleta pode vir vazia e não recupera retroativamente o período anterior.</span></section>:null}
+
   <div className={styles.kpis}>
-    <article><span>Entradas</span><strong className={styles.green}>{money.format(summary.incoming)}</strong><small>Demonstração do mês</small></article>
-    <article><span>Saídas</span><strong className={styles.red}>{money.format(summary.outgoing)}</strong><small>Demonstração do mês</small></article>
-    <article><span>Identificadas</span><strong>{summary.ok}</strong><small>Sem precisar perguntar</small></article>
-    <article className={summary.review?styles.warn:""}><span>Precisa de você</span><strong>{summary.review}</strong><small>Aguardando revisão</small></article>
+    <article><span>Entradas</span><strong className={styles.green}>{money.format(summary.incoming)}</strong><small>Movimentos sincronizados</small></article>
+    <article><span>Saídas</span><strong className={styles.red}>{money.format(summary.outgoing)}</strong><small>Movimentos sincronizados</small></article>
+    <article><span>Sugestões</span><strong>{summary.suggested}</strong><small>Classificadas pelo DMP</small></article>
+    <article className={summary.review?styles.warn:""}><span>Precisa de você</span><strong>{summary.review}</strong><small>{summary.review?"Aguardando revisão":"Nada pendente"}</small></article>
   </div>
 
   <section className={styles.attention}>
-    <b>!</b>
-    <span><small>CENTRO DE ATENÇÃO</small><strong>{summary.review?`${summary.review} movimentações precisam da sua revisão`:"Nenhuma movimentação pendente"}</strong><em>É aqui que o DMP vai chamar você somente quando não tiver segurança para decidir sozinho.</em></span>
-    <button className="primary" onClick={()=>setFilter("REVIEW")}>{summary.review?"Revisar agora":"Conferido ✓"}</button>
+    <b>{summary.review?"!":"✓"}</b>
+    <span><small>CENTRO DE ATENÇÃO</small><strong>{summary.review?`${summary.review} movimentações precisam da sua revisão`:moves.length?"Nenhuma movimentação precisa de você":"Aguardando movimentos reais"}</strong><em>{moves.length?"As classificações desta fase ainda são apenas sugestões e não alteram seu Financeiro.":"Depois da primeira coleta, as movimentações reais aparecerão aqui."}</em></span>
+    <button className="primary" disabled={!summary.review} onClick={()=>setFilter("REVIEW")}>{summary.review?"Revisar agora":"Tudo certo"}</button>
   </section>
 
   <div className={styles.grid}>
    <section className={`panel ${styles.statement}`}>
     <div className={styles.statementHead}>
-      <span><small>EXTRATO INTELIGENTE</small><h2>Movimentações</h2><em>Extrato + classificação + conciliação.</em></span>
-      <span className={styles.sync}><small>Última leitura</small><strong>Hoje · 06:38</strong><em>dados demonstrativos</em></span>
+      <span><small>EXTRATO INTELIGENTE</small><h2>Movimentações reais</h2><em>Leitura do relatório Dinheiro em conta.</em></span>
+      <span className={styles.sync}><small>Status Mercado Pago</small><strong>{data?.pending?"Relatório em preparação":setupReady?"Pronto para leitura":"Aguardando ativação"}</strong><em>{data?.reports?.settlement?.status?`Dinheiro em conta: ${data.reports.settlement.status}`:""}</em></span>
     </div>
 
     <div className={styles.toolbar}>
@@ -112,36 +168,37 @@ export default function MercadoPagoTestPage(){
     <div>{visible.map(x=><article className={`${styles.move} ${x.status==="REVIEW"?styles.review:""}`} key={x.id}>
       <div className={`${styles.icon} ${x.kind==="IN"?styles.iconIn:styles.iconOut}`}>{x.kind==="IN"?"↓":"↑"}</div>
       <div className={styles.info}>
-        <div><strong>{x.description}</strong><span className={`${styles.badge} ${styles[x.status]}`}>{status(x.status)}</span></div>
-        <small>{date(x.date)} · {x.detail}</small>
-        <label><span>Categoria</span><select value={x.category} onChange={e=>patch(x.id,{category:e.target.value,status:"REVIEW"})}>{categories.map(c=><option key={c}>{c}</option>)}</select><em>{x.confidence}% confiança</em></label>
+        <div><strong>{x.description}</strong><span className={`${styles.badge} ${styles[x.status]}`}>{statusLabel(x.status)}</span></div>
+        <small>{date(x.date)}{x.detail?` · ${x.detail}`:""}</small>
+        <label><span>Categoria sugerida</span><select value={x.category} onChange={e=>patch(x.id,{category:e.target.value,status:"REVIEW"})}>{categories.map(c=><option key={c}>{c}</option>)}</select><em>{x.confidence}% confiança</em></label>
       </div>
       <div className={styles.value}>
         <strong className={x.kind==="IN"?styles.green:styles.red}>{x.kind==="IN"?"+ ":"− "}{money.format(x.amount)}</strong>
-        {x.status==="REVIEW"?<span><button className="primary" onClick={()=>patch(x.id,{status:x.kind==="IN"?"MATCHED":"AUTO",confidence:100})}>Aprovar</button><button className="secondary" onClick={()=>patch(x.id,{status:"IGNORED"})}>Ignorar</button></span>:null}
+        {x.status==="REVIEW"?<span><button className="primary" onClick={()=>patch(x.id,{status:"AUTO",confidence:100})}>Aprovar</button><button className="secondary" onClick={()=>patch(x.id,{status:"IGNORED"})}>Ignorar</button></span>:null}
       </div>
     </article>)}
-    {!visible.length?<div className={styles.empty}>Nada por aqui.</div>:null}</div>
+    {!loading&&!visible.length?<div className={styles.empty}><strong>{data?.pending?"O Mercado Pago está preparando o relatório.":data?.needsSetup?"Ative a primeira sincronização para começar.":"Ainda não há movimentações disponíveis."}</strong><span>{data?.pending?"A tela verifica novamente automaticamente por alguns minutos.":"Nada foi lançado no Financeiro oficial."}</span></div>:null}</div>
    </section>
 
    <aside className={styles.side}>
     <section className="panel">
-      <small className={styles.cap}>APRENDIZADO</small><h3>Regras reconhecidas</h3><p className="muted">No futuro, o sistema aprende com suas aprovações.</p>
-      {[["CONECTCAR","Transporte","12×"],["iFood","Alimentação","9×"],["COVABRA","Mercado","7×"],["DROGARIA","Saúde","5×"]].map(r=><div className={styles.rule} key={r[0]}><span><strong>{r[0]}</strong><small>{r[1]}</small></span><b>{r[2]}</b></div>)}
+      <small className={styles.cap}>CONEXÃO REAL</small><h3>Status dos relatórios</h3><p className="muted">Dados técnicos sem expor sua credencial.</p>
+      <div className={styles.reportRow}><span><strong>Dinheiro em conta</strong><small>Movimentações do saldo</small></span><b className={data?.configured.settlement?styles.okTag:styles.waitTag}>{data?.configured.settlement?"Configurado":"Pendente"}</b></div>
+      <div className={styles.reportRow}><span><strong>Liberações</strong><small>Composição do saldo disponível</small></span><b className={data?.configured.release?styles.okTag:styles.waitTag}>{data?.configured.release?"Configurado":"Pendente"}</b></div>
     </section>
     <section className="panel">
-      <small className={styles.cap}>COMO VAI FUNCIONAR</small><h3>Da conta para o DMP</h3>
+      <small className={styles.cap}>FASE ATUAL</small><h3>Somente leitura</h3>
       <ol className={styles.flow}>
-        <li><b>1</b><span><strong>Mercado Pago lê</strong><small>Entradas e saídas chegam automaticamente.</small></span></li>
-        <li><b>2</b><span><strong>DMP interpreta</strong><small>Reconhece valor, descrição e categoria provável.</small></span></li>
-        <li><b>3</b><span><strong>Você vê só exceções</strong><small>Notificação apenas quando faltar certeza.</small></span></li>
-        <li><b>4</b><span><strong>Integração vem depois</strong><small>Gastos extras continuam intocados nesta fase.</small></span></li>
+        <li><b>1</b><span><strong>Mercado Pago fornece</strong><small>Relatórios reais autenticados pelo backend.</small></span></li>
+        <li><b>2</b><span><strong>DMP interpreta</strong><small>Entradas, saídas, saldo e sugestões de categoria.</small></span></li>
+        <li><b>3</b><span><strong>Você valida</strong><small>Usamos esta fase para conferir se a leitura está correta.</small></span></li>
+        <li><b>4</b><span><strong>Integração vem depois</strong><small>Só depois ligamos isso aos Gastos extras.</small></span></li>
       </ol>
     </section>
-    <section className={styles.future}><small>PRÓXIMA ETAPA</small><strong>Conectar dados reais</strong><span>Quando conectarmos sua conta, o saldo e as movimentações serão substituídos pelos dados sincronizados — ainda sem alimentar o Financeiro oficial.</span></section>
+    <section className={styles.future}><small>PRÓXIMO PASSO</small><strong>Conferir alguns dias de dados</strong><span>Quando confirmarmos que os valores e descrições estão corretos, ativamos aprendizado persistente, notificações e, por último, conciliação com o Financeiro.</span></section>
    </aside>
   </div>
 
-  <p className={styles.note}>Prévia V2: saldo, movimentações e aprovações ainda são demonstrativos. Nada desta aba altera o Financeiro oficial.</p>
+  <p className={styles.note}>Mercado Pago V3 · conexão real em modo somente leitura · nenhum dado financeiro do DMP é alterado.</p>
  </section>;
 }
