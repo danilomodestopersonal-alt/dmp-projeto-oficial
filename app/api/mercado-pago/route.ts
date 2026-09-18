@@ -15,9 +15,10 @@ const STATE_ID="mercado_pago_reconciliation_v1";
 const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
 const CUTOVER_DATE="2026-09-18";
-const AUTO_REFRESH_MINUTES=4;
-const MANUAL_PENDING_RETRY_MINUTES=3;
-const AUTOMATIC_PENDING_RETRY_MINUTES=12;
+const AUTOMATIC_REPORT_INTERVAL_MINUTES=180;
+const MANUAL_REPORT_COOLDOWN_MINUTES=60;
+const MAX_REPORT_CREATIONS_PER_KIND_PER_24_HOURS=4;
+const QUOTA_COOLDOWN_HOURS=12;
 
 type ReportKind="settlement"|"release";
 type AnyRow=Record<string,string>;
@@ -49,12 +50,17 @@ type SavedDecision={
   updatedAt:string;
 };
 type SavedTask={id:string;kind:ReportKind;createdAt:string};
+type ReportRequest={at:string;kind:ReportKind};
 type MpState={
   version:1;
   rules:Record<string,LearnedRule>;
   decisions:Record<string,SavedDecision>;
   tasks:{settlement?:SavedTask;release?:SavedTask};
   lastReportRequestAt?:string;
+  lastReportRequestAtByKind?:Partial<Record<ReportKind,string>>;
+  reportRequestHistory?:ReportRequest[];
+  quotaBlockedUntil?:string;
+  quotaErrorAt?:string;
 };
 type MpReport={
   id?:number|string;
@@ -101,6 +107,16 @@ type FinanceContext={
 };
 
 function emptyState():MpState{return {version:1,rules:{},decisions:{},tasks:{}};}
+function reportRequestHistory(value:unknown):ReportRequest[]{
+  if(!Array.isArray(value))return [];
+  return value.flatMap(item=>{
+    if(!item||typeof item!=="object")return [];
+    const record=item as Record<string,unknown>;
+    const at=typeof record.at==="string"?record.at:"";
+    const kind=record.kind==="settlement"||record.kind==="release"?record.kind:null;
+    return at&&kind?[{at,kind}]:[];
+  });
+}
 function parseState(raw:unknown):MpState{
   if(!raw||typeof raw!=="object")return emptyState();
   const value=raw as Partial<MpState>;
@@ -110,6 +126,10 @@ function parseState(raw:unknown):MpState{
     decisions:value.decisions&&typeof value.decisions==="object"?value.decisions:{},
     tasks:value.tasks&&typeof value.tasks==="object"?value.tasks:{},
     lastReportRequestAt:typeof value.lastReportRequestAt==="string"?value.lastReportRequestAt:undefined,
+    lastReportRequestAtByKind:value.lastReportRequestAtByKind&&typeof value.lastReportRequestAtByKind==="object"?value.lastReportRequestAtByKind:{},
+    reportRequestHistory:reportRequestHistory(value.reportRequestHistory),
+    quotaBlockedUntil:typeof value.quotaBlockedUntil==="string"?value.quotaBlockedUntil:undefined,
+    quotaErrorAt:typeof value.quotaErrorAt==="string"?value.quotaErrorAt:undefined,
   };
 }
 async function loadState():Promise<MpState>{
@@ -148,6 +168,10 @@ async function saveReportTracking(source:MpState){
     const current=result.rows.length?parseState(result.rows[0].payload):emptyState();
     current.tasks=source.tasks;
     current.lastReportRequestAt=source.lastReportRequestAt;
+    current.lastReportRequestAtByKind=source.lastReportRequestAtByKind;
+    current.reportRequestHistory=source.reportRequestHistory;
+    current.quotaBlockedUntil=source.quotaBlockedUntil;
+    current.quotaErrorAt=source.quotaErrorAt;
     await client.query(`
       INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
       ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()
@@ -608,47 +632,105 @@ function missingDateParameter(error:unknown){
   const text=`${error.code} ${error.message}`.toLowerCase();
   return text.includes("begin_date")||text.includes("end_date")||text.includes("invalid_begin_date")||text.includes("invalid_end_date");
 }
-function recentlyRequested(state:MpState){
-  if(!state.lastReportRequestAt)return false;
-  const at=new Date(state.lastReportRequestAt).getTime();
-  return Number.isFinite(at)&&Date.now()-at<AUTO_REFRESH_MINUTES*60*1000;
+function validDateMs(value:string|undefined){
+  if(!value)return null;
+  const parsed=new Date(value).getTime();
+  return Number.isFinite(parsed)?parsed:null;
 }
-function reportTrackingDate(report:MpReport|undefined|null,requestedAt?:string){
-  return String(requestedAt||report?.generation_date||report?.date_created||report?.last_modified||"");
+function trimReportRequestHistory(state:MpState){
+  const cutoff=Date.now()-24*60*60*1000;
+  state.reportRequestHistory=(state.reportRequestHistory||[]).filter(item=>{
+    const at=validDateMs(item.at);
+    return at!==null&&at>=cutoff;
+  }).sort((a,b)=>a.at.localeCompare(b.at));
+  return state.reportRequestHistory;
 }
-function pendingStillFresh(report:MpReport|undefined|null,requestedAt:string|undefined,force:boolean){
-  if(!isPending(report))return false;
-  const at=new Date(reportTrackingDate(report,requestedAt)).getTime();
-  if(!Number.isFinite(at))return true;
-  const limit=(force?MANUAL_PENDING_RETRY_MINUTES:AUTOMATIC_PENDING_RETRY_MINUTES)*60*1000;
-  return Date.now()-at<limit;
+function quotaCooldown(state:MpState){
+  const until=validDateMs(state.quotaBlockedUntil);
+  if(until===null||until<=Date.now()){
+    state.quotaBlockedUntil=undefined;
+    return null;
+  }
+  return new Date(until).toISOString();
+}
+function reportQuotaReached(error:unknown){
+  if(!(error instanceof MpUpstreamError))return false;
+  const text=`${error.code} ${error.message}`.toLowerCase();
+  return text.includes("max number of reports")||text.includes("maximum number of reports")||text.includes("reports achieved");
+}
+function blockReportQuota(state:MpState){
+  const now=new Date();
+  state.quotaErrorAt=now.toISOString();
+  state.quotaBlockedUntil=new Date(now.getTime()+QUOTA_COOLDOWN_HOURS*60*60*1000).toISOString();
+  return state.quotaBlockedUntil;
+}
+function creationCooldown(state:MpState,kind:ReportKind,force:boolean){
+  const byKind=state.lastReportRequestAtByKind||{};
+  const legacyFallback=Object.keys(byKind).length===0?state.lastReportRequestAt:undefined;
+  const at=validDateMs(byKind[kind]||legacyFallback);
+  if(at===null)return null;
+  const minutes=force?MANUAL_REPORT_COOLDOWN_MINUTES:AUTOMATIC_REPORT_INTERVAL_MINUTES;
+  const retryAt=at+minutes*60*1000;
+  return retryAt>Date.now()?new Date(retryAt).toISOString():null;
+}
+function recordReportRequest(state:MpState,kind:ReportKind){
+  const at=new Date().toISOString();
+  const history=trimReportRequestHistory(state);
+  history.push({at,kind});
+  state.lastReportRequestAt=at;
+  state.lastReportRequestAtByKind={...(state.lastReportRequestAtByKind||{}),[kind]:at};
+  state.quotaBlockedUntil=undefined;
+  state.quotaErrorAt=undefined;
 }
 async function createReport(kind:ReportKind,state:MpState,force:boolean){
   const savedTask=state.tasks[kind];
   if(savedTask){
     const task=await taskReport(kind,savedTask.id);
-    if(task&&pendingStillFresh(task,savedTask.createdAt,force))return {created:false,pending:true,report:summaryReport(task),taskId:savedTask.id,reason:"pending"};
+    if(task&&isPending(task))return {created:false,pending:true,report:summaryReport(task),taskId:savedTask.id,reason:"pending"};
   }
   const reports=await listReports(kind);
   const latest=reports[0];
-  if(pendingStillFresh(latest,undefined,force)){
+  if(isPending(latest)){
     const id=latest.id??latest.report_id;
     if(id!==undefined&&id!==null)state.tasks[kind]={id:String(id),kind,createdAt:new Date().toISOString()};
     return {created:false,pending:true,report:summaryReport(latest),taskId:id??null,reason:"pending"};
   }
-  if(!force&&recentlyRequested(state))return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"throttled"};
+  const blockedUntil=quotaCooldown(state);
+  if(blockedUntil)return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"quota-cooldown",retryAt:blockedUntil};
+  const retryAt=creationCooldown(state,kind,force);
+  if(retryAt)return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"cooldown",retryAt};
+  const kindHistory=trimReportRequestHistory(state).filter(item=>item.kind===kind);
+  if(kindHistory.length>=MAX_REPORT_CREATIONS_PER_KIND_PER_24_HOURS){
+    const oldest=kindHistory[0];
+    const oldestAt=validDateMs(oldest?.at);
+    const dailyRetryAt=new Date((oldestAt??Date.now())+24*60*60*1000).toISOString();
+    return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"daily-cap",retryAt:dailyRetryAt};
+  }
   const range=dateRange();
   let result;
   try{
     result=await mpRequest(reportBase(kind),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(range)});
   }catch(error){
+    if(reportQuotaReached(error)){
+      const retryAt=blockReportQuota(state);
+      return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"quota-cooldown",retryAt};
+    }
     if(!missingDateParameter(error))throw error;
     const query=`?begin_date=${encodeURIComponent(range.begin_date)}&end_date=${encodeURIComponent(range.end_date)}`;
-    result=await mpRequest(`${reportBase(kind)}${query}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(range)});
+    try{
+      result=await mpRequest(`${reportBase(kind)}${query}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(range)});
+    }catch(retryError){
+      if(reportQuotaReached(retryError)){
+        const retryAt=blockReportQuota(state);
+        return {created:false,pending:false,report:summaryReport(latest),taskId:null,reason:"quota-cooldown",retryAt};
+      }
+      throw retryError;
+    }
   }
   const report=(result.data&&typeof result.data==="object"?result.data:{}) as MpReport;
   const id=report.id??report.report_id;
   if(id!==undefined&&id!==null)state.tasks[kind]={id:String(id),kind,createdAt:new Date().toISOString()};
+  recordReportRequest(state,kind);
   return {created:true,pending:true,report:summaryReport(report),taskId:id??null,reason:"created"};
 }
 function financeHistory(id:string,competence:string,kind:FinanceHistoryEntry["kind"],description:string,amount:number|undefined,entityId:string):FinanceHistoryEntry{
@@ -864,19 +946,28 @@ export async function POST(request:NextRequest){
     const auto=await processAutomatic(snapshot.movements);
     const state=await loadState();
     const setupResults=await Promise.all([ensureConfig("settlement"),ensureConfig("release")]);
-    const requested=await Promise.allSettled([createReport("settlement",state,force),createReport("release",state,force)]);
-    const reports=requested.map((item,index)=>item.status==="fulfilled"
-      ?item.value
-      :{created:false,pending:false,report:null,taskId:null,reason:"error",kind:index===0?"settlement":"release",error:item.reason instanceof Error?item.reason.message:"Falha ao solicitar relatório."}
-    );
-    const failures=requested.filter(item=>item.status==="rejected");
-    if(failures.length===requested.length){
-      const first=requested[0];
-      if(first.status==="rejected")throw first.reason;
+    const reports:Array<Record<string,unknown>>=[];
+    const failures:unknown[]=[];
+    for(const kind of ["settlement","release"] as ReportKind[]){
+      try{reports.push(await createReport(kind,state,force));}
+      catch(error){
+        failures.push(error);
+        reports.push({created:false,pending:false,report:null,taskId:null,reason:"error",kind,error:error instanceof Error?error.message:"Falha ao solicitar relatório."});
+      }
     }
-    if(reports.some(item=>item.created))state.lastReportRequestAt=new Date().toISOString();
+    if(failures.length===2)throw failures[0];
     await saveReportTracking(state);
     const partial=failures.length>0;
-    return NextResponse.json({ok:true,action,configured:true,configCreated:setupResults.some(item=>item.created),configUpdated:setupResults.some(item=>item.updated),reports,auto,partial,message:partial?"Sincronização parcial: um dos relatórios do Mercado Pago ainda não respondeu. O DMP continuará usando o relatório disponível e tentará o outro novamente.":"Sincronização solicitada. O DMP acompanhará as tarefas sem duplicar relatórios em processamento."},{status:202});
+    const protectedReason=reports.find(item=>["quota-cooldown","daily-cap","cooldown"].includes(String(item.reason||"")))?.reason;
+    const message=protectedReason==="quota-cooldown"
+      ?"O Mercado Pago limitou temporariamente novos relatórios. O DMP pausou as tentativas e continuará usando os últimos dados disponíveis."
+      :protectedReason==="daily-cap"
+        ?"Limite interno de segurança atingido. O DMP continuará consultando os relatórios existentes sem criar novos até a liberação."
+        :protectedReason==="cooldown"
+          ?"Verificação concluída. O próximo relatório novo respeitará o intervalo seguro configurado."
+          :partial
+            ?"Sincronização parcial: um dos relatórios do Mercado Pago ainda não respondeu. O DMP continuará usando o relatório disponível e tentará o outro novamente."
+            :"Sincronização solicitada. O DMP acompanhará as tarefas sem duplicar relatórios em processamento.";
+    return NextResponse.json({ok:true,action,configured:true,configCreated:setupResults.some(item=>item.created),configUpdated:setupResults.some(item=>item.updated),reports,auto,partial,protected:Boolean(protectedReason),message},{status:202});
   }catch(error){return errorResponse(error);}
 }
