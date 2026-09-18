@@ -9,6 +9,7 @@ import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
 import { exportWorkoutJpeg, exportWorkoutPdf } from "@/lib/workout-export";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
+import MercadoPagoTestPage from "@/components/mercado-pago/MercadoPagoTestPage";
 import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
@@ -20,7 +21,7 @@ import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud } from "@/lib/fina
 import { financeSummary } from "@/lib/financeiro/calculos";
 import type { PerformanceActivity } from "@/types/performance";
 
-type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
+type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "mercado-pago" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "timeline" | "workouts" | "history" | "assessments" | "finance" | "files";
 type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string; dueDate?:string; dueTime?:string; dueString?:string; priority?:number };
 
@@ -1278,7 +1279,7 @@ fetch("/api/google/status")
     setView("finance");
   }
 
-  if (["today","students","workouts-overview","history-overview","assessments-overview","agenda","finance","reports","kids","performance","data","settings","weather"].includes(view)) {
+  if (["today","students","workouts-overview","history-overview","assessments-overview","agenda","finance","mercado-pago","reports","kids","performance","data","settings","weather"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
@@ -1668,6 +1669,7 @@ fetch("/api/google/status")
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} /> : null}
+          {view === "mercado-pago" ? <MercadoPagoTestPage /> : null}
           {view === "reports" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}
           {view === "performance" ? <PerformancePage openActivityId={selectedPerformanceActivityId} /> : null}
@@ -2100,8 +2102,8 @@ function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onM
       .catch(()=>{if(!cancelled)setKidsSearchStudents([]);});
     return()=>{cancelled=true;};
   },[mobile]);
-  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"students",icon:"👥",label:"Alunos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"reports",icon:"📊",label:"Relatórios"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"},{view:"settings",icon:"⚙️",label:"Configurações"}];
-  const mobileOrder:View[]=["today","kids","finance","performance","reports","students","workouts-overview","assessments-overview","data","settings"];
+  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"mercado-pago",icon:"💳",label:"Mercado Pago"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"students",icon:"👥",label:"Alunos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"reports",icon:"📊",label:"Relatórios"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"},{view:"settings",icon:"⚙️",label:"Configurações"}];
+  const mobileOrder:View[]=["today","kids","finance","mercado-pago","performance","reports","students","workouts-overview","assessments-overview","data","settings"];
   const orderedItems = mobile ? mobileOrder.map(view=>items.find(item=>item.view===view)!).filter(Boolean) : items;
   const normalizedSearch=normalizeName(studentSearch);
   const quickStudents=studentSearch.trim()?students.filter(student=>student.status==="ACTIVE"&&normalizeName(student.name).includes(normalizedSearch)).slice(0,6):[];
