@@ -1,5 +1,7 @@
 import type { KidsClass, KidsData, KidsLesson } from "@/types/kids";
 
+// DMP_KIDS_CREDITOS_TURMAS_ATIVAS_V615_20260919
+
 export const KIDS_REPLACEMENT_BALANCE_START = "2026-08-01";
 
 export type KidsReplacementBalanceEvent = {
@@ -8,7 +10,7 @@ export type KidsReplacementBalanceEvent = {
   className: string;
   date: string;
   type: "DUE" | "REPLACED";
-  source: "CANCELLED_CONTRACTED" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
+  source: "CANCELLED_CONTRACTED" | "LEGACY_CANCELLED_CREDIT" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
   label: string;
   lessonId: string;
 };
@@ -196,6 +198,59 @@ function individualReplacementEvents(
   return [...lessonEvents, ...legacyEvents];
 }
 
+function preservedCancelledCreditEvents(
+  data: KidsData,
+  studentId: string,
+  throughDate: string,
+  activeDueEvents: KidsReplacementBalanceEvent[],
+): KidsReplacementBalanceEvent[] {
+  const start = effectiveStart(data);
+  const activeDates = new Set(activeDueEvents.map((event) => event.date));
+  const byDate = new Map<string, KidsReplacementBalanceEvent>();
+
+  for (const credit of data.replacements || []) {
+    if (
+      credit.studentId !== studentId ||
+      credit.sourceDate < start ||
+      credit.sourceDate > throughDate ||
+      activeDates.has(credit.sourceDate)
+    ) continue;
+
+    const lesson = data.lessons.find((item) => item.id === credit.sourceLessonId);
+    if (lesson && (lesson.status !== "CANCELLED" || !lesson.replacementEligible)) continue;
+    if (
+      lesson &&
+      !computeKidsClassReplacementBalance(data, credit.classId, throughDate).events.some(
+        (event) => event.type === "DUE" && event.lessonId === lesson.id,
+      )
+    ) continue;
+    const group = data.classes.find((item) => item.id === credit.classId);
+    const event: KidsReplacementBalanceEvent = {
+      id: `student:${studentId}:${credit.sourceDate}:preserved-due`,
+      classId: credit.classId,
+      className: group?.name || "Turma anterior",
+      date: credit.sourceDate,
+      type: "DUE",
+      source: "LEGACY_CANCELLED_CREDIT",
+      label: "Aula regular cancelada",
+      lessonId: credit.sourceLessonId,
+    };
+
+    const current = byDate.get(credit.sourceDate);
+    const currentActive = current
+      ? data.classes.find((item) => item.id === current.classId)?.students.some(
+          (student) => student.id === studentId && student.active,
+        )
+      : false;
+    const nextActive = group?.students.some(
+      (student) => student.id === studentId && student.active,
+    );
+    if (!current || (nextActive && !currentActive)) byDate.set(credit.sourceDate, event);
+  }
+
+  return [...byDate.values()];
+}
+
 export function computeKidsStudentReplacementBalance(
   data: KidsData,
   studentId: string,
@@ -203,19 +258,27 @@ export function computeKidsStudentReplacementBalance(
 ): KidsReplacementBalance {
   const memberships = data.classes.flatMap((group) =>
     group.students
-      .filter((student) => student.id === studentId)
+      .filter((student) => student.id === studentId && student.active)
       .map((student) => ({ group, student })),
   );
 
-  const collectiveEvents = memberships.flatMap(({ group, student }) => {
+  const activeCollectiveEvents = memberships.flatMap(({ group, student }) => {
     const start = student.startDate || data.semesterStart || KIDS_REPLACEMENT_BALANCE_START;
     return computeKidsClassReplacementBalance(data, group.id, throughDate).events.filter(
       (event) => event.date >= start,
     );
   });
+  const activeDueEvents = activeCollectiveEvents.filter((event) => event.type === "DUE");
+  const preservedDueEvents = preservedCancelledCreditEvents(
+    data,
+    studentId,
+    throughDate,
+    activeDueEvents,
+  );
 
   const events = [
-    ...collectiveEvents,
+    ...activeCollectiveEvents,
+    ...preservedDueEvents,
     ...individualReplacementEvents(data, studentId, throughDate),
   ];
 

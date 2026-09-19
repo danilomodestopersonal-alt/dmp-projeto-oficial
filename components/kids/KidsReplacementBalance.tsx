@@ -72,9 +72,20 @@ function Metrics({balance}:{balance:KidsReplacementBalance}) {
   </div>;
 }
 
-// DMP_KIDS_PAINEL_OPERACIONAL_REPOSICOES_V614_20260919
+// DMP_KIDS_EXTRATO_CREDITOS_REPOSICAO_V615_20260919
 type OperationPeriod = "semester" | "month";
 type OperationDetail = "generated" | "performed" | "pending" | "scheduled" | "advance" | "attendance";
+type CreditLedgerItem = {
+  credit:KidsReplacementBalanceEvent;
+  replacement?:KidsReplacementBalanceEvent;
+  status:"RESOLVED"|"PENDING";
+};
+type DetailEvent = {
+  date:string;
+  label:string;
+  className?:string;
+  tone?:"resolved"|"pending"|"absent";
+};
 
 type StudentOperationRow = {
   id:string;
@@ -89,6 +100,7 @@ type StudentOperationRow = {
   advanceEvents:KidsReplacementBalanceEvent[];
   scheduledDates:string[];
   attendanceEvents:Array<{date:string;status:"PRESENT"|"ABSENT"}>;
+  creditLedger:CreditLedgerItem[];
 };
 
 type KidsReplacementOperationMetrics = {
@@ -162,9 +174,14 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
     const allDueEvents=balance.events.filter(event=>event.type==="DUE").sort((a,b)=>a.date.localeCompare(b.date));
     const allReplacedEvents=balance.events.filter(event=>event.type==="REPLACED").sort((a,b)=>a.date.localeCompare(b.date));
     const resolved=Math.min(allDueEvents.length,allReplacedEvents.length);
+    const creditLedger:CreditLedgerItem[]=allDueEvents.map((credit,index)=>({
+      credit,
+      replacement:index<resolved?allReplacedEvents[index]:undefined,
+      status:index<resolved?"RESOLVED":"PENDING",
+    }));
     const dueEvents=allDueEvents.filter(event=>periodIncludes(event.date,period,data));
     const replacedEvents=allReplacedEvents.filter(event=>periodIncludes(event.date,period,data));
-    const pendingEvents=allDueEvents.slice(resolved).filter(event=>periodIncludes(event.date,period,data));
+    const pendingEvents=creditLedger.filter(item=>item.status==="PENDING"&&periodIncludes(item.credit.date,period,data)).map(item=>item.credit);
     const advanceEvents=allReplacedEvents.slice(resolved).filter(event=>periodIncludes(event.date,period,data));
     return {
       id:studentId,
@@ -179,6 +196,7 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
       advanceEvents,
       scheduledDates:(scheduledByStudent.get(studentId)||[]).sort(),
       attendanceEvents:(attendanceByStudent.get(studentId)||[]).sort((a,b)=>a.date.localeCompare(b.date)),
+      creditLedger,
     };
   }).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
 
@@ -225,15 +243,38 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
   if(!data||!metric)return null;
 
   const detailMeta:Record<OperationDetail,{eyebrow:string;title:string;description:string}>={
-    generated:{eyebrow:"CRÉDITOS GERADOS",title:"Origem das reposições",description:"Cada linha mostra quantos créditos foram gerados para a criança e em quais datas."},
-    performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"Inclui a quantidade, as datas e o registro de falta quando a vaga foi utilizada sem comparecimento."},
-    pending:{eyebrow:"REPOSIÇÕES PENDENTES",title:"Crianças que ainda precisam repor",description:"Ordenado pela maior quantidade pendente e pelo crédito mais antigo."},
+    generated:{eyebrow:"CRÉDITOS GERADOS",title:"Extrato completo das aulas canceladas",description:"Verde identifica o crédito já reposto; vermelho mostra a aula que ainda precisa ser reposta."},
+    performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"Mostra a data da reposição e qual aula cancelada foi compensada, inclusive quando houve falta."},
+    pending:{eyebrow:"REPOSIÇÕES PENDENTES",title:"Crianças que ainda precisam repor",description:"Exibe apenas crianças com pendência, mantendo em verde o histórico já resolvido e em vermelho o que falta."},
     scheduled:{eyebrow:"PRÓXIMAS REPOSIÇÕES",title:"Crianças já agendadas",description:"Vagas futuras já reservadas nas aulas de reposição."},
     advance:{eyebrow:"CRÉDITOS ANTECIPADOS",title:"Crianças com saldo positivo",description:"Reposições realizadas além dos créditos gerados até este período."},
     attendance:{eyebrow:"COMPARECIMENTO",title:"Presenças e faltas nas reposições",description:"A falta permanece registrada e também consome a reposição utilizada."},
   };
   const rowValue=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.due:kind==="performed"?row.replaced:kind==="pending"?row.pending:kind==="scheduled"?row.scheduledDates.length:kind==="advance"?row.advance:row.attendanceEvents.length;
-  const rowDates=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.dueEvents.map(event=>({date:event.date,label:event.label})):kind==="performed"?row.replacedEvents.map(event=>({date:event.date,label:event.label})):kind==="pending"?row.pendingEvents.map(event=>({date:event.date,label:"Crédito pendente"})):kind==="scheduled"?row.scheduledDates.map(date=>({date,label:"Reposição agendada"})):kind==="advance"?row.advanceEvents.map(event=>({date:event.date,label:event.label})):row.attendanceEvents.map(event=>({date:event.date,label:event.status==="ABSENT"?"Falta · crédito consumido":"Presença"}));
+  const ledgerForPeriod=(row:StudentOperationRow)=>row.creditLedger.filter(item=>periodIncludes(item.credit.date,period,data));
+  const ledgerDetail=(item:CreditLedgerItem):DetailEvent=>({
+    date:item.credit.date,
+    className:item.credit.className,
+    label:item.status==="RESOLVED"&&item.replacement
+      ? `Reposta em ${fmtDate(item.replacement.date)}${item.replacement.label.toLowerCase().includes("falta")?" · falta registrada":""}`
+      :"A repor",
+    tone:item.status==="RESOLVED"?"resolved":"pending",
+  });
+  const rowDates=(row:StudentOperationRow,kind:OperationDetail):DetailEvent[]=>{
+    if(kind==="generated"||kind==="pending")return ledgerForPeriod(row).map(ledgerDetail);
+    if(kind==="performed")return row.replacedEvents.map(event=>{
+      const paired=row.creditLedger.find(item=>item.replacement?.id===event.id);
+      return {
+        date:event.date,
+        className:paired?`Compensou ${fmtDate(paired.credit.date)} · ${paired.credit.className}`:event.className,
+        label:event.label,
+        tone:event.label.toLowerCase().includes("falta")?"absent":"resolved",
+      };
+    });
+    if(kind==="scheduled")return row.scheduledDates.map(date=>({date,label:"Reposição agendada"}));
+    if(kind==="advance")return row.advanceEvents.map(event=>({date:event.date,label:event.label}));
+    return row.attendanceEvents.map(event=>({date:event.date,label:event.status==="ABSENT"?"Falta · crédito consumido":"Presença",tone:event.status==="ABSENT"?"absent":undefined}));
+  };
   const detailRows=detail?metric.rows
     .filter(row=>rowValue(row,detail)>0&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
     .sort((a,b)=>rowValue(b,detail)-rowValue(a,detail)||a.name.localeCompare(b.name,"pt-BR")):[];
@@ -257,7 +298,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
       </div>
 
       <div className={styles.operationHero}>
-        <div><small>SITUAÇÃO ATUAL</small><strong>{metric.creditsPending}</strong><span>reposição{metric.creditsPending===1?"":"ões"} pendente{metric.creditsPending===1?"":"s"}</span></div>
+        <div><small>SITUAÇÃO ATUAL</small><strong>{metric.creditsPending}</strong><span>{metric.creditsPending===1?"reposição pendente":"reposições pendentes"}</span></div>
         <div className={styles.coverageBlock}><strong>{metric.creditsCoverage}%</strong><span>dos créditos compensados</span><OperationProgress value={metric.creditsCoverage}/><small>{metric.creditsGenerated} gerados · {metric.creditsPerformed} realizados · {metric.creditsPendingPercent}% ainda pendente</small></div>
       </div>
 
@@ -289,7 +330,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
         <div className={styles.detailList}>
           {detailRows.length?detailRows.map(row=><article className={styles.detailRow} key={row.id}>
             <div className={styles.detailStudent}><strong>{row.name}</strong><small>{rowValue(row,detail)} {detail==="attendance"?"registro":detail==="scheduled"?"agendamento":"crédito"}{rowValue(row,detail)===1?"":"s"}</small></div>
-            <div className={styles.detailDates}>{rowDates(row,detail).map((event,index)=><span key={`${event.date}-${index}`} className={event.label.includes("Falta")||event.label.includes("falta")?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.label}</small></span>)}</div>
+            <div className={styles.detailDates}>{rowDates(row,detail).map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>)}</div>
             <b className={styles.detailCount}>{rowValue(row,detail)}</b>
           </article>):<div className={styles.detailEmpty}>Nenhuma criança encontrada neste indicador.</div>}
         </div>
