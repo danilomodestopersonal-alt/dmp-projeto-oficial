@@ -24,7 +24,7 @@ import { reconcileKidsFinance } from "@/lib/financeiro/kids-sync";
 
 type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "replacements" | "events" | "reports";
 type AgendaFilter = "ALL" | "COMPLETED" | "CANCELLED";
-export type KidsLessonOpenRequest={date:string;time:string;category:KidsCategory};
+export type KidsLessonOpenRequest={date:string;time:string;category:KidsCategory;lessonId?:string};
 const categoryLabel: Record<KidsCategory, string> = {
   RED: "Vermelha",
   ORANGE: "Laranja",
@@ -128,8 +128,11 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   useEffect(()=>{
     if(!data||!openRequest)return;
     const target=data.lessons.find(lesson=>{
+      if(openRequest.lessonId)return lesson.id===openRequest.lessonId;
       const lessonClass=data.classes.find(group=>group.id===lesson.classId);
-      return lesson.date===openRequest.date&&lessonClass?.category===openRequest.category&&lessonClass.startTime===openRequest.time;
+      const category=lesson.replacementCategory||lessonClass?.category;
+      const time=lesson.replacementStartTime||lessonClass?.startTime;
+      return lesson.date===openRequest.date&&category===openRequest.category&&time===openRequest.time;
     });
     if(target){setTab("agenda");setLessonId(target.id);}
   },[data,openRequest]);
@@ -1218,15 +1221,20 @@ function ReplacementLessonForm({
 }) {
   void replacements;
   void lessons;
+  void students;
   const [date,setDate]=useState(localDate());
   const [startTime,setStartTime]=useState("16:00");
   const [endTime,setEndTime]=useState("17:00");
   const [category,setCategory]=useState<KidsCategory>("RED");
   const [classId,setClassId]=useState("");
   const [selected,setSelected]=useState<string[]>([]);
+  const [showOtherStudents,setShowOtherStudents]=useState(false);
+  const [otherStudentSearch,setOtherStudentSearch]=useState("");
 
   const activeClasses=classes.filter(item=>item.active).sort((a,b)=>localeCompare(a.name,b.name));
-  const activeStudents=students.filter(item=>item.active).sort((a,b)=>localeCompare(a.name,b.name));
+  const activeStudents=Array.from(new Map(
+    classes.flatMap(group=>group.students).filter(item=>item.active).map(item=>[item.id,item] as const)
+  ).values()).sort((a,b)=>localeCompare(a.name,b.name));
   const destinationClass=activeClasses.find(item=>item.id===classId);
   const selectedCategory=destinationClass?.category||category;
   const levelStudentIds=Array.from(new Set(
@@ -1234,14 +1242,26 @@ function ReplacementLessonForm({
       .filter(group=>group.active&&group.category===selectedCategory)
       .flatMap(group=>group.students.filter(student=>student.active).map(student=>student.id))
   ));
+  const levelStudentIdSet=new Set(levelStudentIds);
+  const levelStudents=activeStudents.filter(student=>levelStudentIdSet.has(student.id));
+  const selectedOtherStudents=activeStudents.filter(student=>selected.includes(student.id)&&!levelStudentIdSet.has(student.id));
+  const normalizedOtherSearch=normalizeName(otherStudentSearch.trim());
+  const otherStudents=activeStudents.filter(student=>
+    !levelStudentIdSet.has(student.id)
+    &&(!normalizedOtherSearch||normalizeName(student.name).includes(normalizedOtherSearch))
+  );
   const selectedLevelCount=levelStudentIds.filter(id=>selected.includes(id)).length;
+
+  function studentLevels(id:string){
+    return Array.from(new Set(classes.filter(group=>group.active&&group.students.some(student=>student.id===id&&student.active)).map(group=>categoryLabel[group.category]))).join(" / ")||"Outro nível";
+  }
 
   function toggleStudent(id:string) {
     setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id]);
   }
 
   function selectAllLevel() {
-    setSelected(levelStudentIds);
+    setSelected(current=>Array.from(new Set([...current.filter(id=>!levelStudentIdSet.has(id)),...levelStudentIds])));
   }
 
   function save() {
@@ -1269,7 +1289,7 @@ function ReplacementLessonForm({
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:12}}>
         <label style={{gridColumn:"1 / -1"}}>
           Turma onde fará a reposição
-          <select value={classId} onChange={event=>{setClassId(event.target.value);setSelected([]);}}>
+          <select value={classId} onChange={event=>{setClassId(event.target.value);setSelected([]);setShowOtherStudents(false);setOtherStudentSearch("");}}>
             <option value="">Aula avulsa / sem turma específica</option>
             {activeClasses.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
@@ -1280,7 +1300,7 @@ function ReplacementLessonForm({
         </label>
         {!destinationClass?<label>
           Bola
-          <select value={category} onChange={event=>{setCategory(event.target.value as KidsCategory);setSelected([]);}}>
+          <select value={category} onChange={event=>{setCategory(event.target.value as KidsCategory);setSelected([]);setShowOtherStudents(false);setOtherStudentSearch("");}}>
             <option value="RED">Vermelha</option>
             <option value="ORANGE">Laranja</option>
             <option value="GREEN">Verde</option>
@@ -1315,10 +1335,31 @@ function ReplacementLessonForm({
       </div>
 
       <div className={styles.lessonList} style={{maxHeight:320,overflowY:"auto"}}>
-        {activeStudents.map(student=><label key={student.id} className={styles.lessonRow}>
+        {levelStudents.map(student=><label key={student.id} className={styles.lessonRow}>
           <span><strong>{student.name}</strong><small>{selected.includes(student.id)?"Selecionada para esta reposição":"Toque para selecionar"}</small></span>
           <input type="checkbox" checked={selected.includes(student.id)} onChange={()=>toggleStudent(student.id)}/>
         </label>)}
+        {!levelStudents.length?<div className={styles.empty}><strong>Nenhum aluno ativo nesta bola</strong><span>Você ainda pode adicionar manualmente uma criança de outro nível.</span></div>:null}
+      </div>
+
+      <div className={styles.otherStudentsBlock}>
+        {selectedOtherStudents.length?<div className={styles.selectedOtherStudents}>
+          <strong>Alunos adicionados de outro nível</strong>
+          {selectedOtherStudents.map(student=><div key={student.id}><span><b>{student.name}</b><small>Bola {studentLevels(student.id)}</small></span><button type="button" onClick={()=>toggleStudent(student.id)}>Remover</button></div>)}
+        </div>:null}
+        <button type="button" className={styles.addOtherStudentButton} onClick={()=>setShowOtherStudents(current=>!current)}>
+          {showOtherStudents?"Fechar seleção adicional":"+ Adicionar aluno de outro nível"}
+        </button>
+        {showOtherStudents?<div className={styles.otherStudentsPicker}>
+          <input value={otherStudentSearch} onChange={event=>setOtherStudentSearch(event.target.value)} placeholder="Buscar aluno de outro nível..." autoFocus/>
+          <div className={styles.lessonList}>
+            {otherStudents.map(student=><label key={student.id} className={styles.lessonRow}>
+              <span><strong>{student.name}</strong><small>Bola {studentLevels(student.id)}</small></span>
+              <input type="checkbox" checked={selected.includes(student.id)} onChange={()=>toggleStudent(student.id)}/>
+            </label>)}
+            {!otherStudents.length?<small className={styles.otherStudentsEmpty}>Nenhum outro aluno encontrado.</small>:null}
+          </div>
+        </div>:null}
       </div>
 
       <div className={styles.modalActions}>

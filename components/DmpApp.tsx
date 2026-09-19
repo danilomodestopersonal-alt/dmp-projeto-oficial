@@ -136,6 +136,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [kidsStudentRequest,setKidsStudentRequest]=useState<string|null>(null);
   const [kidsEntryKey,setKidsEntryKey]=useState(0);
   const [homeMonthKidsCount,setHomeMonthKidsCount]=useState<number|null>(null);
+  const [homeKidsCalendarEvents,setHomeKidsCalendarEvents]=useState<CalendarEvent[]>([]);
   const [showMobileActions,setShowMobileActions]=useState(false);
   const [todayPerformanceActivities,setTodayPerformanceActivities]=useState<PerformanceActivity[]>([]);
   const [homePerformanceActivities,setHomePerformanceActivities]=useState<PerformanceActivity[]>([]);
@@ -857,24 +858,49 @@ fetch("/api/google/status")
       .then(response=>response.ok?response.json():Promise.reject())
       .then(payload=>{
         if(cancelled)return;
-        const data=payload.data as KidsData|null;
-        if(!data){
+        const raw=payload.data as KidsData|null;
+        if(!raw){
           setHomeMonthKidsCount(0);
+          setHomeKidsCalendarEvents([]);
           return;
         }
+        const data=normalizeKidsData(raw);
         const monthKey=today().slice(0,7);
         const count=data.lessons.filter(lesson=>{
           if(lesson.date.slice(0,7)!==monthKey)return false;
           if(lesson.status==="COMPLETED")return true;
           if(lesson.status!=="SCHEDULED")return false;
           const group=data.classes.find(item=>item.id===lesson.classId);
-          if(!group)return lesson.date<today();
-          return new Date(`${lesson.date}T${group.endTime||group.startTime}:00`).getTime()<=Date.now();
+          const endTime=lesson.replacementEndTime||group?.endTime||group?.startTime;
+          if(!endTime)return lesson.date<today();
+          return new Date(`${lesson.date}T${endTime}:00`).getTime()<=Date.now();
         }).length;
         setHomeMonthKidsCount(count);
+        const todayKey=today();
+        const localEvents=data.lessons
+          .filter(lesson=>lesson.kind==="REPLACEMENT"&&lesson.date===todayKey&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY")
+          .flatMap(lesson=>{
+            const group=data.classes.find(item=>item.id===lesson.classId);
+            const category=lesson.replacementCategory||group?.category;
+            const startTime=lesson.replacementStartTime||group?.startTime;
+            const endTime=lesson.replacementEndTime||group?.endTime||startTime;
+            if(!category||!startTime)return [];
+            const categoryLabel=categoryLabelForHome(category);
+            const baseTitle=lesson.replacementName||"Aula de reposição";
+            const title=normalizeName(baseTitle).includes(normalizeName(categoryLabel))?baseTitle:`${baseTitle} · Bola ${categoryLabel}`;
+            const studentCount=(lesson.replacementStudentIds||[]).length;
+            return [{
+              id:`dmp-kids:${lesson.id}`,
+              summary:title,
+              description:`Aula criada no DMP · ${studentCount} criança${studentCount===1?"":"s"}`,
+              start:`${lesson.date}T${startTime}:00-03:00`,
+              end:`${lesson.date}T${endTime}:00-03:00`,
+            } satisfies CalendarEvent];
+          });
+        setHomeKidsCalendarEvents(localEvents);
       })
       .catch(()=>{
-        if(!cancelled)setHomeMonthKidsCount(null);
+        if(!cancelled){setHomeMonthKidsCount(null);setHomeKidsCalendarEvents([]);}
       });
     return()=>{cancelled=true;};
   },[view]);
@@ -1283,6 +1309,14 @@ fetch("/api/google/status")
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
     const todayKey = today();
+    const todayGoogleEvents=calendarEvents.filter(event=>calendarEventDate(event)===todayKey);
+    const homeAgendaEvents=[...todayGoogleEvents,...homeKidsCalendarEvents.filter(localEvent=>{
+      const localKids=kidsCalendarRequest(localEvent);
+      return !todayGoogleEvents.some(googleEvent=>{
+        const googleKids=kidsCalendarRequest(googleEvent);
+        return Boolean(localKids&&googleKids&&localKids.date===googleKids.date&&localKids.time===googleKids.time&&localKids.category===googleKids.category);
+      });
+    })];
     const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session}))).sort((a,b)=>(b.session.finishedAt||b.session.startedAt||"").localeCompare(a.session.finishedAt||a.session.startedAt||""));
     const plannedCount = students.filter(student => student.status === "ACTIVE" && getStudentWorkoutEntries(student).length > 0).length;
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
@@ -1297,8 +1331,8 @@ fetch("/api/google/status")
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
             <div className="home-desktop-layout"><section className="dashboard-content home-main-content">
-              <div data-home-size-key="highlights"><TodayHighlights events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
-              <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={calendarEvents.filter(event=>calendarEventDate(event)===todayKey)} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={homeAgendaEvents} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
+              <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={homeAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
                 <div className="panel-head todoist-panel-head">
                   <div>
@@ -1807,7 +1841,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
   });
   displayEvents.sort((a,b)=>a.start.localeCompare(b.start));
   return <section className="panel calendar-today-panel calendar-today-panel-clickable" onClick={event=>{const target=event.target as HTMLElement;if(target.closest("button,a,input,select,textarea,label"))return;onOpenAgenda();}}><div className="panel-head"><div><h2>Agenda de hoje</h2>{status.connected?<p className="calendar-auto-sync">↻ Atualização automática ativa{sync.dailyAt?` · última ${formatSyncTime(sync.dailyAt)}`:""}</p>:null}</div><button className="secondary" onClick={onOpenAgenda}>Abrir agenda</button></div>
-    {!status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : displayEvents.length ? <div className="calendar-preview-list">{displayEvents.map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}>{kids||!slotStudents.length?<strong>{event.summary}</strong>:null}<small>{kids?"Aula Tênis Kids":slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students">{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;const workoutEntries=getStudentWorkoutEntries(student);const completedSessions=todaySessions.filter(item=>item.student.id===student.id&&item.session.source!=="ABSENCE").map(item=>item.session);const completedSession=completedSessions.find(session=>(session.source||"PLANNED")==="PLANNED")||completedSessions[completedSessions.length-1]||null;return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
+    {displayEvents.length ? <div className="calendar-preview-list">{displayEvents.map(event=>{const slotStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);const localKids=event.id.startsWith("dmp-kids:");const allDone=slotStudents.length>0&&slotStudents.every(student=>completedIds.has(student.id)||absentIds.has(student.id));return <article key={event.id} className={`calendar-preview-row central-row calendar-multi-row ${allDone?"event-done":""}`}><span className="calendar-time">{formatCalendarTime(event)}</span><div className="calendar-slot-main"><button className="calendar-event-main" onClick={kids?()=>onOpenKids(event):onOpenAgenda}>{kids||!slotStudents.length?<strong>{event.summary}</strong>:null}<small>{kids?(localKids?event.description||"Aula Kids criada no DMP":"Aula Tênis Kids"):slotStudents.length?`${slotStudents.length} aluno${slotStudents.length===1?"":"s"} neste horário`:"Compromisso da agenda"}</small></button>{kids?<button className={`primary compact-action kids-action-${kids.category.toLowerCase()}`} onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:slotStudents.length?<div className="calendar-slot-students">{slotStudents.map(student=>{const done=completedIds.has(student.id);const absent=absentIds.has(student.id);const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;const workoutEntries=getStudentWorkoutEntries(student);const completedSessions=todaySessions.filter(item=>item.student.id===student.id&&item.session.source!=="ABSENCE").map(item=>item.session);const completedSession=completedSessions.find(session=>(session.source||"PLANNED")==="PLANNED")||completedSessions[completedSessions.length-1]||null;return <div className="calendar-slot-student" key={student.id}><span className="calendar-student-contact">
   {student.phone?<button
     type="button"
     className="calendar-whatsapp-button"
@@ -1820,7 +1854,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
     }}
   ><svg viewBox="0 0 24 24" aria-hidden="true" className="calendar-whatsapp-icon"><path fill="currentColor" d="M12.04 2a9.84 9.84 0 0 0-8.39 14.98L2 22l5.18-1.62A9.96 9.96 0 1 0 12.04 2Zm0 17.93a8.02 8.02 0 0 1-4.09-1.12l-.29-.17-3.07.96 1-2.99-.19-.31a7.91 7.91 0 1 1 6.64 3.63Zm4.4-5.93c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.47-.39-.41-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.16 1.51.1.46-.07 1.43-.58 1.63-1.15.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg></button>:null}
   <button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>{student.name}</button>
-</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{workoutEntries.length&&!done?<button type="button" className="secondary compact-action home-workouts-open" onClick={()=>onOpenStudent(student.id,"workouts")} title="Abrir Central de Treinos">Treinos</button>:null}{done?<button type="button" className="status-chip ok home-completed-workout" onClick={()=>onOpenStudent(student.id,"history")} title="Abrir treino realizado">✓ {completedWorkoutStatusLabel(student,completedSession)}</button>:absent?<span className="status-chip absent">Ausente</span>:null}{!done&&!absent?<span className="calendar-student-actions"><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></span>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
+</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{workoutEntries.length&&!done?<button type="button" className="secondary compact-action home-workouts-open" onClick={()=>onOpenStudent(student.id,"workouts")} title="Abrir Central de Treinos">Treinos</button>:null}{done?<button type="button" className="status-chip ok home-completed-workout" onClick={()=>onOpenStudent(student.id,"history")} title="Abrir treino realizado">✓ {completedWorkoutStatusLabel(student,completedSession)}</button>:absent?<span className="status-chip absent">Ausente</span>:null}{!done&&!absent?<span className="calendar-student-actions"><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button><button className="absence-action compact-action" onClick={()=>void onAbsence(student,event)}>Ausência</button></span>:null}</div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : !status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
@@ -3176,7 +3210,15 @@ function kidsCalendarRequest(event:CalendarEvent):KidsLessonOpenRequest|null{
   const date=new Date(event.start);
   const parts=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(date);
   const read=(type:string)=>parts.find(part=>part.type===type)?.value||"";
-  return {date:`${read("year")}-${read("month")}-${read("day")}`,time:`${read("hour")}:${read("minute")}`,category};
+  const lessonId=event.id.startsWith("dmp-kids:")?event.id.slice("dmp-kids:".length):undefined;
+  return {date:`${read("year")}-${read("month")}-${read("day")}`,time:`${read("hour")}:${read("minute")}`,category,lessonId};
+}
+
+function categoryLabelForHome(category:KidsCategory){
+  if(category==="RED")return "Vermelha";
+  if(category==="ORANGE")return "Laranja";
+  if(category==="GREEN")return "Verde";
+  return "Amarela";
 }
 
 async function printPersonalStudentReport(student:Student){

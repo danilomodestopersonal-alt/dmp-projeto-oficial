@@ -10,7 +10,7 @@ export const dynamic="force-dynamic";
 const MP_API="https://api.mercadopago.com";
 const SETTLEMENT_BASE="/v1/account/settlement_report";
 const RELEASE_BASE="/v1/account/release_report";
-const CLASSIFICATION_VERSION="v6.10-final-safe-ledger-2026-09-19";
+const CLASSIFICATION_VERSION="v6.11-kids-home-edit-safe-2026-09-19";
 const STATE_ID="mercado_pago_reconciliation_v1";
 const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
@@ -1119,6 +1119,64 @@ async function persistDecision(move:Movement,target:TargetType,options:{category
     throw error;
   }finally{client.release();}
 }
+async function updateProcessedExtra(move:Movement,categoryInput:string,expenseNameInput:string){
+  const category=categoryInput.trim();
+  const expenseName=expenseNameInput.trim();
+  if(!category)return {ok:false as const,error:"Escolha a categoria do gasto."};
+  if(!expenseName)return {ok:false as const,error:"Informe o nome do gasto."};
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const stateResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[STATE_ID]);
+    const state=stateResult.rows.length?parseState(stateResult.rows[0].payload):emptyState();
+    const prior=decisionFor(state,move.fingerprintAliases||[move.fingerprint]);
+    if(!prior||prior.decision.target!=="EXTRA"||!prior.decision.financeEntityId){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:"Este lançamento não é um gasto extra editável."};
+    }
+    const financeResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[FINANCE_ID]);
+    const finance=financeResult.rows[0]?.payload as FinanceData|undefined;
+    if(!finance||finance.version!==1){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:"Financeiro oficial não está disponível para edição."};
+    }
+    const current=finance.extraExpenses.find(item=>item.id===prior.decision.financeEntityId);
+    if(!current){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:"O gasto correspondente não foi encontrado no Financeiro."};
+    }
+    if(finance.competences[current.competence]?.status==="CLOSED"){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:`A competência ${current.competence} está fechada e não pode ser alterada.`};
+    }
+    const changed=current.category!==category||current.description!==expenseName;
+    if(changed){
+      const backupId=`finance_v1_pre_mp_edit_${hashId(move.fingerprint)}`;
+      const categories=finance.categories.includes(category)?finance.categories:[...finance.categories,category].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+      const nextFinance:FinanceData={
+        ...finance,
+        categories,
+        extraExpenses:finance.extraExpenses.map(item=>item.id===current.id?{...item,category,description:expenseName}:item),
+        history:[...(finance.history||[]),financeHistory(`mp-edit-${hashId(move.fingerprint)}-${Date.now()}`,current.competence,"EXTRA_UPDATED",`Mercado Pago · gasto extra corrigido para ${expenseName} · ${category}.`,current.amount,current.id)],
+      };
+      await client.query(`
+        INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+        ON CONFLICT (id) DO NOTHING
+      `,[backupId,JSON.stringify(finance)]);
+      await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(nextFinance)]);
+    }
+    state.decisions[prior.key]={...prior.decision,category,expenseName,targetName:expenseName,updatedAt:new Date().toISOString()};
+    await client.query(`
+      INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+      ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()
+    `,[STATE_ID,JSON.stringify(state)]);
+    await client.query("COMMIT");
+    return {ok:true as const,financeChanged:changed,category,expenseName};
+  }catch(error){
+    try{await client.query("ROLLBACK");}catch{}
+    throw error;
+  }finally{client.release();}
+}
 function autoTargetOptions(move:Movement,state:MpState){
   const learned=move.canLearn?learnedRuleFor(state,move.learningKey,move.description,move.kind)?.rule:undefined;
   if(learned?.mode==="AUTO")return {target:learned.target,category:learned.category,targetName:learned.targetName,expenseName:learned.expenseName,source:"learned"};
@@ -1158,6 +1216,20 @@ export async function POST(request:NextRequest){
   try{
     const body=await request.json().catch(()=>({}));
     const action=String(body?.action||"sync");
+
+    if(action==="edit-extra"){
+      const fingerprint=String(body?.fingerprint||"").trim();
+      const category=String(body?.category||"").trim();
+      const expenseName=String(body?.expenseName||"").trim();
+      if(!fingerprint)return NextResponse.json({ok:false,error:"Movimentação inválida."},{status:400});
+      const snapshot=await buildOverview();
+      const move=snapshot.movements.find(item=>item.fingerprint===fingerprint);
+      if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada no relatório atual. Atualize a leitura e tente novamente."},{status:404});
+      if(move.historical||move.technical)return NextResponse.json({ok:false,error:"Esta movimentação não pode ser editada."},{status:400});
+      const result=await updateProcessedExtra(move,category,expenseName);
+      if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
+      return NextResponse.json(result);
+    }
 
     if(action==="decision"){
       const fingerprint=String(body?.fingerprint||"").trim();

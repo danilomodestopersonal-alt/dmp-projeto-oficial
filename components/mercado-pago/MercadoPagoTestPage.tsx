@@ -43,7 +43,6 @@ function dateTime(v:string|null){
   if(Number.isNaN(d.getTime()))return v;
   return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 }
-function cutoverLabel(v:string){const [y,m,d]=v.split("-");return `${d}/${m}/${y}`;}
 function localDateKey(value=new Date()){return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`;}
 function reportStatus(value?:string){
   const s=(value||"").toLowerCase();
@@ -83,6 +82,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
   const [autoChecking,setAutoChecking]=useState(false);
   const [error,setError]=useState("");
   const [savingId,setSavingId]=useState("");
+  const [editingId,setEditingId]=useState("");
   const [message,setMessage]=useState("");
   const [choices,setChoices]=useState<Record<string,Choice>>({});
   const pollRef=useRef<number|null>(null);
@@ -210,6 +210,26 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
     finally{setSavingId("");}
   }
 
+  async function saveExtraEdit(move:Move){
+    const choice=choiceFor(move);
+    if(!choice.category){setError("Escolha a categoria do gasto.");return;}
+    if(!choice.expenseName.trim()){setError("Informe o nome do gasto.");return;}
+    setSavingId(`edit:${move.id}`);setMessage("");setError("");
+    try{
+      const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        action:"edit-extra",fingerprint:move.fingerprint,category:choice.category,expenseName:choice.expenseName,
+      })});
+      const payload=await response.json();
+      if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível corrigir este gasto.");
+      if(payload.financeChanged)await onFinanceChanged?.();
+      setMessage("Gasto corrigido no Financeiro. A regra das próximas movimentações não foi alterada.");
+      setEditingId("");
+      setChoices(current=>{const next={...current};delete next[move.fingerprint];return next;});
+      await load(true);
+    }catch(err){setError(err instanceof Error?err.message:"Não foi possível corrigir este gasto.");}
+    finally{setSavingId("");}
+  }
+
   async function deleteRule(rule:LearnedRule){
     if(!window.confirm(`Apagar a regra “${rule.label} → ${ruleTarget(rule)}”?`))return;
     setSavingId(`rule:${rule.key}`);setMessage("");
@@ -271,11 +291,6 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
       <div className={styles.balanceSync}><span>Última sincronização</span><strong>{dateTime(data?.lastSync||null)}</strong><button className="secondary" disabled={loading||busy||!connected} onClick={()=>void sync(true)}>{busy||data?.pending?"Sincronizando...":"Atualizar agora"}</button><em>{autoChecking&&!busy?"verificação automática em andamento":"automático · 6 h | manual · 1 h"}</em></div>
     </section>
 
-    <section className={styles.cutover}>
-      <div><b>✓</b><span><strong>Operação oficial desde {cutoverLabel(data?.cutoverDate||"2026-09-18")}</strong><small>Tudo anterior ao corte ficou arquivado como histórico e não gera lançamento nem pendência.</small></span></div>
-      <button className="secondary" onClick={()=>setFilter("HISTORICAL")}>{summary.historical} históricos</button>
-    </section>
-
     <div className={styles.kpis}>
       <article><span>Receitas do dia</span><strong className={styles.green}>{money.format(summary.incomingDay)}</strong><small>Entradas operacionais de hoje</small></article>
       <article><span>Despesas do dia</span><strong className={styles.red}>{money.format(summary.outgoingDay)}</strong><small>Saídas operacionais de hoje</small></article>
@@ -300,7 +315,15 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
             <div className={styles.info}>
               <div><strong>{move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
               <small>{date(move.date)}{move.detail?` · ${move.detail}`:""}</small>
-              {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{move.category&&move.suggestedTarget==="EXTRA"?` · ${move.category}`:""}{move.expenseName?` · ${move.expenseName}`:""}{move.suggestedTargetName&&!move.expenseName?` · ${move.suggestedTargetName}`:""} · {move.reason}</span></div>:<div className={styles.reconcileBox}>
+              {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedWrap}>
+                <div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{move.category&&move.suggestedTarget==="EXTRA"?` · ${move.category}`:""}{move.expenseName?` · ${move.expenseName}`:""}{move.suggestedTargetName&&!move.expenseName?` · ${move.suggestedTargetName}`:""} · {move.reason}</span>{move.suggestedTarget==="EXTRA"?<button type="button" onClick={()=>{setEditingId(current=>current===move.id?"":move.id);setError("");}}>✎ {editingId===move.id?"Fechar":"Editar"}</button>:null}</div>
+                {editingId===move.id&&move.suggestedTarget==="EXTRA"?<div className={styles.compactEdit}>
+                  <label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+                  <label><span>Nome do gasto</span><input value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})}/></label>
+                  <small>Altera somente este lançamento; a regra automática continua igual.</small>
+                  <span><button type="button" className="secondary" onClick={()=>{setEditingId("");setChoices(current=>{const next={...current};delete next[move.fingerprint];return next;});}}>Cancelar</button><button type="button" className="primary" disabled={savingId===`edit:${move.id}`} onClick={()=>void saveExtraEdit(move)}>{savingId===`edit:${move.id}`?"Salvando...":"Salvar correção"}</button></span>
+                </div>:null}
+              </div>:<div className={styles.reconcileBox}>
                 <div className={styles.reconcileGrid}>
                   <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
                   {choice.target==="EXTRA"?<label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>:null}
@@ -339,6 +362,6 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
         <section className={styles.future}><small>INTEGRAÇÃO OFICIAL</small><strong>Mercado Pago → Financeiro DMP</strong><span>Gasto extra, Personal, DS e conta do plano passam a atualizar o Financeiro após regra segura ou sua confirmação. Cada transação só pode afetar o Financeiro uma vez.</span></section>
       </aside>
     </div>
-    <p className={styles.note}>Mercado Pago V6.10 · corte oficial em 18/09/2026 · leitura unificada com proteção contra duplicidade.</p>
+    <p className={styles.note}>Mercado Pago V6.11 · corte interno preservado · leitura unificada com proteção contra duplicidade.</p>
   </section>;
 }
