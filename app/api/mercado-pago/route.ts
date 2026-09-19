@@ -10,13 +10,13 @@ export const dynamic="force-dynamic";
 const MP_API="https://api.mercadopago.com";
 const SETTLEMENT_BASE="/v1/account/settlement_report";
 const RELEASE_BASE="/v1/account/release_report";
-const CLASSIFICATION_VERSION="v6-reconciliation-2026-09-18";
+const CLASSIFICATION_VERSION="v6.7-unified-ledger-2026-09-19";
 const STATE_ID="mercado_pago_reconciliation_v1";
 const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
 const CUTOVER_DATE="2026-09-18";
 const AUTOMATIC_REPORT_INTERVAL_MINUTES=180;
-const MANUAL_REPORT_COOLDOWN_MINUTES=60;
+const MANUAL_REPORT_COOLDOWN_MINUTES=180;
 const MAX_REPORT_CREATIONS_PER_KIND_PER_24_HOURS=4;
 const QUOTA_COOLDOWN_HOURS=12;
 
@@ -35,6 +35,7 @@ type LearnedRule={
   target:TargetType;
   category?:string;
   targetName?:string;
+  expenseName?:string;
   mode:RuleMode;
   approvals:number;
   createdAt:string;
@@ -45,6 +46,7 @@ type SavedDecision={
   target:TargetType;
   category?:string;
   targetName?:string;
+  expenseName?:string;
   financeEntityId?:string;
   automatic:boolean;
   updatedAt:string;
@@ -81,6 +83,7 @@ type Movement={
   date:string;
   dateKey:string;
   description:string;
+  expenseName?:string;
   detail:string;
   operation:string;
   kind:MoveKind;
@@ -94,6 +97,9 @@ type Movement={
   suggestedTargetName?:string;
   ruleMode?:RuleMode;
   ruleKey?:string;
+  learningKey:string;
+  learningLabel:string;
+  fingerprintAliases:string[];
   processedAutomatic?:boolean;
   historical:boolean;
   canLearn:boolean;
@@ -221,11 +227,13 @@ function reportBase(kind:ReportKind){return kind==="settlement"?SETTLEMENT_BASE:
 const settlementColumnKeys=[
   "TRANSACTION_DATE","SETTLEMENT_DATE","TRANSACTION_DATE_SHORT","SETTLEMENT_DATE_SHORT","SOURCE_ID","EXTERNAL_REFERENCE",
   "TRANSACTION_TYPE","TRANSACTION_AMOUNT","SETTLEMENT_NET_AMOUNT","REAL_AMOUNT","FEE_AMOUNT","PAYMENT_METHOD","PAYMENT_METHOD_TYPE",
-  "DESCRIPTION","SALE_DETAIL","STORE_NAME","POS_NAME","BUSINESS_UNIT","SUB_UNIT","PURCHASE_ID","PAY_BANK_TRANSFER_ID","OPERATION_TAGS","METADATA"
+  "DESCRIPTION","SALE_DETAIL","STORE_NAME","POS_NAME","BUSINESS_UNIT","SUB_UNIT","PURCHASE_ID","PAY_BANK_TRANSFER_ID","OPERATION_TAGS","METADATA",
+  "TRANSACTION_INTENT_ID","AUTHORIZATION_CODE","FRANCHISE","LAST_FOUR_DIGITS"
 ];
 const releaseColumnKeys=[
   "DATE","SOURCE_ID","EXTERNAL_REFERENCE","RECORD_TYPE","DESCRIPTION","SALE_DETAIL","NET_CREDIT_AMOUNT","NET_DEBIT_AMOUNT","GROSS_AMOUNT",
-  "METADATA","PAYMENT_METHOD","BALANCE_AMOUNT","PAYOUT_BANK_ACCOUNT_NUMBER","ITEM_ID","CURRENCY"
+  "METADATA","PAYMENT_METHOD","PAYMENT_METHOD_TYPE","BALANCE_AMOUNT","PAYOUT_BANK_ACCOUNT_NUMBER","ITEM_ID","CURRENCY",
+  "TRANSACTION_APPROVAL_DATE","POS_ID","POS_NAME","STORE_ID","STORE_NAME","OPERATION_TAGS","FRANCHISE","LAST_FOUR_DIGITS"
 ];
 function configBody(kind:ReportKind){
   if(kind==="settlement")return {
@@ -377,7 +385,10 @@ function compactRef(value:string|undefined){const v=clean(value);if(!v)return ""
 function maskedAccount(value:string|undefined){const digits=(value||"").replace(/\D/g,"");return digits?`Destino •••• ${digits.slice(-4)}`:"";}
 function isGenericCandidate(value:string,type:string){
   const n=normalizeKey(value),t=normalizeKey(type);
-  return !n||n===t||["settlement","settlements","payout","payouts","movement","movimentacao mercado pago"].includes(n);
+  return !n||n===t||[
+    "settlement","settlements","payout","payouts","movement","movimentacao mercado pago","payment","release",
+    "reserve for payment","asset management gain","asset management loss","available balance","initial available balance","total","subtotal"
+  ].includes(n);
 }
 function meaningfulDescription(row:AnyRow,type:string){
   for(const candidate of [row.SALE_DETAIL,row.STORE_NAME,row.POS_NAME,row.DESCRIPTION]){
@@ -386,6 +397,51 @@ function meaningfulDescription(row:AnyRow,type:string){
   }
   return "";
 }
+function metadataIdentity(value:string|undefined){
+  const raw=clean(value);
+  if(!raw||(!raw.startsWith("{")&&!raw.startsWith("[")))return "";
+  try{
+    const parsed=JSON.parse(raw) as unknown;
+    const preferred=new Set(["receiver_name","beneficiary_name","payer_name","sender_name","counterparty_name","counterpart_name","account_holder_name","bank_account_holder_name","merchant_name"]);
+    const walk=(node:unknown,path:string[]):string=>{
+      if(!node||typeof node!=="object")return "";
+      if(!Array.isArray(node)){
+        const object=node as Record<string,unknown>;
+        for(const [key,item] of Object.entries(object)){
+          if(preferred.has(normalizeKey(key).replace(/ /g,"_"))&&typeof item==="string"&&clean(item))return clean(item);
+        }
+        const context=normalizeKey(path.join(" "));
+        if(/receiver|beneficiary|payer|sender|counterpart|holder|merchant/.test(context)){
+          const first=typeof object.first_name==="string"?clean(object.first_name):"";
+          const last=typeof object.last_name==="string"?clean(object.last_name):"";
+          if(first||last)return `${first} ${last}`.trim();
+        }
+      }
+      const entries=Array.isArray(node)?node.map((item,index)=>[String(index),item] as const):Object.entries(node as Record<string,unknown>);
+      for(const [key,item] of entries){const found=walk(item,[...path,key]);if(found)return found;}
+      return "";
+    };
+    return walk(parsed,[]);
+  }catch{return "";}
+}
+function accountIdentity(value:string|undefined){
+  const digits=(value||"").replace(/\D/g,"");
+  return digits?{key:`account:${digits}`,label:`Destino •••• ${digits.slice(-4)}`}:{key:"",label:""};
+}
+function movementIdentity(primary:AnyRow,secondary:AnyRow|undefined,description:string,type:string){
+  for(const row of [primary,secondary].filter(Boolean) as AnyRow[]){
+    for(const candidate of [row.STORE_NAME,row.POS_NAME,row.SALE_DETAIL]){
+      const value=clean(candidate);
+      if(value&&!isGenericCandidate(value,type))return {key:`merchant:${normalizeKey(value)}`,label:value};
+    }
+    const metadata=metadataIdentity(row.METADATA);
+    if(metadata)return {key:`counterparty:${normalizeKey(metadata)}`,label:metadata};
+    const account=accountIdentity(row.PAYOUT_BANK_ACCOUNT_NUMBER);
+    if(account.key)return account;
+  }
+  if(description&&!genericLearningDescription(description)&&!isGenericCandidate(description,type))return {key:`description:${normalizeKey(description)}`,label:description};
+  return {key:"",label:description||"Movimentação"};
+}
 function genericLearningDescription(value:string){
   const n=normalizeKey(value);
   return !n||[
@@ -393,8 +449,9 @@ function genericLearningDescription(value:string){
     "produto sem descricao","transferencia para banco","movimentacao mercado pago"
   ].includes(n);
 }
-function canLearn(description:string){return normalizeKey(description).length>=4&&!genericLearningDescription(description);}
-function ruleKey(description:string,kind:MoveKind){return `${kind}:${normalizeKey(description)}`;}
+function canLearnIdentity(identityKey:string){return Boolean(identityKey&&normalizeKey(identityKey).length>=4);}
+function ruleKey(identityKey:string,kind:MoveKind){return `${kind}:${identityKey}`;}
+function legacyRuleKey(description:string,kind:MoveKind){return `${kind}:${normalizeKey(description)}`;}
 function movementDateKey(value:string){
   const direct=value.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(direct)return `${direct[1]}-${direct[2]}-${direct[3]}`;
@@ -405,8 +462,12 @@ function movementDateKey(value:string){
   return `${read("year")}-${read("month")}-${read("day")}`;
 }
 function movementFingerprint(sourceId:string,date:string,kind:MoveKind,amount:number,description:string,type:string){
-  if(sourceId)return [sourceId,normalizeKey(type||"movimento"),kind,amount.toFixed(2)].join("|");
+  if(sourceId)return [sourceId,kind,amount.toFixed(2)].join("|");
   return ["sem-source",date||"sem-data",kind,amount.toFixed(2),normalizeKey(description||type||"movimento")].join("|");
+}
+function legacyMovementFingerprint(sourceId:string,date:string,kind:MoveKind,amount:number,description:string,type:string){
+  if(sourceId)return [sourceId,normalizeKey(type||"movimento"),kind,amount.toFixed(2)].join("|");
+  return movementFingerprint(sourceId,date,kind,amount,description,type);
 }
 function hashId(value:string){return createHash("sha256").update(value).digest("hex").slice(0,24);}
 function operationLabel(type:string,kind:MoveKind,paymentType:string,description:string){
@@ -427,13 +488,13 @@ function operationLabel(type:string,kind:MoveKind,paymentType:string,description
 type SmartSuggestion={target:TargetType;category?:string;confidence:number;reason:string;autoSafe:boolean};
 const smartRules:Array<{pattern:RegExp;category:string;reason:string;confidence:number;autoSafe:boolean}>=[
   {pattern:/(infunger|infanger|covabra|supermerc|mercadinho|hortifruti|atacad|carrefour|assa[ií]|p[aã]o de a[cç][uú]car|mercearia)/,category:"Mercado",reason:"mercado/supermercado reconhecido",confidence:99,autoSafe:true},
-  {pattern:/(ifood|ifd\*|restaur|churrasc|marmit|lanch|padar|panif|pizza|pizzar|subway|mcdon|burger|cafeter|boulanger|sushi|confeit|doceria|sorvet)/,category:"Alimentação",reason:"alimentação reconhecida pela descrição",confidence:98,autoSafe:true},
-  {pattern:/(conectcar|sem parar|auto ?posto|posto de combust|combust|gasolin|etanol|estacion|ped[aá]gio)/,category:"Transporte",reason:"transporte reconhecido pela descrição",confidence:98,autoSafe:true},
+  {pattern:/(ifood|ifd\*|restaur|churrasc|marmit|lanch|padar|panif|pizza|pizzar|subway|mcdon|burger|cafeter|boulanger|sushi|confeit|doceria|sorvet|gelat)/,category:"Alimentação",reason:"alimentação reconhecida pela descrição",confidence:98,autoSafe:true},
+  {pattern:/(conectcar|sem parar|\bposto\b|combust|gasolin|etanol|estacion|ped[aá]gio)/,category:"Transporte",reason:"transporte reconhecido pela descrição",confidence:98,autoSafe:true},
   {pattern:/(drogar|farm[aá]c)/,category:"Saúde",reason:"farmácia/drogaria reconhecida",confidence:98,autoSafe:true},
   {pattern:/(tarifa|fee|taxa|comiss[aã]o)/,category:"Taxas bancárias",reason:"tarifa/taxa identificada",confidence:99,autoSafe:true},
   {pattern:/(clinica|cl[ií]nica|hospital|laborat|odont|dentista)/,category:"Saúde",reason:"saúde reconhecida pela descrição",confidence:94,autoSafe:false},
   {pattern:/(cinema|pousada|hotel|airbnb|booking|evento|ingresso|parque|lazer)/,category:"Lazer",reason:"lazer/viagem reconhecido",confidence:92,autoSafe:false},
-  {pattern:/(amazon|magalu|magazine luiza|mercado ?livre|shopping|decathlon|loja|comercio de acessor|camposom)/,category:"Compras",reason:"compra reconhecida pela descrição",confidence:90,autoSafe:false},
+  {pattern:/(amazon|magalu|magazine luiza|mercado ?livre|shopping|decathlon|loja|comercio de acessor|camposom|fashion|moda)/,category:"Compras",reason:"compra reconhecida pela descrição",confidence:90,autoSafe:false},
 ];
 function smartSuggestion(text:string):SmartSuggestion|null{
   const n=normalizeKey(text);
@@ -446,6 +507,80 @@ function releaseLookup(rows:AnyRow[]){
   const map=new Map<string,AnyRow>();
   for(const row of rows){const id=clean(row.SOURCE_ID);if(id&&!map.has(id))map.set(id,row);}
   return map;
+}
+function rowReferenceKeys(row:AnyRow){
+  return [row.SOURCE_ID,row.EXTERNAL_REFERENCE,row.PURCHASE_ID,row.PAY_BANK_TRANSFER_ID,row.TRANSACTION_INTENT_ID,row.ITEM_ID]
+    .map(clean).filter((value,index,array)=>Boolean(value)&&array.indexOf(value)===index);
+}
+function decisionFor(state:MpState,fingerprints:string[]){
+  for(const fingerprint of fingerprints){const decision=state.decisions[fingerprint];if(decision)return {decision,key:fingerprint};}
+  return null;
+}
+function learnedRuleFor(state:MpState,identityKey:string,description:string,kind:MoveKind){
+  const keys=[identityKey?ruleKey(identityKey,kind):"",legacyRuleKey(description,kind)].filter(Boolean);
+  for(const key of keys){const rule=state.rules[key];if(rule)return {rule,key};}
+  return null;
+}
+type MovementCandidate={
+  sourceId:string;date:string;dateKey:string;description:string;detail:string;operation:string;kind:MoveKind;amount:number;
+  paymentType:string;fee:number;identityKey:string;identityLabel:string;historical:boolean;emergency?:boolean;
+};
+function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
+  const fingerprint=movementFingerprint(candidate.sourceId,candidate.date,candidate.kind,candidate.amount,candidate.description,candidate.operation);
+  const legacyFingerprint=legacyMovementFingerprint(candidate.sourceId,candidate.date,candidate.kind,candidate.amount,candidate.description,candidate.operation);
+  const fingerprintAliases=[fingerprint,legacyFingerprint].filter((value,index,array)=>array.indexOf(value)===index);
+  const saved=decisionFor(state,fingerprintAliases)?.decision;
+  const canLearn=canLearnIdentity(candidate.identityKey);
+
+  let technical=false;
+  let category="Outros";
+  let confidence=35;
+  let reason="precisa da sua classificação antes de entrar no Financeiro";
+  let status:MoveStatus="REVIEW";
+  let suggestedTarget:TargetType=candidate.kind==="IN"?"PERSONAL":"EXTRA";
+  let suggestedTargetName:string|undefined;
+  let expenseName:string|undefined;
+  let learnedMode:RuleMode|undefined;
+  let learnedKey:string|undefined;
+
+  if(candidate.historical){
+    status="HISTORICAL";confidence=100;reason=`histórico anterior ao corte de ${CUTOVER_DATE.split("-").reverse().join("/")}`;
+  }else if(saved){
+    status=saved.target==="IGNORE"||saved.target==="TRANSFER"?"IGNORED":"PROCESSED";
+    suggestedTarget=saved.target;category=saved.category||category;suggestedTargetName=saved.targetName;expenseName=saved.expenseName;
+    confidence=100;reason=saved.automatic?"processada automaticamente por regra autorizada":"processada após sua confirmação";
+  }else{
+    const learned=learnedRuleFor(state,candidate.identityKey,candidate.description,candidate.kind);
+    if(learned){
+      learnedKey=learned.key;learnedMode=learned.rule.mode;suggestedTarget=learned.rule.target;category=learned.rule.category||category;
+      suggestedTargetName=learned.rule.targetName;expenseName=learned.rule.expenseName;
+      confidence=99;reason=learned.rule.mode==="AUTO"?"regra automática autorizada por você":"regra aprendida: sugestão para confirmar";
+      status=learned.rule.mode==="AUTO"?"AUTO_READY":"REVIEW";
+    }else if(candidate.emergency&&candidate.kind==="OUT"){
+      suggestedTarget="EXTRA";category="Emergência";expenseName="Emergência";confidence=100;reason="reserva automática por gastos identificada";status="AUTO_READY";
+    }else{
+      const smart=smartSuggestion(`${candidate.description} ${candidate.identityLabel}`);
+      const typeNorm=normalizeKey(candidate.operation);
+      if(smart&&candidate.kind==="OUT"){
+        suggestedTarget=smart.target;category=smart.category||category;confidence=smart.confidence;reason=smart.reason;status=smart.autoSafe?"AUTO_READY":"REVIEW";
+      }else if(candidate.fee>0&&genericLearningDescription(candidate.description)&&candidate.kind==="OUT"){
+        suggestedTarget="EXTRA";category="Taxas bancárias";confidence=99;reason="tarifa identificada pelo campo de taxa";status="AUTO_READY";
+      }else if(candidate.kind==="IN"){
+        suggestedTarget="PERSONAL";category="Recebimento";confidence=65;
+        reason=typeNorm==="asset management gain"?"rendimento encontrado; escolha o destino financeiro":"entrada encontrada; escolha Personal, DS, transferência própria ou ignorar";
+      }else if(typeNorm==="payout"||typeNorm==="payouts"||normalizeKey(candidate.paymentType)==="bank transfer"){
+        suggestedTarget="EXTRA";confidence=35;reason="PIX/transferência enviada; a finalidade precisa da sua confirmação";
+      }
+    }
+  }
+
+  return {
+    id:`${candidate.sourceId||"mp"}-${candidate.date}-${hashId(fingerprint)}`,fingerprint,sourceId:candidate.sourceId,date:candidate.date,dateKey:candidate.dateKey,
+    description:candidate.description,expenseName,detail:candidate.detail,operation:candidate.operation,kind:candidate.kind,amount:candidate.amount,
+    category,confidence,reason,technical,status,suggestedTarget,suggestedTargetName,ruleMode:learnedMode,ruleKey:learnedKey,
+    learningKey:candidate.identityKey,learningLabel:candidate.identityLabel,fingerprintAliases,
+    processedAutomatic:Boolean(saved?.automatic),historical:candidate.historical,canLearn,
+  };
 }
 function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):Movement[]{
   const releases=releaseLookup(releaseRows);
@@ -463,66 +598,73 @@ function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):M
     const sourceId=clean(row.SOURCE_ID);
     const release=sourceId?releases.get(sourceId):undefined;
     const payoutAccount=maskedAccount(release?.PAYOUT_BANK_ACCOUNT_NUMBER);
-    const typeNorm=normalizeKey(type);
     const fee=Math.abs(numberValue(row.FEE_AMOUNT));
     const fallback=operationLabel(type,kind,paymentType,useful);
     const description=useful||fallback;
     const reference=compactRef(row.EXTERNAL_REFERENCE||row.PURCHASE_ID||row.PAY_BANK_TRANSFER_ID);
     const detail=[operationLabel(type,kind,paymentType,""),paymentType,payoutAccount,reference].filter(Boolean).join(" · ");
-    const fingerprint=movementFingerprint(sourceId,rawDate,kind,amount,description,type);
     const historical=Boolean(dateKey&&dateKey<CUTOVER_DATE);
-
-    let technical=false;
-    let category="Outros";
-    let confidence=35;
-    let reason="precisa da sua classificação antes de entrar no Financeiro";
-    let status:MoveStatus="REVIEW";
-    let suggestedTarget:TargetType=kind==="IN"?"PERSONAL":"EXTRA";
-    let suggestedTargetName:string|undefined;
-    let learnedMode:RuleMode|undefined;
-    let learnedKey:string|undefined;
-
-    if(historical){
-      status="HISTORICAL";confidence=100;reason=`histórico anterior ao corte de ${CUTOVER_DATE.split("-").reverse().join("/")}`;
-    }else if(["withdrawal","withdrawal cancel","chargeback","dispute","trava de recebivel"].includes(typeNorm)){
-      technical=true;status="TECHNICAL";confidence=100;reason="movimento operacional da conta separado do Financeiro";suggestedTarget="IGNORE";
-    }else if(!useful&&typeNorm==="settlement"&&amount<=5&&normalizeKey(paymentType)!=="bank transfer"){
-      technical=true;status="TECHNICAL";confidence=100;reason="ajuste técnico de liquidação sem descrição comercial";suggestedTarget="IGNORE";
-    }else{
-      const decision=state.decisions[fingerprint];
-      if(decision){
-        status=decision.target==="IGNORE"||decision.target==="TRANSFER"?"IGNORED":"PROCESSED";
-        suggestedTarget=decision.target;
-        category=decision.category||category;
-        suggestedTargetName=decision.targetName;
-        confidence=100;
-        reason=decision.automatic?"processada automaticamente por regra autorizada":"processada após sua confirmação";
-      }else if(canLearn(description)&&state.rules[ruleKey(description,kind)]){
-        const learned=state.rules[ruleKey(description,kind)];
-        learnedKey=learned.key;learnedMode=learned.mode;suggestedTarget=learned.target;category=learned.category||category;suggestedTargetName=learned.targetName;
-        confidence=99;reason=learned.mode==="AUTO"?"regra automática autorizada por você":"regra aprendida: sugestão para confirmar";
-        status=learned.mode==="AUTO"?"AUTO_READY":"REVIEW";
-      }else{
-        const smart=smartSuggestion([useful,row.DESCRIPTION,row.SALE_DETAIL,row.STORE_NAME,row.POS_NAME,row.BUSINESS_UNIT,row.SUB_UNIT].filter(Boolean).join(" "));
-        if(smart&&kind==="OUT"){
-          suggestedTarget=smart.target;category=smart.category||category;confidence=smart.confidence;reason=smart.reason;status=smart.autoSafe?"AUTO_READY":"REVIEW";
-        }else if(fee>0&&!useful&&kind==="OUT"){
-          suggestedTarget="EXTRA";category="Taxas bancárias";confidence=99;reason="tarifa identificada pelo campo de taxa";status="AUTO_READY";
-        }else if(kind==="IN"){
-          suggestedTarget="PERSONAL";category="Recebimento";confidence=65;reason="entrada encontrada; escolha Personal, DS, transferência própria ou ignorar";
-        }else if(typeNorm==="payout"||typeNorm==="payouts"||normalizeKey(paymentType)==="bank transfer"){
-          suggestedTarget="EXTRA";confidence=35;reason="PIX/transferência enviada; a finalidade precisa da sua confirmação";
-        }
-      }
-    }
-
-    result.push({
-      id:`${sourceId||"mp"}-${rawDate||index}-${index}`,fingerprint,sourceId,date:rawDate,dateKey,description,detail,operation:type,kind,amount,
-      category,confidence,reason,technical,status,suggestedTarget,suggestedTargetName,ruleMode:learnedMode,ruleKey:learnedKey,
-      processedAutomatic:Boolean(state.decisions[fingerprint]?.automatic),historical,canLearn:canLearn(description),
-    });
+    const identity=movementIdentity(row,release,description,type);
+    result.push(classifyMovement({
+      sourceId,date:rawDate||String(index),dateKey,description,detail,operation:type,kind,amount,paymentType,fee,identityKey:identity.key,identityLabel:identity.label,historical,
+    },state));
   });
-  return result.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,500);
+  return result;
+}
+function releaseOperationLabel(code:string,kind:MoveKind,description:string){
+  const value=normalizeKey(code);
+  if(value==="asset management gain"||value==="asset management loss")return "Rendimentos";
+  if(value==="reserve for payment")return description||"Reserva para pagamento";
+  if(value==="payout")return kind==="IN"?"Transferência recebida":"PIX/transferência enviada";
+  if(value==="refund"||value==="shipping refund")return "Estorno/devolução";
+  if(value==="credit payment")return "Pagamento de crédito";
+  if(value==="payment")return description||"Pagamento Mercado Pago";
+  return description||clean(code).replace(/_/g," ")||"Movimentação Mercado Pago";
+}
+function releaseMovements(rows:AnyRow[],settlementRows:AnyRow[],settlement:Movement[],state:MpState):Movement[]{
+  const result:Movement[]=[];
+  const settlementSources=new Set(settlement.filter(item=>item.sourceId).map(item=>`${item.sourceId}|${item.kind}`));
+  const settlementReferences=new Set(settlementRows.flatMap(rowReferenceKeys));
+  const settlementSignatures=new Set(settlement.map(item=>`${item.dateKey}|${item.kind}|${item.amount.toFixed(2)}|${item.learningKey}`));
+  rows.forEach((row,index)=>{
+    const recordType=normalizeKey(row.RECORD_TYPE||"");
+    if(["initial available balance","available balance","total","subtotal"].includes(recordType))return;
+    const credit=Math.abs(numberValue(row.NET_CREDIT_AMOUNT));
+    const debit=Math.abs(numberValue(row.NET_DEBIT_AMOUNT));
+    let rawAmount=credit-debit;
+    if(!rawAmount&&recordType==="release")rawAmount=numberValue(row.GROSS_AMOUNT);
+    if(!rawAmount)return;
+    const kind:MoveKind=rawAmount<0?"OUT":"IN";
+    const amount=Math.abs(rawAmount);
+    const sourceId=clean(row.SOURCE_ID);
+    if(sourceId&&settlementSources.has(`${sourceId}|${kind}`))return;
+    if(rowReferenceKeys(row).some(reference=>settlementReferences.has(reference)))return;
+    const rawDate=row.TRANSACTION_APPROVAL_DATE||row.DATE||"";
+    const dateKey=movementDateKey(rawDate);
+    const operation=clean(row.DESCRIPTION)||clean(row.RECORD_TYPE)||"RELEASE";
+    const useful=meaningfulDescription(row,operation);
+    const identity=movementIdentity(row,undefined,useful,operation);
+    const emergency=kind==="OUT"&&normalizeKey(operation)==="reserve for payment"&&amount<=10&&!identity.key;
+    const description=emergency?"Emergência":releaseOperationLabel(operation,kind,useful||identity.label);
+    const finalIdentity=emergency?{key:"system:reserva-emergencia",label:"Reserva por gastos · Emergência"}:movementIdentity(row,undefined,description,operation);
+    const signature=`${dateKey}|${kind}|${amount.toFixed(2)}|${finalIdentity.key}`;
+    if(!sourceId&&settlementSignatures.has(signature))return;
+    const paymentType=clean(row.PAYMENT_METHOD_TYPE||row.PAYMENT_METHOD);
+    const reference=compactRef(row.EXTERNAL_REFERENCE||row.ITEM_ID);
+    const detail=["Relatório de Liberações",paymentType,reference].filter(Boolean).join(" · ");
+    result.push(classifyMovement({
+      sourceId,date:rawDate||String(index),dateKey,description,detail,operation,kind,amount,paymentType,fee:0,
+      identityKey:finalIdentity.key,identityLabel:finalIdentity.label,historical:Boolean(dateKey&&dateKey<CUTOVER_DATE),emergency,
+    },state));
+  });
+  return result;
+}
+function unifiedMovements(settlementRows:AnyRow[],releaseRows:AnyRow[],state:MpState){
+  const settlement=settlementMovements(settlementRows,releaseRows,state);
+  const releases=releaseMovements(releaseRows,settlementRows,settlement,state);
+  const unique=new Map<string,Movement>();
+  for(const movement of [...settlement,...releases])if(!unique.has(movement.fingerprint))unique.set(movement.fingerprint,movement);
+  return [...unique.values()].sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,750);
 }
 function releaseBalance(rows:AnyRow[]){
   const withBalance=rows.filter(row=>row.BALANCE_AMOUNT!==undefined&&row.BALANCE_AMOUNT!==""&&Number.isFinite(numberValue(row.BALANCE_AMOUNT)));
@@ -592,12 +734,12 @@ async function buildOverview():Promise<OverviewInternal>{
   const [settlementCsv,releaseCsv]=await Promise.all([
     latestCsv("settlement",settlementReports,settlementTask),latestCsv("release",releaseReports,releaseTask)
   ]);
-  const movements=settlementMovements(settlementCsv.rows,releaseCsv.rows,state);
+  const movements=unifiedMovements(settlementCsv.rows,releaseCsv.rows,state);
   const balance=releaseBalance(releaseCsv.rows);
   const settlementStatus=settlementTask||settlementReports[0]||null;
   const releaseStatus=releaseTask||releaseReports[0]||null;
   const latestDates=[reportDate(settlementCsv.report||{}),reportDate(releaseCsv.report||{}),reportDate(settlementTask||{}),reportDate(releaseTask||{})].filter(Boolean).sort().reverse();
-  const pending=isPending(settlementStatus);
+  const pending=isPending(settlementStatus)||isPending(releaseStatus);
   const learnedRules=Object.values(state.rules).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).slice(0,50);
   const operational=movements.filter(item=>!item.historical&&!item.technical);
   const response={
@@ -613,6 +755,7 @@ async function buildOverview():Promise<OverviewInternal>{
     },
     learnedRuleCount:Object.keys(state.rules).length,learnedRules,
     reports:{settlement:summaryReport(settlementStatus),release:summaryReport(releaseStatus)},
+    sourceCounts:{settlementRows:settlementCsv.rows.length,releaseRows:releaseCsv.rows.length,unifiedMovements:movements.length},
     firstCollectionNotice:configured.settlement&&movements.length===0,
     financeContext:financeContext(finance),financeConnected:Boolean(finance),readOnly:false,
   };
@@ -756,7 +899,7 @@ function validateTarget(kind:MoveKind,target:TargetType){
   if(kind==="IN")return ["PERSONAL","DS","TRANSFER","IGNORE"].includes(target);
   return ["EXTRA","EXPENSE","TRANSFER","IGNORE"].includes(target);
 }
-function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options:{category?:string;targetId?:string;targetName?:string}){
+function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options:{category?:string;targetId?:string;targetName?:string;expenseName?:string}){
   const competence=(move.dateKey||CUTOVER_DATE).slice(0,7);
   if(!data.competences?.[competence])return {ok:false as const,error:`A competência ${competence} não existe no Financeiro.`};
   if(data.competences[competence]?.status==="CLOSED")return {ok:false as const,error:`A competência ${competence} está fechada no Financeiro.`};
@@ -767,15 +910,16 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
   if(target==="EXTRA"){
     if(move.kind!=="OUT")return {ok:false as const,error:"Gasto extra só pode ser usado em uma saída."};
     const category=(options.category||"Outros").trim()||"Outros";
+    const expenseName=(options.expenseName||move.expenseName||move.description).trim()||move.description;
     const id=`mp-extra-${unique}`;
-    if(data.extraExpenses.some(item=>item.id===id))return {ok:true as const,data,changed:false,entityId:id,targetName:move.description};
+    if(data.extraExpenses.some(item=>item.id===id))return {ok:true as const,data,changed:false,entityId:id,targetName:expenseName,expenseName};
     const categories=data.categories.includes(category)?data.categories:[...data.categories,category].sort((a,b)=>a.localeCompare(b,"pt-BR"));
     const next:FinanceData={
       ...data,categories,
-      extraExpenses:[...data.extraExpenses,{id,competence,date:move.dateKey||CUTOVER_DATE,description:move.description,category,paymentMethod:"Mercado Pago",amount:move.amount}],
-      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"EXTRA_CREATED",`Mercado Pago · gasto extra ${move.description} criado.`,move.amount,id)],
+      extraExpenses:[...data.extraExpenses,{id,competence,date:move.dateKey||CUTOVER_DATE,description:expenseName,category,paymentMethod:"Mercado Pago",amount:move.amount}],
+      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"EXTRA_CREATED",`Mercado Pago · gasto extra ${expenseName} criado.`,move.amount,id)],
     };
-    return {ok:true as const,data:next,changed:true,entityId:id,targetName:move.description};
+    return {ok:true as const,data:next,changed:true,entityId:id,targetName:expenseName,expenseName};
   }
   if(target==="DS"){
     if(move.kind!=="IN")return {ok:false as const,error:"Recebimento DS só pode ser usado em uma entrada."};
@@ -822,25 +966,26 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
   }
   return {ok:false as const,error:"Destino financeiro inválido."};
 }
-function ruleFromChoice(move:Movement,target:TargetType,mode:RuleMode,options:{category?:string;targetName?:string},current?:LearnedRule):LearnedRule{
+function ruleFromChoice(move:Movement,target:TargetType,mode:RuleMode,options:{category?:string;targetName?:string;expenseName?:string},current?:LearnedRule):LearnedRule{
   const now=new Date().toISOString();
-  const key=ruleKey(move.description,move.kind);
-  return {key,label:move.description,kind:move.kind,target,category:options.category||undefined,targetName:options.targetName||undefined,mode,approvals:(current?.approvals||0)+1,createdAt:current?.createdAt||now,updatedAt:now};
+  const key=ruleKey(move.learningKey,move.kind);
+  return {key,label:move.learningLabel||move.description,kind:move.kind,target,category:options.category||undefined,targetName:options.targetName||undefined,expenseName:options.expenseName||undefined,mode,approvals:(current?.approvals||0)+1,createdAt:current?.createdAt||now,updatedAt:now};
 }
-async function persistDecision(move:Movement,target:TargetType,options:{category?:string;targetId?:string;targetName?:string;ruleChoice:RuleChoice;automatic:boolean}){
+async function persistDecision(move:Movement,target:TargetType,options:{category?:string;targetId?:string;targetName?:string;expenseName?:string;ruleChoice:RuleChoice;automatic:boolean}){
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
     const stateResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[STATE_ID]);
     const state=stateResult.rows.length?parseState(stateResult.rows[0].payload):emptyState();
-    if(state.decisions[move.fingerprint]){
+    const prior=decisionFor(state,move.fingerprintAliases||[move.fingerprint]);
+    if(prior){
       await client.query("ROLLBACK");
-      return {ok:true,already:true,decision:state.decisions[move.fingerprint]};
+      return {ok:true,already:true,decision:prior.decision};
     }
     const financeResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[FINANCE_ID]);
     const finance=financeResult.rows[0]?.payload as FinanceData|undefined;
     if(!finance||finance.version!==1){await client.query("ROLLBACK");return {ok:false,error:"Financeiro oficial não está disponível para conciliação."};}
-    const applied=applyToFinance(finance,move,target,{category:options.category,targetId:options.targetId,targetName:options.targetName});
+    const applied=applyToFinance(finance,move,target,{category:options.category,targetId:options.targetId,targetName:options.targetName,expenseName:options.expenseName});
     if(!applied.ok){await client.query("ROLLBACK");return {ok:false,error:applied.error};}
     if(applied.changed){
       await client.query(`
@@ -849,11 +994,12 @@ async function persistDecision(move:Movement,target:TargetType,options:{category
       `,[FINANCE_BACKUP_ID,JSON.stringify(finance)]);
       await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(applied.data)]);
     }
-    const decision:SavedDecision={fingerprint:move.fingerprint,target,category:options.category||undefined,targetName:applied.targetName||options.targetName||undefined,financeEntityId:applied.entityId,automatic:options.automatic,updatedAt:new Date().toISOString()};
+    const appliedExpenseName="expenseName" in applied?applied.expenseName:undefined;
+    const decision:SavedDecision={fingerprint:move.fingerprint,target,category:options.category||undefined,targetName:applied.targetName||options.targetName||undefined,expenseName:appliedExpenseName||options.expenseName||undefined,financeEntityId:applied.entityId,automatic:options.automatic,updatedAt:new Date().toISOString()};
     state.decisions[move.fingerprint]=decision;
     if(options.ruleChoice!=="ONCE"&&move.canLearn){
-      const key=ruleKey(move.description,move.kind);
-      state.rules[key]=ruleFromChoice(move,target,options.ruleChoice,{category:options.category,targetName:applied.targetName||options.targetName},state.rules[key]);
+      const key=ruleKey(move.learningKey,move.kind);
+      state.rules[key]=ruleFromChoice(move,target,options.ruleChoice,{category:options.category,targetName:applied.targetName||options.targetName,expenseName:appliedExpenseName||options.expenseName},state.rules[key]);
     }
     await client.query(`INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()`,[STATE_ID,JSON.stringify(state)]);
     await client.query("COMMIT");
@@ -864,9 +1010,9 @@ async function persistDecision(move:Movement,target:TargetType,options:{category
   }finally{client.release();}
 }
 function autoTargetOptions(move:Movement,state:MpState){
-  const learned=move.canLearn?state.rules[ruleKey(move.description,move.kind)]:undefined;
-  if(learned?.mode==="AUTO")return {target:learned.target,category:learned.category,targetName:learned.targetName,source:"learned"};
-  if(move.status==="AUTO_READY"&&move.suggestedTarget==="EXTRA")return {target:"EXTRA" as const,category:move.category,targetName:undefined,source:"builtin"};
+  const learned=move.canLearn?learnedRuleFor(state,move.learningKey,move.description,move.kind)?.rule:undefined;
+  if(learned?.mode==="AUTO")return {target:learned.target,category:learned.category,targetName:learned.targetName,expenseName:learned.expenseName,source:"learned"};
+  if(move.status==="AUTO_READY"&&move.suggestedTarget==="EXTRA")return {target:"EXTRA" as const,category:move.category,targetName:undefined,expenseName:move.expenseName,source:"builtin"};
   return null;
 }
 async function processAutomatic(movements:Movement[]){
@@ -874,10 +1020,10 @@ async function processAutomatic(movements:Movement[]){
   let processed=0,blocked=0;
   const errors:string[]=[];
   for(const move of movements){
-    if(move.historical||move.technical||state.decisions[move.fingerprint])continue;
+    if(move.historical||move.technical||decisionFor(state,move.fingerprintAliases||[move.fingerprint]))continue;
     const auto=autoTargetOptions(move,state);
     if(!auto)continue;
-    const result=await persistDecision(move,auto.target,{category:auto.category,targetName:auto.targetName,ruleChoice:"ONCE",automatic:true});
+    const result=await persistDecision(move,auto.target,{category:auto.category,targetName:auto.targetName,expenseName:auto.expenseName,ruleChoice:"ONCE",automatic:true});
     if(result.ok){processed++;state.decisions[move.fingerprint]=result.decision as SavedDecision;}
     else{blocked++;if(result.error)errors.push(`${move.description}: ${result.error}`);}
   }
@@ -907,6 +1053,7 @@ export async function POST(request:NextRequest){
       const fingerprint=String(body?.fingerprint||"").trim();
       const target=String(body?.target||"").toUpperCase() as TargetType;
       const category=String(body?.category||"").trim();
+      const expenseName=String(body?.expenseName||"").trim();
       const targetId=String(body?.targetId||"").trim();
       const targetName=String(body?.targetName||"").trim();
       const ruleChoice=String(body?.ruleChoice||"ONCE").toUpperCase() as RuleChoice;
@@ -921,7 +1068,7 @@ export async function POST(request:NextRequest){
       if(target==="PERSONAL"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha o aluno do Personal."},{status:400});
       if(target==="EXPENSE"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha a conta do plano."},{status:400});
       if(ruleChoice!=="ONCE"&&!move.canLearn)return NextResponse.json({ok:false,error:"A descrição desta movimentação é genérica demais para criar uma regra. A decisão pode valer somente para esta transação."},{status:400});
-      const result=await persistDecision(move,target,{category,targetId,targetName,ruleChoice,automatic:false});
+      const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false});
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
     }

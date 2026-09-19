@@ -9,10 +9,10 @@ type Target="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleChoice="ONCE"|"SUGGEST"|"AUTO";
 type Move={
   id:string;fingerprint:string;sourceId?:string;date:string;dateKey:string;description:string;detail:string;operation?:string;kind:"IN"|"OUT";amount:number;
-  category:string;confidence:number;reason:string;technical:boolean;status:Status;suggestedTarget:Target;suggestedTargetName?:string;ruleMode?:"SUGGEST"|"AUTO";
-  processedAutomatic?:boolean;historical:boolean;canLearn:boolean;
+  category:string;expenseName?:string;confidence:number;reason:string;technical:boolean;status:Status;suggestedTarget:Target;suggestedTargetName?:string;ruleMode?:"SUGGEST"|"AUTO";
+  processedAutomatic?:boolean;historical:boolean;canLearn:boolean;learningLabel:string;
 };
-type LearnedRule={key:string;label:string;kind:"IN"|"OUT";target:Target;category?:string;targetName?:string;mode:"SUGGEST"|"AUTO";approvals:number;updatedAt:string};
+type LearnedRule={key:string;label:string;kind:"IN"|"OUT";target:Target;category?:string;targetName?:string;expenseName?:string;mode:"SUGGEST"|"AUTO";approvals:number;updatedAt:string};
 type ReportState={id?:string|number|null;status?:string;generatedAt?:string|null;fileName?:string|null}|null;
 type FinanceContext={
   competence:string|null;categories:string[];
@@ -26,7 +26,7 @@ type ApiData={
   reports:{settlement:ReportState;release:ReportState};firstCollectionNotice:boolean;learnedRuleCount:number;learnedRules:LearnedRule[];
   financeContext:FinanceContext;financeConnected:boolean;
 };
-type Choice={target:Target;category:string;targetId:string;targetName:string;ruleChoice:RuleChoice};
+type Choice={target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice};
 
 type Props={onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
@@ -69,7 +69,7 @@ function targetLabel(target:Target,kind:"IN"|"OUT"){
 }
 function ruleTarget(rule:LearnedRule){
   const base=targetLabel(rule.target,rule.kind);
-  if(rule.target==="EXTRA"&&rule.category)return `${base} · ${rule.category}`;
+  if(rule.target==="EXTRA")return [base,rule.category,rule.expenseName].filter(Boolean).join(" · ");
   if((rule.target==="PERSONAL"||rule.target==="EXPENSE")&&rule.targetName)return `${base} · ${rule.targetName}`;
   return base;
 }
@@ -173,11 +173,11 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
       const found=data?.financeContext.expenses.find(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
       if(found)targetId=found.id;
     }
-    return {target,category:move.category||"Outros",targetId,targetName,ruleChoice:move.ruleMode||"ONCE"};
+    return {target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE"};
   }
   function choiceFor(move:Move){return choices[move.fingerprint]||defaultChoice(move);}
   function patchChoice(move:Move,patch:Partial<Choice>){setChoices(current=>({...current,[move.fingerprint]:{...choiceFor(move),...patch}}));}
-  function changeTarget(move:Move,target:Target){patchChoice(move,{target,targetId:"",targetName:"",ruleChoice:"ONCE"});}
+  function changeTarget(move:Move,target:Target){patchChoice(move,{target,targetId:"",targetName:"",expenseName:move.expenseName||move.description,ruleChoice:"ONCE"});}
 
   async function decide(move:Move){
     const choice=choiceFor(move);
@@ -185,8 +185,8 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
     if(choice.target==="EXPENSE"&&!choice.targetId){setError("Escolha a conta do plano para este pagamento.");return;}
     if(choice.target==="EXTRA"&&!choice.category){setError("Escolha a categoria do gasto extra.");return;}
     if(choice.ruleChoice==="AUTO"){
-      const detail=choice.target==="EXTRA"?` · ${choice.category}`:choice.targetName?` · ${choice.targetName}`:"";
-      if(!window.confirm(`Criar regra automática?\n\n${move.description} → ${targetLabel(choice.target,move.kind)}${detail}\n\nAs próximas movimentações com esta identificação poderão entrar automaticamente no Financeiro.`))return;
+      const detail=choice.target==="EXTRA"?` · ${choice.category} · ${choice.expenseName||move.description}`:choice.targetName?` · ${choice.targetName}`:"";
+      if(!window.confirm(`Criar regra automática?\n\n${move.learningLabel||move.description} → ${targetLabel(choice.target,move.kind)}${detail}\n\nAs próximas movimentações com esta identificação poderão entrar automaticamente no Financeiro.`))return;
     }
     setSavingId(move.id);setMessage("");setError("");
     try{
@@ -194,7 +194,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
       if(choice.target==="PERSONAL")targetName=data?.financeContext.personal.find(item=>item.id===choice.targetId)?.studentName||"";
       if(choice.target==="EXPENSE")targetName=data?.financeContext.expenses.find(item=>item.id===choice.targetId)?.name||"";
       const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        action:"decision",fingerprint:move.fingerprint,target:choice.target,category:choice.category,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,
+        action:"decision",fingerprint:move.fingerprint,target:choice.target,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,
       })});
       const payload=await response.json();
       if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível conciliar esta movimentação.");
@@ -259,7 +259,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
   return <section className={styles.page}>
     <section className={styles.moduleHead}>
       <div><div className={styles.kicker}><span>CONCILIAÇÃO FINANCEIRA</span><b>OFICIAL</b></div><h2>Mercado Pago</h2><p>O que é seguro entra sozinho. O que depende de contexto espera sua aprovação.</p></div>
-      <div className={`${styles.connection} ${connected?styles.connected:""}`}><i/><span><strong>{connected?"Conta conectada":"Conexão indisponível"}</strong><small>{connected?"Sincronização automática a cada 5 minutos enquanto esta aba estiver aberta.":"Confira a mensagem abaixo."}</small></span></div>
+      <div className={`${styles.connection} ${connected?styles.connected:""}`}><i/><span><strong>{connected?"Conta conectada":"Conexão indisponível"}</strong><small>{connected?"Verificação a cada 5 min · relatório novo no máximo a cada 3 h.":"Confira a mensagem abaixo."}</small></span></div>
     </section>
 
     {error?<section className={styles.errorBox}><strong>⚠ Atenção</strong><span>{error}</span><button className="secondary" onClick={()=>void load()}>Tentar novamente</button></section>:null}
@@ -268,7 +268,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
     <section className={styles.balanceHero}>
       <div className={styles.balanceIcon}>$</div>
       <div className={styles.balanceMain}><span>Saldo disponível Mercado Pago</span><strong>{loading?"Carregando...":typeof data?.balance==="number"?money.format(data.balance):"Aguardando Liberações"}</strong><small>{typeof data?.balance==="number"?"Este saldo também compõe o Saldo projetado do Resumo.":"O DMP continua acompanhando o relatório de Liberações até o saldo ficar disponível."}</small></div>
-      <div className={styles.balanceSync}><span>Última sincronização</span><strong>{dateTime(data?.lastSync||null)}</strong><button className="secondary" disabled={loading||busy||!connected} onClick={()=>void sync(true)}>{busy||data?.pending?"Sincronizando...":"Atualizar agora"}</button><em>{autoChecking&&!busy?"verificação automática em andamento":"automático · 5 min"}</em></div>
+      <div className={styles.balanceSync}><span>Última sincronização</span><strong>{dateTime(data?.lastSync||null)}</strong><button className="secondary" disabled={loading||busy||!connected} onClick={()=>void sync(true)}>{busy||data?.pending?"Sincronizando...":"Atualizar agora"}</button><em>{autoChecking&&!busy?"verificação automática em andamento":"verificação · 5 min | relatório · 3 h"}</em></div>
     </section>
 
     <section className={styles.cutover}>
@@ -300,16 +300,17 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
             <div className={styles.info}>
               <div><strong>{move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
               <small>{date(move.date)}{move.detail?` · ${move.detail}`:""}</small>
-              {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{move.category&&move.suggestedTarget==="EXTRA"?` · ${move.category}`:""}{move.suggestedTargetName?` · ${move.suggestedTargetName}`:""} · {move.reason}</span></div>:<div className={styles.reconcileBox}>
+              {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{move.category&&move.suggestedTarget==="EXTRA"?` · ${move.category}`:""}{move.expenseName?` · ${move.expenseName}`:""}{move.suggestedTargetName&&!move.expenseName?` · ${move.suggestedTargetName}`:""} · {move.reason}</span></div>:<div className={styles.reconcileBox}>
                 <div className={styles.reconcileGrid}>
                   <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
                   {choice.target==="EXTRA"?<label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>:null}
+                  {choice.target==="EXTRA"?<label className={styles.fullField}><span>Nome do gasto (opcional)</span><input value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})} placeholder="Ex.: Cachorro-quente"/></label>:null}
                   {choice.target==="PERSONAL"?<label><span>Aluno Personal</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {money.format(item.remaining)} em aberto</option>)}</select></label>:null}
                   {choice.target==="EXPENSE"?<label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.expenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||""});}}><option value="">Selecione...</option>{data?.financeContext.expenses.map(item=><option key={item.id} value={item.id}>{item.name} · {money.format(item.remaining)} em aberto</option>)}</select></label>:null}
                   {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}
                 </div>
-                <div className={styles.learningChoice}><label><span>Nas próximas vezes com “{move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO">Automatizar sem perguntar</option></select></label><small>{move.canLearn?"Automatizar só fica ativo se você escolher e confirmar explicitamente.":"Descrição genérica: esta decisão só pode valer para esta movimentação."}</small></div>
+                <div className={styles.learningChoice}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO">Automatizar sem perguntar</option></select></label><small>{move.canLearn?"A memória usa esta pessoa ou estabelecimento; automatizar só ativa com sua confirmação.":"O relatório não trouxe uma identificação repetível; esta decisão vale apenas para esta movimentação."}</small></div>
                 <div className={styles.suggestionNote}>{move.confidence}% · {move.reason}</div>
               </div>}
             </div>
@@ -322,7 +323,8 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
         <section className="panel"><small className={styles.cap}>CONEXÃO REAL</small><h3>Status dos relatórios</h3><p className="muted">O saldo e as movimentações são lidos diretamente da sua conta.</p>
           <div className={styles.reportRow}><span><strong>Dinheiro em conta</strong><small>Movimentações</small></span><b className={data?.reports?.settlement?.status&&reportStatus(data.reports.settlement.status)==="Pronto"?styles.okTag:styles.waitTag}>{data?.reports?.settlement?.status?reportStatus(data.reports.settlement.status):data?.configured.settlement?"Configurado":"Pendente"}</b></div>
           <div className={styles.reportRow}><span><strong>Liberações</strong><small>Saldo disponível</small></span><b className={data?.reports?.release?.status&&reportStatus(data.reports.release.status)==="Pronto"?styles.okTag:styles.waitTag}>{data?.reports?.release?.status?reportStatus(data.reports.release.status):data?.configured.release?"Configurado":"Pendente"}</b></div>
-          <div className={styles.reportRow}><span><strong>Atualização</strong><small>Enquanto esta aba estiver aberta</small></span><b className={styles.okTag}>5 min</b></div>
+          <div className={styles.reportRow}><span><strong>Verificação</strong><small>Consulta tarefas e dados prontos</small></span><b className={styles.okTag}>5 min</b></div>
+          <div className={styles.reportRow}><span><strong>Novo relatório</strong><small>Intervalo mínimo de segurança</small></span><b className={styles.okTag}>3 h</b></div>
         </section>
         <section className="panel"><small className={styles.cap}>REGRAS DE SEGURANÇA</small><h3>O que entra sozinho</h3>
           <div className={styles.smartRule}><span>🛒</span><div><strong>Estabelecimentos inequívocos</strong><small>Mercados como Infunger/Covabra, iFood/restaurantes, pedágios/postos e drogarias podem ir direto para a categoria segura.</small></div></div>
@@ -336,6 +338,6 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
         <section className={styles.future}><small>INTEGRAÇÃO OFICIAL</small><strong>Mercado Pago → Financeiro DMP</strong><span>Gasto extra, Personal, DS e conta do plano passam a atualizar o Financeiro após regra segura ou sua confirmação. Cada transação só pode afetar o Financeiro uma vez.</span></section>
       </aside>
     </div>
-    <p className={styles.note}>Mercado Pago V6 · corte oficial em 18/09/2026 · conciliação integrada com proteção contra duplicidade.</p>
+    <p className={styles.note}>Mercado Pago V6.7 · corte oficial em 18/09/2026 · leitura unificada com proteção contra duplicidade.</p>
   </section>;
 }
