@@ -254,7 +254,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
 
   const connected=Boolean(data?.connected&&!error);
   const setupReady=Boolean(data&&!data.needsSetup);
-  const categories=data?.financeContext.categories?.length?data.financeContext.categories:["Alimentação","Mercado","Transporte","Saúde","Lazer","Compras","Filho","Taxas bancárias","Outros"];
+  const categories=data?.financeContext.categories?.length?data.financeContext.categories:["Alimentação","Mercado","Transporte","Saúde","Lazer","Compras","Filho","Caixa de reserva","Taxas bancárias","Outros"];
 
   return <section className={styles.page}>
     <section className={styles.moduleHead}>
@@ -339,6 +339,6 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
         <section className={styles.future}><small>INTEGRAÇÃO OFICIAL</small><strong>Mercado Pago → Financeiro DMP</strong><span>Gasto extra, Personal, DS e conta do plano passam a atualizar o Financeiro após regra segura ou sua confirmação. Cada transação só pode afetar o Financeiro uma vez.</span></section>
       </aside>
     </div>
-    <p className={styles.note}>Mercado Pago V6.8 · corte oficial em 18/09/2026 · leitura unificada com proteção contra duplicidade.</p>
+    <p className={styles.note}>Mercado Pago V6.9 · corte oficial em 18/09/2026 · leitura unificada com proteção contra duplicidade.</p>
   </section>;
 }

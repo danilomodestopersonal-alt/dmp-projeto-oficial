@@ -10,10 +10,11 @@ export const dynamic="force-dynamic";
 const MP_API="https://api.mercadopago.com";
 const SETTLEMENT_BASE="/v1/account/settlement_report";
 const RELEASE_BASE="/v1/account/release_report";
-const CLASSIFICATION_VERSION="v6.8-compact-safe-ledger-2026-09-19";
+const CLASSIFICATION_VERSION="v6.9-final-safe-ledger-2026-09-19";
 const STATE_ID="mercado_pago_reconciliation_v1";
 const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
+const RESERVE_NAMING_MIGRATION_ID="mercado_pago_v69_reserve_naming_done";
 const CUTOVER_DATE="2026-09-18";
 const AUTOMATIC_REPORT_INTERVAL_MINUTES=360;
 const MANUAL_REPORT_COOLDOWN_MINUTES=60;
@@ -488,7 +489,7 @@ function operationLabel(type:string,kind:MoveKind,paymentType:string,description
 type SmartSuggestion={target:TargetType;category?:string;confidence:number;reason:string;autoSafe:boolean};
 const smartRules:Array<{pattern:RegExp;category:string;reason:string;confidence:number;autoSafe:boolean}>=[
   {pattern:/(infunger|infanger|covabra|supermerc|mercadinho|hortifruti|atacad|carrefour|assa[ií]|p[aã]o de a[cç][uú]car|mercearia)/,category:"Mercado",reason:"mercado/supermercado reconhecido",confidence:99,autoSafe:true},
-  {pattern:/(ifood|ifd\*|restaur|churrasc|marmit|lanch|padar|panif|pizza|pizzar|subway|mcdon|burger|cafeter|boulanger|sushi|confeit|doceria|sorvet|gelat)/,category:"Alimentação",reason:"alimentação reconhecida pela descrição",confidence:98,autoSafe:true},
+  {pattern:/(ifood|\bifd\b|restaur|churrasc|marmit|lanch|padar|panif|pizza|pizzar|subway|mcdon|burger|cafeter|boulanger|sushi|confeit|doceria|sorvet|gelat)/,category:"Alimentação",reason:"alimentação reconhecida pela descrição",confidence:98,autoSafe:true},
   {pattern:/(conectcar|sem parar|\bposto\b|combust|gasolin|etanol|estacion|ped[aá]gio)/,category:"Transporte",reason:"transporte reconhecido pela descrição",confidence:98,autoSafe:true},
   {pattern:/(drogar|farm[aá]c)/,category:"Saúde",reason:"farmácia/drogaria reconhecida",confidence:98,autoSafe:true},
   {pattern:/(tarifa|fee|taxa|comiss[aã]o)/,category:"Taxas bancárias",reason:"tarifa/taxa identificada",confidence:99,autoSafe:true},
@@ -561,7 +562,7 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
       confidence=99;reason=learned.rule.mode==="AUTO"?"regra automática autorizada por você":"regra aprendida: sugestão para confirmar";
       status=learned.rule.mode==="AUTO"?"AUTO_READY":"REVIEW";
     }else if(candidate.emergency&&candidate.kind==="OUT"){
-      suggestedTarget="EXTRA";category="Emergência";expenseName="Emergência";confidence=100;reason="reserva automática por gastos identificada";status="AUTO_READY";
+      suggestedTarget="EXTRA";category="Caixa de reserva";expenseName="Caixa de reserva";confidence=100;reason="reserva automática por gastos identificada";status="AUTO_READY";
     }else{
       const smart=smartSuggestion(`${candidate.description} ${candidate.identityLabel}`);
       const typeNorm=normalizeKey(candidate.operation);
@@ -576,6 +577,11 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
         suggestedTarget="EXTRA";confidence=35;reason="PIX/transferência enviada; a finalidade precisa da sua confirmação";
       }
     }
+  }
+
+  if(candidate.emergency&&candidate.kind==="OUT"&&suggestedTarget==="EXTRA"){
+    category="Caixa de reserva";
+    expenseName="Caixa de reserva";
   }
 
   return {
@@ -609,6 +615,8 @@ function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):M
     const detail=[operationLabel(type,kind,paymentType,""),paymentType,payoutAccount,reference].filter(Boolean).join(" · ");
     const historical=Boolean(dateKey&&dateKey<CUTOVER_DATE);
     const identity=movementIdentity(row,release,description,type);
+    const genericSettlement=normalizeKey(type)==="settlement"&&!useful&&!sourceId&&!paymentType&&!identity.key;
+    if(genericSettlement)return;
     result.push(classifyMovement({
       sourceId,date:rawDate||String(index),dateKey,description,detail,operation:type,kind,amount,paymentType,fee,identityKey:identity.key,identityLabel:identity.label,historical,
     },state));
@@ -660,8 +668,8 @@ function releaseMovements(rows:AnyRow[],settlementRows:AnyRow[],settlement:Movem
     const useful=meaningfulDescription(row,operation);
     const identity=movementIdentity(row,undefined,useful,operation);
     const emergency=kind==="OUT"&&normalizeKey(operation)==="reserve for payment"&&amount<=10&&!identity.key;
-    const description=emergency?"Emergência":releaseOperationLabel(operation,kind,useful||identity.label);
-    const finalIdentity=emergency?{key:"system:reserva-emergencia",label:"Reserva por gastos · Emergência"}:movementIdentity(row,undefined,description,operation);
+    const description=emergency?"Caixa de reserva":releaseOperationLabel(operation,kind,useful||identity.label);
+    const finalIdentity=emergency?{key:"system:reserva-emergencia",label:"Reserva por gastos · Caixa de reserva"}:movementIdentity(row,undefined,description,operation);
     const signature=`${dateKey}|${kind}|${amount.toFixed(2)}|${finalIdentity.key}`;
     if(!sourceId&&settlementSignatures.has(signature))return;
     const paymentType=clean(row.PAYMENT_METHOD_TYPE||row.PAYMENT_METHOD);
@@ -730,12 +738,94 @@ async function loadFinance():Promise<FinanceData|null>{
   }catch(error){console.error("Erro ao ler Financeiro para conciliação Mercado Pago:",error);return null;}
 }
 
+async function migrateReserveNaming(){
+  const completed=await pool.query("SELECT 1 FROM dmp_data WHERE id = $1",[RESERVE_NAMING_MIGRATION_ID]);
+  if(completed.rows.length)return false;
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const financeResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[FINANCE_ID]);
+    const finance=financeResult.rows[0]?.payload as FinanceData|undefined;
+    if(!finance||finance.version!==1){await client.query("ROLLBACK");return false;}
+
+    const reserveIds=new Set(finance.extraExpenses.filter(item=>
+      item.id.startsWith("mp-extra-")
+      &&item.paymentMethod==="Mercado Pago"
+      &&normalizeKey(item.category)==="emergencia"
+      &&normalizeKey(item.description)==="emergencia"
+      &&item.amount>0&&item.amount<=10
+    ).map(item=>item.id));
+    if(!reserveIds.size){
+      await client.query(`
+        INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+        ON CONFLICT (id) DO NOTHING
+      `,[RESERVE_NAMING_MIGRATION_ID,JSON.stringify({completedAt:new Date().toISOString(),migrated:0})]);
+      await client.query("COMMIT");
+      return false;
+    }
+
+    const migratedExpenses=finance.extraExpenses.map(item=>reserveIds.has(item.id)
+      ?{...item,description:"Caixa de reserva",category:"Caixa de reserva"}
+      :item);
+    const oldCategoryStillUsed=migratedExpenses.some(item=>normalizeKey(item.category)==="emergencia");
+    const categories=[...new Set([
+      ...finance.categories.filter(item=>oldCategoryStillUsed||normalizeKey(item)!=="emergencia"),
+      "Caixa de reserva",
+    ])].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+    const history:FinanceHistoryEntry[]=[...(finance.history||[]),{
+      id:`history-mp-reserve-rename-${Date.now()}`,
+      occurredAt:new Date().toISOString(),
+      competence:finance.currentCompetence,
+      kind:"CATEGORY_RENAMED",
+      description:"Reservas automáticas do Mercado Pago renomeadas de Emergência para Caixa de reserva.",
+    }];
+    const nextFinance:FinanceData={...finance,categories,extraExpenses:migratedExpenses,history};
+
+    const stateResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[STATE_ID]);
+    const state=stateResult.rows.length?parseState(stateResult.rows[0].payload):emptyState();
+    for(const decision of Object.values(state.decisions)){
+      if(decision.financeEntityId&&reserveIds.has(decision.financeEntityId)){
+        decision.category="Caixa de reserva";
+        decision.expenseName="Caixa de reserva";
+        decision.targetName="Caixa de reserva";
+      }
+    }
+    const reserveRule=state.rules["OUT:system:reserva-emergencia"];
+    if(reserveRule){
+      reserveRule.label="Reserva por gastos · Caixa de reserva";
+      reserveRule.category="Caixa de reserva";
+      reserveRule.expenseName="Caixa de reserva";
+      reserveRule.targetName="Caixa de reserva";
+    }
+
+    await client.query(`
+      INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+      ON CONFLICT (id) DO NOTHING
+    `,["finance_v1_pre_mercado_pago_v69_reserve_rename",JSON.stringify(finance)]);
+    await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(nextFinance)]);
+    await client.query(`
+      INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+      ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()
+    `,[STATE_ID,JSON.stringify(state)]);
+    await client.query(`
+      INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+      ON CONFLICT (id) DO NOTHING
+    `,[RESERVE_NAMING_MIGRATION_ID,JSON.stringify({completedAt:new Date().toISOString(),migrated:reserveIds.size})]);
+    await client.query("COMMIT");
+    return true;
+  }catch(error){
+    try{await client.query("ROLLBACK");}catch{}
+    throw error;
+  }finally{client.release();}
+}
+
 type OverviewInternal={
   response:Record<string,unknown>;
   movements:Movement[];
   state:MpState;
 };
 async function buildOverview():Promise<OverviewInternal>{
+  await migrateReserveNaming();
   const state=await loadState();
   const [settlementConfig,releaseConfig,settlementReports,releaseReports,finance]=await Promise.all([
     getConfig("settlement"),getConfig("release"),listReports("settlement"),listReports("release"),loadFinance()
