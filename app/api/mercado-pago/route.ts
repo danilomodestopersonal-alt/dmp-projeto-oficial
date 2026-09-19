@@ -10,7 +10,7 @@ export const dynamic="force-dynamic";
 const MP_API="https://api.mercadopago.com";
 const SETTLEMENT_BASE="/v1/account/settlement_report";
 const RELEASE_BASE="/v1/account/release_report";
-const CLASSIFICATION_VERSION="v6.9-final-safe-ledger-2026-09-19";
+const CLASSIFICATION_VERSION="v6.10-final-safe-ledger-2026-09-19";
 const STATE_ID="mercado_pago_reconciliation_v1";
 const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
@@ -104,6 +104,7 @@ type Movement={
   processedAutomatic?:boolean;
   historical:boolean;
   canLearn:boolean;
+  canAuto:boolean;
 };
 
 type FinanceContext={
@@ -535,7 +536,11 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
   const legacyFingerprint=legacyMovementFingerprint(candidate.sourceId,candidate.date,candidate.kind,candidate.amount,candidate.description,candidate.operation);
   const fingerprintAliases=[fingerprint,legacyFingerprint].filter((value,index,array)=>array.indexOf(value)===index);
   const saved=decisionFor(state,fingerprintAliases)?.decision;
-  const canLearn=canLearnIdentity(candidate.identityKey);
+  const canAuto=canLearnIdentity(candidate.identityKey);
+  const genericSuggestionKey=!canAuto&&genericLearningDescription(candidate.description)?`generic:${normalizeKey(candidate.description)}`:"";
+  const learningKey=candidate.identityKey||genericSuggestionKey;
+  const learningLabel=canAuto?candidate.identityLabel:candidate.description;
+  const canLearn=Boolean(learningKey);
 
   let technical=false;
   let category="Outros";
@@ -555,7 +560,7 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
     suggestedTarget=saved.target;category=saved.category||category;suggestedTargetName=saved.targetName;expenseName=saved.expenseName;
     confidence=100;reason=saved.automatic?"processada automaticamente por regra autorizada":"processada após sua confirmação";
   }else{
-    const learned=learnedRuleFor(state,candidate.identityKey,candidate.description,candidate.kind);
+    const learned=learnedRuleFor(state,learningKey,candidate.description,candidate.kind);
     if(learned){
       learnedKey=learned.key;learnedMode=learned.rule.mode;suggestedTarget=learned.rule.target;category=learned.rule.category||category;
       suggestedTargetName=learned.rule.targetName;expenseName=learned.rule.expenseName;
@@ -588,8 +593,8 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
     id:`${candidate.sourceId||"mp"}-${candidate.date}-${hashId(fingerprint)}`,fingerprint,sourceId:candidate.sourceId,date:candidate.date,dateKey:candidate.dateKey,
     description:candidate.description,expenseName,detail:candidate.detail,operation:candidate.operation,kind:candidate.kind,amount:candidate.amount,
     category,confidence,reason,technical,status,suggestedTarget,suggestedTargetName,ruleMode:learnedMode,ruleKey:learnedKey,
-    learningKey:candidate.identityKey,learningLabel:candidate.identityLabel,fingerprintAliases,
-    processedAutomatic:Boolean(saved?.automatic),historical:candidate.historical,canLearn,
+    learningKey,learningLabel,fingerprintAliases,
+    processedAutomatic:Boolean(saved?.automatic),historical:candidate.historical,canLearn,canAuto,
   };
 }
 function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):Movement[]{
@@ -615,7 +620,7 @@ function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):M
     const detail=[operationLabel(type,kind,paymentType,""),paymentType,payoutAccount,reference].filter(Boolean).join(" · ");
     const historical=Boolean(dateKey&&dateKey<CUTOVER_DATE);
     const identity=movementIdentity(row,release,description,type);
-    const genericSettlement=normalizeKey(type)==="settlement"&&!useful&&!sourceId&&!paymentType&&!identity.key;
+    const genericSettlement=normalizeKey(type)==="settlement"&&!useful&&description==="Liquidação Mercado Pago";
     if(genericSettlement)return;
     result.push(classifyMovement({
       sourceId,date:rawDate||String(index),dateKey,description,detail,operation:type,kind,amount,paymentType,fee,identityKey:identity.key,identityLabel:identity.label,historical,
@@ -1172,7 +1177,8 @@ export async function POST(request:NextRequest){
       if(target==="EXTRA"&&!category)return NextResponse.json({ok:false,error:"Escolha a categoria do gasto extra."},{status:400});
       if(target==="PERSONAL"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha o aluno do Personal."},{status:400});
       if(target==="EXPENSE"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha a conta do plano."},{status:400});
-      if(ruleChoice!=="ONCE"&&!move.canLearn)return NextResponse.json({ok:false,error:"A descrição desta movimentação é genérica demais para criar uma regra. A decisão pode valer somente para esta transação."},{status:400});
+      if(ruleChoice!=="ONCE"&&!move.canLearn)return NextResponse.json({ok:false,error:"Esta movimentação não possui identificação suficiente para memorizar uma sugestão."},{status:400});
+      if(ruleChoice==="AUTO"&&!move.canAuto)return NextResponse.json({ok:false,error:"O Mercado Pago não informou uma pessoa, estabelecimento ou conta repetível. Para sua segurança, use Sugerir e pedir confirmação."},{status:400});
       const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false});
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);

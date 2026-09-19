@@ -10,7 +10,7 @@ type RuleChoice="ONCE"|"SUGGEST"|"AUTO";
 type Move={
   id:string;fingerprint:string;sourceId?:string;date:string;dateKey:string;description:string;detail:string;operation?:string;kind:"IN"|"OUT";amount:number;
   category:string;expenseName?:string;confidence:number;reason:string;technical:boolean;status:Status;suggestedTarget:Target;suggestedTargetName?:string;ruleMode?:"SUGGEST"|"AUTO";
-  processedAutomatic?:boolean;historical:boolean;canLearn:boolean;learningLabel:string;
+  processedAutomatic?:boolean;historical:boolean;canLearn:boolean;canAuto:boolean;learningLabel:string;
 };
 type LearnedRule={key:string;label:string;kind:"IN"|"OUT";target:Target;category?:string;targetName?:string;expenseName?:string;mode:"SUGGEST"|"AUTO";approvals:number;updatedAt:string};
 type ReportState={id?:string|number|null;status?:string;generatedAt?:string|null;fileName?:string|null}|null;
@@ -309,7 +309,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
                   {choice.target==="EXPENSE"?<label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.expenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||""});}}><option value="">Selecione...</option>{data?.financeContext.expenses.map(item=><option key={item.id} value={item.id}>{item.name} · {money.format(item.remaining)} em aberto</option>)}</select></label>:null}
                   {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}
-                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO">Automatizar sem perguntar</option></select></label><small>{move.canLearn?"Usa esta pessoa ou estabelecimento.":"Sem identificação repetível; vale somente agora."}</small></div>
+                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
                 </div>
                 <div className={styles.suggestionNote}>{move.confidence}% · {move.reason}</div>
               </div>}
@@ -339,6 +339,6 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
         <section className={styles.future}><small>INTEGRAÇÃO OFICIAL</small><strong>Mercado Pago → Financeiro DMP</strong><span>Gasto extra, Personal, DS e conta do plano passam a atualizar o Financeiro após regra segura ou sua confirmação. Cada transação só pode afetar o Financeiro uma vez.</span></section>
       </aside>
     </div>
-    <p className={styles.note}>Mercado Pago V6.9 · corte oficial em 18/09/2026 · leitura unificada com proteção contra duplicidade.</p>
+    <p className={styles.note}>Mercado Pago V6.10 · corte oficial em 18/09/2026 · leitura unificada com proteção contra duplicidade.</p>
   </section>;
 }
