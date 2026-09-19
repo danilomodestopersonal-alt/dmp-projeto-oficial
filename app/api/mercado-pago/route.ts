@@ -10,13 +10,13 @@ export const dynamic="force-dynamic";
 const MP_API="https://api.mercadopago.com";
 const SETTLEMENT_BASE="/v1/account/settlement_report";
 const RELEASE_BASE="/v1/account/release_report";
-const CLASSIFICATION_VERSION="v6.7-unified-ledger-2026-09-19";
+const CLASSIFICATION_VERSION="v6.8-compact-safe-ledger-2026-09-19";
 const STATE_ID="mercado_pago_reconciliation_v1";
 const FINANCE_ID="finance_v1";
 const FINANCE_BACKUP_ID="finance_v1_pre_mercado_pago_v6";
 const CUTOVER_DATE="2026-09-18";
-const AUTOMATIC_REPORT_INTERVAL_MINUTES=180;
-const MANUAL_REPORT_COOLDOWN_MINUTES=180;
+const AUTOMATIC_REPORT_INTERVAL_MINUTES=360;
+const MANUAL_REPORT_COOLDOWN_MINUTES=60;
 const MAX_REPORT_CREATIONS_PER_KIND_PER_24_HOURS=4;
 const QUOTA_COOLDOWN_HOURS=12;
 
@@ -512,6 +512,10 @@ function rowReferenceKeys(row:AnyRow){
   return [row.SOURCE_ID,row.EXTERNAL_REFERENCE,row.PURCHASE_ID,row.PAY_BANK_TRANSFER_ID,row.TRANSACTION_INTENT_ID,row.ITEM_ID]
     .map(clean).filter((value,index,array)=>Boolean(value)&&array.indexOf(value)===index);
 }
+function releaseCounterpartKeys(row:AnyRow,amount:number){
+  const dateKey=movementDateKey(row.TRANSACTION_APPROVAL_DATE||row.DATE||"");
+  return rowReferenceKeys(row).map(reference=>`${reference}|${dateKey}|${amount.toFixed(2)}`);
+}
 function decisionFor(state:MpState,fingerprints:string[]){
   for(const fingerprint of fingerprints){const decision=state.decisions[fingerprint];if(decision)return {decision,key:fingerprint};}
   return null;
@@ -626,6 +630,16 @@ function releaseMovements(rows:AnyRow[],settlementRows:AnyRow[],settlement:Movem
   const settlementSources=new Set(settlement.filter(item=>item.sourceId).map(item=>`${item.sourceId}|${item.kind}`));
   const settlementReferences=new Set(settlementRows.flatMap(rowReferenceKeys));
   const settlementSignatures=new Set(settlement.map(item=>`${item.dateKey}|${item.kind}|${item.amount.toFixed(2)}|${item.learningKey}`));
+  const reserveCounterparts=new Set<string>();
+  for(const row of rows){
+    const operation=clean(row.DESCRIPTION)||clean(row.RECORD_TYPE)||"RELEASE";
+    const credit=Math.abs(numberValue(row.NET_CREDIT_AMOUNT));
+    const debit=Math.abs(numberValue(row.NET_DEBIT_AMOUNT));
+    const amount=Math.abs(credit-debit);
+    if(debit>credit&&amount>0&&amount<=10&&normalizeKey(operation)==="reserve for payment"){
+      for(const key of releaseCounterpartKeys(row,amount))reserveCounterparts.add(key);
+    }
+  }
   rows.forEach((row,index)=>{
     const recordType=normalizeKey(row.RECORD_TYPE||"");
     if(["initial available balance","available balance","total","subtotal"].includes(recordType))return;
@@ -636,6 +650,7 @@ function releaseMovements(rows:AnyRow[],settlementRows:AnyRow[],settlement:Movem
     if(!rawAmount)return;
     const kind:MoveKind=rawAmount<0?"OUT":"IN";
     const amount=Math.abs(rawAmount);
+    if(kind==="IN"&&releaseCounterpartKeys(row,amount).some(key=>reserveCounterparts.has(key)))return;
     const sourceId=clean(row.SOURCE_ID);
     if(sourceId&&settlementSources.has(`${sourceId}|${kind}`))return;
     if(rowReferenceKeys(row).some(reference=>settlementReferences.has(reference)))return;
