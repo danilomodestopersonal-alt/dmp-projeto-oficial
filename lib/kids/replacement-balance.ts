@@ -150,10 +150,12 @@ function individualReplacementEvents(
         lesson.date <= throughDate &&
         (lesson.replacementStudentIds || []).includes(studentId),
     )
-    .filter((lesson) => lesson.attendance?.[studentId] !== "ABSENT")
+    // A vaga utilizada consome a reposição quando a aula acontece.
+    // A falta continua registrada na chamada, mas não devolve o crédito.
     .filter((lesson) => individualLessonHeld(lesson, data.classes.find((group) => group.id === lesson.classId)))
     .map((lesson): KidsReplacementBalanceEvent => {
       const group = data.classes.find((item) => item.id === lesson.classId);
+      const absent = lesson.attendance?.[studentId] === "ABSENT";
       return {
         id: `student:${studentId}:${lesson.id}:individual-replaced`,
         classId: lesson.classId,
@@ -161,7 +163,9 @@ function individualReplacementEvents(
         date: lesson.date,
         type: "REPLACED",
         source: "INDIVIDUAL_REPLACEMENT",
-        label: "Reposição individual realizada",
+        label: absent
+          ? "Reposição consumida · falta registrada"
+          : "Reposição individual realizada",
         lessonId: lesson.id,
       };
     });
