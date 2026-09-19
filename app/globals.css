@@ -8051,3 +8051,48 @@ input:focus,textarea:focus{
     grid-template-columns:minmax(250px,1.45fr) minmax(220px,.95fr) minmax(210px,1fr) minmax(68px,.30fr)!important;
   }
 }
+
+/* DMP V6.12 - compromissos comuns visualmente distintos das aulas na Home */
+.calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])){
+  border-color:#c7d1d6;
+  border-left:6px solid #566771;
+  background:linear-gradient(135deg,#eef2f4 0%,#e4eaed 100%);
+  box-shadow:0 5px 15px rgba(48,63,72,.09);
+}
+.calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])):hover{
+  border-color:#7f929d;
+  background:linear-gradient(135deg,#e8edef 0%,#dce4e8 100%);
+}
+.calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])) .calendar-time{
+  color:#394952;
+}
+.calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])) .calendar-event-main strong::before{
+  content:"📅";
+  margin-right:8px;
+  font-size:.92em;
+}
+.calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])) > .status-chip{
+  background:#596b75;
+  color:#fff;
+  font-size:0;
+}
+.calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])) > .status-chip::after{
+  content:"Compromisso";
+  font-size:.75rem;
+}
+.agenda-rail-event:not(.kids):not(:has(> div:nth-of-type(2))){
+  border:1px solid #cbd4d8;
+  border-left:5px solid #566771;
+  background:linear-gradient(145deg,#edf1f3,#e2e8eb);
+  box-shadow:0 4px 14px rgba(48,63,72,.10);
+}
+.agenda-rail-event:not(.kids):not(:has(> div:nth-of-type(2))) strong::before{
+  content:"📅";
+  margin-right:6px;
+  font-size:.82em;
+}
+@media(max-width:760px){
+  .calendar-preview-row:not(:has(.calendar-slot-students)):not(:has([class*="kids-action-"])){
+    border-left-width:5px;
+  }
+}
