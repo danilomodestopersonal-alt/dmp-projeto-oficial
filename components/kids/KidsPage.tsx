@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
-import { KidsReplacementBalanceOverview, KidsReplacementOperationSummary, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
+import { KidsReplacementOperationSummary, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
 import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, isKidsFifthMonthlyLesson, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
 import {
   createKidsSeed,
@@ -98,6 +98,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   const [showNewStudentForm,setShowNewStudentForm]=useState(false);
   const [studentSearch,setStudentSearch]=useState("");
   const [dashboardStudentSearch,setDashboardStudentSearch]=useState("");
+  const [replacementSearch,setReplacementSearch]=useState("");
   const kidsHistoryReady=useRef(false);
   const kidsBackRestoring=useRef(false);
 
@@ -388,6 +389,18 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   const filteredActiveKids=useMemo(()=>studentSearch.trim()?allKids.filter(student=>student.name.toLocaleLowerCase("pt-BR").includes(studentSearch.trim().toLocaleLowerCase("pt-BR"))):allKids,[allKids,studentSearch]);
   const filteredInactiveKids=useMemo(()=>studentSearch.trim()?inactiveKids.filter(student=>student.name.toLocaleLowerCase("pt-BR").includes(studentSearch.trim().toLocaleLowerCase("pt-BR"))):inactiveKids,[inactiveKids,studentSearch]);
   const dashboardSearchResults=useMemo(()=>dashboardStudentSearch.trim()?allKids.filter(student=>student.name.toLocaleLowerCase("pt-BR").includes(dashboardStudentSearch.trim().toLocaleLowerCase("pt-BR"))).slice(0,6):[],[allKids,dashboardStudentSearch]);
+  const replacementStudentRows=useMemo(()=>allKids.map(student=>{
+    const balance=computeKidsStudentReplacementBalance(data!,student.id);
+    return {...student,balance,saldoARepor:balance.due-balance.replaced};
+  }).sort((a,b)=>localeCompare(a.name,b.name)),[allKids,data]);
+  const replacementLessons=useMemo(()=>lessons.filter(lesson=>lesson.kind==="REPLACEMENT"),[lessons]);
+  const upcomingReplacementLessons=useMemo(()=>replacementLessons
+    .filter(lesson=>lesson.status==="SCHEDULED"&&!replacementLessonHasPassed(lesson,classes))
+    .sort((a,b)=>a.date.localeCompare(b.date)||(a.replacementStartTime||"").localeCompare(b.replacementStartTime||"")),[replacementLessons,classes]);
+  const replacementHistoryLessons=useMemo(()=>lessons
+    .filter(lesson=>lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY")
+    .filter(lesson=>lesson.kind==="REPLACEMENT"?replacementLessonHasPassed(lesson,classes):isKidsFifthMonthlyLesson(data!,lesson)&&lessonHasPassed(lesson,classes))
+    .sort((a,b)=>b.date.localeCompare(a.date)||(b.replacementStartTime||classTime(b.classId)).localeCompare(a.replacementStartTime||classTime(a.classId))),[lessons,classes,data]);
   function classTime(id: string) {
     return classes.find((item) => item.id === id)?.startTime || "";
   }
@@ -416,6 +429,18 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       active:true,
       updatedAt:lesson.updatedAt,
     };
+  }
+  function replacementRosterIds(lesson:KidsLesson){
+    if(lesson.kind==="REPLACEMENT")return [...new Set(lesson.replacementStudentIds||[])];
+    const related=group(lesson.classId);
+    return related?.students
+      .filter(student=>student.active&&(!student.startDate||student.startDate<=lesson.date))
+      .map(student=>student.id)||[];
+  }
+  function replacementLessonSearchText(lesson:KidsLesson){
+    const related=lessonGroup(lesson);
+    const names=replacementRosterIds(lesson).map(id=>studentProfile(id)?.name||"").join(" ");
+    return normalizeName(`${lesson.date} ${lesson.replacementName||related?.name||""} ${names}`);
   }
   function openLesson(id: string) {
     setLessonId(id);
@@ -667,6 +692,11 @@ const relatedGroup = lessonGroup(next);
     const status=rate>=100?"Lotada":rate>=80?"Quase lotada":rate>=50?"Equilibrada":"Baixa ocupação";
     return {...item,classCapacity,enrolled,rate,status,vacancies:Math.max(0,classCapacity-enrolled)};
   }).sort((a,b)=>b.rate-a.rate||a.weekday-b.weekday||a.startTime.localeCompare(b.startTime));
+  const replacementQuery=normalizeName(replacementSearch);
+  const waitingReplacementStudents=replacementStudentRows.filter(item=>item.saldoARepor>0&&(!replacementQuery||normalizeName(item.name).includes(replacementQuery)));
+  const advanceReplacementStudents=replacementStudentRows.filter(item=>item.saldoARepor<0&&(!replacementQuery||normalizeName(item.name).includes(replacementQuery)));
+  const visibleUpcomingReplacements=upcomingReplacementLessons.filter(lesson=>!replacementQuery||replacementLessonSearchText(lesson).includes(replacementQuery));
+  const visibleReplacementHistory=replacementHistoryLessons.filter(lesson=>!replacementQuery||replacementLessonSearchText(lesson).includes(replacementQuery));
 
   return (
     <div className={styles.page}>
@@ -1004,10 +1034,68 @@ const relatedGroup = lessonGroup(next);
       {tab === "replacements" ? (
         <section className={styles.panel}>
           <div className={styles.panelHead}>
-            <div><h2>Controle de reposições</h2><p>Créditos individuais, aulas agendadas e histórico de utilização.</p></div>
+            <div><h2>Gestão de reposições</h2><p>Crie aulas, administre participantes, faça chamadas e consulte o histórico.</p></div>
             <button className={styles.primary} onClick={()=>setShowReplacementForm(true)}>+ Aula avulsa de reposição</button>
           </div>
-          <KidsReplacementBalanceOverview data={data!} />
+          <div className={styles.replacementWorkspace}>
+            <label className={styles.replacementSearch}>
+              <span>⌕</span>
+              <input value={replacementSearch} onChange={event=>setReplacementSearch(event.target.value)} placeholder="Buscar criança, aula ou data..." autoComplete="off"/>
+            </label>
+
+            <div className={styles.replacementWorkspaceGrid}>
+              <article className={styles.replacementWorkspaceCard}>
+                <header><div><small>PRÓXIMAS AULAS</small><h3>Reposições agendadas</h3></div><b>{visibleUpcomingReplacements.length}</b></header>
+                <div className={styles.replacementSessionList}>
+                  {visibleUpcomingReplacements.length?visibleUpcomingReplacements.map(lesson=>{
+                    const roster=replacementRosterIds(lesson);
+                    return <button type="button" key={lesson.id} onClick={()=>openLesson(lesson.id)}>
+                      <time><strong>{formatDate(lesson.date)}</strong><small>{lesson.replacementStartTime||lessonTime(lesson)}</small></time>
+                      <span><strong>{lesson.replacementName||lessonGroup(lesson)?.name||"Aula de reposição"}</strong><small>{roster.length} criança{roster.length===1?"":"s"} inscrita{roster.length===1?"":"s"}</small></span>
+                      <b>Abrir turma e chamada</b>
+                    </button>;
+                  }):<Empty title="Nenhuma reposição agendada" text={replacementSearch?"Nenhuma aula corresponde à busca.":"Crie uma aula avulsa quando precisar."}/>}
+                </div>
+              </article>
+
+              <article className={styles.replacementWorkspaceCard}>
+                <header><div><small>CONTROLE INDIVIDUAL</small><h3>Alunos aguardando reposição</h3></div><b>{waitingReplacementStudents.length}</b></header>
+                <div className={styles.replacementStudentList}>
+                  {waitingReplacementStudents.length?waitingReplacementStudents.map(student=><button type="button" key={student.id} onClick={()=>openStudent(student.id)}>
+                    <span><strong>{student.name}</strong><small>{student.balance.due} cancelada{student.balance.due===1?"":"s"} · {student.balance.replaced} reposta{student.balance.replaced===1?"":"s"}</small></span>
+                    <b>{student.saldoARepor}</b><em>a repor</em>
+                  </button>):<Empty title="Nenhuma criança aguardando" text={replacementSearch?"Nenhum aluno corresponde à busca.":"Todos os créditos estão compensados."}/>}
+                </div>
+              </article>
+
+              <article className={styles.replacementWorkspaceCard}>
+                <header><div><small>AULAS CONCLUÍDAS</small><h3>Histórico de reposições</h3></div><b>{visibleReplacementHistory.length}</b></header>
+                <div className={styles.replacementSessionList}>
+                  {visibleReplacementHistory.length?visibleReplacementHistory.map(lesson=>{
+                    const roster=replacementRosterIds(lesson);
+                    const absent=roster.filter(id=>lesson.attendance?.[id]==="ABSENT").length;
+                    const present=Math.max(0,roster.length-absent);
+                    const fifth=lesson.kind!=="REPLACEMENT";
+                    return <button type="button" key={lesson.id} onClick={()=>openLesson(lesson.id)}>
+                      <time><strong>{formatDate(lesson.date)}</strong><small>{lesson.replacementStartTime||lessonTime(lesson)}</small></time>
+                      <span><strong>{fifth?`5ª aula do mês · ${lessonGroup(lesson)?.name||"Turma"}`:lesson.replacementName||lessonGroup(lesson)?.name||"Aula de reposição"}</strong><small>{present} presença{present===1?"":"s"} · {absent} falta{absent===1?"":"s"}</small></span>
+                      <b>Ver chamada</b>
+                    </button>;
+                  }):<Empty title="Nenhuma reposição realizada" text={replacementSearch?"Nenhum histórico corresponde à busca.":"As aulas concluídas aparecerão aqui."}/>}
+                </div>
+              </article>
+
+              <article className={styles.replacementWorkspaceCard}>
+                <header><div><small>SALDO ANTECIPADO</small><h3>Créditos antecipados</h3></div><b>{advanceReplacementStudents.length}</b></header>
+                <div className={styles.replacementStudentList}>
+                  {advanceReplacementStudents.length?advanceReplacementStudents.map(student=><button type="button" key={student.id} onClick={()=>openStudent(student.id)}>
+                    <span><strong>{student.name}</strong><small>Reposições feitas além das aulas canceladas</small></span>
+                    <b>{student.saldoARepor}</b><em>saldo</em>
+                  </button>):<Empty title="Nenhum crédito antecipado" text={replacementSearch?"Nenhum aluno corresponde à busca.":"Não há saldos negativos no momento."}/>}
+                </div>
+              </article>
+            </div>
+          </div>
         </section>
       ) : null}
 
@@ -3036,6 +3124,13 @@ function lessonHasPassed(lesson: KidsLesson, classes: KidsClass[]) {
   const group = classes.find((item) => item.id === lesson.classId);
   if (!group) return lesson.date < localDate();
   return new Date(`${lesson.date}T${group.endTime || group.startTime}:00`).getTime() <= Date.now();
+}
+function replacementLessonHasPassed(lesson:KidsLesson,classes:KidsClass[]){
+  if(lesson.status==="COMPLETED")return true;
+  if(lesson.status!=="SCHEDULED")return false;
+  const group=classes.find(item=>item.id===lesson.classId);
+  const end=lesson.replacementEndTime||lesson.replacementStartTime||group?.endTime||group?.startTime||"23:59";
+  return new Date(`${lesson.date}T${end}:00`).getTime()<=Date.now();
 }
 function mergeFinanceProfiles(kids: KidsData, finance: FinanceData): KidsData {
   const normalize = (value: string) =>

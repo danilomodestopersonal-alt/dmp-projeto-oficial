@@ -149,6 +149,143 @@
   padding: 12px;
   background: #fff;
 }
+.replacementWorkspace {
+  display: grid;
+  gap: 16px;
+}
+.replacementSearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d8e2de;
+  border-radius: 15px;
+  background: #f9fbfa;
+  padding: 0 14px;
+}
+.replacementSearch span {
+  color: #71817b;
+  font-size: 21px;
+}
+.replacementSearch input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 14px 0;
+  color: #173f38;
+  font: inherit;
+}
+.replacementWorkspaceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.replacementWorkspaceCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe7e3;
+  border-radius: 19px;
+  background: #fbfdfb;
+}
+.replacementWorkspaceCard > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px;
+  border-bottom: 1px solid #e3e9e6;
+  background: linear-gradient(135deg, #f4f8ef, #fff);
+}
+.replacementWorkspaceCard > header small {
+  display: block;
+  color: #71823d;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.replacementWorkspaceCard > header h3 {
+  margin: 3px 0 0;
+  color: #173f38;
+  font-size: 17px;
+}
+.replacementWorkspaceCard > header > b {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: #173f38;
+  color: #fff;
+}
+.replacementSessionList,
+.replacementStudentList {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px;
+  scrollbar-width: thin;
+}
+.replacementSessionList > button,
+.replacementStudentList > button {
+  width: 100%;
+  border-color: #e1e8e5;
+  border-radius: 13px;
+  padding: 11px 12px;
+  text-align: left;
+}
+.replacementSessionList > button {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.replacementSessionList time,
+.replacementSessionList > button > span,
+.replacementStudentList > button > span {
+  display: grid;
+  gap: 3px;
+}
+.replacementSessionList time strong,
+.replacementSessionList > button > span strong,
+.replacementStudentList > button > span strong {
+  color: #173f38;
+  font-size: 13px;
+}
+.replacementSessionList time small,
+.replacementSessionList > button > span small,
+.replacementStudentList > button > span small {
+  color: #74837e;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.replacementSessionList > button > b {
+  color: #e87312;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.replacementStudentList > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px 42px;
+  align-items: center;
+  gap: 8px;
+}
+.replacementStudentList > button > b {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #203a29;
+  color: #fff;
+}
+.replacementStudentList > button > em {
+  color: #78857f;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -604,6 +741,9 @@
   .formGrid {
     grid-template-columns: 1fr;
   }
+  .replacementWorkspaceGrid {
+    grid-template-columns: 1fr;
+  }
   .attendance {
     grid-template-columns: 1fr;
   }
@@ -622,6 +762,12 @@
   }
   .tabs button {
     white-space: nowrap;
+  }
+  .replacementSessionList > button {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+  .replacementSessionList > button > b {
+    grid-column: 2;
   }
 }
 @media (max-width: 480px) {
