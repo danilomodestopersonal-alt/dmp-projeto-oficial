@@ -762,7 +762,7 @@ const relatedGroup = lessonGroup(next);
               <button onClick={() => {setVacanciesOnly(true);setTab("classes");}}><small>Vagas disponíveis</small><strong>{totalVacancies}</strong><span>{occupancy}% de ocupação média</span></button>
             </div>
           </section>
-          <KidsReplacementOperationSummary data={data} />
+          <KidsReplacementOperationSummary data={data} onOpenStudent={openStudent} />
           <section className={styles.capacityPanel}>
             <div className={styles.panelHead}>
               <div>

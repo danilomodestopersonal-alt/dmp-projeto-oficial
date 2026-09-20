@@ -318,7 +318,7 @@ function OperationProgress({value}:{value:number}){
   </div>;
 }
 
-export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{data:KidsData|null;compact?:boolean;onOpen?:()=>void}) {
+export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpenStudent}:{data:KidsData|null;compact?:boolean;onOpen?:()=>void;onOpenStudent?:(studentId:string)=>void}) {
   const [period,setPeriod]=useState<OperationPeriod>("semester");
   const [detail,setDetail]=useState<OperationDetail|null>(null);
   const [detailSearch,setDetailSearch]=useState("");
@@ -332,23 +332,26 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
     performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"Mostra a data da reposição e qual aula cancelada foi compensada, inclusive quando houve falta."},
     pending:{eyebrow:"ALUNOS AGUARDANDO REPOSIÇÃO",title:"Crianças que ainda precisam repor",description:"Exibe apenas crianças com pendência, mantendo em verde o histórico já resolvido e em vermelho o que falta."},
     scheduled:{eyebrow:"PRÓXIMAS REPOSIÇÕES",title:"Crianças já agendadas",description:"Vagas futuras já reservadas nas aulas de reposição."},
-    advance:{eyebrow:"CRÉDITOS ANTECIPADOS",title:"Crianças com saldo positivo",description:"Reposições realizadas além dos créditos gerados até este período."},
+    advance:{eyebrow:"CRÉDITOS ANTECIPADOS",title:"Crianças com saldo positivo",description:"Mostra o histórico completo da criança: aulas canceladas, reposições já feitas e créditos positivos, incluindo a 5ª aula do mês."},
     attendance:{eyebrow:"COMPARECIMENTO",title:"Presenças e faltas nas reposições",description:"Inclui aulas avulsas e a 5ª aula do mês. A falta permanece registrada e também consome a reposição utilizada."},
     attention:{eyebrow:"PRECISAM DE ATENÇÃO",title:"Crianças com 2 ou mais pendências",description:"Lista somente as pendências reais que ainda precisam ser repostas."},
   };
   const rowValue=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.due:kind==="performed"?row.replaced:kind==="pending"||kind==="attention"?row.pending:kind==="scheduled"?row.scheduledDates.length:kind==="advance"?row.advance:row.attendanceEvents.length;
   const rowDisplayValue=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.netBalance:rowValue(row,kind);
   const ledgerForPeriod=(row:StudentOperationRow)=>row.creditLedger.filter(item=>periodIncludes(item.credit.date,period,data));
-  const ledgerDetail=(item:CreditLedgerItem):DetailEvent=>({
-    date:item.credit.date,
-    className:item.credit.className,
-    label:item.status!=="PENDING"&&item.replacement
-      ? item.status==="ANTICIPATED"
-        ? `Reposição antecipada para ${fmtDate(item.replacement.date)} · já contabilizada`
-        : `Reposta em ${fmtDate(item.replacement.date)}${item.replacement.label.toLowerCase().includes("falta")?" · falta registrada":""}`
-      :"A repor",
-    tone:item.status==="RESOLVED"?"resolved":item.status==="ANTICIPATED"?"anticipated":"pending",
-  });
+  const ledgerDetail=(item:CreditLedgerItem):DetailEvent=>{
+    const replacementSource=item.replacement?.source==="FIFTH_CLASS"?" · 5ª aula do mês":"";
+    return {
+      date:item.credit.date,
+      className:item.credit.className,
+      label:item.status!=="PENDING"&&item.replacement
+        ? item.status==="ANTICIPATED"
+          ? `Reposição antecipada para ${fmtDate(item.replacement.date)}${replacementSource} · já contabilizada`
+          : `Reposta em ${fmtDate(item.replacement.date)}${replacementSource}${item.replacement.label.toLowerCase().includes("falta")?" · falta registrada":""}`
+        :"A repor",
+      tone:item.status==="RESOLVED"?"resolved":item.status==="ANTICIPATED"?"anticipated":"pending",
+    };
+  };
   const rowDates=(row:StudentOperationRow,kind:OperationDetail):DetailEvent[]=>{
     if(kind==="generated"||kind==="pending")return ledgerForPeriod(row).map(ledgerDetail);
     if(kind==="attention")return ledgerForPeriod(row).filter(item=>item.status==="PENDING").map(ledgerDetail);
@@ -362,7 +365,16 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
       };
     });
     if(kind==="scheduled")return row.scheduledDates.map(date=>({date,label:"Reposição agendada"}));
-    if(kind==="advance")return row.advanceEvents.map(event=>({date:event.date,label:event.label}));
+    if(kind==="advance"){
+      const history=ledgerForPeriod(row).map(ledgerDetail);
+      const positive=row.advanceEvents.map(event=>({
+        date:event.date,
+        className:event.className,
+        label:event.label,
+        tone:(event.stage==="ANTICIPATED"?"anticipated":"resolved") as DetailEvent["tone"],
+      }));
+      return [...history,...positive];
+    }
     return row.attendanceEvents.map(event=>({
       date:event.date,
       className:event.source==="FIFTH_CLASS"?`5ª aula do mês · ${event.className}`:event.className,
@@ -462,8 +474,11 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
         <label className={styles.detailSearch}><span>⌕</span><input value={detailSearch} onChange={event=>setDetailSearch(event.target.value)} placeholder="Buscar criança..." autoComplete="off"/></label>
         <div className={styles.detailList}>
           {detailRows.length?detailRows.map(row=><article className={styles.detailRow} key={row.id}>
-            <div className={styles.detailStudent}><strong>{row.name}</strong><small>{detail==="generated"?`${row.due} aula${row.due===1?"":"s"} cancelada${row.due===1?"":"s"} · saldo ${row.netBalance}`:`${rowValue(row,detail)} ${detail==="attendance"?"registro":detail==="scheduled"?"agendamento":"crédito"}${rowValue(row,detail)===1?"":"s"}`}</small></div>
-            <div className={styles.detailDates}>{rowDates(row,detail).map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>)}</div>
+            <div className={styles.detailStudent}>
+              {onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}><strong>{row.name}</strong></button>:<strong>{row.name}</strong>}
+              <small>{detail==="generated"?`${row.due} aula${row.due===1?"":"s"} cancelada${row.due===1?"":"s"} · saldo ${row.netBalance}`:`${rowValue(row,detail)} ${detail==="attendance"?"registro":detail==="scheduled"?"agendamento":"crédito"}${rowValue(row,detail)===1?"":"s"}`}</small>
+            </div>
+            <div className={styles.detailDates}>{rowDates(row,detail).sort((a,b)=>a.date.localeCompare(b.date)).map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>)}</div>
             <b className={styles.detailCount}>{rowDisplayValue(row,detail)}</b>
           </article>):<div className={styles.detailEmpty}>Nenhuma criança encontrada neste indicador.</div>}
         </div>

@@ -567,7 +567,6 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
             </select>
           </label>
           <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
-          <button className={`primary ${styles.micButton}`} onClick={startVoice}>🎤 Falar</button>
         </div>
       </header>
 
@@ -756,7 +755,6 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
       </section>
 
       {action ? <FinanceActionModal action={action} data={data} competence={competence} kidsStudentOptions={kidsStudentOptions} onClose={() => setAction(null)} dispatch={dispatch} /> : null}
-      <button className={styles.floatingMic} disabled={!editable} onClick={startVoice} aria-label="Lançar por voz">🎤</button>
     </>
   );
 }

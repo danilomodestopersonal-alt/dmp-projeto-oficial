@@ -31,6 +31,8 @@ type Choice={target:Target;category:string;expenseName:string;targetId:string;ta
 type Props={financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
 const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+const REPORT_SEARCH_INTERVAL_MS=30*60*1000;
+const REPORT_GENERATION_INTERVAL_MS=12*60*60*1000;
 function date(v:string){
   if(!v)return "Data não informada";
   const d=new Date(v);
@@ -42,6 +44,14 @@ function dateTime(v:string|null){
   const d=new Date(v);
   if(Number.isNaN(d.getTime()))return v;
   return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+function reportRetryAt(payload:unknown){
+  if(!payload||typeof payload!=="object")return "";
+  const reports=(payload as {reports?:Array<{retryAt?:string}>}).reports;
+  if(!Array.isArray(reports))return "";
+  const times=reports.map(item=>item?.retryAt).filter((value):value is string=>Boolean(value)).map(value=>new Date(value).getTime()).filter(Number.isFinite);
+  if(!times.length)return "";
+  return new Date(Math.max(...times)).toISOString();
 }
 function localDateKey(value=new Date()){return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`;}
 function reportStatus(value?:string){
@@ -86,7 +96,8 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
   const [message,setMessage]=useState("");
   const [choices,setChoices]=useState<Record<string,Choice>>({});
   const pollRef=useRef<number|null>(null);
-  const autoRef=useRef<number|null>(null);
+  const searchRef=useRef<number|null>(null);
+  const generationRef=useRef<number|null>(null);
   const mountedRef=useRef(true);
   const financeRefreshRef=useRef(0);
 
@@ -122,43 +133,89 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
 
   function startPolling(){
     if(pollRef.current)window.clearInterval(pollRef.current);
-    let tries=0;
     pollRef.current=window.setInterval(async()=>{
-      tries++;
+      if(document.visibilityState!=="visible")return;
       const next=await load(true);
-      if(!next?.pending||tries>=18){
+      if(!next?.pending){
         if(pollRef.current)window.clearInterval(pollRef.current);
-        pollRef.current=null;setBusy(false);
-        if(next&&!next.pending)await processAuto(true);
+        pollRef.current=null;
+        setBusy(false);
+        if(next)await processAuto(true);
       }
-    },10000);
+    },15000);
   }
 
-  async function sync(manual=false){
+  async function searchReports(manual=false){
+    if(manual)setAutoChecking(true);
+    setError("");
+    try{
+      const next=await load(true);
+      if(!next)return null;
+      if(next.pending)startPolling();
+      await processAuto(true);
+      if(manual)setMessage("Busca concluída. O DMP consultou e importou os relatórios já disponíveis sem gerar um relatório novo.");
+      return next;
+    }catch(err){
+      if(manual)setError(err instanceof Error?err.message:"Não foi possível buscar os relatórios disponíveis.");
+      return null;
+    }finally{
+      if(manual)setAutoChecking(false);
+    }
+  }
+
+  async function generateReports(manual=false){
     if(manual)setBusy(true);else setAutoChecking(true);
     setError("");
     try{
-      const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:data?.needsSetup?"setup":"sync",force:manual})});
+      const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sync",force:manual})});
       const payload=await response.json();
-      if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível iniciar a sincronização.");
+      if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível solicitar o relatório.");
       if(Number(payload?.auto?.processed||0)>0)await onFinanceChanged?.();
+      if(manual){
+        const retryAt=reportRetryAt(payload);
+        const created=Array.isArray(payload?.reports)&&payload.reports.some((item:{created?:boolean})=>item?.created);
+        const pending=Array.isArray(payload?.reports)&&payload.reports.some((item:{pending?:boolean})=>item?.pending);
+        setMessage(created
+          ?"Novo relatório solicitado ao Mercado Pago. O DMP vai acompanhar até ficar pronto."
+          :retryAt
+            ?`Ainda não é possível gerar outro relatório. Nova tentativa disponível a partir de ${dateTime(retryAt)}.`
+            :pending
+              ?"Já existe um relatório em processamento. O DMP vai acompanhar o relatório atual sem criar duplicidade."
+              :(payload?.message||"A solicitação foi verificada sem criar relatório duplicado."));
+      }
       const next=await load(true);
       if(next?.pending)startPolling();else{setBusy(false);await processAuto(true);}
-    }catch(err){setBusy(false);setError(err instanceof Error?err.message:"Não foi possível iniciar a sincronização.");}
-    finally{if(!manual)setAutoChecking(false);}
+      return payload;
+    }catch(err){
+      setBusy(false);
+      if(manual)setError(err instanceof Error?err.message:"Não foi possível solicitar um novo relatório.");
+      return null;
+    }finally{
+      if(!manual)setAutoChecking(false);
+    }
   }
 
   useEffect(()=>{
     mountedRef.current=true;
+    const canRun=()=>document.visibilityState==="visible";
     void (async()=>{
       const next=await load();
-      if(next){await processAuto(true);await sync(false);}
+      if(next){
+        await processAuto(true);
+        if(next.pending)startPolling();
+        else if(canRun())await generateReports(false);
+      }
     })();
-    autoRef.current=window.setInterval(()=>{void sync(false);},5*60*1000);
+    searchRef.current=window.setInterval(()=>{if(canRun())void searchReports(false);},REPORT_SEARCH_INTERVAL_MS);
+    generationRef.current=window.setInterval(()=>{if(canRun())void generateReports(false);},REPORT_GENERATION_INTERVAL_MS);
+    const onVisibility=()=>{if(canRun())void searchReports(false);};
+    document.addEventListener("visibilitychange",onVisibility);
     return()=>{
       mountedRef.current=false;
+      document.removeEventListener("visibilitychange",onVisibility);
       if(pollRef.current)window.clearInterval(pollRef.current);
-      if(autoRef.current)window.clearInterval(autoRef.current);
+      if(searchRef.current)window.clearInterval(searchRef.current);
+      if(generationRef.current)window.clearInterval(generationRef.current);
     };
   },[]);
 
@@ -286,7 +343,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
   return <section className={styles.page}>
     <section className={styles.moduleHead}>
       <div><div className={styles.kicker}><span>CONCILIAÇÃO FINANCEIRA</span><b>OFICIAL</b></div><h2>Mercado Pago</h2><p>O que é seguro entra sozinho. O que depende de contexto espera sua aprovação.</p></div>
-      <div className={`${styles.connection} ${connected?styles.connected:""}`}><i/><span><strong>{connected?"Conta conectada":"Conexão indisponível"}</strong><small>{connected?"Verificação a cada 5 min · relatório automático a cada 6 h.":"Confira a mensagem abaixo."}</small></span></div>
+      <div className={`${styles.connection} ${connected?styles.connected:""}`}><i/><span><strong>{connected?"Conta conectada":"Conexão indisponível"}</strong><small>{connected?"Busca a cada 30 min · relatório automático a cada 12 h.":"Confira a mensagem abaixo."}</small></span></div>
     </section>
 
     {error?<section className={styles.errorBox}><strong>⚠ Atenção</strong><span>{error}</span><button className="secondary" onClick={()=>void load()}>Tentar novamente</button></section>:null}
@@ -295,7 +352,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
     <section className={styles.balanceHero}>
       <div className={styles.balanceIcon}>$</div>
       <div className={styles.balanceMain}><span>Saldo disponível Mercado Pago</span><strong>{loading?"Carregando...":typeof data?.balance==="number"?money.format(data.balance):"Aguardando Liberações"}</strong><small>{typeof data?.balance==="number"?"Este saldo também compõe o Saldo projetado do Resumo.":"O DMP continua acompanhando o relatório de Liberações até o saldo ficar disponível."}</small></div>
-      <div className={styles.balanceSync}><span>Última sincronização</span><strong>{dateTime(data?.lastSync||null)}</strong><button className="secondary" disabled={loading||busy||!connected} onClick={()=>void sync(true)}>{busy||data?.pending?"Sincronizando...":"Atualizar agora"}</button><em>{autoChecking&&!busy?"verificação automática em andamento":"automático · 6 h | manual · 1 h"}</em></div>
+      <div className={styles.balanceSync}><span>Última sincronização</span><strong>{dateTime(data?.lastSync||null)}</strong><div className={styles.syncButtons}><button className="secondary" disabled={loading||autoChecking||!connected} onClick={()=>void searchReports(true)}>{autoChecking&&!busy?"Buscando...":"Buscar relatórios agora"}</button><button className="secondary" disabled={loading||busy||Boolean(data?.pending)||!connected} onClick={()=>void generateReports(true)}>{busy||data?.pending?"Relatório em andamento":"Gerar novo relatório agora"}</button></div><em>Busca a cada 30 min · relatório automático a cada 12 h · geração manual com intervalo de 1 h</em></div>
     </section>
 
     <div className={styles.kpis}>
@@ -353,9 +410,9 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
         <section className="panel"><small className={styles.cap}>CONEXÃO REAL</small><h3>Status dos relatórios</h3><p className="muted">O saldo e as movimentações são lidos diretamente da sua conta.</p>
           <div className={styles.reportRow}><span><strong>Dinheiro em conta</strong><small>Movimentações</small></span><b className={data?.reports?.settlement?.status&&reportStatus(data.reports.settlement.status)==="Pronto"?styles.okTag:styles.waitTag}>{data?.reports?.settlement?.status?reportStatus(data.reports.settlement.status):data?.configured.settlement?"Configurado":"Pendente"}</b></div>
           <div className={styles.reportRow}><span><strong>Liberações</strong><small>Saldo disponível</small></span><b className={data?.reports?.release?.status&&reportStatus(data.reports.release.status)==="Pronto"?styles.okTag:styles.waitTag}>{data?.reports?.release?.status?reportStatus(data.reports.release.status):data?.configured.release?"Configurado":"Pendente"}</b></div>
-          <div className={styles.reportRow}><span><strong>Verificação</strong><small>Consulta tarefas e dados prontos</small></span><b className={styles.okTag}>5 min</b></div>
-          <div className={styles.reportRow}><span><strong>Relatório automático</strong><small>Intervalo mínimo de segurança</small></span><b className={styles.okTag}>6 h</b></div>
-          <div className={styles.reportRow}><span><strong>Atualização manual</strong><small>Disponível pelo botão quando necessário</small></span><b className={styles.okTag}>1 h</b></div>
+          <div className={styles.reportRow}><span><strong>Busca de relatórios</strong><small>Consulta e importa os que já estiverem prontos</small></span><b className={styles.okTag}>30 min</b></div>
+          <div className={styles.reportRow}><span><strong>Relatório automático</strong><small>Geração automática sem duplicidade</small></span><b className={styles.okTag}>12 h</b></div>
+          <div className={styles.reportRow}><span><strong>Geração manual</strong><small>Novo relatório pelo botão quando necessário</small></span><b className={styles.okTag}>1 h</b></div>
         </section>
         <section className="panel"><small className={styles.cap}>REGRAS DE SEGURANÇA</small><h3>O que entra sozinho</h3>
           <div className={styles.smartRule}><span>🛒</span><div><strong>Estabelecimentos inequívocos</strong><small>Mercados como Infunger/Covabra, iFood/restaurantes, pedágios/postos e drogarias podem ir direto para a categoria segura.</small></div></div>
@@ -369,6 +426,6 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
         <section className={styles.future}><small>INTEGRAÇÃO OFICIAL</small><strong>Mercado Pago → Financeiro DMP</strong><span>Gasto extra, Personal, DS e conta do plano passam a atualizar o Financeiro após regra segura ou sua confirmação. Cada transação só pode afetar o Financeiro uma vez.</span></section>
       </aside>
     </div>
-    <p className={styles.note}>Mercado Pago V6.11 · corte interno preservado · leitura unificada com proteção contra duplicidade.</p>
+    <p className={styles.note}>Mercado Pago V6.12 · busca a cada 30 min · relatório automático a cada 12 h · proteção contra duplicidade.</p>
   </section>;
 }
