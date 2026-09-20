@@ -131,6 +131,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
   const [loaded, setLoaded] = useState(false);
   const [cloudWritable, setCloudWritable] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [financeCloudRevision, setFinanceCloudRevision] = useState(0);
   const [tab, setTab] = useState<Tab>("summary");
   const [action, setAction] = useState<Action>(null);
   const [voiceText, setVoiceText] = useState("");
@@ -347,6 +348,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
     const timer = window.setTimeout(() => {
       setSyncing(true);
       void saveFinanceCloud(data)
+        .then(() => setFinanceCloudRevision(current => current + 1))
         .catch(error => {
           console.error("Financeiro: erro ao salvar na nuvem.", error);
           if(error instanceof Error&&error.message==="FINANCE_CONFLICT"){
@@ -746,7 +748,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
           </div>
         ) : null}
 
-        {tab === "mercado-pago" ? <MercadoPagoTestPage onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
+        {tab === "mercado-pago" ? <MercadoPagoTestPage financeRefreshKey={financeCloudRevision} onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
 
         {tab === "closing" ? <ClosingTab data={data} competence={competence} summary={summary} pendencies={pendencies} editable={editable} onClose={closeCompetence} onReopen={reopenCompetence} onCreateNext={createNextCompetence} onSwitch={value => dispatch({ type: "SWITCH_COMPETENCE", competence: value })} /> : null}
 

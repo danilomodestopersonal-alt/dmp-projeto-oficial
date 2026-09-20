@@ -28,7 +28,7 @@ type ApiData={
 };
 type Choice={target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice};
 
-type Props={onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
+type Props={financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
 const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 function date(v:string){
@@ -73,7 +73,7 @@ function ruleTarget(rule:LearnedRule){
   return base;
 }
 
-export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:Props){
+export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChanged,onBalanceChanged}:Props){
   const [data,setData]=useState<ApiData|null>(null);
   const [filter,setFilter]=useState<Filter>("ALL");
   const [q,setQ]=useState("");
@@ -88,6 +88,7 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
   const pollRef=useRef<number|null>(null);
   const autoRef=useRef<number|null>(null);
   const mountedRef=useRef(true);
+  const financeRefreshRef=useRef(0);
 
   async function load(silent=false){
     if(!silent)setLoading(true);
@@ -160,6 +161,12 @@ export default function MercadoPagoTestPage({onFinanceChanged,onBalanceChanged}:
       if(autoRef.current)window.clearInterval(autoRef.current);
     };
   },[]);
+
+  useEffect(()=>{
+    if(financeRefreshKey<=financeRefreshRef.current)return;
+    financeRefreshRef.current=financeRefreshKey;
+    void load(true);
+  },[financeRefreshKey]);
 
   function defaultChoice(move:Move):Choice{
     const target=move.suggestedTarget||(move.kind==="IN"?"PERSONAL":"EXTRA");

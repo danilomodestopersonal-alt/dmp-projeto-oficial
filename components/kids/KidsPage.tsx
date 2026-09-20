@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
 import { KidsReplacementBalanceOverview, KidsReplacementOperationSummary, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
-import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
+import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, isKidsFifthMonthlyLesson, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
 import {
   createKidsSeed,
   kidsClassName,
@@ -780,6 +780,7 @@ const relatedGroup = lessonGroup(next);
                     key={lesson.id}
                     lesson={lesson}
                     group={lessonGroup(lesson)}
+                    fifthReplacement={isKidsFifthMonthlyLesson(data,lesson)}
                     onClick={() => openLesson(lesson.id)}
                   />
                 ))}
@@ -810,6 +811,7 @@ const relatedGroup = lessonGroup(next);
                       key={lesson.id}
                       lesson={lesson}
                       group={lessonGroup(lesson)}
+                      fifthReplacement={isKidsFifthMonthlyLesson(data,lesson)}
                       onClick={() => openLesson(lesson.id)}
                     />
                   ))}
@@ -881,6 +883,7 @@ const relatedGroup = lessonGroup(next);
                   key={lesson.id}
                   lesson={lesson}
                   group={lessonGroup(lesson)}
+                  fifthReplacement={isKidsFifthMonthlyLesson(data,lesson)}
                   onClick={() => openLesson(lesson.id)}
                 />
               ))
@@ -1452,10 +1455,12 @@ function CategoryDot({ category }: { category: KidsCategory }) {
 function LessonRow({
   lesson,
   group,
+  fifthReplacement=false,
   onClick,
 }: {
   lesson: KidsLesson;
   group?: KidsClass;
+  fifthReplacement?: boolean;
   onClick: () => void;
 }) {
   if (!group) return null;
@@ -1473,6 +1478,7 @@ function LessonRow({
           {formatDate(lesson.date)} · {group.startTime} · {group.name}
         </strong>
         <small>
+          {fifthReplacement ? "5ª aula do mês — reposição · Já contabilizada · " : ""}
           {lesson.status === "SCHEDULED" && lessonHasPassed(lesson, [group])
             ? "Realizada"
             : statusLabel[lesson.status]}

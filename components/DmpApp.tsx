@@ -14,6 +14,7 @@ import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
 import type {KidsCategory,KidsData,KidsStudent} from "@/types/kids";
 import {normalizeKidsData} from "@/lib/kids/seed";
+import {isKidsFifthMonthlyLesson} from "@/lib/kids/replacement-balance";
 import type {FinanceData} from "@/types/financeiro";
 import { financeSeedAugust2026 } from "@/lib/financeiro/agosto2026";
 import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud } from "@/lib/financeiro/storage";
@@ -852,7 +853,7 @@ fetch("/api/google/status")
   }, [calendarStatus.connected,view,students,calendarLoaded]);
 
   useEffect(()=>{
-    if(view!=="today")return;
+    if(view!=="today"&&view!=="agenda")return;
     let cancelled=false;
     fetch("/api/kids",{cache:"no-store"})
       .then(response=>response.ok?response.json():Promise.reject())
@@ -878,7 +879,7 @@ fetch("/api/google/status")
         setHomeMonthKidsCount(count);
         const todayKey=today();
         const localEvents=data.lessons
-          .filter(lesson=>lesson.kind==="REPLACEMENT"&&lesson.date===todayKey&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY")
+          .filter(lesson=>(view==="agenda"||lesson.date===todayKey)&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY"&&(lesson.kind==="REPLACEMENT"||isKidsFifthMonthlyLesson(data,lesson)))
           .flatMap(lesson=>{
             const group=data.classes.find(item=>item.id===lesson.classId);
             const category=lesson.replacementCategory||group?.category;
@@ -886,13 +887,18 @@ fetch("/api/google/status")
             const endTime=lesson.replacementEndTime||group?.endTime||startTime;
             if(!category||!startTime)return [];
             const categoryLabel=categoryLabelForHome(category);
-            const baseTitle=lesson.replacementName||"Aula de reposição";
+            const fifthReplacement=lesson.kind!=="REPLACEMENT"&&isKidsFifthMonthlyLesson(data,lesson);
+            const baseTitle=fifthReplacement?"5ª aula do mês — reposição":lesson.replacementName||"Aula de reposição";
             const title=normalizeName(baseTitle).includes(normalizeName(categoryLabel))?baseTitle:`${baseTitle} · Bola ${categoryLabel}`;
-            const studentCount=(lesson.replacementStudentIds||[]).length;
+            const studentCount=fifthReplacement
+              ? group?.students.filter(student=>student.active&&(!student.startDate||student.startDate<=lesson.date)).length||0
+              :(lesson.replacementStudentIds||[]).length;
             return [{
               id:`dmp-kids:${lesson.id}`,
               summary:title,
-              description:`Aula criada no DMP · ${studentCount} criança${studentCount===1?"":"s"}`,
+              description:fifthReplacement
+                ? `Já contabilizada como reposição · ${studentCount} criança${studentCount===1?"":"s"}`
+                :`Aula criada no DMP · ${studentCount} criança${studentCount===1?"":"s"}`,
               start:`${lesson.date}T${startTime}:00-03:00`,
               end:`${lesson.date}T${endTime}:00-03:00`,
             } satisfies CalendarEvent];
@@ -1309,14 +1315,14 @@ fetch("/api/google/status")
     const sessionCount = students.reduce((total, student) => total + student.sessions.length, 0);
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
     const todayKey = today();
-    const todayGoogleEvents=calendarEvents.filter(event=>calendarEventDate(event)===todayKey);
-    const homeAgendaEvents=[...todayGoogleEvents,...homeKidsCalendarEvents.filter(localEvent=>{
-      const localKids=kidsCalendarRequest(localEvent);
-      return !todayGoogleEvents.some(googleEvent=>{
-        const googleKids=kidsCalendarRequest(googleEvent);
+    const mergedAgendaEvents=[...homeKidsCalendarEvents,...calendarEvents.filter(googleEvent=>{
+      const googleKids=kidsCalendarRequest(googleEvent);
+      return !homeKidsCalendarEvents.some(localEvent=>{
+        const localKids=kidsCalendarRequest(localEvent);
         return Boolean(localKids&&googleKids&&localKids.date===googleKids.date&&localKids.time===googleKids.time&&localKids.category===googleKids.category);
       });
     })];
+    const homeAgendaEvents=mergedAgendaEvents.filter(event=>calendarEventDate(event)===todayKey);
     const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session}))).sort((a,b)=>(b.session.finishedAt||b.session.startedAt||"").localeCompare(a.session.finishedAt||a.session.startedAt||""));
     const plannedCount = students.filter(student => student.status === "ACTIVE" && getStudentWorkoutEntries(student).length > 0).length;
     const birthdayStudents = students.filter(student => student.status === "ACTIVE" && isBirthdayToday(student.birthDate));
@@ -1700,7 +1706,7 @@ fetch("/api/google/status")
   </section></>;
 })() : null}
 
-          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={calendarEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
+          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} /> : null}
           {view === "reports" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}

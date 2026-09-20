@@ -25,6 +25,55 @@ function normalizeSearch(value: string) {
     .trim();
 }
 
+type ReplacementReportRow={name:string;quantity:number;details:string[]};
+
+function reportPeriodLabel(period:OperationPeriod,data:KidsData){
+  if(period==="month")return new Date(`${dateKey().slice(0,7)}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+  return `${fmtDate(data.semesterStart)} a ${fmtDate(data.semesterEnd)}`;
+}
+
+function reportFileName(period:OperationPeriod,extension:"pdf"|"png"){
+  const periodName=period==="month"
+    ? new Date().toLocaleDateString("pt-BR",{month:"long",year:"numeric"}).replace(/\s+de\s+/g,"_")
+    :"Semestre_2026";
+  return `Reposicoes_Kids_${periodName.replace(/^./,letter=>letter.toUpperCase()).replace(/\s+/g,"_")}.${extension}`;
+}
+
+function reportEscape(value:string){
+  return value.replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]||char));
+}
+
+function exportReplacementPdf(title:string,periodLabel:string,summary:string,rows:ReplacementReportRow[],fileName:string){
+  const popup=window.open("","_blank");
+  if(!popup){window.alert("Permita a abertura de janelas para gerar o PDF.");return;}
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${reportEscape(fileName.replace(/\.pdf$/i,""))}</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{margin:0;color:#173d37;font-family:Arial,sans-serif}header{border-bottom:4px solid #b6dd39;padding-bottom:12px}header small{font-weight:800;color:#71803f;letter-spacing:.08em}h1{margin:5px 0;font-size:24px}header p{margin:3px 0;color:#66726c}.summary{margin:16px 0;padding:12px 14px;border-radius:10px;background:#203a29;color:#fff;font-weight:700}.row{break-inside:avoid;border:1px solid #dfe7dc;border-radius:10px;margin:0 0 8px;padding:10px}.row h2{display:flex;justify-content:space-between;margin:0 0 6px;font-size:15px}.row h2 b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:#203a29;color:#fff}.row ul{margin:0;padding-left:18px;color:#5f6d66;font-size:11px;line-height:1.45}footer{margin-top:20px;border-top:1px solid #dfe5db;padding-top:8px;color:#77827c;font-size:10px}@media print{button{display:none}}</style></head><body><header><small>REPOSIÇÕES KIDS · DMP</small><h1>${reportEscape(title)}</h1><p>Período: ${reportEscape(periodLabel)}</p></header><div class="summary">${reportEscape(summary)}</div>${rows.map(row=>`<section class="row"><h2><span>${reportEscape(row.name)}</span><b>${row.quantity}</b></h2><ul>${row.details.map(detail=>`<li>${reportEscape(detail)}</li>`).join("")||"<li>Sem registros detalhados.</li>"}</ul></section>`).join("")||"<p>Nenhum registro neste período.</p>"}<footer>Emitido em ${new Date().toLocaleString("pt-BR")} · Danilo Modesto Personal Trainer</footer><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  popup.document.open();popup.document.write(html);popup.document.close();
+}
+
+function exportReplacementPng(title:string,periodLabel:string,summary:string,rows:ReplacementReportRow[],fileName:string){
+  const width=1200;
+  const lineCount=rows.reduce((sum,row)=>sum+Math.max(2,row.details.length),0);
+  const height=Math.max(700,250+rows.length*55+lineCount*28);
+  const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext("2d");if(!ctx){window.alert("Não foi possível gerar a imagem.");return;}
+  ctx.fillStyle="#f8fbf5";ctx.fillRect(0,0,width,height);
+  ctx.fillStyle="#203a29";ctx.fillRect(0,0,width,185);
+  ctx.fillStyle="#d8ee52";ctx.font="700 20px Arial";ctx.fillText("REPOSIÇÕES KIDS · DMP",55,48);
+  ctx.fillStyle="#fff";ctx.font="700 38px Arial";ctx.fillText(title,55,98);
+  ctx.font="22px Arial";ctx.fillText(`Período: ${periodLabel}`,55,137);ctx.fillText(summary,55,169);
+  let y=225;
+  rows.forEach(row=>{
+    const blockHeight=54+Math.max(1,row.details.length)*28;
+    ctx.fillStyle="#fff";ctx.strokeStyle="#dce5d8";ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(40,y,width-80,blockHeight,14);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#173d37";ctx.font="700 23px Arial";ctx.fillText(row.name,62,y+34);
+    ctx.fillStyle="#203a29";ctx.beginPath();ctx.arc(width-75,y+29,22,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="700 18px Arial";ctx.textAlign="center";ctx.fillText(String(row.quantity),width-75,y+35);ctx.textAlign="left";
+    ctx.fillStyle="#66736c";ctx.font="18px Arial";(row.details.length?row.details:["Sem registros detalhados."]).forEach((detail,index)=>ctx.fillText(`• ${detail}`,66,y+68+index*28,width-145));
+    y+=blockHeight+12;
+  });
+  ctx.fillStyle="#77827c";ctx.font="16px Arial";ctx.fillText(`Emitido em ${new Date().toLocaleString("pt-BR")}`,45,height-28);
+  canvas.toBlob(blob=>{if(!blob)return;const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=fileName;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);},"image/png");
+}
+
 const KIDS_WEEKDAY_ORDER = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"];
 
 function classScheduleOrder(name: string) {
@@ -78,13 +127,13 @@ type OperationDetail = "generated" | "performed" | "pending" | "scheduled" | "ad
 type CreditLedgerItem = {
   credit:KidsReplacementBalanceEvent;
   replacement?:KidsReplacementBalanceEvent;
-  status:"RESOLVED"|"PENDING";
+  status:"RESOLVED"|"ANTICIPATED"|"PENDING";
 };
 type DetailEvent = {
   date:string;
   label:string;
   className?:string;
-  tone?:"resolved"|"pending"|"absent";
+  tone?:"resolved"|"anticipated"|"pending"|"absent";
 };
 
 type StudentOperationRow = {
@@ -177,10 +226,12 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
     const creditLedger:CreditLedgerItem[]=allDueEvents.map((credit,index)=>({
       credit,
       replacement:index<resolved?allReplacedEvents[index]:undefined,
-      status:index<resolved?"RESOLVED":"PENDING",
+      status:index<resolved
+        ? allReplacedEvents[index].stage==="ANTICIPATED"?"ANTICIPATED":"RESOLVED"
+        :"PENDING",
     }));
     const dueEvents=allDueEvents.filter(event=>periodIncludes(event.date,period,data));
-    const replacedEvents=allReplacedEvents.filter(event=>periodIncludes(event.date,period,data));
+    const replacedEvents=allReplacedEvents.filter(event=>periodIncludes(event.date,period,data)&&event.stage!=="ANTICIPATED");
     const pendingEvents=creditLedger.filter(item=>item.status==="PENDING"&&periodIncludes(item.credit.date,period,data)).map(item=>item.credit);
     const advanceEvents=allReplacedEvents.slice(resolved).filter(event=>periodIncludes(event.date,period,data));
     return {
@@ -241,9 +292,11 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
   const [detailSearch,setDetailSearch]=useState("");
   const metric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period):null,[data,period]);
   if(!data||!metric)return null;
+  const reportData=data;
+  const reportMetric=metric;
 
   const detailMeta:Record<OperationDetail,{eyebrow:string;title:string;description:string}>={
-    generated:{eyebrow:"CRÉDITOS GERADOS",title:"Extrato completo das aulas canceladas",description:"Verde identifica o crédito já reposto; vermelho mostra a aula que ainda precisa ser reposta."},
+    generated:{eyebrow:"CRÉDITOS GERADOS POR CANCELAMENTOS",title:"Extrato completo das aulas canceladas",description:"Verde identifica o crédito já reposto, azul a reposição antecipada e vermelho a aula que ainda precisa ser reposta."},
     performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"Mostra a data da reposição e qual aula cancelada foi compensada, inclusive quando houve falta."},
     pending:{eyebrow:"REPOSIÇÕES PENDENTES",title:"Crianças que ainda precisam repor",description:"Exibe apenas crianças com pendência, mantendo em verde o histórico já resolvido e em vermelho o que falta."},
     scheduled:{eyebrow:"PRÓXIMAS REPOSIÇÕES",title:"Crianças já agendadas",description:"Vagas futuras já reservadas nas aulas de reposição."},
@@ -255,10 +308,12 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
   const ledgerDetail=(item:CreditLedgerItem):DetailEvent=>({
     date:item.credit.date,
     className:item.credit.className,
-    label:item.status==="RESOLVED"&&item.replacement
-      ? `Reposta em ${fmtDate(item.replacement.date)}${item.replacement.label.toLowerCase().includes("falta")?" · falta registrada":""}`
+    label:item.status!=="PENDING"&&item.replacement
+      ? item.status==="ANTICIPATED"
+        ? `Reposição antecipada para ${fmtDate(item.replacement.date)} · já contabilizada`
+        : `Reposta em ${fmtDate(item.replacement.date)}${item.replacement.label.toLowerCase().includes("falta")?" · falta registrada":""}`
       :"A repor",
-    tone:item.status==="RESOLVED"?"resolved":"pending",
+    tone:item.status==="RESOLVED"?"resolved":item.status==="ANTICIPATED"?"anticipated":"pending",
   });
   const rowDates=(row:StudentOperationRow,kind:OperationDetail):DetailEvent[]=>{
     if(kind==="generated"||kind==="pending")return ledgerForPeriod(row).map(ledgerDetail);
@@ -277,8 +332,44 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
   };
   const detailRows=detail?metric.rows
     .filter(row=>rowValue(row,detail)>0&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
-    .sort((a,b)=>rowValue(b,detail)-rowValue(a,detail)||a.name.localeCompare(b.name,"pt-BR")):[];
+    .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")):[];
   function openDetail(next:OperationDetail){setDetailSearch("");setDetail(next);}
+  const toReportRows=(kind:OperationDetail,rows:StudentOperationRow[]):ReplacementReportRow[]=>rows.map(row=>({
+    name:row.name,
+    quantity:rowValue(row,kind),
+    details:rowDates(row,kind).sort((a,b)=>a.date.localeCompare(b.date)).map(event=>
+      `${fmtDate(event.date)} · ${event.className||event.label}${event.className?` · ${event.label}`:""}`,
+    ),
+  }));
+  function exportDetailReport(format:"pdf"|"png"){
+    if(!detail)return;
+    const title=detailMeta[detail].title;
+    const rows=toReportRows(detail,detailRows);
+    const total=rows.reduce((sum,row)=>sum+row.quantity,0);
+    const summary=`${rows.length} criança${rows.length===1?"":"s"} · ${total} registro${total===1?"":"s"}`;
+    const fileName=reportFileName(period,format);
+    if(format==="pdf")exportReplacementPdf(title,reportPeriodLabel(period,reportData),summary,rows,fileName);
+    else exportReplacementPng(title,reportPeriodLabel(period,reportData),summary,rows,fileName);
+  }
+  function exportPanelReport(format:"pdf"|"png"){
+    const rows=reportMetric.rows.filter(row=>row.due||row.replaced||row.pending||row.scheduledDates.length).map(row=>({
+      name:row.name,
+      quantity:row.pending,
+      details:[
+        `${row.due} crédito${row.due===1?" gerado":"s gerados"}`,
+        `${row.replaced} reposição${row.replaced===1?" realizada":"ões realizadas"}`,
+        `${row.pending} pendente${row.pending===1?"":"s"}`,
+        ...ledgerForPeriod(row).sort((a,b)=>a.credit.date.localeCompare(b.credit.date)).map(item=>{
+          const detail=ledgerDetail(item);
+          return `${fmtDate(detail.date)} · ${detail.className||"Turma"} · ${detail.label}`;
+        }),
+      ],
+    })).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+    const summary=`${reportMetric.creditsPending} pendentes · ${reportMetric.creditsGenerated} gerados · ${reportMetric.creditsPerformed} realizados · ${reportMetric.creditsCoverage}% compensados`;
+    const fileName=reportFileName(period,format);
+    if(format==="pdf")exportReplacementPdf("Painel de Reposições Kids",reportPeriodLabel(period,reportData),summary,rows,fileName);
+    else exportReplacementPng("Painel de Reposições Kids",reportPeriodLabel(period,reportData),summary,rows,fileName);
+  }
 
   return <>
     <section className={`${styles.operationPanel} ${compact?styles.operationCompact:""}`}>
@@ -293,6 +384,8 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
             <button type="button" className={period==="semester"?styles.periodActive:""} onClick={()=>setPeriod("semester")}>Semestre</button>
             <button type="button" className={period==="month"?styles.periodActive:""} onClick={()=>setPeriod("month")}>Este mês</button>
           </div>
+          <button type="button" className={styles.exportButton} onClick={()=>exportPanelReport("pdf")}>Exportar PDF</button>
+          <button type="button" className={styles.exportButton} onClick={()=>exportPanelReport("png")}>Exportar imagem</button>
           {onOpen?<button type="button" className={styles.openKidsButton} onClick={onOpen}>Abrir Aulas Kids</button>:null}
         </div>
       </div>
@@ -303,7 +396,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
       </div>
 
       <div className={styles.operationStats}>
-        <button type="button" onClick={()=>openDetail("generated")}><span className={styles.statIcon}>＋</span><small>Créditos gerados</small><strong>{metric.creditsGenerated}</strong><em>Ver alunos e datas →</em></button>
+        <button type="button" onClick={()=>openDetail("generated")}><span className={styles.statIcon}>＋</span><small>Créditos pendentes de reposição</small><strong>{metric.creditsPending}</strong><em>Ver todas as aulas canceladas →</em></button>
         <button type="button" onClick={()=>openDetail("performed")}><span className={styles.statIcon}>✓</span><small>Reposições feitas</small><strong>{metric.creditsPerformed}</strong><em>Ver histórico →</em></button>
         <button type="button" onClick={()=>openDetail("pending")} className={metric.studentsWaiting?styles.statAttention:""}><span className={styles.statIcon}>!</span><small>Alunos aguardando</small><strong>{metric.studentsWaiting}</strong><em>{metric.creditsPending} créditos pendentes →</em></button>
         <button type="button" onClick={()=>openDetail("scheduled")}><span className={styles.statIcon}>▣</span><small>Já agendados</small><strong>{metric.scheduledStudents}</strong><em>Ver próximas datas →</em></button>
@@ -323,14 +416,14 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen}:{dat
       <section className={styles.detailDialog} role="dialog" aria-modal="true" aria-label={detailMeta[detail].title}>
         <header className={styles.detailHead}>
           <div><span>{detailMeta[detail].eyebrow}</span><h3>{detailMeta[detail].title}</h3><p>{detailMeta[detail].description}</p></div>
-          <button type="button" onClick={()=>setDetail(null)} aria-label="Fechar detalhamento">×</button>
+          <div className={styles.detailHeadActions}><button type="button" onClick={()=>exportDetailReport("pdf")}>PDF</button><button type="button" onClick={()=>exportDetailReport("png")}>Imagem</button><button type="button" className={styles.detailClose} onClick={()=>setDetail(null)} aria-label="Fechar detalhamento">×</button></div>
         </header>
         <div className={styles.detailSummary}><strong>{detailRows.length}</strong><span>criança{detailRows.length===1?"":"s"} na lista</span><b>{detailRows.reduce((sum,row)=>sum+rowValue(row,detail),0)}</b><span>registro{detailRows.reduce((sum,row)=>sum+rowValue(row,detail),0)===1?"":"s"}</span></div>
         <label className={styles.detailSearch}><span>⌕</span><input value={detailSearch} onChange={event=>setDetailSearch(event.target.value)} placeholder="Buscar criança..." autoComplete="off"/></label>
         <div className={styles.detailList}>
           {detailRows.length?detailRows.map(row=><article className={styles.detailRow} key={row.id}>
             <div className={styles.detailStudent}><strong>{row.name}</strong><small>{rowValue(row,detail)} {detail==="attendance"?"registro":detail==="scheduled"?"agendamento":"crédito"}{rowValue(row,detail)===1?"":"s"}</small></div>
-            <div className={styles.detailDates}>{rowDates(row,detail).map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>)}</div>
+            <div className={styles.detailDates}>{rowDates(row,detail).map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>)}</div>
             <b className={styles.detailCount}>{rowValue(row,detail)}</b>
           </article>):<div className={styles.detailEmpty}>Nenhuma criança encontrada neste indicador.</div>}
         </div>
@@ -364,7 +457,7 @@ export function KidsReplacementBalanceOverview({data}:{data:KidsData}) {
       <div>
         <span>CONTROLE AUTOMÁTICO</span>
         <h2>Saldo de reposições das turmas</h2>
-        <p>4 aulas por mês · 5ª aula realizada conta como reposta · cálculo retroativo desde {fmtDate(KIDS_REPLACEMENT_BALANCE_START)}.</p>
+        <p>4 aulas por mês · a 5ª aula agendada já conta como reposição desde o início do mês · cálculo retroativo desde {fmtDate(KIDS_REPLACEMENT_BALANCE_START)}.</p>
       </div>
     </div>
     <Metrics balance={total}/>
@@ -406,7 +499,7 @@ export function KidsStudentReplacementBalance({data,studentId}:{data:KidsData;st
       <div>
         <span>CONTROLE DE AULAS</span>
         <h3>Canceladas e reposições da criança</h3>
-        <p>5ª aula da turma conta para todos. Na reposição individual, a vaga utilizada consome o crédito mesmo quando a criança falta.</p>
+        <p>A 5ª aula agendada do mês já conta para todos. Na reposição individual, a vaga utilizada consome o crédito mesmo quando a criança falta.</p>
       </div>
     </div>
     <div className={styles.studentMetrics}>

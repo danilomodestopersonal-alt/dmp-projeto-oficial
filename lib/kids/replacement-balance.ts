@@ -13,6 +13,7 @@ export type KidsReplacementBalanceEvent = {
   source: "CANCELLED_CONTRACTED" | "LEGACY_CANCELLED_CREDIT" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "RECORDED_INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
   label: string;
   lessonId: string;
+  stage?: "ANTICIPATED" | "REALIZED";
 };
 
 export type KidsReplacementBalance = {
@@ -62,6 +63,28 @@ function latestLessonPerDate(lessons: KidsLesson[]) {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function endOfMonth(date: string) {
+  const [year, month] = date.slice(0, 7).split("-").map(Number);
+  return `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+}
+
+function regularLessonsInMonth(data: KidsData, lesson: KidsLesson) {
+  const month = lesson.date.slice(0, 7);
+  return latestLessonPerDate(
+    data.lessons.filter(
+      (candidate) =>
+        candidate.classId === lesson.classId &&
+        candidate.kind !== "REPLACEMENT" &&
+        candidate.date.startsWith(month),
+    ),
+  );
+}
+
+export function isKidsFifthMonthlyLesson(data: KidsData, lesson: KidsLesson) {
+  if (lesson.kind === "REPLACEMENT" || lesson.status === "CANCELLED" || lesson.status === "HOLIDAY") return false;
+  return regularLessonsInMonth(data, lesson).findIndex((candidate) => candidate.id === lesson.id) >= 4;
+}
+
 export function computeKidsClassReplacementBalance(
   data: KidsData,
   classId: string,
@@ -78,7 +101,10 @@ export function computeKidsClassReplacementBalance(
         lesson.classId === classId &&
         lesson.kind !== "REPLACEMENT" &&
         lesson.date >= start &&
-        lesson.date <= throughDate,
+        // No mês corrente a agenda inteira já é conhecida. Isso permite que a
+        // 5ª ocorrência seja contabilizada desde o primeiro dia, sem gravar
+        // crédito artificial nem duplicar a aula.
+        lesson.date <= endOfMonth(throughDate),
     ),
   );
 
@@ -110,9 +136,11 @@ export function computeKidsClassReplacementBalance(
         return;
       }
 
-      // O pacote mensal cobre quatro aulas. A 5ª ocorrência só vira crédito se aconteceu.
-      // Se a 5ª for cancelada/feriado, não gera crédito e também não cria nova dívida.
-      if (lessonHeld(lesson, group)) {
+      // O pacote mensal cobre quatro aulas. A 5ª ocorrência agendada já conta
+      // desde o início do mês e vira realizada ao acontecer. Cancelamento,
+      // feriado ou remoção revertem a antecipação automaticamente.
+      if (lesson.status === "SCHEDULED" || lesson.status === "COMPLETED") {
+        const realized = lessonHeld(lesson, group);
         events.push({
           id: `${classId}-${lesson.date}-replaced`,
           classId,
@@ -120,8 +148,11 @@ export function computeKidsClassReplacementBalance(
           date: lesson.date,
           type: "REPLACED",
           source: "FIFTH_CLASS",
-          label: "5ª aula do mês · aula reposta",
+          label: realized
+            ? "5ª aula do mês · reposição realizada"
+            : "5ª aula do mês · reposição antecipada",
           lessonId: lesson.id,
+          stage: realized ? "REALIZED" : "ANTICIPATED",
         });
       }
     });
