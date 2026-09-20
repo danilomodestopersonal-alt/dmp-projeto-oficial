@@ -2689,7 +2689,8 @@ function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
   const [selectedDate,setSelectedDate]=useState<string|null>(null);
   const year=cursor.getFullYear();
   const month=cursor.getMonth();
-  const first=new Date(year,month,1).getDay();
+  // Calendário da Home em ordem brasileira de trabalho: segunda a domingo.
+  const first=(new Date(year,month,1).getDay()+6)%7;
   const days=new Date(year,month+1,0).getDate();
 
   useEffect(()=>{
@@ -2763,7 +2764,7 @@ function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
       <button onClick={()=>{setSelectedDate(null);setCursor(new Date(year,month+1,1));}}>›</button>
     </div>
     <button className="mini-month-today" onClick={()=>{setSelectedDate(null);setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button>
-    <div className="mini-month-week"><b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b></div>
+    <div className="mini-month-week"><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b><b>D</b></div>
     <div className="mini-month-days">
       {Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}
       {Array.from({length:days},(_,index)=>{
