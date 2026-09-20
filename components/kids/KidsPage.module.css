@@ -386,6 +386,54 @@
   justify-content: space-between;
   align-items: center;
 }
+.attendanceHead h3 {
+  margin-bottom: 2px;
+}
+.attendanceHead small {
+  color: #63736f;
+}
+.rosterIntegrityNotice {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px solid #bcd7c6;
+  border-radius: 13px;
+  background: #f1faf3;
+  color: #315746;
+}
+.rosterIntegrityNotice span {
+  font-size: 13px;
+}
+.participantEditor {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #d7e0dd;
+  border-radius: 13px;
+  background: #fff;
+}
+.participantEditor summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.participantEditor > div {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.participantEditor p {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 0;
+  border-top: 1px solid #edf1ef;
+}
+.participantEditor p button {
+  padding: 7px 10px;
+  color: #a63731;
+}
 .attendance {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

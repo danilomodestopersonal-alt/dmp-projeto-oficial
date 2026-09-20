@@ -21,6 +21,12 @@ import type {
 } from "@/types/kids";
 import type { FinanceData } from "@/types/financeiro";
 import { reconcileKidsFinance } from "@/lib/financeiro/kids-sync";
+import {
+  completedReplacementRosterChanged,
+  KIDS_REPLACEMENT_INTEGRITY_VERSION,
+  recordCompletedReplacement,
+  replacementRosterIsValid,
+} from "@/lib/kids/replacement-integrity";
 
 type KidsTab = "dashboard" | "agenda" | "classes" | "students" | "replacements" | "events" | "reports";
 type AgendaFilter = "ALL" | "COMPLETED" | "CANCELLED";
@@ -360,6 +366,16 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     );
     return [...map.values()].sort((a, b) => localeCompare(a.name, b.name));
   }, [classes]);
+  const allStudentProfiles = useMemo(() => {
+    const map = new Map<string, KidsStudent>();
+    for (const group of classes) {
+      for (const student of group.students) {
+        const current = map.get(student.id);
+        if (!current || (student.active && !current.active)) map.set(student.id, student);
+      }
+    }
+    return [...map.values()].sort((a, b) => localeCompare(a.name, b.name));
+  }, [classes]);
   const inactiveKids = useMemo(()=>{
     const map=new Map<string,{id:string;name:string;categories:KidsCategory[];classIds:string[]}>();
     classes.forEach(group=>group.students.filter(student=>!student.active).forEach(student=>{
@@ -379,11 +395,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     return lesson.replacementStartTime || classTime(lesson.classId);
   }
   function studentProfile(id:string){
-    for(const item of classes){
-      const student=item.students.find(candidate=>candidate.id===id);
-      if(student)return student;
-    }
-    return undefined;
+    return allStudentProfiles.find((student) => student.id === id);
   }
   function group(id: string) {
     return classes.find((item) => item.id === id);
@@ -455,20 +467,30 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   async function updateLesson(next: KidsLesson) {
     if (!data) return;
     const current=data.lessons.find(item=>item.id===next.id);
+    if(completedReplacementRosterChanged(current,next)){
+      setNotice("A lista de participantes desta reposição já realizada está protegida. A chamada pode ser corrigida sem remover crianças.");
+      return;
+    }
+    const hasReplacementRoster=Boolean(next.replacementStudentIds?.length);
+    if(hasReplacementRoster&&next.status==="COMPLETED"&&!replacementRosterIsValid(next)){
+      setNotice("Confira a lista da reposição: todo participante precisa estar marcado como presente ou falta.");
+      return;
+    }
 const relatedGroup = lessonGroup(next);
     const cancellationStarted=current?.status!=="CANCELLED"&&next.status==="CANCELLED";
     if(next.status==="CANCELLED"&&!cancelReasonText(next)){
       setNotice("Informe o motivo do cancelamento antes de salvar.");
       return;
     }
+    let nextData:KidsData={
+      ...data,
+      lessons:data.lessons.map((item)=>item.id===next.id?next:item),
+    };
+    if(hasReplacementRoster&&next.status==="COMPLETED"){
+      nextData=recordCompletedReplacement(nextData,next);
+    }
     const saved=await persist(
-      {
-        ...data,
-        lessons: data.lessons.map((item) =>
-          item.id === next.id ? next : item,
-        ),
-
-      },
+      nextData,
       cancellationStarted?"Aula cancelada no DMP.":"Aula salva com sucesso.",
     );
     if(!saved)return;
@@ -491,7 +513,7 @@ const relatedGroup = lessonGroup(next);
     }
     setLessonId(null);
   }
-  function createReplacementLesson(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[];classId?:string}) {
+  function createReplacementLesson(input:{date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[];classId?:string;rosterMode:"LEVEL_ALL"|"CUSTOM"}) {
     if(!data)return;
     const destinationClass=input.classId?data.classes.find(item=>item.id===input.classId):undefined;
     const id=`replacement-lesson-${crypto.randomUUID()}`;
@@ -509,7 +531,11 @@ const relatedGroup = lessonGroup(next);
       replacementStartTime:startTime,
       replacementEndTime:endTime,
       replacementCapacity:input.studentIds.length,
-      replacementStudentIds:input.studentIds,
+      replacementStudentIds:[...new Set(input.studentIds)],
+      replacementOriginalStudentIds:[...new Set(input.studentIds)],
+      replacementRosterMode:input.rosterMode,
+      replacementRosterLocked:false,
+      replacementIntegrityVersion:KIDS_REPLACEMENT_INTEGRITY_VERSION,
       attendance:Object.fromEntries(input.studentIds.map(studentId=>[studentId,"PRESENT"])),
       objective:"",
       plannedPlan:"",
@@ -999,12 +1025,12 @@ const relatedGroup = lessonGroup(next);
           lesson={lessons.find((item) => item.id === lessonId)!}
           group={lessonGroup(lessons.find((item) => item.id === lessonId)!)!}
           replacements={data.replacements||[]}
-          allStudents={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)}
+          allStudents={allStudentProfiles}
           onClose={() => setLessonId(null)}
           onSave={updateLesson}
         />
       ) : null}
-      {showReplacementForm ? <ReplacementLessonForm replacements={data.replacements||[]} students={classes.flatMap(item=>item.students).filter((item,index,array)=>array.findIndex(candidate=>candidate.id===item.id)===index)} classes={classes} lessons={lessons} onClose={()=>setShowReplacementForm(false)} onSave={createReplacementLesson}/> : null}
+      {showReplacementForm ? <ReplacementLessonForm replacements={data.replacements||[]} students={allStudentProfiles} classes={classes} lessons={lessons} onClose={()=>setShowReplacementForm(false)} onSave={createReplacementLesson}/> : null}
       {showNewStudentForm?<NewStudentForm classes={classes.filter(item=>item.active)} semesterStart={data.semesterStart} onClose={()=>setShowNewStudentForm(false)} onSave={createStudent}/>:null}
       {classId ? (
         <ClassEditor
@@ -1217,7 +1243,7 @@ function ReplacementLessonForm({
   classes: KidsClass[];
   lessons: KidsLesson[];
   onClose: () => void;
-  onSave: (input: {date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[];classId?:string}) => void;
+  onSave: (input: {date:string;startTime:string;endTime:string;category:KidsCategory;studentIds:string[];classId?:string;rosterMode:"LEVEL_ALL"|"CUSTOM"}) => void;
 }) {
   void replacements;
   void lessons;
@@ -1266,6 +1292,14 @@ function ReplacementLessonForm({
 
   function save() {
     if(!date||!selected.length)return;
+    const selectedLevelIds=selected.filter(id=>levelStudentIdSet.has(id));
+    const selectedOtherIds=selected.filter(id=>!levelStudentIdSet.has(id));
+    const rosterMode =
+      selectedOtherIds.length===0 &&
+      selectedLevelIds.length===levelStudentIds.length &&
+      levelStudentIds.every(id=>selectedLevelIds.includes(id))
+        ? "LEVEL_ALL" as const
+        : "CUSTOM" as const;
     onSave({
       date,
       startTime:destinationClass?.startTime||startTime,
@@ -1273,6 +1307,7 @@ function ReplacementLessonForm({
       category:selectedCategory,
       studentIds:selected,
       classId:destinationClass?.id,
+      rosterMode,
     });
   }
 
@@ -1424,8 +1459,11 @@ function LessonRow({
   onClick: () => void;
 }) {
   if (!group) return null;
-  const present = Object.values(lesson.attendance).filter(
-    (value) => value === "PRESENT",
+  const participantIds=lesson.kind==="REPLACEMENT"
+    ? [...new Set(lesson.replacementStudentIds||[])]
+    : group.students.filter(item=>item.active&&(!item.startDate||item.startDate<=lesson.date)).map(item=>item.id);
+  const present = participantIds.filter(
+    (studentId) => lesson.attendance[studentId] !== "ABSENT",
   ).length;
   return (
     <button className={styles.lessonRow} onClick={onClick}>
@@ -1443,7 +1481,7 @@ function LessonRow({
             : ""}
           {lesson.theme ? ` — ${lesson.theme}` : ""}
           {lesson.status === "COMPLETED"
-            ? ` · ${present}/${group.students.filter((item) => item.active).length} presentes`
+            ? ` · ${present}/${participantIds.length} presentes`
             : ""}
           {lesson.replacementStatus !== "NONE"
             ? ` · Reposição ${lesson.replacementStatus.toLowerCase()}`
@@ -1475,7 +1513,10 @@ function LessonEditor({
     attendance: { ...lesson.attendance },
   });
   const [replacementStudent,setReplacementStudent]=useState("");
-  const regularStudents = group.students
+  const replacementLesson=draft.kind==="REPLACEMENT";
+  const hasReplacementRoster=replacementLesson||Boolean(draft.replacementStudentIds?.length);
+  const rosterLocked=hasReplacementRoster&&(draft.status==="COMPLETED"||Boolean(draft.replacementRosterLocked));
+  const regularStudents = (replacementLesson ? [] : group.students)
     .filter(
       (item) =>
         item.active && (!item.startDate || item.startDate <= lesson.date),
@@ -1483,6 +1524,9 @@ function LessonEditor({
   const extraStudents=(draft.replacementStudentIds||[]).map(id=>allStudents.find(item=>item.id===id)).filter(Boolean) as KidsStudent[];
   const students=[...regularStudents,...extraStudents.filter(item=>!regularStudents.some(regular=>regular.id===item.id))].sort((a,b)=>localeCompare(a.name,b.name));
   const pendingStudents=replacements.filter(item=>item.status==="PENDING").map(item=>allStudents.find(student=>student.id===item.studentId)).filter((item,index,array):item is KidsStudent=>Boolean(item)&&array.findIndex(candidate=>candidate?.id===item?.id)===index).filter(item=>!students.some(current=>current.id===item.id)).sort((a,b)=>localeCompare(a.name,b.name));
+  const rosterIds=[...new Set(draft.replacementStudentIds||[])];
+  const presentCount=rosterIds.filter(id=>draft.attendance[id]!=="ABSENT").length;
+  const absentCount=rosterIds.filter(id=>draft.attendance[id]==="ABSENT").length;
   useEffect(() => {
     if (
       draft.status !== "HOLIDAY" &&
@@ -1511,6 +1555,17 @@ function LessonEditor({
         students.map((item) => [item.id, "PRESENT"]),
       ),
     }));
+  }
+  function removeReplacementStudent(studentId:string){
+    if(rosterLocked)return;
+    const student=allStudents.find(item=>item.id===studentId);
+    if(!window.confirm(`Remover ${student?.name||"esta criança"} da lista desta reposição?`))return;
+    setDraft(current=>{
+      const attendance={...current.attendance};
+      delete attendance[studentId];
+      const replacementStudentIds=(current.replacementStudentIds||[]).filter(id=>id!==studentId);
+      return {...current,replacementStudentIds,replacementCapacity:replacementStudentIds.length,attendance};
+    });
   }
   async function imageFile(file?: File) {
     if (!file) return;
@@ -1668,14 +1723,28 @@ function LessonEditor({
               </div>
             ) : null}
             <div className={styles.attendanceHead}>
-              <h3>Chamada</h3>
+              <div>
+                <h3>Chamada</h3>
+                {hasReplacementRoster?<small>{rosterIds.length} participantes em reposição · {presentCount} presentes · {absentCount} faltas</small>:null}
+              </div>
               <button onClick={allPresent}>Todos presentes</button>
             </div>
-            {pendingStudents.length ? <div className={styles.cancelBox}>
+            {hasReplacementRoster?<div className={styles.rosterIntegrityNotice}>
+              <strong>{rosterLocked?"🔒 Lista protegida":"Lista de participantes"}</strong>
+              <span>{rosterLocked?"A reposição já foi realizada. Marcar falta não remove a criança nem devolve o crédito.":"A chamada altera somente presença ou falta. Participantes só podem ser removidos na edição abaixo."}</span>
+            </div>:null}
+            {hasReplacementRoster&&!rosterLocked?<details className={styles.participantEditor}>
+              <summary>Editar participantes ({rosterIds.length})</summary>
+              <div>{rosterIds.map(studentId=>{
+                const student=allStudents.find(item=>item.id===studentId);
+                return <p key={studentId}><span>{student?.name||"Aluno"}</span><button type="button" onClick={()=>removeReplacementStudent(studentId)}>Remover</button></p>;
+              })}</div>
+            </details>:null}
+            {pendingStudents.length&&!rosterLocked ? <div className={styles.cancelBox}>
               <strong>Adicionar criança em reposição</strong>
               <div className={styles.inlineActions}>
                 <select value={replacementStudent} onChange={event=>setReplacementStudent(event.target.value)}><option value="">Selecione a criança</option>{pendingStudents.map(student=><option key={student.id} value={student.id}>{student.name}</option>)}</select>
-                <button disabled={!replacementStudent} onClick={()=>{if(!replacementStudent)return;setDraft(current=>({...current,replacementStudentIds:[...(current.replacementStudentIds||[]),replacementStudent],attendance:{...current.attendance,[replacementStudent]:"PRESENT"}}));setReplacementStudent("");}}>Adicionar</button>
+                <button disabled={!replacementStudent} onClick={()=>{if(!replacementStudent)return;setDraft(current=>{const replacementStudentIds=[...new Set([...(current.replacementStudentIds||[]),replacementStudent])];return {...current,replacementStudentIds,replacementCapacity:replacementStudentIds.length,attendance:{...current.attendance,[replacementStudent]:"PRESENT"}}});setReplacementStudent("");}}>Adicionar</button>
               </div>
             </div>:null}
             <div className={styles.attendance}>
@@ -1693,7 +1762,6 @@ function LessonEditor({
                     <span>{value === "PRESENT" ? "✓" : "×"}</span>
                     <strong>{student.name}</strong>
                     <small>{value === "PRESENT" ? "Presente" : "Falta"}</small>
-                    {(draft.replacementStudentIds||[]).includes(student.id)?<em onClick={(event)=>{event.stopPropagation();setDraft(current=>({...current,replacementStudentIds:(current.replacementStudentIds||[]).filter(id=>id!==student.id)}));}}>Remover reposição</em>:null}
                   </button>
                 );
               })}
@@ -1863,7 +1931,7 @@ function LessonEditor({
           <button onClick={onClose}>Cancelar</button>
           <button
             className={styles.primary}
-            disabled={!cancellationReasonValid}
+            disabled={!cancellationReasonValid||(hasReplacementRoster&&draft.status==="COMPLETED"&&!replacementRosterIsValid(draft))}
             onClick={() =>
               void onSave({
                 ...draft,

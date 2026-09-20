@@ -10,7 +10,7 @@ export type KidsReplacementBalanceEvent = {
   className: string;
   date: string;
   type: "DUE" | "REPLACED";
-  source: "CANCELLED_CONTRACTED" | "LEGACY_CANCELLED_CREDIT" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
+  source: "CANCELLED_CONTRACTED" | "LEGACY_CANCELLED_CREDIT" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "RECORDED_INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
   label: string;
   lessonId: string;
 };
@@ -178,12 +178,48 @@ function individualReplacementEvents(
       .map((lesson) => lesson.id),
   );
 
+  // Registro imutável criado ao concluir a chamada. Normalmente a própria aula
+  // já fornece o evento; o registro assume apenas se o vínculo da lista sumir.
+  const recordedEvents = (data.replacementUsages || [])
+    .filter((item) => item.studentId === studentId)
+    .filter((item) => item.date >= start && item.date <= throughDate)
+    .filter((item) => !lessonIds.has(item.lessonId))
+    .map((item): KidsReplacementBalanceEvent => {
+      const lesson = data.lessons.find((candidate) => candidate.id === item.lessonId);
+      const group = lesson
+        ? data.classes.find((candidate) => candidate.id === lesson.classId)
+        : undefined;
+      return {
+        id: `student:${studentId}:${item.lessonId}:recorded-replaced`,
+        classId: lesson?.classId || "replacement",
+        className: group?.name || lesson?.replacementName || "Aula avulsa de reposição",
+        date: item.date,
+        type: "REPLACED",
+        source: "RECORDED_INDIVIDUAL_REPLACEMENT",
+        label:
+          item.attendance === "ABSENT"
+            ? "Reposição consumida · falta registrada"
+            : "Reposição individual realizada",
+        lessonId: item.lessonId,
+      };
+    });
+  const recordedLessonIds = new Set(
+    (data.replacementUsages || [])
+      .filter((item) => item.studentId === studentId)
+      .map((item) => item.lessonId),
+  );
+
   // Preserva eventuais reposições individuais antigas já concluídas antes da mudança de critério.
   const legacyEvents = (data.replacements || [])
     .filter((item) => item.studentId === studentId && item.status === "COMPLETED")
     .filter((item) => (item.completedDate || item.scheduledDate || item.sourceDate) >= start)
     .filter((item) => (item.completedDate || item.scheduledDate || item.sourceDate) <= throughDate)
-    .filter((item) => !item.destinationLessonId || !lessonIds.has(item.destinationLessonId))
+    .filter(
+      (item) =>
+        !item.destinationLessonId ||
+        (!lessonIds.has(item.destinationLessonId) &&
+          !recordedLessonIds.has(item.destinationLessonId)),
+    )
     .map((item): KidsReplacementBalanceEvent => ({
       id: `student:${studentId}:${item.id}:legacy-replaced`,
       classId: item.classId,
@@ -195,7 +231,7 @@ function individualReplacementEvents(
       lessonId: item.destinationLessonId || item.sourceLessonId,
     }));
 
-  return [...lessonEvents, ...legacyEvents];
+  return [...lessonEvents, ...recordedEvents, ...legacyEvents];
 }
 
 function preservedCancelledCreditEvents(

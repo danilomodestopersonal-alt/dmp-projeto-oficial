@@ -1,5 +1,6 @@
 import type { KidsCategory, KidsClass, KidsData, KidsEvent, KidsLesson } from "@/types/kids";
 import { formatKidsPlan, getKidsPedagogicalPlan } from "@/lib/kids/pedagogy";
+import { repairKidsReplacementIntegrity } from "@/lib/kids/replacement-integrity";
 
 export const KIDS_SEMESTER_START="2026-08-03";
 export const KIDS_SEMESTER_END="2026-12-19";
@@ -125,7 +126,12 @@ export function normalizeKidsData(source:KidsData):KidsData{
   const deletedEvents=new Set(deletedEventIds);
   const savedEvents=(Array.isArray(source.events)?source.events:[]).filter(item=>!deletedEvents.has(item.id));
   const events=[...savedEvents,...kidsEvents.filter(item=>!deletedEvents.has(item.id)&&!savedEvents.some(saved=>saved.id===item.id))].sort((a,b)=>a.startDate.localeCompare(b.startDate));
-  return {...source,classes,lessons,replacements:uniqueReplacements,events,deletedEventIds,updatedAt:source.updatedAt||now};
+  const replacementUsages=[...new Map((source.replacementUsages||[]).map(usage=>{
+    const studentId=aliases.get(usage.studentId)||usage.studentId;
+    const normalized={...usage,studentId};
+    return [normalized.id,normalized] as const;
+  })).values()];
+  return repairKidsReplacementIntegrity({...source,classes,lessons,replacements:uniqueReplacements,replacementUsages,events,deletedEventIds,updatedAt:source.updatedAt||now});
 }
 
 function earliestDate(a?:string,b?:string){if(!a)return b;if(!b)return a;return a<b?a:b;}

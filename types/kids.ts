@@ -54,7 +54,20 @@ export type KidsLesson = {
   replacementEndTime?:string;
   replacementCapacity?:number;
   replacementStudentIds?:string[];
+  replacementOriginalStudentIds?:string[];
+  replacementRosterMode?:"LEVEL_ALL"|"CUSTOM";
+  replacementRosterLocked?:boolean;
+  replacementIntegrityVersion?:number;
   updatedAt:string;
+};
+
+export type KidsReplacementUsage = {
+  id:string;
+  studentId:string;
+  lessonId:string;
+  date:string;
+  attendance:KidsAttendanceStatus;
+  recordedAt:string;
 };
 
 export type KidsReplacement = {
@@ -87,6 +100,7 @@ export type KidsData = {
   classes:KidsClass[];
   lessons:KidsLesson[];
   replacements?:KidsReplacement[];
+  replacementUsages?:KidsReplacementUsage[];
   events?:KidsEvent[];
   deletedEventIds?:string[];
   updatedAt:string;
