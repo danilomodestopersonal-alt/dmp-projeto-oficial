@@ -100,6 +100,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [showEditStudentForm, setShowEditStudentForm] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
   const [workoutToCopy, setWorkoutToCopy] = useState<Workout | null>(null);
+  const [sessionToReuse,setSessionToReuse]=useState<Session|null>(null);
   const [personalWorkoutTemplates,setPersonalWorkoutTemplates]=useState<PersonalWorkoutTemplate[]>([]);
   const [workoutTemplatesLoaded,setWorkoutTemplatesLoaded]=useState(false);
 
@@ -1199,6 +1200,7 @@ fetch("/api/google/status")
     const student = students.find(item => item.id === studentId);
     if (!student) return;
 
+    setSessionToReuse(null);
     setSelectedStudentId(studentId);
     sessionReturnView.current=returnTo;
 
@@ -1498,7 +1500,7 @@ fetch("/api/google/status")
                     <b className="student-open-arrow">›</b>
                   </button>
                   <div className="card-actions compact-card-actions">
-                    <button className="primary" onClick={()=>{setSelectedStudentId(student.id);setView("free-session");}}>✍ Registrar</button>
+                    <button className="primary" onClick={()=>{setSessionToReuse(null);setSelectedStudentId(student.id);setView("free-session");}}>✍ Registrar</button>
                     {entries.length?<button className="secondary" onClick={() => startStudentFlow(student.id,"session")}>▶ Acompanhar</button>:<button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setWorkoutEditorSlot("A");setSelectedWorkoutId(null);setView("workout-editor");}}>+ Montar treino</button>}
                     <button className="secondary" onClick={()=>{setSelectedStudentId(student.id);setView("attendance-session");}}>✓ Presença</button>
                     <button className="absence-action" onClick={()=>void registerStudentAbsence(student)}>Ausência</button>
@@ -1779,7 +1781,7 @@ fetch("/api/google/status")
             <div className="student-profile-secondary-actions">
               <button
                 className="secondary"
-                onClick={() => setView("free-session")}
+                onClick={() => {setSessionToReuse(null);setView("free-session");}}
               >
                 🎤 Registrar treino
               </button>
@@ -1801,7 +1803,7 @@ fetch("/api/google/status")
             </section>
           </> : null}
           {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
-          {tab === "history" ? <HistoryPanel student={selectedStudent} onSave={session=>updateHistoricalSession(selectedStudent.id,session)} onDelete={sessionId=>deleteHistoricalSession(selectedStudent.id,sessionId)} /> : null}
+          {tab === "history" ? <HistoryPanel student={selectedStudent} onSave={session=>updateHistoricalSession(selectedStudent.id,session)} onDelete={sessionId=>deleteHistoricalSession(selectedStudent.id,sessionId)} onUseToday={session=>{setSessionToReuse({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});setSelectedWorkoutId(null);sessionReturnView.current="student";setView("free-session");}} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
           {tab === "finance" ? <StudentFinancePanel student={selectedStudent} onEditProfile={() => setShowEditStudentForm(true)} /> : null}
           {tab === "files" ? <StudentFilesPanel student={selectedStudent} /> : null}
@@ -1818,7 +1820,7 @@ fetch("/api/google/status")
   if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} personalTemplates={personalWorkoutTemplates} onTemplatesChange={setPersonalWorkoutTemplates} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
   if (view === "planned-session") return <PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} />;
   if (view === "attendance-session") return <AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
-  return <FreeSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
+  return <FreeSessionScreen student={selectedStudent} initialSession={sessionToReuse} onBack={() => {setSessionToReuse(null);setView("student");}} onSave={session=>{setSessionToReuse(null);void saveSession(session);}} />;
 }
 
 
@@ -3336,7 +3338,7 @@ function HomeClosingSummary({students,performanceActivities}:{students:Student[]
   </section>;
 }
 
-function HistoryPanel({student,onSave,onDelete}:{student:Student;onSave:(session:Session)=>Promise<void>;onDelete:(sessionId:string)=>Promise<void>}) {
+function HistoryPanel({student,onSave,onDelete,onUseToday}:{student:Student;onSave:(session:Session)=>Promise<void>;onDelete:(sessionId:string)=>Promise<void>;onUseToday:(session:Session)=>void}) {
   const [query,setQuery]=useState("");
   const [source,setSource]=useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
   const [period,setPeriod]=useState<"ALL"|"30"|"90"|"YEAR">("ALL");
@@ -3390,7 +3392,7 @@ function HistoryPanel({student,onSave,onDelete}:{student:Student;onSave:(session
     <section className="panel">
       <div className="panel-head"><div><h2>{"Histórico de sessões"}</h2><p className="muted">Pesquise, filtre e corrija registros sem alterar a ficha original.</p></div><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>
       <div className="student-history-toolbar"><input className="search" placeholder="Buscar exercício, foco ou observação..." value={query} onChange={e=>setQuery(e.target.value)}/><select value={source} onChange={e=>setSource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><select value={period} onChange={e=>setPeriod(e.target.value as any)}><option value="ALL">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="YEAR">Este ano</option></select><span className="status-chip ok">{visibleSessions.length}</span></div>
-      {visibleSessions.length?visibleSessions.map(session=><details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> {"·"} {session.focus?"Treino realizado":session.workoutName}{session.focus?<> {"·"} <b>Foco:</b> {session.focus}</>:null}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length?<ul className="simple-list">{session.completedExercises.map(exercise=><li key={exercise.id}>{exercise.block?`${exercise.block} · `:""}{exercise.name}{exercise.sets||exercise.reps?` · ${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}{exercise.notes?` · ${exercise.notes}`:""}</li>)}</ul>:<p className="muted">{"Presença registrada sem detalhamento de exercícios."}</p>}<p>{session.notes||"Sem observações."}</p><div className="history-item-actions"><button className="secondary compact-button" onClick={e=>{e.preventDefault();setEditing({...session,completedExercises:session.completedExercises.map(ex=>({...ex}))});}}>Editar</button><button className="danger-link" disabled={saving} onClick={e=>{e.preventDefault();void removeSession(session);}}>Excluir registro</button></div></details>):<p className="muted">{"Nenhuma sessão encontrada com estes filtros."}</p>}
+      {visibleSessions.length?visibleSessions.map(session=><details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> {"·"} {session.focus?"Treino realizado":session.workoutName}{session.focus?<> {"·"} <b>Foco:</b> {session.focus}</>:null}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length?<ul className="simple-list">{session.completedExercises.map(exercise=><li key={exercise.id}>{exercise.block?`${exercise.block} · `:""}{exercise.name}{exercise.sets||exercise.reps?` · ${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}{exercise.notes?` · ${exercise.notes}`:""}</li>)}</ul>:<p className="muted">{"Presença registrada sem detalhamento de exercícios."}</p>}<p>{session.notes||"Sem observações."}</p><div className="history-item-actions">{session.completedExercises.length?<button className="primary compact-button" onClick={e=>{e.preventDefault();onUseToday(session);}}>Usar hoje</button>:null}<button className="secondary compact-button" onClick={e=>{e.preventDefault();setEditing({...session,completedExercises:session.completedExercises.map(ex=>({...ex}))});}}>Editar</button><button className="danger-link" disabled={saving} onClick={e=>{e.preventDefault();void removeSession(session);}}>Excluir registro</button></div></details>):<p className="muted">{"Nenhuma sessão encontrada com estes filtros."}</p>}
     </section>
 
     {editing?<div className="modal-backdrop" onMouseDown={()=>!saving&&setEditing(null)}><section className="modal history-edit-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>Editar sessão</h2><p className="muted">A ficha original do aluno não será alterada.</p></div><button className="text-button" disabled={saving} onClick={()=>setEditing(null)}>Fechar</button></div><div className="form-grid"><label>Data<input type="date" value={editing.date} onChange={e=>patchEditing({date:e.target.value})}/></label><label>Foco da sessão<input value={editing.focus||""} onChange={e=>patchEditing({focus:e.target.value})} placeholder="Ex.: Pernas, Dorsal + core..."/></label><label className="full">Nome do registro<input value={editing.workoutName} onChange={e=>patchEditing({workoutName:e.target.value})}/></label><label>Início<input type="datetime-local" value={isoToLocalInput(editing.startedAt)} onChange={e=>patchEditing({startedAt:localInputToIso(e.target.value)})}/></label><label>Fim<input type="datetime-local" value={isoToLocalInput(editing.finishedAt)} onChange={e=>patchEditing({finishedAt:localInputToIso(e.target.value)})}/></label></div><div className="panel-head history-edit-exercises-head"><div><h3>Exercícios realizados</h3><p className="muted">Corrija bloco, exercício, séries, repetições, carga e observação.</p></div><button className="secondary compact-button" onClick={addExercise}>+ Exercício</button></div><div className="history-edit-exercises">{editing.completedExercises.map(ex=><div className="history-edit-row" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>patchExercise(ex.id,{block:e.target.value})}/><input className="history-edit-name" placeholder="Exercício" value={ex.name} onChange={e=>patchExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>patchExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>patchExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>patchExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação" value={ex.notes||""} onChange={e=>patchExercise(ex.id,{notes:e.target.value})}/><button className="danger-link" onClick={()=>removeExercise(ex.id)}>×</button></div>)}</div><label className="form-stack">Observações da sessão<textarea rows={4} value={editing.notes} onChange={e=>patchEditing({notes:e.target.value})}/></label><div className="history-edit-actions"><button className="danger-link" disabled={saving} onClick={()=>void removeSession(editing)}>Excluir registro</button><span/><button className="secondary" disabled={saving} onClick={()=>setEditing(null)}>Cancelar</button><button className="primary" disabled={saving} onClick={()=>void saveEdit()}>{saving?"Salvando...":"Salvar alterações"}</button></div></section></div>:null}
@@ -4603,7 +4605,7 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
           <button type="button" className={!applyToCycle?"active":""} aria-pressed={!applyToCycle} onClick={()=>setApplyToCycle(false)}>Somente hoje</button>
           <button type="button" className={applyToCycle?"active":""} aria-pressed={applyToCycle} disabled={!workout?.id} onClick={()=>setApplyToCycle(true)}>Aplicar ao ciclo</button>
         </div>
-        <small className="muted">{applyToCycle?"Ao salvar, exercício, bloco, séries, repetições, carga e observação também atualizam a ficha deste ciclo. O histórico anterior permanece intacto.":"As mudanças valem apenas para esta sessão. A ficha original não é alterada."}</small>
+
       </div>
     </div>
     <div className="session-list">{sessionGroups.map((group,groupIndex)=>{
@@ -4805,12 +4807,18 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
   </section></main>;
 }
 
-function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>void;onSave:(session:Session)=>void}) {
-  const [transcript,setTranscript]=useState("");
-  const [focus,setFocus]=useState("Treino realizado");
-  const [notes,setNotes]=useState("");
+function FreeSessionScreen({student,initialSession,onBack,onSave}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void}) {
+  const [transcript,setTranscript]=useState(()=>initialSession?.completedExercises.map(exercise=>{
+    const block=exercise.block?.trim()?`${exercise.block}: `:"";
+    const prescription=exercise.sets||exercise.reps?` · ${exercise.sets||""}x${exercise.reps||""}`:"";
+    const load=exercise.load?` · ${exercise.load}`:"";
+    const observation=exercise.notes?` · ${exercise.notes}`:"";
+    return `${block}${exercise.name}${prescription}${load}${observation}`;
+  }).join("\n")||"");
+  const [focus,setFocus]=useState(initialSession?.focus?.trim()||initialSession?.workoutName||"Treino realizado");
+  const [notes,setNotes]=useState(initialSession?.notes||"");
   const [sessionDate,setSessionDate]=useState(today());
-  const [exercises,setExercises]=useState<Exercise[]>([]);
+  const [exercises,setExercises]=useState<Exercise[]>(()=>initialSession?.completedExercises.map(exercise=>({...exercise,id:crypto.randomUUID()}))||[]);
   const [listening,setListening]=useState(false);
   const [transcriptFromVoice,setTranscriptFromVoice]=useState(false);
   function organize(){
@@ -5028,7 +5036,7 @@ function FreeSessionScreen({student,onBack,onSave}:{student:Student;onBack:()=>v
   startRecognition();
 }
   return <main className="app-page"><Header title={`${student.name} — Registro rápido`} back={onBack}/><section className="content free-session-layout">
-    <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>⚡ Sem precisar de ficha</span><strong>Registre depois da aula</strong><small>Fale ou escreva exatamente como você costuma me contar o treino.</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>{const next=e.target.value;if(!next.trim())setTranscriptFromVoice(false);setTranscript(next);}} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button
+    <article className="panel form-stack quick-register-panel">{student.restrictions ? <div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{student.restrictions}</span></div> : null}<div className="session-mode-banner free"><span>{initialSession?"↻ Treino copiado do histórico":"⚡ Sem precisar de ficha"}</span><strong>{initialSession?"Pronto para usar hoje":"Registre depois da aula"}</strong><small>{initialSession?`Base de ${formatDate(initialSession.date)} · ajuste o que precisar antes de salvar.`:"Fale ou escreva exatamente como você costuma me contar o treino."}</small></div><label>Data<input type="date" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></label><label>Nome / foco da sessão<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="Ex.: Peito + core, Full body, MMII..."/></label><label>O que foi feito<textarea rows={10} value={transcript} onChange={e=>{const next=e.target.value;if(!next.trim())setTranscriptFromVoice(false);setTranscript(next);}} placeholder={'Ex.: Bloco 1: supino reto 4x12 com 18 kg; agachamento goblet 4x15.\nBloco 2: remada baixa 4x12 45 kg; prancha até a falha.'}/></label><div className="hero-actions"><button className="secondary" onClick={listen}>{listening?"Ouvindo...":"🎤 Falar"}</button><button
   type="button"
   className="primary"
   onClick={()=>{
