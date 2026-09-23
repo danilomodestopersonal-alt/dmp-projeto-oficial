@@ -379,6 +379,60 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  if (!studentsLoaded || today() !== "2026-09-23") return;
+
+  // Recuperação pontual das duas ausências de hoje que foram perdidas pelo
+  // antigo fluxo automático de restauração. É idempotente e só roda nesta data.
+  const repairs = [
+    {name:"Poeira",start:"2026-09-23T07:30:00-03:00",end:"2026-09-23T08:30:00-03:00"},
+    {name:"Pedro Eroles",start:"2026-09-23T09:00:00-03:00",end:"2026-09-23T10:00:00-03:00"}
+  ];
+
+  setStudents(current=>{
+    let changed=false;
+    const next=current.map(student=>{
+      const repair=repairs.find(item=>normalizeName(item.name)===normalizeName(student.name));
+      if(!repair)return student;
+
+      const existingIndex=student.sessions.findIndex(session=>session.source==="ABSENCE"&&session.date==="2026-09-23");
+      const calendarEvent:CalendarEvent={
+        id:`dmp-recovered-absence:2026-09-23:${student.id}`,
+        summary:calendarStudentDisplayName(student),
+        description:"Ausência recuperada pelo DMP.",
+        start:repair.start,
+        end:repair.end,
+        allDay:false,
+        matchedStudentId:student.id,
+        matchedStudentIds:[student.id]
+      };
+
+      if(existingIndex>=0){
+        const existing=student.sessions[existingIndex];
+        if(existing.calendarEvent)return student;
+        const sessions=[...student.sessions];
+        sessions[existingIndex]={...existing,calendarEvent};
+        changed=true;
+        return {...student,sessions};
+      }
+
+      const absence:Session={
+        id:crypto.randomUUID(),
+        date:"2026-09-23",
+        workoutName:"Ausência",
+        notes:"Ausência informada.",
+        completedExercises:[],
+        source:"ABSENCE",
+        finishedAt:new Date().toISOString(),
+        calendarEvent
+      };
+      changed=true;
+      return {...student,sessions:[absence,...student.sessions]};
+    });
+    return changed?next:current;
+  });
+},[studentsLoaded]);
+
+useEffect(() => {
   if (!studentsLoaded) return;
 
   saveStudents(students);
@@ -834,23 +888,8 @@ fetch("/api/google/status")
     setCalendarEvents(current=>matchCalendarEvents(current,students));
   }, [students,calendarLoaded]);
 
-  // Se um aluno ausente for recolocado manualmente no Google Agenda, restaura o atendimento.
-  useEffect(()=>{
-    if(!calendarLoaded)return;
-    setStudents(current=>{
-      let changed=false;
-      const next=current.map(student=>{
-        const restoredDates=new Set(calendarEvents.filter(event=>getCalendarEventStudents(event,current).some(item=>item.id===student.id)).map(calendarEventDate));
-        const sessions=student.sessions.filter(session=>{
-          const remove=session.source==="ABSENCE"&&restoredDates.has(session.date);
-          if(remove)changed=true;
-          return !remove;
-        });
-        return sessions.length===student.sessions.length?student:{...student,sessions};
-      });
-      return changed?next:current;
-    });
-  },[calendarEvents,calendarLoaded]);
+  // A ausência registrada no DMP é a fonte de verdade.
+  // A sincronização do Google nunca deve apagar automaticamente uma falta já confirmada.
 
   useEffect(() => {
     if (!calendarStatus.connected) return;
@@ -1328,12 +1367,21 @@ fetch("/api/google/status")
     const nextSummary=remaining.map(item=>calendarStudentDisplayName(item)).join(" ");
     const firstName=student.name.trim().split(/\s+/)[0]||student.name;
     const nextDescription=(event.description||"").split(/\r?\n/).filter(line=>!normalizeName(line).includes(normalizeName(student.name))&&!normalizeName(line).includes(normalizeName(firstName))).join("\n");
-    const response=remaining.length
-      ?await fetch("/api/google/events",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:event.id,summary:nextSummary,description:nextDescription,location:event.location||"",start:event.start,end:event.end})})
-      :await fetch(`/api/google/events?id=${encodeURIComponent(event.id)}`,{method:"DELETE"});
-    if(!response.ok){alert("Não foi possível atualizar a agenda Google. A ausência não foi salva.");return;}
+
+    // Primeiro confirma a ausência no DMP. Assim a Home e o card do dia
+    // atualizam imediatamente e a sincronização do Google não consegue apagá-la.
     updateStudentRecord({...student,sessions:[absence,...student.sessions]});
-    setCalendarEvents(current=>remaining.length?current.map(item=>item.id===event.id?{...item,summary:nextSummary,description:nextDescription,matchedStudentIds:remaining.map(value=>value.id)}:item):current.filter(item=>item.id!==event.id));
+
+    try{
+      const response=remaining.length
+        ?await fetch("/api/google/events",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:event.id,summary:nextSummary,description:nextDescription,location:event.location||"",start:event.start,end:event.end})})
+        :await fetch(`/api/google/events?id=${encodeURIComponent(event.id)}`,{method:"DELETE"});
+      if(!response.ok)throw new Error("google_calendar_update_failed");
+      setCalendarEvents(current=>remaining.length?current.map(item=>item.id===event.id?{...item,summary:nextSummary,description:nextDescription,matchedStudentIds:remaining.map(value=>value.id)}:item):current.filter(item=>item.id!==event.id));
+    }catch(error){
+      console.error("Ausência salva, mas a Agenda Google não foi atualizada:",error);
+      alert("Ausência salva no DMP. Não foi possível retirar o aluno da Agenda Google agora; a ausência continuará marcada na Home.");
+    }
   }
   async function registerStudentAbsence(student:Student){
     const event=calendarEvents.find(item=>calendarEventDate(item)===today()&&getCalendarEventStudents(item,students).some(value=>value.id===student.id));
