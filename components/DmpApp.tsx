@@ -21,7 +21,7 @@ import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud } from "@/lib/fina
 import { financeSummary } from "@/lib/financeiro/calculos";
 import type { PerformanceActivity } from "@/types/performance";
 
-type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "free-session" | "attendance-session";
+type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "historical-workout" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "timeline" | "workouts" | "history" | "assessments" | "finance" | "files";
 type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string; dueDate?:string; dueTime?:string; dueString?:string; priority?:number };
 
@@ -101,6 +101,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [showAssessmentForm, setShowAssessmentForm] = useState(false);
   const [workoutToCopy, setWorkoutToCopy] = useState<Workout | null>(null);
   const [sessionToReuse,setSessionToReuse]=useState<Session|null>(null);
+  const [historicalSessionPreview,setHistoricalSessionPreview]=useState<Session|null>(null);
   const [personalWorkoutTemplates,setPersonalWorkoutTemplates]=useState<PersonalWorkoutTemplate[]>([]);
   const [workoutTemplatesLoaded,setWorkoutTemplatesLoaded]=useState(false);
 
@@ -403,15 +404,29 @@ useEffect(() => {
   if (!studentsLoaded || deepLinkHandled.current) return;
   deepLinkHandled.current = true;
   const params = new URLSearchParams(window.location.search);
-  if (params.get("mode") !== "planned-session") return;
+  const mode=params.get("mode");
   const studentId = params.get("student");
-  const workoutId = params.get("workout");
   const student = students.find(item => item.id === studentId);
-  const workout = student?.workouts.find(item => item.id === workoutId && item.active !== false);
-  if (!student || !workout) return;
-  setSelectedStudentId(student.id);
-  setSelectedWorkoutId(workout.id);
-  setView("planned-session");
+  if(!student)return;
+
+  if(mode==="planned-session"){
+    const workoutId = params.get("workout");
+    const workout = student.workouts.find(item => item.id === workoutId && item.active !== false);
+    if(!workout)return;
+    setSelectedStudentId(student.id);
+    setSelectedWorkoutId(workout.id);
+    setView("planned-session");
+    return;
+  }
+
+  if(mode==="historical-session"){
+    const sessionId=params.get("session");
+    const session=student.sessions.find(item=>item.id===sessionId);
+    if(!session||!session.completedExercises.length)return;
+    setSelectedStudentId(student.id);
+    setHistoricalSessionPreview({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});
+    setView("historical-workout");
+  }
 }, [studentsLoaded, students]);
 
 useEffect(() => {
@@ -999,6 +1014,49 @@ fetch("/api/google/status")
     setTab("workouts");
     setView("student");
   }
+  async function saveHistoricalSessionAsWorkout(session:Session,slot:WorkoutSlot) {
+    if(!selectedStudent)return false;
+
+    try{
+      const response=await fetch("/api/data",{cache:"no-store"});
+      if(!response.ok)throw new Error();
+      const result=await response.json();
+      if(!Array.isArray(result.data))throw new Error();
+      const latest=result.data as Student[];
+      const target=latest.find(student=>student.id===selectedStudent.id);
+      if(!target)throw new Error();
+
+      const collision=getStudentWorkoutEntries(target).find(entry=>entry.slot===slot)?.workout||null;
+      if(collision&&!confirm(`${target.name} já possui o Treino ${slot}. Deseja substituir?\n\nA ficha atual será arquivada e o histórico do aluno não será alterado.`))return false;
+
+      const workout=historicalSessionToWorkout(target,session,slot);
+      const base=collision
+        ?target.workouts.map(item=>item.id===collision.id?{...item,active:false,archivedAt:today()}:item)
+        :target.workouts;
+      const updated={...target,workouts:[...base,workout]};
+      const next=latest.map(student=>student.id===updated.id?updated:student);
+      const saveResponse=await fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(next)});
+      if(!saveResponse.ok)throw new Error();
+
+      setStudents(next);
+      saveStudents(next);
+      const channel=new BroadcastChannel(STUDENTS_CHANNEL);
+      channel.postMessage({type:"refresh"});
+      channel.close();
+      setHistoricalSessionPreview(null);
+      setSelectedWorkoutId(workout.id);
+      setWorkoutEditorSlot(slot);
+      setTab("workouts");
+      setView("student");
+      if(new URLSearchParams(window.location.search).get("mode")==="historical-session")window.history.replaceState(null,"","/app");
+      alert(`Treino ${slot} salvo para ${target.name}.`);
+      return true;
+    }catch{
+      alert("Não foi possível salvar este treino como ficha. Confira a conexão e tente novamente.");
+      return false;
+    }
+  }
+
   function clearWorkout(workout:Workout) {
     if (!selectedStudent || !confirm(`Limpar o Treino ${workout.slot || ""}? O histórico das aulas será preservado.`)) return;
     updateStudentRecord({...selectedStudent, workouts:selectedStudent.workouts.filter(item=>item.id!==workout.id)});
@@ -1803,7 +1861,7 @@ fetch("/api/google/status")
             </section>
           </> : null}
           {tab === "workouts" ? <WorkoutSlotsPanel student={selectedStudent} onEdit={(slot,workout)=>{setWorkoutEditorSlot(slot);setSelectedWorkoutId(workout?.id||null);setView("workout-editor");}} onStart={workout=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=planned-session&student=${encodeURIComponent(selectedStudent.id)}&workout=${encodeURIComponent(workout.id)}`,"_blank");return;}setSelectedWorkoutId(workout.id);setView("planned-session");}} onArchive={archiveWorkout} onClear={clearWorkout} onCopy={workout=>setWorkoutToCopy(workout)} /> : null}
-          {tab === "history" ? <HistoryPanel student={selectedStudent} onSave={session=>updateHistoricalSession(selectedStudent.id,session)} onDelete={sessionId=>deleteHistoricalSession(selectedStudent.id,sessionId)} onUseToday={session=>{setSessionToReuse({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});setSelectedWorkoutId(null);sessionReturnView.current="student";setView("free-session");}} /> : null}
+          {tab === "history" ? <HistoryPanel student={selectedStudent} onSave={session=>updateHistoricalSession(selectedStudent.id,session)} onDelete={sessionId=>deleteHistoricalSession(selectedStudent.id,sessionId)} onUseToday={session=>{setSessionToReuse({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});setSelectedWorkoutId(null);sessionReturnView.current="student";setView("free-session");}} onOpenWorkout={session=>{if(window.matchMedia("(min-width: 801px)").matches){window.open(`/app?mode=historical-session&student=${encodeURIComponent(selectedStudent.id)}&session=${encodeURIComponent(session.id)}`,"_blank");return;}setHistoricalSessionPreview({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});setView("historical-workout");}} /> : null}
           {tab === "assessments" ? <AssessmentPanel student={selectedStudent} onNew={() => setShowAssessmentForm(true)} /> : null}
           {tab === "finance" ? <StudentFinancePanel student={selectedStudent} onEditProfile={() => setShowEditStudentForm(true)} /> : null}
           {tab === "files" ? <StudentFilesPanel student={selectedStudent} /> : null}
@@ -1817,6 +1875,7 @@ fetch("/api/google/status")
     );
   }
 
+  if(view==="historical-workout"&&historicalSessionPreview)return <HistoricalWorkoutScreen student={selectedStudent} session={historicalSessionPreview} onBack={()=>{setHistoricalSessionPreview(null);if(new URLSearchParams(window.location.search).get("mode")==="historical-session"&&window.opener){window.close();return;}setTab("history");setView("student");}} onUseToday={()=>{setSessionToReuse({...historicalSessionPreview,completedExercises:historicalSessionPreview.completedExercises.map(exercise=>({...exercise}))});setHistoricalSessionPreview(null);setSelectedWorkoutId(null);sessionReturnView.current="student";if(new URLSearchParams(window.location.search).get("mode")==="historical-session")window.history.replaceState(null,"","/app");setView("free-session");}} onSaveAsWorkout={slot=>saveHistoricalSessionAsWorkout(historicalSessionPreview,slot)} />;
   if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} personalTemplates={personalWorkoutTemplates} onTemplatesChange={setPersonalWorkoutTemplates} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
   if (view === "planned-session") return <PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} />;
   if (view === "attendance-session") return <AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
@@ -3338,7 +3397,7 @@ function HomeClosingSummary({students,performanceActivities}:{students:Student[]
   </section>;
 }
 
-function HistoryPanel({student,onSave,onDelete,onUseToday}:{student:Student;onSave:(session:Session)=>Promise<void>;onDelete:(sessionId:string)=>Promise<void>;onUseToday:(session:Session)=>void}) {
+function HistoryPanel({student,onSave,onDelete,onUseToday,onOpenWorkout}:{student:Student;onSave:(session:Session)=>Promise<void>;onDelete:(sessionId:string)=>Promise<void>;onUseToday:(session:Session)=>void;onOpenWorkout:(session:Session)=>void}) {
   const [query,setQuery]=useState("");
   const [source,setSource]=useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
   const [period,setPeriod]=useState<"ALL"|"30"|"90"|"YEAR">("ALL");
@@ -3392,11 +3451,168 @@ function HistoryPanel({student,onSave,onDelete,onUseToday}:{student:Student;onSa
     <section className="panel">
       <div className="panel-head"><div><h2>{"Histórico de sessões"}</h2><p className="muted">Pesquise, filtre e corrija registros sem alterar a ficha original.</p></div><button className="secondary" onClick={() => exportStudentSessionsCsv(student)}>Exportar CSV</button></div>
       <div className="student-history-toolbar"><input className="search" placeholder="Buscar exercício, foco ou observação..." value={query} onChange={e=>setQuery(e.target.value)}/><select value={source} onChange={e=>setSource(e.target.value as any)}><option value="ALL">Todos os tipos</option><option value="PLANNED">Ficha concluída</option><option value="FREE">Treino registrado</option><option value="ATTENDANCE">Presença</option><option value="IMPORTED">Importado</option></select><select value={period} onChange={e=>setPeriod(e.target.value as any)}><option value="ALL">Todo o período</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="YEAR">Este ano</option></select><span className="status-chip ok">{visibleSessions.length}</span></div>
-      {visibleSessions.length?visibleSessions.map(session=><details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> {"·"} {session.focus?"Treino realizado":session.workoutName}{session.focus?<> {"·"} <b>Foco:</b> {session.focus}</>:null}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length?<ul className="simple-list">{session.completedExercises.map(exercise=><li key={exercise.id}>{exercise.block?`${exercise.block} · `:""}{exercise.name}{exercise.sets||exercise.reps?` · ${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}{exercise.notes?` · ${exercise.notes}`:""}</li>)}</ul>:<p className="muted">{"Presença registrada sem detalhamento de exercícios."}</p>}<p>{session.notes||"Sem observações."}</p><div className="history-item-actions">{session.completedExercises.length?<button className="primary compact-button" onClick={e=>{e.preventDefault();onUseToday(session);}}>Usar hoje</button>:null}<button className="secondary compact-button" onClick={e=>{e.preventDefault();setEditing({...session,completedExercises:session.completedExercises.map(ex=>({...ex}))});}}>Editar</button><button className="danger-link" disabled={saving} onClick={e=>{e.preventDefault();void removeSession(session);}}>Excluir registro</button></div></details>):<p className="muted">{"Nenhuma sessão encontrada com estes filtros."}</p>}
+      {visibleSessions.length?visibleSessions.map(session=><details className="history-item" key={session.id}><summary><span><strong>{formatDate(session.date)}</strong> {"·"} {session.focus?"Treino realizado":session.workoutName}{session.focus?<> {"·"} <b>Foco:</b> {session.focus}</>:null}</span><small>{sessionSourceLabel(session)}</small></summary>{session.completedExercises.length?<ul className="simple-list">{session.completedExercises.map(exercise=><li key={exercise.id}>{exercise.block?`${exercise.block} · `:""}{exercise.name}{exercise.sets||exercise.reps?` · ${exercise.sets}×${exercise.reps}`:""}{exercise.load?` · ${exercise.load}`:""}{exercise.notes?` · ${exercise.notes}`:""}</li>)}</ul>:<p className="muted">{"Presença registrada sem detalhamento de exercícios."}</p>}<p>{session.notes||"Sem observações."}</p><div className="history-item-actions">{session.completedExercises.length?<><button className="secondary compact-button" onClick={e=>{e.preventDefault();onOpenWorkout(session);}}>Abrir treino</button><button className="primary compact-button" onClick={e=>{e.preventDefault();onUseToday(session);}}>Usar hoje</button></>:null}<button className="secondary compact-button" onClick={e=>{e.preventDefault();setEditing({...session,completedExercises:session.completedExercises.map(ex=>({...ex}))});}}>Editar</button><button className="danger-link" disabled={saving} onClick={e=>{e.preventDefault();void removeSession(session);}}>Excluir registro</button></div></details>):<p className="muted">{"Nenhuma sessão encontrada com estes filtros."}</p>}
     </section>
 
     {editing?<div className="modal-backdrop" onMouseDown={()=>!saving&&setEditing(null)}><section className="modal history-edit-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><h2>Editar sessão</h2><p className="muted">A ficha original do aluno não será alterada.</p></div><button className="text-button" disabled={saving} onClick={()=>setEditing(null)}>Fechar</button></div><div className="form-grid"><label>Data<input type="date" value={editing.date} onChange={e=>patchEditing({date:e.target.value})}/></label><label>Foco da sessão<input value={editing.focus||""} onChange={e=>patchEditing({focus:e.target.value})} placeholder="Ex.: Pernas, Dorsal + core..."/></label><label className="full">Nome do registro<input value={editing.workoutName} onChange={e=>patchEditing({workoutName:e.target.value})}/></label><label>Início<input type="datetime-local" value={isoToLocalInput(editing.startedAt)} onChange={e=>patchEditing({startedAt:localInputToIso(e.target.value)})}/></label><label>Fim<input type="datetime-local" value={isoToLocalInput(editing.finishedAt)} onChange={e=>patchEditing({finishedAt:localInputToIso(e.target.value)})}/></label></div><div className="panel-head history-edit-exercises-head"><div><h3>Exercícios realizados</h3><p className="muted">Corrija bloco, exercício, séries, repetições, carga e observação.</p></div><button className="secondary compact-button" onClick={addExercise}>+ Exercício</button></div><div className="history-edit-exercises">{editing.completedExercises.map(ex=><div className="history-edit-row" key={ex.id}><input placeholder="Bloco" value={ex.block||""} onChange={e=>patchExercise(ex.id,{block:e.target.value})}/><input className="history-edit-name" placeholder="Exercício" value={ex.name} onChange={e=>patchExercise(ex.id,{name:e.target.value})}/><input placeholder="Séries" value={ex.sets} onChange={e=>patchExercise(ex.id,{sets:e.target.value})}/><input placeholder="Reps" value={ex.reps} onChange={e=>patchExercise(ex.id,{reps:e.target.value})}/><input placeholder="Carga" value={ex.load} onChange={e=>patchExercise(ex.id,{load:e.target.value})}/><input placeholder="Observação" value={ex.notes||""} onChange={e=>patchExercise(ex.id,{notes:e.target.value})}/><button className="danger-link" onClick={()=>removeExercise(ex.id)}>×</button></div>)}</div><label className="form-stack">Observações da sessão<textarea rows={4} value={editing.notes} onChange={e=>patchEditing({notes:e.target.value})}/></label><div className="history-edit-actions"><button className="danger-link" disabled={saving} onClick={()=>void removeSession(editing)}>Excluir registro</button><span/><button className="secondary" disabled={saving} onClick={()=>setEditing(null)}>Cancelar</button><button className="primary" disabled={saving} onClick={()=>void saveEdit()}>{saving?"Salvando...":"Salvar alterações"}</button></div></section></div>:null}
   </div>;
+}
+
+
+function historicalSessionExerciseIsMetadata(exercise:Exercise){
+  const value=normalizeName(exercise.name||"");
+  return /^(?:treino em )?(?:sistema|protocolo|metodo)\b/.test(value);
+}
+
+function historicalSessionWorkoutExercises(session:Session){
+  const named=session.completedExercises.filter(exercise=>exercise.name.trim());
+  const cleaned=named.filter(exercise=>!historicalSessionExerciseIsMetadata(exercise));
+  return cleaned.length?cleaned:named;
+}
+
+function historicalSessionProtocol(student:Student,session:Session):WorkoutProtocol{
+  const linked=student.workouts.find(workout=>workout.id===session.workoutId);
+  if(linked?.protocol)return linked.protocol;
+
+  const detected=detectWorkoutProtocol([
+    session.workoutName,
+    session.focus||"",
+    session.notes||"",
+    ...session.completedExercises.map(exercise=>`${exercise.name} ${exercise.notes||""}`)
+  ].join(" "));
+  if(detected)return detected;
+
+  const blockCounts=new Map<string,number>();
+  historicalSessionWorkoutExercises(session).forEach(exercise=>{
+    const block=(exercise.block||"").trim();
+    if(block)blockCounts.set(block,(blockCounts.get(block)||0)+1);
+  });
+  const grouped=[...blockCounts.values()].filter(count=>count>1);
+  if(grouped.length){
+    if(grouped.every(count=>count===2))return "BISET";
+    if(grouped.every(count=>count===3))return "TRISET";
+    if(grouped.every(count=>count>=4))return "CIRCUIT";
+    return "MIXED";
+  }
+  return "CONVENTIONAL";
+}
+
+function historicalSessionSequenceSize(student:Student,session:Session,protocol:WorkoutProtocol){
+  const linked=student.workouts.find(workout=>workout.id===session.workoutId);
+  if(linked?.sequenceSize)return linked.sequenceSize;
+  const blockCounts=new Map<string,number>();
+  historicalSessionWorkoutExercises(session).forEach(exercise=>{
+    const block=(exercise.block||"").trim();
+    if(block)blockCounts.set(block,(blockCounts.get(block)||0)+1);
+  });
+  const counts=[...blockCounts.values()].filter(count=>count>1);
+  if(counts.length){
+    const frequencies=new Map<number,number>();
+    counts.forEach(count=>frequencies.set(count,(frequencies.get(count)||0)+1));
+    return [...frequencies.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0][0];
+  }
+  if(protocol==="B7")return 2;
+  return defaultSequenceSize(protocol);
+}
+
+function historicalSessionToWorkout(student:Student,session:Session,slot:WorkoutSlot):Workout{
+  const protocol=historicalSessionProtocol(student,session);
+  const sequenceSize=historicalSessionSequenceSize(student,session,protocol);
+  const linked=student.workouts.find(workout=>workout.id===session.workoutId);
+  const notes=[
+    session.focus?.trim()?`Foco original: ${session.focus.trim()}`:"",
+    session.notes?.trim()||linked?.notes?.trim()||""
+  ].filter(Boolean).join("\n");
+
+  return{
+    id:crypto.randomUUID(),
+    name:`Treino ${slot}`,
+    week:1,
+    active:true,
+    slot,
+    protocol,
+    sequenceSize,
+    notes,
+    validityMode:"NONE",
+    exercises:historicalSessionWorkoutExercises(session).map(exercise=>({...exercise,id:crypto.randomUUID(),notes:exercise.notes||""}))
+  };
+}
+
+function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWorkout}:{student:Student;session:Session;onBack:()=>void;onUseToday:()=>void;onSaveAsWorkout:(slot:WorkoutSlot)=>Promise<boolean>}){
+  const protocol=historicalSessionProtocol(student,session);
+  const sequenceSize=historicalSessionSequenceSize(student,session,protocol);
+  const exercises=historicalSessionWorkoutExercises(session);
+  const [completed,setCompleted]=useState<Record<string,boolean>>(()=>Object.fromEntries(exercises.map(exercise=>[exercise.id,false])));
+  const [savingSlot,setSavingSlot]=useState<WorkoutSlot|null>(null);
+
+  const rawGroups:{key:string;label:string;items:{exercise:Exercise;index:number}[]}[]=[];
+  exercises.forEach((exercise,index)=>{
+    const explicit=(exercise.block||"").trim();
+    const automatic=explicit||sequenceBlockLabel(protocol,index,sequenceSize)||`__single_${index}`;
+    const previous=rawGroups[rawGroups.length-1];
+    if(previous&&previous.key===automatic&&!automatic.startsWith("__single_"))previous.items.push({exercise,index});
+    else rawGroups.push({key:automatic,label:automatic.startsWith("__single_")?"":automatic,items:[{exercise,index}]});
+  });
+
+  let combinedIndex=0;
+  const groups=rawGroups.map(group=>{
+    const grouped=group.items.length>1;
+    const letter=grouped?String.fromCharCode(65+Math.min(combinedIndex++,25)):"";
+    return{...group,grouped,letter};
+  });
+  const completedCount=exercises.filter(exercise=>completed[exercise.id]).length;
+
+  async function saveAs(slot:WorkoutSlot){
+    if(savingSlot)return;
+    setSavingSlot(slot);
+    try{await onSaveAsWorkout(slot);}finally{setSavingSlot(null);}
+  }
+
+  return <main className="app-page">
+    <Header title={`${student.name} — Treino do histórico`} back={onBack} titleClassName="workout-student-header-title"/>
+    <section className="content narrow">
+      <div className="planned-student-identity"><span>ALUNO</span><strong>{student.name}</strong><small>{formatDate(session.date)}</small></div>
+      {student.restrictions||student.injuries?<div className="session-alert"><strong>⚠ Atenção com {student.name}</strong><span>{[student.restrictions,student.injuries].filter(Boolean).join(" · ")}</span></div>:null}
+
+      <div className="session-mode-banner">
+        <span>🕘 Histórico · {formatDate(session.date)} · {workoutProtocolLabel(protocol)}</span>
+        <strong>{session.focus||session.workoutName||"Treino realizado"}</strong>
+        <small>{completedCount}/{exercises.length} marcados nesta visualização · abrir este treino não cria um novo registro.</small>
+        <button className="primary compact-button" disabled={!exercises.length} onClick={onUseToday}>Usar hoje</button>
+      </div>
+
+      <section className="panel">
+        <div className="panel-head"><div><h2>Salvar como ficha do aluno</h2><p className="muted">Transforma este treino histórico em uma ficha A, B, C ou D. O registro original continua intacto.</p></div></div>
+        <div className="hero-actions">
+          {WORKOUT_SLOTS.map(slot=><button key={slot} className="secondary" disabled={!!savingSlot||!exercises.length} onClick={()=>void saveAs(slot)}>{savingSlot===slot?"Salvando...":`Salvar como Treino ${slot}`}</button>)}
+        </div>
+      </section>
+
+      {session.notes?.trim()?<div className="planned-note">📌 {session.notes}</div>:null}
+
+      <div className="session-list">{groups.map((group,groupIndex)=>{
+        const groupType=group.grouped?protocol==="BISET"?"BI-SET":protocol==="TRISET"?"TRI-SET":protocol==="CIRCUIT"?"CIRCUITO":protocol==="B7"?"B7":"COMBINADO":"";
+        return <section className={`planned-exercise-group ${group.grouped?"combined":"single"}`} key={`${group.key}-${groupIndex}`}>
+          {group.grouped?<div className="planned-sequence-header"><div className="planned-sequence-heading"><span>{groupType}</span><strong>{group.label||`Bloco ${group.letter}`}</strong></div><small>{group.items.length} exercícios juntos</small></div>:null}
+          <div className="planned-sequence-items">{group.items.map(({exercise,index},position)=><article className={`session-exercise planned-row ${completed[exercise.id]?"is-done":""}`} key={exercise.id}>
+            <label className="exercise-check"><input type="checkbox" checked={completed[exercise.id]??false} onChange={event=>setCompleted(current=>({...current,[exercise.id]:event.target.checked}))}/><span>Feito</span></label>
+            <div className="planned-exercise-main">
+              <div className="planned-title-line">
+                {group.grouped?<span className="planned-sequence-code">{group.letter}{position+1}</span>:exercise.block?<span className="status-chip">{exercise.block}</span>:<span className="status-chip">#{index+1}</span>}
+                <input className="planned-name" value={exercise.name} readOnly aria-label="Exercício do histórico"/>
+              </div>
+              <div className="planned-fields planned-fields-core">
+                <input value={exercise.sets||""} placeholder="Séries" readOnly aria-label="Séries"/>
+                <input value={exercise.reps||""} placeholder="Repetições" readOnly aria-label="Repetições"/>
+                <input value={exercise.load||""} placeholder="Carga" readOnly aria-label="Carga"/>
+              </div>
+              {exercise.notes?.trim()?<div className="planned-note">📌 {exercise.notes}</div>:null}
+            </div>
+          </article>)}</div>
+        </section>;
+      })}</div>
+    </section>
+  </main>;
 }
 
 function assessmentMetric(value:number|null|undefined,suffix=""){return value===null||value===undefined||Number.isNaN(value)?"—":`${value.toLocaleString("pt-BR",{maximumFractionDigits:1})}${suffix}`;}
