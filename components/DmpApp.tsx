@@ -1053,7 +1053,7 @@ fetch("/api/google/status")
     setTab("workouts");
     setView("student");
   }
-  async function saveHistoricalSessionAsWorkout(session:Session,slot:WorkoutSlot) {
+  async function saveHistoricalSessionAsWorkout(session:Session,slot:WorkoutSlot,protocolOverride?:WorkoutProtocol) {
     if(!selectedStudent)return false;
 
     try{
@@ -1068,7 +1068,7 @@ fetch("/api/google/status")
       const collision=getStudentWorkoutEntries(target).find(entry=>entry.slot===slot)?.workout||null;
       if(collision&&!confirm(`${target.name} já possui o Treino ${slot}. Deseja substituir?\n\nA ficha atual será arquivada e o histórico do aluno não será alterado.`))return false;
 
-      const workout=historicalSessionToWorkout(target,session,slot);
+      const workout=historicalSessionToWorkout(target,session,slot,protocolOverride);
       const base=collision
         ?target.workouts.map(item=>item.id===collision.id?{...item,active:false,archivedAt:today()}:item)
         :target.workouts;
@@ -1843,7 +1843,12 @@ fetch("/api/google/status")
         <section className="content student-profile-page">
           <section className="student-profile-command">
             <div className="student-profile-command-main">
-              <StudentProfileIdentity student={selectedStudent} onEdit={() => setShowEditStudentForm(true)} />
+              <StudentProfileIdentity
+                student={selectedStudent}
+                onEdit={() => setShowEditStudentForm(true)}
+                onRegisterWorkout={() => {setSessionToReuse(null);sessionReturnView.current="student";setView("free-session");}}
+                onRegisterAttendance={() => {sessionReturnView.current="student";setView("attendance-session");}}
+              />
 
               <nav className="student-profile-primary-tabs" aria-label="Áreas do aluno">
                 {(["summary","timeline","workouts","history","assessments","finance","files"] as StudentTab[]).map(item => (
@@ -1923,7 +1928,7 @@ fetch("/api/google/status")
     );
   }
 
-  if(view==="historical-workout"&&historicalSessionPreview)return <HistoricalWorkoutScreen student={selectedStudent} session={historicalSessionPreview} onBack={()=>{setHistoricalSessionPreview(null);if(new URLSearchParams(window.location.search).get("mode")==="historical-session"&&window.opener){window.close();return;}setTab("history");setView("student");}} onUseToday={()=>{setSessionToReuse({...historicalSessionPreview,completedExercises:historicalSessionPreview.completedExercises.map(exercise=>({...exercise}))});setHistoricalSessionPreview(null);setSelectedWorkoutId(null);sessionReturnView.current="student";if(new URLSearchParams(window.location.search).get("mode")==="historical-session")window.history.replaceState(null,"","/app");setView("free-session");}} onSaveAsWorkout={slot=>saveHistoricalSessionAsWorkout(historicalSessionPreview,slot)} />;
+  if(view==="historical-workout"&&historicalSessionPreview)return <HistoricalWorkoutScreen student={selectedStudent} session={historicalSessionPreview} onBack={()=>{setHistoricalSessionPreview(null);if(new URLSearchParams(window.location.search).get("mode")==="historical-session"&&window.opener){window.close();return;}setTab("history");setView("student");}} onUseToday={editedSession=>{setSessionToReuse({...editedSession,completedExercises:editedSession.completedExercises.map(exercise=>({...exercise}))});setHistoricalSessionPreview(null);setSelectedWorkoutId(null);sessionReturnView.current="student";if(new URLSearchParams(window.location.search).get("mode")==="historical-session")window.history.replaceState(null,"","/app");setView("free-session");}} onSaveAsWorkout={(slot,editedSession,protocol)=>saveHistoricalSessionAsWorkout(editedSession,slot,protocol)} />;
   if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} personalTemplates={personalWorkoutTemplates} onTemplatesChange={setPersonalWorkoutTemplates} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
   if (view === "planned-session") return <PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} />;
   if (view === "attendance-session") return <AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
@@ -2992,7 +2997,7 @@ function studentScheduleDisplay(student:Student){
   return student.trainingSchedule||(looksLikeTrainingSchedule(student.weeklyFrequency)?student.weeklyFrequency:"")||"Não informado";
 }
 
-function StudentProfileIdentity({student,onEdit}:{student:Student;onEdit:()=>void}) {
+function StudentProfileIdentity({student,onEdit,onRegisterWorkout,onRegisterAttendance}:{student:Student;onEdit:()=>void;onRegisterWorkout:()=>void;onRegisterAttendance:()=>void}) {
   const age=calculateAge(student.birthDate);
   const months=monthsSince(student.startDate);
   const wa=whatsappLink(student.phone);
@@ -3014,6 +3019,8 @@ function StudentProfileIdentity({student,onEdit}:{student:Student;onEdit:()=>voi
     </div>
     <div className="student-profile-command-contact">
       {wa?<a className="primary button-link student-profile-whatsapp-main" href={wa} target="_blank" rel="noreferrer">🟢 WhatsApp</a>:null}
+      <button className="secondary" onClick={onRegisterWorkout}>Registrar treino</button>
+      <button className="secondary" onClick={onRegisterAttendance}>Registrar presença</button>
       <button className="secondary" onClick={onEdit}>Editar cadastro</button>
     </div>
   </div>;
@@ -3507,36 +3514,76 @@ function HistoryPanel({student,onSave,onDelete,onUseToday,onOpenWorkout}:{studen
 }
 
 
+function historicalSessionBlockMarker(exercise:Exercise){
+  const raw=(exercise.name||"").trim();
+  const normalized=normalizeName(raw);
+  if(!/^(?:bloco|sequencia)\b/.test(normalized))return null;
+  const protocol=detectWorkoutProtocol(raw);
+  if(!protocol||protocol==="CONVENTIONAL")return null;
+  return {label:raw,protocol};
+}
+
+function historicalSessionMetadataProtocol(exercise:Exercise):WorkoutProtocol|null{
+  const raw=(exercise.name||"").trim();
+  const normalized=normalizeName(raw);
+  if(!raw)return null;
+  if(/^treino\s+(?:convencional|tradicional)\b/.test(normalized))return "CONVENTIONAL";
+  if(/^treino\s+(?:em\s+)?(?:sistema|protocolo|metodo)\b/.test(normalized))return detectWorkoutProtocol(raw);
+  if(/^(?:sistema|protocolo|metodo)\b/.test(normalized))return detectWorkoutProtocol(raw);
+  return null;
+}
+
 function historicalSessionExerciseIsMetadata(exercise:Exercise){
-  const value=normalizeName(exercise.name||"");
-  return /^(?:treino em )?(?:sistema|protocolo|metodo)\b/.test(value);
+  return Boolean(historicalSessionMetadataProtocol(exercise)||historicalSessionBlockMarker(exercise));
 }
 
 function historicalSessionWorkoutExercises(session:Session){
   const named=session.completedExercises.filter(exercise=>exercise.name.trim());
-  const cleaned=named.filter(exercise=>!historicalSessionExerciseIsMetadata(exercise));
-  return cleaned.length?cleaned:named;
+  const output:Exercise[]=[];
+  let pendingBlock:{label:string;remaining:number}|null=null;
+
+  for(const exercise of named){
+    const marker=historicalSessionBlockMarker(exercise);
+    if(marker){
+      pendingBlock={label:marker.label,remaining:Math.max(1,defaultSequenceSize(marker.protocol))};
+      continue;
+    }
+    if(historicalSessionMetadataProtocol(exercise))continue;
+
+    const next={...exercise,notes:exercise.notes||""};
+    if(pendingBlock&&!next.block?.trim()){
+      next.block=pendingBlock.label;
+      pendingBlock.remaining-=1;
+      if(pendingBlock.remaining<=0)pendingBlock=null;
+    }
+    output.push(next);
+  }
+
+  return output.length?output:named.filter(exercise=>!historicalSessionExerciseIsMetadata(exercise));
 }
 
 function historicalSessionProtocol(student:Student,session:Session):WorkoutProtocol{
   const linked=student.workouts.find(workout=>workout.id===session.workoutId);
   if(linked?.protocol)return linked.protocol;
 
-  const detected=detectWorkoutProtocol([
-    session.workoutName,
-    session.focus||"",
-    session.notes||"",
-    ...session.completedExercises.map(exercise=>`${exercise.name} ${exercise.notes||""}`)
-  ].join(" "));
-  if(detected)return detected;
+  for(const exercise of session.completedExercises){
+    const metadataProtocol=historicalSessionMetadataProtocol(exercise);
+    if(metadataProtocol)return metadataProtocol;
+  }
 
+  const sessionLevel=detectWorkoutProtocol([session.workoutName,session.focus||"",session.notes||""].join(" "));
+  if(sessionLevel)return sessionLevel;
+
+  const exercises=historicalSessionWorkoutExercises(session);
   const blockCounts=new Map<string,number>();
-  historicalSessionWorkoutExercises(session).forEach(exercise=>{
+  let ungrouped=0;
+  exercises.forEach(exercise=>{
     const block=(exercise.block||"").trim();
     if(block)blockCounts.set(block,(blockCounts.get(block)||0)+1);
+    else ungrouped+=1;
   });
   const grouped=[...blockCounts.values()].filter(count=>count>1);
-  if(grouped.length){
+  if(grouped.length&&ungrouped===0){
     if(grouped.every(count=>count===2))return "BISET";
     if(grouped.every(count=>count===3))return "TRISET";
     if(grouped.every(count=>count>=4))return "CIRCUIT";
@@ -3548,6 +3595,7 @@ function historicalSessionProtocol(student:Student,session:Session):WorkoutProto
 function historicalSessionSequenceSize(student:Student,session:Session,protocol:WorkoutProtocol){
   const linked=student.workouts.find(workout=>workout.id===session.workoutId);
   if(linked?.sequenceSize)return linked.sequenceSize;
+  if(protocol==="CONVENTIONAL")return 1;
   const blockCounts=new Map<string,number>();
   historicalSessionWorkoutExercises(session).forEach(exercise=>{
     const block=(exercise.block||"").trim();
@@ -3563,8 +3611,8 @@ function historicalSessionSequenceSize(student:Student,session:Session,protocol:
   return defaultSequenceSize(protocol);
 }
 
-function historicalSessionToWorkout(student:Student,session:Session,slot:WorkoutSlot):Workout{
-  const protocol=historicalSessionProtocol(student,session);
+function historicalSessionToWorkout(student:Student,session:Session,slot:WorkoutSlot,protocolOverride?:WorkoutProtocol):Workout{
+  const protocol=protocolOverride||historicalSessionProtocol(student,session);
   const sequenceSize=historicalSessionSequenceSize(student,session,protocol);
   const linked=student.workouts.find(workout=>workout.id===session.workoutId);
   const notes=[
@@ -3586,12 +3634,20 @@ function historicalSessionToWorkout(student:Student,session:Session,slot:Workout
   };
 }
 
-function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWorkout}:{student:Student;session:Session;onBack:()=>void;onUseToday:()=>void;onSaveAsWorkout:(slot:WorkoutSlot)=>Promise<boolean>}){
+function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWorkout}:{student:Student;session:Session;onBack:()=>void;onUseToday:(session:Session)=>void;onSaveAsWorkout:(slot:WorkoutSlot,session:Session,protocol:WorkoutProtocol)=>Promise<boolean>}){
   const protocol=historicalSessionProtocol(student,session);
   const sequenceSize=historicalSessionSequenceSize(student,session,protocol);
-  const exercises=historicalSessionWorkoutExercises(session);
-  const [completed,setCompleted]=useState<Record<string,boolean>>(()=>Object.fromEntries(exercises.map(exercise=>[exercise.id,false])));
+  const [exercises,setExercises]=useState<Exercise[]>(()=>historicalSessionWorkoutExercises(session).map(exercise=>({...exercise})));
+  const [completed,setCompleted]=useState<Record<string,boolean>>(()=>Object.fromEntries(historicalSessionWorkoutExercises(session).map(exercise=>[exercise.id,false])));
   const [savingSlot,setSavingSlot]=useState<WorkoutSlot|null>(null);
+
+  function patchExercise(id:string,patch:Partial<Exercise>){
+    setExercises(current=>current.map(exercise=>exercise.id===id?{...exercise,...patch}:exercise));
+  }
+
+  function editedSession(){
+    return {...session,completedExercises:exercises.map(exercise=>({...exercise}))};
+  }
 
   const rawGroups:{key:string;label:string;items:{exercise:Exercise;index:number}[]}[]=[];
   exercises.forEach((exercise,index)=>{
@@ -3613,7 +3669,7 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
   async function saveAs(slot:WorkoutSlot){
     if(savingSlot)return;
     setSavingSlot(slot);
-    try{await onSaveAsWorkout(slot);}finally{setSavingSlot(null);}
+    try{await onSaveAsWorkout(slot,editedSession(),protocol);}finally{setSavingSlot(null);}
   }
 
   return <main className="app-page">
@@ -3626,7 +3682,7 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
         <span>🕘 Histórico · {formatDate(session.date)} · {workoutProtocolLabel(protocol)}</span>
         <strong>{session.focus||session.workoutName||"Treino realizado"}</strong>
         <small>{completedCount}/{exercises.length} marcados nesta visualização · abrir este treino não cria um novo registro.</small>
-        <button className="primary compact-button" disabled={!exercises.length} onClick={onUseToday}>Usar hoje</button>
+        <button className="primary compact-button" disabled={!exercises.length} onClick={()=>onUseToday(editedSession())}>Usar hoje</button>
       </div>
 
       <section className="panel">
@@ -3639,7 +3695,9 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
       {session.notes?.trim()?<div className="planned-note">📌 {session.notes}</div>:null}
 
       <div className="session-list">{groups.map((group,groupIndex)=>{
-        const groupType=group.grouped?protocol==="BISET"?"BI-SET":protocol==="TRISET"?"TRI-SET":protocol==="CIRCUIT"?"CIRCUITO":protocol==="B7"?"B7":"COMBINADO":"";
+        const localProtocol=detectWorkoutProtocol(group.label||"");
+        const groupProtocol=localProtocol&&localProtocol!=="CONVENTIONAL"?localProtocol:protocol;
+        const groupType=group.grouped?groupProtocol==="BISET"?"BI-SET":groupProtocol==="TRISET"?"TRI-SET":groupProtocol==="CIRCUIT"?"CIRCUITO":groupProtocol==="B7"?"B7":"COMBINADO":"";
         return <section className={`planned-exercise-group ${group.grouped?"combined":"single"}`} key={`${group.key}-${groupIndex}`}>
           {group.grouped?<div className="planned-sequence-header"><div className="planned-sequence-heading"><span>{groupType}</span><strong>{group.label||`Bloco ${group.letter}`}</strong></div><small>{group.items.length} exercícios juntos</small></div>:null}
           <div className="planned-sequence-items">{group.items.map(({exercise,index},position)=><article className={`session-exercise planned-row ${completed[exercise.id]?"is-done":""}`} key={exercise.id}>
@@ -3650,9 +3708,9 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
                 <input className="planned-name" value={exercise.name} readOnly aria-label="Exercício do histórico"/>
               </div>
               <div className="planned-fields planned-fields-core">
-                <input value={exercise.sets||""} placeholder="Séries" readOnly aria-label="Séries"/>
-                <input value={exercise.reps||""} placeholder="Repetições" readOnly aria-label="Repetições"/>
-                <input value={exercise.load||""} placeholder="Carga" readOnly aria-label="Carga"/>
+                <input value={exercise.sets||""} placeholder="Séries" onChange={event=>patchExercise(exercise.id,{sets:event.target.value})} aria-label="Séries"/>
+                <input value={exercise.reps||""} placeholder="Repetições" onChange={event=>patchExercise(exercise.id,{reps:event.target.value})} aria-label="Repetições"/>
+                <input value={exercise.load||""} placeholder="Carga" onChange={event=>patchExercise(exercise.id,{load:event.target.value})} aria-label="Carga"/>
               </div>
               {exercise.notes?.trim()?<div className="planned-note">📌 {exercise.notes}</div>:null}
             </div>

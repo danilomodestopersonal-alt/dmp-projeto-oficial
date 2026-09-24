@@ -82,6 +82,13 @@ function ruleTarget(rule:LearnedRule){
   if((rule.target==="PERSONAL"||rule.target==="EXPENSE")&&rule.targetName)return `${base} · ${rule.targetName}`;
   return base;
 }
+function resolvedDestinationLabel(move:Move){
+  if(move.kind==="OUT"&&move.suggestedTarget==="EXTRA"&&move.category)return `Categoria: ${move.category}`;
+  if(move.kind==="IN"&&move.suggestedTarget==="PERSONAL"&&move.suggestedTargetName)return `Aluno: ${move.suggestedTargetName}`;
+  if(move.kind==="IN"&&move.suggestedTargetName)return `Pessoa: ${move.suggestedTargetName}`;
+  if(move.suggestedTarget==="EXPENSE"&&move.suggestedTargetName)return `Conta: ${move.suggestedTargetName}`;
+  return "";
+}
 
 export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChanged,onBalanceChanged}:Props){
   const [data,setData]=useState<ApiData|null>(null);
@@ -380,7 +387,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
               <div><strong>{move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
               <small>{date(move.date)}{move.detail?` · ${move.detail}`:""}</small>
               {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedWrap}>
-                <div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{move.category&&move.suggestedTarget==="EXTRA"?` · ${move.category}`:""}{move.expenseName?` · ${move.expenseName}`:""}{move.suggestedTargetName&&!move.expenseName?` · ${move.suggestedTargetName}`:""} · {move.reason}</span>{move.suggestedTarget==="EXTRA"?<button type="button" onClick={()=>{setEditingId(current=>current===move.id?"":move.id);setError("");}}>✎ {editingId===move.id?"Fechar":"Editar"}</button>:null}</div>
+                <div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{resolvedDestinationLabel(move)?` · ${resolvedDestinationLabel(move)}`:""} · {move.reason}</span>{move.suggestedTarget==="EXTRA"?<button type="button" onClick={()=>{setEditingId(current=>current===move.id?"":move.id);setError("");}}>✎ {editingId===move.id?"Fechar":"Editar"}</button>:null}</div>
                 {editingId===move.id&&move.suggestedTarget==="EXTRA"?<div className={styles.compactEdit}>
                   <label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
                   <label><span>Nome do gasto</span><input value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})}/></label>
