@@ -28,6 +28,7 @@ type MoveStatus="AUTO_READY"|"REVIEW"|"PROCESSED"|"IGNORED"|"TECHNICAL"|"HISTORI
 type TargetType="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleMode="SUGGEST"|"AUTO";
 type RuleChoice="ONCE"|RuleMode;
+type PersonalSplitInput={targetId:string;amount:number};
 
 type LearnedRule={
   key:string;
@@ -1119,6 +1120,79 @@ async function persistDecision(move:Movement,target:TargetType,options:{category
     throw error;
   }finally{client.release();}
 }
+async function persistPersonalSplitDecision(move:Movement,splitsInput:PersonalSplitInput[]){
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const stateResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[STATE_ID]);
+    const state=stateResult.rows.length?parseState(stateResult.rows[0].payload):emptyState();
+    const prior=decisionFor(state,move.fingerprintAliases||[move.fingerprint]);
+    if(prior){
+      await client.query("ROLLBACK");
+      return {ok:true as const,already:true,decision:prior.decision,financeChanged:false};
+    }
+    const financeResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[FINANCE_ID]);
+    const finance=financeResult.rows[0]?.payload as FinanceData|undefined;
+    if(!finance||finance.version!==1){await client.query("ROLLBACK");return {ok:false as const,error:"Financeiro oficial não está disponível para conciliação."};}
+    const competence=(move.dateKey||CUTOVER_DATE).slice(0,7);
+    if(!finance.competences?.[competence]){await client.query("ROLLBACK");return {ok:false as const,error:`A competência ${competence} não existe no Financeiro.`};}
+    if(finance.competences[competence]?.status==="CLOSED"){await client.query("ROLLBACK");return {ok:false as const,error:`A competência ${competence} está fechada no Financeiro.`};}
+    const splits=splitsInput.map(item=>({targetId:String(item.targetId||"").trim(),amount:Number(item.amount)}));
+    if(splits.length<2||splits.some(item=>!item.targetId||!Number.isFinite(item.amount)||item.amount<=0)){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:"Informe pelo menos dois alunos e valores válidos para dividir o recebimento."};
+    }
+    if(new Set(splits.map(item=>item.targetId)).size!==splits.length){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:"Cada aluno pode aparecer apenas uma vez na divisão."};
+    }
+    const total=splits.reduce((sum,item)=>sum+item.amount,0);
+    if(Math.abs(total-move.amount)>0.005){
+      await client.query("ROLLBACK");
+      return {ok:false as const,error:`A soma distribuída (${total.toFixed(2)}) precisa ser igual ao PIX de ${move.amount.toFixed(2)}.`};
+    }
+    const resolved=splits.map(item=>{
+      const invoice=resolvePersonal(finance,competence,item.targetId,undefined);
+      if(!invoice)return {ok:false as const,error:"Não encontrei uma das mensalidades Personal selecionadas."};
+      const open=Math.max(0,invoice.expectedAmount-paid(invoice.payments));
+      if(open<=0.005)return {ok:false as const,error:`${invoice.studentName} já está quitado nesta competência.`};
+      if(item.amount>open+0.005)return {ok:false as const,error:`O valor de ${item.amount.toFixed(2)} é maior que o saldo em aberto de ${open.toFixed(2)} para ${invoice.studentName}.`};
+      return {ok:true as const,invoice,amount:item.amount};
+    });
+    const invalid=resolved.find(item=>!item.ok);
+    if(invalid&&!invalid.ok){await client.query("ROLLBACK");return {ok:false as const,error:invalid.error};}
+    const valid=resolved.filter((item):item is Extract<(typeof resolved)[number],{ok:true}>=>item.ok);
+    const note=`Mercado Pago · ${move.description}${move.sourceId?` · ref. ${move.sourceId}`:""}`;
+    const byInvoice=new Map(valid.map(item=>[item.invoice.id,item]));
+    const nextInvoices=finance.personalInvoices.map(invoice=>{
+      const item=byInvoice.get(invoice.id);
+      if(!item)return invoice;
+      const paymentId=`mp-payment-${hashId(`${move.fingerprint}|PERSONAL_SPLIT|${invoice.id}`)}`;
+      if(invoice.payments.some(payment=>payment.id===paymentId))return invoice;
+      return {...invoice,payments:[...invoice.payments,{id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:item.amount,note}]};
+    });
+    const historyEntries=valid.map(item=>{
+      const historyId=`mp-${hashId(`${move.fingerprint}|PERSONAL_SPLIT|${item.invoice.id}`)}`;
+      return financeHistory(historyId,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${item.invoice.studentName} registrado em divisão.`,item.amount,item.invoice.id);
+    });
+    const nextFinance:FinanceData={...finance,personalInvoices:nextInvoices,history:[...(finance.history||[]),...historyEntries]};
+    await client.query(`
+      INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW())
+      ON CONFLICT (id) DO NOTHING
+    `,[FINANCE_BACKUP_ID,JSON.stringify(finance)]);
+    await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(nextFinance)]);
+    const targetName=valid.map(item=>`${item.invoice.studentName} ${item.amount.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`).join(" + ");
+    const decision:SavedDecision={fingerprint:move.fingerprint,target:"PERSONAL",targetName,automatic:false,updatedAt:new Date().toISOString()};
+    state.decisions[move.fingerprint]=decision;
+    await client.query(`INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()`,[STATE_ID,JSON.stringify(state)]);
+    await client.query("COMMIT");
+    return {ok:true as const,already:false,decision,financeChanged:true};
+  }catch(error){
+    try{await client.query("ROLLBACK");}catch{}
+    throw error;
+  }finally{client.release();}
+}
+
 async function updateProcessedExtra(move:Movement,categoryInput:string,expenseNameInput:string){
   const category=categoryInput.trim();
   const expenseName=expenseNameInput.trim();
@@ -1227,6 +1301,22 @@ export async function POST(request:NextRequest){
       if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada no relatório atual. Atualize a leitura e tente novamente."},{status:404});
       if(move.historical||move.technical)return NextResponse.json({ok:false,error:"Esta movimentação não pode ser editada."},{status:400});
       const result=await updateProcessedExtra(move,category,expenseName);
+      if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
+      return NextResponse.json(result);
+    }
+
+    if(action==="decision-personal-split"){
+      const fingerprint=String(body?.fingerprint||"").trim();
+      const rawSplits=Array.isArray(body?.splits)?body.splits:[];
+      const splits:PersonalSplitInput[]=rawSplits.map((item:any)=>({targetId:String(item?.targetId||"").trim(),amount:Number(item?.amount)}));
+      if(!fingerprint)return NextResponse.json({ok:false,error:"Movimentação inválida."},{status:400});
+      const snapshot=await buildOverview();
+      const move=snapshot.movements.find(item=>item.fingerprint===fingerprint);
+      if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada no relatório atual. Atualize a leitura e tente novamente."},{status:404});
+      if(move.historical)return NextResponse.json({ok:false,error:"Movimentações anteriores ao corte de 18/09/2026 ficam apenas no histórico."},{status:400});
+      if(move.technical)return NextResponse.json({ok:false,error:"Este movimento é técnico e não precisa ser lançado no Financeiro."},{status:400});
+      if(move.kind!=="IN")return NextResponse.json({ok:false,error:"A divisão entre alunos só pode ser usada em um recebimento."},{status:400});
+      const result=await persistPersonalSplitDecision(move,splits);
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
     }

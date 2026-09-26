@@ -94,10 +94,19 @@ export function recordCompletedReplacement(
         ? rosterAttendance
         : { ...lesson.attendance, ...rosterAttendance },
   };
-  const usages = new Map(
-    (data.replacementUsages || []).map((usage) => [usage.id, usage]),
+  const rosterSet = new Set(roster);
+  const currentUsages = data.replacementUsages || [];
+  const staleUsageIds = new Set(
+    currentUsages
+      .filter((usage) => usage.lessonId === normalizedLesson.id && !rosterSet.has(usage.studentId))
+      .map((usage) => usage.id),
   );
-  let usageChanged = false;
+  const usages = new Map(
+    currentUsages
+      .filter((usage) => !staleUsageIds.has(usage.id))
+      .map((usage) => [usage.id, usage]),
+  );
+  let usageChanged = staleUsageIds.size > 0;
   for (const studentId of roster) {
     const usage = usageFor(normalizedLesson, studentId);
     const current = usages.get(usage.id);

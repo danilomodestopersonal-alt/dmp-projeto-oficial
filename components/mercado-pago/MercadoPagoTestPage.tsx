@@ -26,7 +26,8 @@ type ApiData={
   reports:{settlement:ReportState;release:ReportState};firstCollectionNotice:boolean;learnedRuleCount:number;learnedRules:LearnedRule[];
   financeContext:FinanceContext;financeConnected:boolean;
 };
-type Choice={target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice};
+type PersonalSplit={targetId:string;targetName:string;amount:string};
+type Choice={target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice;splitPersonal:boolean;personalSplits:PersonalSplit[]};
 
 type Props={financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
@@ -84,7 +85,7 @@ function ruleTarget(rule:LearnedRule){
 }
 function resolvedDestinationLabel(move:Move){
   if(move.kind==="OUT"&&move.suggestedTarget==="EXTRA"&&move.category)return `Categoria: ${move.category}`;
-  if(move.kind==="IN"&&move.suggestedTarget==="PERSONAL"&&move.suggestedTargetName)return `Aluno: ${move.suggestedTargetName}`;
+  if(move.kind==="IN"&&move.suggestedTarget==="PERSONAL"&&move.suggestedTargetName)return `${move.suggestedTargetName.includes(" + ")?"Alunos":"Aluno"}: ${move.suggestedTargetName}`;
   if(move.kind==="IN"&&move.suggestedTargetName)return `Pessoa: ${move.suggestedTargetName}`;
   if(move.suggestedTarget==="EXPENSE"&&move.suggestedTargetName)return `Conta: ${move.suggestedTargetName}`;
   return "";
@@ -244,14 +245,48 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
       const found=data?.financeContext.expenses.find(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
       if(found)targetId=found.id;
     }
-    return {target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE"};
+    return {target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE",splitPersonal:false,personalSplits:[]};
   }
   function choiceFor(move:Move){return choices[move.fingerprint]||defaultChoice(move);}
   function patchChoice(move:Move,patch:Partial<Choice>){setChoices(current=>({...current,[move.fingerprint]:{...choiceFor(move),...patch}}));}
-  function changeTarget(move:Move,target:Target){patchChoice(move,{target,targetId:"",targetName:"",expenseName:move.expenseName||move.description,ruleChoice:"ONCE"});}
+  function changeTarget(move:Move,target:Target){patchChoice(move,{target,targetId:"",targetName:"",expenseName:move.expenseName||move.description,ruleChoice:"ONCE",splitPersonal:false,personalSplits:[]});}
+  function personalSplitTotal(choice:Choice){return choice.personalSplits.reduce((sum,item)=>sum+(Number(String(item.amount).replace(",","."))||0),0);}
+  function startPersonalSplit(move:Move){
+    const choice=choiceFor(move);
+    const first=choice.targetId?{targetId:choice.targetId,targetName:choice.targetName,amount:""}:{targetId:"",targetName:"",amount:""};
+    patchChoice(move,{splitPersonal:true,ruleChoice:"ONCE",personalSplits:[first,{targetId:"",targetName:"",amount:""}]});
+  }
+  function stopPersonalSplit(move:Move){patchChoice(move,{splitPersonal:false,personalSplits:[],ruleChoice:"ONCE"});}
+  function patchPersonalSplit(move:Move,index:number,patch:Partial<PersonalSplit>){
+    const choice=choiceFor(move);
+    const personalSplits=choice.personalSplits.map((item,itemIndex)=>itemIndex===index?{...item,...patch}:item);
+    patchChoice(move,{personalSplits,ruleChoice:"ONCE"});
+  }
 
   async function decide(move:Move){
     const choice=choiceFor(move);
+    if(choice.target==="PERSONAL"&&choice.splitPersonal){
+      const splits=choice.personalSplits.map(item=>({...item,amount:Number(String(item.amount).replace(",","."))||0})).filter(item=>item.targetId||item.amount>0);
+      if(splits.length<2){setError("Escolha pelo menos dois alunos para dividir este recebimento.");return;}
+      if(splits.some(item=>!item.targetId||item.amount<=0)){setError("Informe aluno e valor em todas as partes do recebimento.");return;}
+      if(new Set(splits.map(item=>item.targetId)).size!==splits.length){setError("Cada aluno pode aparecer apenas uma vez na divisão.");return;}
+      const total=splits.reduce((sum,item)=>sum+item.amount,0);
+      if(Math.abs(total-move.amount)>0.005){setError(`A soma distribuída (${money.format(total)}) precisa ser igual ao PIX de ${money.format(move.amount)}.`);return;}
+      setSavingId(move.id);setMessage("");setError("");
+      try{
+        const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          action:"decision-personal-split",fingerprint:move.fingerprint,splits:splits.map(item=>({targetId:item.targetId,amount:item.amount})),
+        })});
+        const payload=await response.json();
+        if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível dividir este recebimento.");
+        if(payload.financeChanged)await onFinanceChanged?.();
+        setMessage("Recebimento Personal dividido entre os alunos e lançado sem duplicar a receita.");
+        setChoices(current=>{const next={...current};delete next[move.fingerprint];return next;});
+        await load(true);
+      }catch(err){setError(err instanceof Error?err.message:"Não foi possível dividir este recebimento.");}
+      finally{setSavingId("");}
+      return;
+    }
     if(choice.target==="PERSONAL"&&!choice.targetId){setError("Escolha o aluno do Personal para este recebimento.");return;}
     if(choice.target==="EXPENSE"&&!choice.targetId){setError("Escolha a conta do plano para este pagamento.");return;}
     if(choice.target==="EXTRA"&&!choice.category){setError("Escolha a categoria do gasto extra.");return;}
@@ -399,11 +434,21 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
                   <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
                   {choice.target==="EXTRA"?<label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>:null}
                   {choice.target==="EXTRA"?<label><span>Nome do gasto (opcional)</span><input value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})} placeholder="Ex.: Cachorro-quente"/></label>:null}
-                  {choice.target==="PERSONAL"?<label><span>Aluno Personal</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {money.format(item.remaining)} em aberto</option>)}</select></label>:null}
+                  {choice.target==="PERSONAL"&&!choice.splitPersonal?<label><span>Aluno Personal</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {money.format(item.remaining)} em aberto</option>)}</select><button type="button" className="secondary" onClick={()=>startPersonalSplit(move)}>Dividir entre alunos</button></label>:null}
+                  {choice.target==="PERSONAL"&&choice.splitPersonal?<div className={styles.fullField} style={{display:"grid",gap:7,padding:"8px",border:"1px solid #dfe4d8",borderRadius:9,background:"#f8faf6"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><strong style={{fontSize:12}}>Dividir recebimento entre alunos</strong><button type="button" className="secondary" onClick={()=>stopPersonalSplit(move)}>Usar um aluno</button></div>
+                    {choice.personalSplits.map((split,index)=><div key={index} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 130px auto",gap:6,alignItems:"end"}}>
+                      <label><span>Aluno {index+1}</span><select value={split.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchPersonalSplit(move,index,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {money.format(item.remaining)} em aberto</option>)}</select></label>
+                      <label><span>Valor</span><input inputMode="decimal" value={split.amount} onChange={e=>patchPersonalSplit(move,index,{amount:e.target.value})} placeholder="0,00"/></label>
+                      {choice.personalSplits.length>2?<button type="button" className="secondary" onClick={()=>patchChoice(move,{personalSplits:choice.personalSplits.filter((_,itemIndex)=>itemIndex!==index),ruleChoice:"ONCE"})}>Remover</button>:<span/>}
+                    </div>)}
+                    <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap",fontSize:11}}><button type="button" className="secondary" onClick={()=>patchChoice(move,{personalSplits:[...choice.personalSplits,{targetId:"",targetName:"",amount:""}],ruleChoice:"ONCE"})}>+ Adicionar aluno</button><span><b>Total distribuído:</b> {money.format(personalSplitTotal(choice))} · <b>Restante:</b> {money.format(Math.max(0,move.amount-personalSplitTotal(choice)))}</span></div>
+                    <small style={{color:"#71796d"}}>A soma precisa fechar exatamente o valor do PIX. Esta divisão vale somente para esta movimentação.</small>
+                  </div>:null}
                   {choice.target==="EXPENSE"?<label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.expenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||""});}}><option value="">Selecione...</option>{data?.financeContext.expenses.map(item=><option key={item.id} value={item.id}>{item.name} · {money.format(item.remaining)} em aberto</option>)}</select></label>:null}
                   {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}
-                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
+                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn||choice.splitPersonal} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{choice.splitPersonal?"Divisões entre vários alunos são sempre tratadas somente nesta movimentação.":move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
                 </div>
                 <div className={styles.suggestionNote}>{move.confidence}% · {move.reason}</div>
               </div>}

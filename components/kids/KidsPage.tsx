@@ -22,7 +22,6 @@ import type {
 import type { FinanceData } from "@/types/financeiro";
 import { reconcileKidsFinance } from "@/lib/financeiro/kids-sync";
 import {
-  completedReplacementRosterChanged,
   KIDS_REPLACEMENT_INTEGRITY_VERSION,
   recordCompletedReplacement,
   replacementRosterIsValid,
@@ -492,10 +491,6 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   async function updateLesson(next: KidsLesson) {
     if (!data) return;
     const current=data.lessons.find(item=>item.id===next.id);
-    if(completedReplacementRosterChanged(current,next)){
-      setNotice("A lista de participantes desta reposição já realizada está protegida. A chamada pode ser corrigida sem remover crianças.");
-      return;
-    }
     const hasReplacementRoster=Boolean(next.replacementStudentIds?.length);
     if(hasReplacementRoster&&next.status==="COMPLETED"&&!replacementRosterIsValid(next)){
       setNotice("Confira a lista da reposição: todo participante precisa estar marcado como presente ou falta.");
@@ -1607,9 +1602,11 @@ function LessonEditor({
     attendance: { ...lesson.attendance },
   });
   const [replacementStudent,setReplacementStudent]=useState("");
+  const [rosterCorrectionMode,setRosterCorrectionMode]=useState(false);
   const replacementLesson=draft.kind==="REPLACEMENT";
   const hasReplacementRoster=replacementLesson||Boolean(draft.replacementStudentIds?.length);
   const rosterLocked=hasReplacementRoster&&(draft.status==="COMPLETED"||Boolean(draft.replacementRosterLocked));
+  const rosterEditable=hasReplacementRoster&&(!rosterLocked||rosterCorrectionMode);
   const regularStudents = (replacementLesson ? [] : group.students)
     .filter(
       (item) =>
@@ -1651,9 +1648,12 @@ function LessonEditor({
     }));
   }
   function removeReplacementStudent(studentId:string){
-    if(rosterLocked)return;
+    if(!rosterEditable)return;
     const student=allStudents.find(item=>item.id===studentId);
-    if(!window.confirm(`Remover ${student?.name||"esta criança"} da lista desta reposição?`))return;
+    const message=rosterLocked
+      ? `Remover ${student?.name||"esta criança"} desta reposição já realizada?\n\nUse esta correção somente se a criança foi incluída por engano. Uma falta deve continuar marcada como falta e não devolve o crédito.`
+      : `Remover ${student?.name||"esta criança"} da lista desta reposição?`;
+    if(!window.confirm(message))return;
     setDraft(current=>{
       const attendance={...current.attendance};
       delete attendance[studentId];
@@ -1825,16 +1825,18 @@ function LessonEditor({
             </div>
             {hasReplacementRoster?<div className={styles.rosterIntegrityNotice}>
               <strong>{rosterLocked?"🔒 Lista protegida":"Lista de participantes"}</strong>
-              <span>{rosterLocked?"A reposição já foi realizada. Marcar falta não remove a criança nem devolve o crédito.":"A chamada altera somente presença ou falta. Participantes só podem ser removidos na edição abaixo."}</span>
+              <span>{rosterLocked?"A reposição já foi realizada. Uma falta continua consumindo o crédito. Se alguém foi incluído por engano, use Corrigir participantes.":"A chamada altera somente presença ou falta. Participantes podem ser corrigidos na edição abaixo."}</span>
+              {rosterLocked&&!rosterCorrectionMode?<button type="button" onClick={()=>setRosterCorrectionMode(true)}>Corrigir participantes</button>:null}
+              {rosterLocked&&rosterCorrectionMode?<button type="button" onClick={()=>setRosterCorrectionMode(false)}>Fechar correção</button>:null}
             </div>:null}
-            {hasReplacementRoster&&!rosterLocked?<details className={styles.participantEditor}>
+            {rosterEditable?<details className={styles.participantEditor} open={rosterCorrectionMode}>
               <summary>Editar participantes ({rosterIds.length})</summary>
               <div>{rosterIds.map(studentId=>{
                 const student=allStudents.find(item=>item.id===studentId);
                 return <p key={studentId}><span>{student?.name||"Aluno"}</span><button type="button" onClick={()=>removeReplacementStudent(studentId)}>Remover</button></p>;
               })}</div>
             </details>:null}
-            {pendingStudents.length&&!rosterLocked ? <div className={styles.cancelBox}>
+            {pendingStudents.length&&rosterEditable ? <div className={styles.cancelBox}>
               <strong>Adicionar criança em reposição</strong>
               <div className={styles.inlineActions}>
                 <select value={replacementStudent} onChange={event=>setReplacementStudent(event.target.value)}><option value="">Selecione a criança</option>{pendingStudents.map(student=><option key={student.id} value={student.id}>{student.name}</option>)}</select>
@@ -1845,6 +1847,7 @@ function LessonEditor({
               {students.map((student) => {
                 const value = (draft.attendance[student.id] ||
                   "PRESENT") as KidsAttendanceStatus;
+                const replacementParticipant=rosterIds.includes(student.id);
                 return (
                   <button
                     key={student.id}
@@ -1855,7 +1858,7 @@ function LessonEditor({
                   >
                     <span>{value === "PRESENT" ? "✓" : "×"}</span>
                     <strong>{student.name}</strong>
-                    <small>{value === "PRESENT" ? "Presente" : "Falta"}</small>
+                    <small>{replacementParticipant?`Reposição · ${value === "PRESENT" ? "Presente" : "Falta"}`:value === "PRESENT" ? "Presente" : "Falta"}</small>
                   </button>
                 );
               })}
