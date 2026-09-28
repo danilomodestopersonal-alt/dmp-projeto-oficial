@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { computeKidsStudentReplacementBalance } from "@/lib/kids/replacement-balance";
+import type { KidsData } from "@/types/kids";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +60,25 @@ export async function GET(request: NextRequest) {
       [DATA_ID]
     );
 
+    const data = (result.rows[0]?.payload || null) as KidsData | null;
+
+    const studentIds = data
+      ? [...new Set(
+          data.classes.flatMap((group) =>
+            group.students
+              .filter((student) => student.active)
+              .map((student) => student.id)
+          )
+        )]
+      : [];
+
+    const studentReplacementBalances = data
+      ? studentIds.map((studentId) => ({
+          studentId,
+          ...computeKidsStudentReplacementBalance(data, studentId),
+        }))
+      : [];
+
     return NextResponse.json(
       {
         ok: true,
@@ -65,7 +86,8 @@ export async function GET(request: NextRequest) {
         dataset: DATA_ID,
         mode: "read-only",
         updatedAt: iso(result.rows[0]?.updated_at),
-        data: result.rows[0]?.payload || null,
+        data,
+        studentReplacementBalances,
       },
       { headers: { "Cache-Control": "no-store" } }
     );
