@@ -62,6 +62,8 @@ export type DsReceipt = {
 export type FinanceExpenseKind = "RECURRING" | "INSTALLMENT" | "CARD" | "VARIABLE";
 
 export type FinanceExpense = {
+  seriesId?: string;
+  startCompetence?: string;
   id: string;
   competence: string;
   name: string;
@@ -144,6 +146,8 @@ export type FinanceData = {
   dsKids: DsKidEntry[];
   dsReceipts: Record<string, DsReceipt[]>;
   expenses: FinanceExpense[];
+  expenseContinuations?: FinanceExpense[];
+  expenseSeriesStops?: Record<string,string>;
   extraExpenses: ExtraExpense[];
   carriedPendencies?: FinanceCarryoverEntry[];
   categories: string[];

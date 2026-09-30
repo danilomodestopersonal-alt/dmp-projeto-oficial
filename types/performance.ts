@@ -105,6 +105,24 @@ export type PerformanceAssessment = {
   id: string;
   date: string;
   weightKg?: number | null;
+  height?: number | null;
+  bmi?: number | null;
+  fatMass?: number | null;
+  leanMass?: number | null;
+  leanMassPercent?: number | null;
+  waterPercent?: number | null;
+  totalBodyWaterLiters?: number | null;
+  hydrationIndex?: number | null;
+  waterLeanPercent?: number | null;
+  intracellularWaterLiters?: number | null;
+  extracellularWaterLiters?: number | null;
+  intracellularWaterPercent?: number | null;
+  muscleMassPercent?: number | null;
+  muscleFatRatio?: number | null;
+  basalMetabolicRate?: number | null;
+  phaseAngle?: number | null;
+  cellularAge?: number | null;
+
   bodyFatPercent?: number | null;
   muscleMassKg?: number | null;
   waistCm?: number | null;

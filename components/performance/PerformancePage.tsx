@@ -1,3 +1,4 @@
+import { PERFORMANCE_COMPOSITION_FIELDS, emptyCompositionFields, importPerformanceAssessment, type PerformanceCompositionField } from "@/lib/assessments/performance-fields";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   PerformanceActivity,
@@ -46,7 +47,7 @@ type GoalForm = {
   target: string;
 };
 
-type AssessmentForm = {
+type AssessmentForm = Record<PerformanceCompositionField,string> & {
   id?: string;
   date: string;
   weightKg: string;
@@ -355,6 +356,7 @@ function emptyGoal(): GoalForm {
 
 function emptyAssessment(): AssessmentForm {
   return {
+    ...emptyCompositionFields(),
     date: localToday(),
     weightKg: "",
     bodyFatPercent: "",
@@ -379,6 +381,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const [strengthTranscript,setStrengthTranscript]=useState("");
   const [strengthListening,setStrengthListening]=useState(false);
   const [goalForm, setGoalForm] = useState<GoalForm>(emptyGoal());
+  const [assessmentText,setAssessmentText]=useState("");
+  const [assessmentTextMessage,setAssessmentTextMessage]=useState("");
   const [assessmentForm, setAssessmentForm] = useState<AssessmentForm>(emptyAssessment());
   const [filterType, setFilterType] = useState<"ALL" | PerformanceActivityType>("ALL");
   const [filterCyclingKind, setFilterCyclingKind] = useState<"ALL" | PerformanceCyclingKind>("ALL");
@@ -847,12 +851,15 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   }
 
   function openNewAssessment() {
+    setAssessmentText(""); setAssessmentTextMessage("");
     setAssessmentForm(emptyAssessment());
     setModal("assessment");
   }
 
   function openEditAssessment(item: PerformanceAssessment) {
+    setAssessmentText(""); setAssessmentTextMessage("");
     setAssessmentForm({
+      ...Object.fromEntries(PERFORMANCE_COMPOSITION_FIELDS.map(([key])=>[key,item[key]?.toString() || ""])) as Record<PerformanceCompositionField,string>,
       id: item.id,
       date: item.date,
       weightKg: item.weightKg?.toString() || "",
@@ -868,6 +875,14 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     setModal("assessment");
   }
 
+  function organizeAssessmentText() {
+    if(!assessmentText.trim()){setAssessmentTextMessage("Cole os dados da avaliação antes de organizar.");return;}
+    const imported=importPerformanceAssessment(assessmentText);
+    const count=Object.keys(imported).length;
+    if(!count){setAssessmentTextMessage("Não encontrei dados reconhecíveis nesse texto.");return;}
+    setAssessmentForm(current=>({...current,...imported}));
+    setAssessmentTextMessage(`${count} dados organizados. Revise os campos abaixo antes de salvar.`);
+  }
   async function submitAssessment(event: FormEvent) {
     event.preventDefault();
     if (!assessmentForm.date) return;
@@ -875,6 +890,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     const existing = assessmentForm.id ? data.assessments.find(a => a.id === assessmentForm.id) : null;
     const item: PerformanceAssessment = {
       id: existing?.id || uid(),
+      ...Object.fromEntries(PERFORMANCE_COMPOSITION_FIELDS.map(([key])=>[key,toNumber(assessmentForm[key])])),
       date: assessmentForm.date,
       weightKg: toNumber(assessmentForm.weightKg),
       bodyFatPercent: toNumber(assessmentForm.bodyFatPercent),
@@ -1270,6 +1286,13 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       {modal === "assessment" ? (
         <ModalShell title={assessmentForm.id ? "Editar avaliação" : "Nova avaliação física"} eyebrow="EVOLUÇÃO CORPORAL" onClose={() => setModal(null)}>
           <form onSubmit={submitAssessment} className={styles.form}>
+            <div className="assessment-pdf-box assessment-text-import">
+              <strong>Importar avaliação por texto</strong>
+              <small>Cole os dados, organize e revise antes de salvar.</small>
+              <textarea rows={8} value={assessmentText} onChange={e=>setAssessmentText(e.target.value)} placeholder={"Data: 30/09/2026\nPeso: 87 kg\nMassa muscular kg: 40"}/>
+              <button type="button" className="primary" onClick={organizeAssessmentText}>Organizar dados</button>
+              {assessmentTextMessage?<p role="status">{assessmentTextMessage}</p>:null}
+            </div>
             <div className={styles.formGrid}>
               <Field label="Data"><input type="date" value={assessmentForm.date} onChange={e => setAssessmentForm({...assessmentForm,date:e.target.value})} required /></Field>
               <Field label="Peso (kg)"><input inputMode="decimal" value={assessmentForm.weightKg} onChange={e => setAssessmentForm({...assessmentForm,weightKg:e.target.value})} /></Field>
@@ -1280,6 +1303,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <Field label="Peitoral (cm)"><input inputMode="decimal" value={assessmentForm.chestCm} onChange={e => setAssessmentForm({...assessmentForm,chestCm:e.target.value})} /></Field>
               <Field label="Braço (cm)"><input inputMode="decimal" value={assessmentForm.armCm} onChange={e => setAssessmentForm({...assessmentForm,armCm:e.target.value})} /></Field>
               <Field label="Coxa (cm)"><input inputMode="decimal" value={assessmentForm.thighCm} onChange={e => setAssessmentForm({...assessmentForm,thighCm:e.target.value})} /></Field>
+              {PERFORMANCE_COMPOSITION_FIELDS.map(([key,label])=><Field key={key} label={label}><input inputMode="decimal" value={assessmentForm[key]} onChange={e=>setAssessmentForm({...assessmentForm,[key]:e.target.value})}/></Field>)}
               <Field label="Observações" full><textarea rows={4} value={assessmentForm.notes} onChange={e => setAssessmentForm({...assessmentForm,notes:e.target.value})} /></Field>
             </div>
             <ModalActions saving={saving} onCancel={() => setModal(null)} label="Salvar avaliação" />

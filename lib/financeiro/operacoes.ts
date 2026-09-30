@@ -27,9 +27,9 @@ export type FinanceCommand =
   | { type: "DS_RECEIPT_ADD"; competence: string; date: string; amount: number; sourceName?: string; note?: string }
   | { type: "DS_RECEIPT_DELETE"; competence: string; receiptId: string }
   | { type: "RANKING_SET"; competence: string; amount: number }
-  | { type: "EXPENSE_CREATE"; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
+  | { type: "EXPENSE_CREATE"; startCompetence?:string; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
   | { type: "EXPENSE_UPDATE"; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
-  | { type: "EXPENSE_DELETE"; id: string }
+  | { type: "EXPENSE_DELETE"; id: string; scope?:"CURRENT"|"CURRENT_AND_FUTURE" }
   | { type: "EXPENSE_PAYMENT_ADD"; expenseId: string; date: string; amount: number; note?: string }
   | { type: "EXPENSE_PAYMENT_DELETE"; expenseId: string; paymentId: string }
   | { type: "EXTRA_CREATE"; competence: string; date: string; description: string; category: string; paymentMethod?: string; amount: number }
@@ -93,7 +93,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     .filter(item=>!item.excludedFromTotals)
     .filter(item=>!!item.studentId)
     .filter(item=>item.billingMode!=="SINGLE");
-  const sourceExpenses = data.expenses.filter(item => item.competence === fromCompetence);
+  const sourceExpenses = [...data.expenses,...(data.expenseContinuations||[])].filter(item => item.competence === fromCompetence);
 
   const personalInvoices: PersonalInvoice[] = sourcePersonal.map(item => ({
     ...item,
@@ -114,11 +114,13 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     }));
 
   const expenses: FinanceExpense[] = sourceExpenses.flatMap(item => {
-    if (item.kind === "VARIABLE") return [];
+    if (item.kind === "VARIABLE" || (data.expenseSeriesStops?.[item.seriesId||item.id] && target >= data.expenseSeriesStops[item.seriesId||item.id])) return [];
     if (item.kind === "INSTALLMENT" && item.installmentCurrent && item.installmentTotal && item.installmentCurrent >= item.installmentTotal) return [];
     return [{
       ...item,
       id: id("expense"),
+      seriesId: item.seriesId || item.id,
+      startCompetence: item.startCompetence || item.competence,
       competence: target,
       expectedAmount: item.kind === "CARD" ? 0 : item.expectedAmount,
       installmentCurrent: item.kind === "INSTALLMENT" && item.installmentCurrent && item.installmentTotal
@@ -146,6 +148,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
 }
 
 function commandCompetence(data: FinanceData, command: FinanceCommand): string {
+  if(command.type==="EXPENSE_CREATE" && command.startCompetence) return command.startCompetence;
   if ("competence" in command && typeof command.competence === "string") return command.competence;
   if ("fromCompetence" in command) return command.fromCompetence;
   if ("invoiceId" in command) return data.personalInvoices.find(item => item.id === command.invoiceId)?.competence || data.currentCompetence;
@@ -249,8 +252,21 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory({ ...data, rankingByCompetence: { ...data.rankingByCompetence, [command.competence]: command.amount } }, historyEntry(command.competence, "RANKING_UPDATED", "Valor do ranking atualizado.", command.amount));
     }
 
-    case "EXPENSE_CREATE": { const expense: FinanceExpense = { id: id("expense"), competence: command.competence, name: command.name.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null, kind: command.kind, note: command.note?.trim() || undefined, paymentLink: command.paymentLink?.trim() || undefined, payments: [] };
-      return withHistory({ ...data, expenses: [...data.expenses, expense] }, historyEntry(command.competence, "EXPENSE_CREATED", `Despesa ${expense.name} criada.`, expense.expectedAmount, expense.id));
+    case "EXPENSE_CREATE": {
+      const start=command.startCompetence || command.competence;
+      if(!isValidExpenseCompetence(start) || !Number.isInteger(command.dueDay) || command.dueDay<1 || command.dueDay>31) return data;
+      if(command.kind==="INSTALLMENT" && (!Number.isInteger(command.installmentTotal) || !Number.isInteger(command.installmentCurrent) || Number(command.installmentCurrent)<1 || Number(command.installmentCurrent)>Number(command.installmentTotal))) return data;
+      let prepared=data;
+      if(!prepared.competences[start]) {
+        let from=Object.keys(data.competences).filter(value=>value<start).sort().at(-1);
+        if(!from) return data;
+        const distance=(Number(start.slice(0,4))-Number(from.slice(0,4)))*12+Number(start.slice(5))-Number(from.slice(5));
+        if(distance>120) return data;
+        while(from<start){prepared=generateNextCompetence(prepared,from);from=nextCompetence(from);}
+      }
+      if(!isCompetenceEditable(prepared,start)) return data;
+      const expense:FinanceExpense={id:id("expense"),seriesId:id("expense-series"),startCompetence:start,competence:start,name:command.name.trim(),dueDay:command.dueDay,expectedAmount:command.expectedAmount,installmentCurrent:command.installmentCurrent??null,installmentTotal:command.installmentTotal??null,kind:command.kind,note:command.note?.trim()||undefined,paymentLink:command.paymentLink?.trim()||undefined,payments:[]};
+      return withHistory({...prepared,currentCompetence:start,expenses:[...prepared.expenses,expense]},historyEntry(start,"EXPENSE_CREATED",`Despesa ${expense.name} criada com início em ${start}.`,expense.expectedAmount,expense.id));
     }
 
     case "EXPENSE_UPDATE": { const current = data.expenses.find(item => item.id === command.id); if (!current) return data;
@@ -258,8 +274,19 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory({ ...data, expenses: updated }, historyEntry(current.competence, "EXPENSE_UPDATED", `Despesa ${command.name.trim()} atualizada.`, command.expectedAmount, command.id));
     }
 
-    case "EXPENSE_DELETE": { const current = data.expenses.find(item => item.id === command.id); if (!current) return data;
-      return withHistory({ ...data, expenses: data.expenses.filter(item => item.id !== command.id) }, historyEntry(current.competence, "EXPENSE_DELETED", `Despesa ${current.name} excluída.`, current.expectedAmount, current.id));
+    case "EXPENSE_DELETE": {
+      const current=data.expenses.find(item=>item.id===command.id);if(!current)return data;
+      const scope=command.scope||"CURRENT";
+      if(scope==="CURRENT" && current.payments.length) return data;
+      if(scope==="CURRENT_AND_FUTURE" && (!current.seriesId || current.kind==="VARIABLE")) return data;
+      const series=current.seriesId||current.id;
+      const candidates=data.expenses.filter(item=>scope==="CURRENT"?item.id===current.id:(item.seriesId||item.id)===series && item.competence>=current.competence);
+      const removable=candidates.filter(item=>!item.payments.length && isCompetenceEditable(data,item.competence));
+      const ids=new Set(removable.map(item=>item.id));
+      let continuations=(data.expenseContinuations||[]).filter(item=>scope==="CURRENT"?item.id!==current.id:(item.seriesId||item.id)!==series || item.competence<current.competence);
+      if(scope==="CURRENT" && current.kind!=="VARIABLE") continuations=[...continuations,{...current,seriesId:series,payments:[]}];
+      const stops=scope==="CURRENT_AND_FUTURE"?{...data.expenseSeriesStops,[series]:data.expenseSeriesStops?.[series] && data.expenseSeriesStops[series]<current.competence?data.expenseSeriesStops[series]:current.competence}:data.expenseSeriesStops;
+      return withHistory({...data,expenses:data.expenses.filter(item=>!ids.has(item.id)),expenseContinuations:continuations,expenseSeriesStops:stops},historyEntry(current.competence,"EXPENSE_DELETED",`Despesa ${current.name}: ${removable.length} lançamento(s) excluído(s)${scope==="CURRENT_AND_FUTURE"?"; próximas cobranças interrompidas":" nesta competência"}. Pagamentos e competências fechadas preservados.`,current.expectedAmount,current.id));
     }
 
     case "EXPENSE_PAYMENT_ADD": { const expense = data.expenses.find(item => item.id === command.expenseId); if (!expense) return data;
@@ -380,3 +407,5 @@ export function findDuplicateExtra(data: FinanceData, competence: string, date: 
     && item.description.trim().toLocaleLowerCase("pt-BR") === normalized
     && Math.abs(item.amount - amount) < 0.005);
 }
+
+export function isValidExpenseCompetence(value:string) {return /^(20\d{2}|21\d{2})-(0[1-9]|1[0-2])$/.test(value);}

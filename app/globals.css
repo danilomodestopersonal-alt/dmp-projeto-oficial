@@ -8096,3 +8096,9 @@ input:focus,textarea:focus{
     border-left-width:5px;
   }
 }
+
+/* Acoes uniformes na agenda e no resumo de alunos da Home. */
+.home-student-actions{display:flex;flex-wrap:wrap;gap:6px}
+.home-student-actions button:disabled{opacity:.5;cursor:default}
+.today-summary-person{display:flex;flex-direction:column;gap:6px}
+.today-summary-people .home-student-actions button{width:auto;flex:0 0 auto;padding:7px 9px;font-size:12px}
