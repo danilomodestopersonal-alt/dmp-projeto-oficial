@@ -1,3 +1,4 @@
+import { AbsenceError, reconcileAbsenceRights } from "@/lib/kids/individual-absence";
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
@@ -53,7 +54,7 @@ export async function PUT(request: NextRequest) {
   const client = await pool.connect();
 
   try {
-    const body = (await request.json()) as KidsData;
+    let body = (await request.json()) as KidsData;
 
     if (
       !body ||
@@ -72,7 +73,7 @@ export async function PUT(request: NextRequest) {
     await client.query("BEGIN");
 
     const current = await client.query(
-      "SELECT updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
+      "SELECT payload, updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
       [DATA_ID]
     );
 
@@ -106,6 +107,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (current.rows.length) body = reconcileAbsenceRights(current.rows[0].payload as KidsData, body);
+
     const result = await client.query(
       `
         INSERT INTO dmp_data (id, payload, updated_at)
@@ -123,12 +126,15 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      data: body,
       updatedAt: iso(result.rows[0].updated_at),
     });
   } catch (error) {
     try {
       await client.query("ROLLBACK");
     } catch {}
+
+    if(error instanceof AbsenceError) return NextResponse.json({ok:false,code:error.code,error:error.message},{status:error.status});
 
     console.error("Erro ao salvar Aulas Kids:", error);
 

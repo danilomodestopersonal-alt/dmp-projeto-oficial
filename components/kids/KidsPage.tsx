@@ -251,13 +251,14 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       const saved = await response.json().catch(() => ({}));
 
       if(response.status === 409){
+        setData(data);
         setNotice(
           "As Aulas Kids foram alteradas em outra aba ou dispositivo. Atualize a página antes de continuar."
         );
         return false;
       }
 
-      if (!response.ok) throw new Error();
+      if (!response.ok) { setData(data); setNotice(saved.error || "Erro ao salvar. Tente novamente."); return false; }
 
       if(saved.updatedAt){
         window.sessionStorage.setItem(
@@ -265,9 +266,11 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
           String(saved.updatedAt)
         );
       }
+      if(saved.data) setData(saved.data);
       setNotice(message);
       return true;
     } catch {
+      setData(data);
       setNotice("Erro ao salvar. Tente novamente.");
       return false;
     } finally {
@@ -1633,6 +1636,7 @@ function LessonEditor({
   function toggle(id: string) {
     setDraft((current) => ({
       ...current,
+      absenceReplacementRights: {...current.absenceReplacementRights,[id]: false},
       attendance: {
         ...current.attendance,
         [id]: current.attendance[id] === "ABSENT" ? "PRESENT" : "ABSENT",
@@ -1642,6 +1646,7 @@ function LessonEditor({
   function allPresent() {
     setDraft((current) => ({
       ...current,
+      absenceReplacementRights: {},
       attendance: Object.fromEntries(
         students.map((item) => [item.id, "PRESENT"]),
       ),
@@ -1863,6 +1868,13 @@ function LessonEditor({
                 );
               })}
             </div>
+            {students.filter(student => draft.attendance[student.id] === "ABSENT").map(student => (
+              <label key={`right:${student.id}`} className={styles.cancelBox}>
+                <input type="checkbox" checked={Boolean(draft.absenceReplacementRights?.[student.id])}
+                  onChange={event => setDraft(current => ({...current, absenceReplacementRights:{...current.absenceReplacementRights,[student.id]:event.target.checked}}))}/>
+                {student.name} — Esta falta dá direito à reposição
+              </label>
+            ))}
             <div className={styles.formGrid}>
               <label>
                 Tema da aula
@@ -2477,7 +2489,7 @@ function StudentEditor({
     ...completedLessons.map(lesson=>({
       date:lesson.date,
       type:lesson.attendance[studentId]==="ABSENT"?"Falta":"Aula",
-      title:lesson.attendance[studentId]==="ABSENT"?"Falta registrada":"Aula realizada",
+      title:lesson.attendance[studentId]==="ABSENT"?(lesson.absenceReplacementRights?.[studentId]?"Falta com direito à reposição":"Falta registrada"):"Aula realizada",
       detail:groupName(classes,lesson.classId),
     })),
     ...cancelledLessons.map(lesson=>({date:lesson.date,type:"Cancelamento",title:"Aula cancelada",detail:`${groupName(classes,lesson.classId)}${cancelReasonText(lesson)?` · ${cancelReasonText(lesson)}`:""}${lesson.notes?` · ${lesson.notes}`:""}`})),

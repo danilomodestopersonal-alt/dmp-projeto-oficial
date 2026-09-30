@@ -1,3 +1,4 @@
+import { individualAbsenceDueEvents } from "./individual-absence";
 import type { KidsClass, KidsData, KidsLesson } from "@/types/kids";
 
 // DMP_KIDS_CREDITOS_TURMAS_ATIVAS_V615_20260919
@@ -10,7 +11,7 @@ export type KidsReplacementBalanceEvent = {
   className: string;
   date: string;
   type: "DUE" | "REPLACED";
-  source: "CANCELLED_CONTRACTED" | "LEGACY_CANCELLED_CREDIT" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "RECORDED_INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
+  source: "CANCELLED_CONTRACTED" | "LEGACY_CANCELLED_CREDIT" | "INDIVIDUAL_ABSENCE" | "FIFTH_CLASS" | "INDIVIDUAL_REPLACEMENT" | "RECORDED_INDIVIDUAL_REPLACEMENT" | "LEGACY_INDIVIDUAL_REPLACEMENT";
   label: string;
   lessonId: string;
   stage?: "ANTICIPATED" | "REALIZED";
@@ -277,6 +278,7 @@ function preservedCancelledCreditEvents(
 
   for (const credit of data.replacements || []) {
     if (
+      credit.origin === "INDIVIDUAL_ABSENCE" ||
       credit.studentId !== studentId ||
       credit.sourceDate < start ||
       credit.sourceDate > throughDate ||
@@ -346,6 +348,7 @@ export function computeKidsStudentReplacementBalance(
   const events = [
     ...activeCollectiveEvents,
     ...preservedDueEvents,
+    ...individualAbsenceDueEvents(data, studentId, throughDate).filter(event => event.date >= effectiveStart(data)),
     ...individualReplacementEvents(data, studentId, throughDate),
   ];
 

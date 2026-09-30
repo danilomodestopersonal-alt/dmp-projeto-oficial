@@ -33,6 +33,7 @@ export type KidsLesson = {
   date:string;
   status:KidsLessonStatus;
   attendance:Record<string,KidsAttendanceStatus>;
+  absenceReplacementRights?:Record<string,boolean>;
   objective:string;
   theme?:string;
   pedagogicalFocus?:string;
@@ -72,6 +73,7 @@ export type KidsReplacementUsage = {
 
 export type KidsReplacement = {
   id:string; studentId:string; classId:string; sourceLessonId:string; sourceDate:string;
+  origin?:"INDIVIDUAL_ABSENCE";
   reason:string; status:"PENDING"|"SCHEDULED"|"COMPLETED"; scheduledDate?:string; completedDate?:string;
   destinationLessonId?:string;
   attendance?:KidsAttendanceStatus;
@@ -93,7 +95,15 @@ export type KidsEvent = {
   type?:KidsEventType;
 };
 
+export type KidsAbsenceAudit = {
+  key:string; origin:"DS"|"DMP"; studentId:string; classId:string; lessonId:string; date:string;
+  before:{attendance:KidsAttendanceStatus; replacementRight:boolean};
+  after:{attendance:KidsAttendanceStatus; replacementRight:boolean}; recordedAt:string;
+  revision?:number; sourceEventId?:string;
+};
+
 export type KidsData = {
+  absenceAudit?:KidsAbsenceAudit[];
   version:1;
   semesterStart:string;
   semesterEnd:string;

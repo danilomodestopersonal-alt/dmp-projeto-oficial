@@ -14,3 +14,6 @@ backups/
 scripts/
 LEIA-ME.txt
 README_MIGRACAO_HISTORICO.txt
+
+.ds-tests/
+*.tsbuildinfo

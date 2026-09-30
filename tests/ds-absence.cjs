@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict');
+const Module=require('node:module');const path=require('node:path');
+const {applyDsAbsence,validateDsAbsence}=require('../.ds-tests/lib/kids/ds-absence');
+const {reconcileAbsenceRights}=require('../.ds-tests/lib/kids/individual-absence');
+const {computeKidsStudentReplacementBalance:balance}=require('../.ds-tests/lib/kids/replacement-balance');
+let passed=0;function test(name,fn){fn();passed++;console.log('OK',name);}
+const now='2026-09-30T15:00:00.000Z';
+function fixture(){return {version:1,semesterStart:'2026-08-01',semesterEnd:'2026-12-19',updatedAt:now,classes:[{id:'c1',name:'Kids',weekday:3,startTime:'16:00',endTime:'17:00',category:'RED',teacher:'D',active:true,updatedAt:now,students:[{id:'s1',name:'Camila',active:true}]}],lessons:[{id:'l1',classId:'c1',date:'2026-09-30',status:'COMPLETED',attendance:{s1:'PRESENT'},objective:'',plannedPlan:'',actualPlan:'',notes:'',replacementEligible:false,replacementStatus:'NONE',updatedAt:now}],replacements:[]};}
+const request={studentId:'s1',classId:'c1',lessonId:'l1',date:'2026-09-30',sourceEventId:'ds-1',revision:1,expectedRevision:0,attendance:'ABSENT',replacementRight:true};
+const receive=(data,input=request)=>applyDsAbsence(data,validateDsAbsence(input),now);
+let state=receive(fixture());
+test('novo evento e exatamente um direito oficial',()=>{assert.equal(balance(state.data,'s1','2026-09-30').due,1);assert.equal(balance(state.data,'s1','2026-09-30').balance,-1);});
+test('duplicado não altera dados nem auditoria',()=>{const again=receive(state.data);assert.equal(again.duplicate,true);assert.equal(again.data,state.data);});
+test('ciclo após leitura DMP -> DS permanece idempotente',()=>{const synced=JSON.parse(JSON.stringify(state.data));assert.equal(receive(synced).duplicate,true);assert.equal(balance(synced,'s1','2026-09-30').due,1);});
+for(const [name,patch] of [['criança inexistente',{studentId:'missing'}],['turma incompatível',{classId:'wrong'}],['ocorrência incompatível',{lessonId:'wrong'}],['ID reutilizado em outra data',{date:'2026-09-29'}]]) test(name,()=>assert.throws(()=>receive(fixture(),{...request,...patch}),/incompatíveis/));
+test('payload inválido, data impossível e campos extras',()=>{for(const input of [{},{...request,date:'2026-02-30'},{...request,balance:100},{...request,replacementRight:'true'},{...request,revision:2}])assert.throws(()=>validateDsAbsence(input));});
+test('reversão para presente antes de consumo',()=>{const revoked=receive(state.data,{...request,revision:2,expectedRevision:1,attendance:'PRESENT',replacementRight:false});assert.equal(balance(revoked.data,'s1','2026-09-30').due,0);assert.equal(revoked.data.replacements.length,0);assert.equal(revoked.data.absenceAudit.length,2);});
+test('reversão para falta sem direito',()=>{const revoked=receive(state.data,{...request,revision:2,expectedRevision:1,replacementRight:false});assert.equal(revoked.data.lessons[0].attendance.s1,'ABSENT');assert.equal(balance(revoked.data,'s1','2026-09-30').due,0);});
+test('revisão fora de ordem e identidade alterada rejeitadas',()=>{assert.throws(()=>receive(state.data,{...request,revision:3,expectedRevision:2}),/desatualizada/);assert.throws(()=>receive(state.data,{...request,sourceEventId:'ds-2',revision:2,expectedRevision:1}),/divergente/);});
+test('reversão após consumo e agendamento protegida',()=>{for(const status of ['SCHEDULED','COMPLETED']){const data=structuredClone(state.data);data.replacements[0].status=status;assert.throws(()=>receive(data,{...request,revision:2,expectedRevision:1,replacementRight:false}),/protegido/);}});
+test('coexistência com crédito DMP antigo',()=>{const data=fixture();data.replacements.push({id:'old',studentId:'s1',classId:'old',sourceLessonId:'old',sourceDate:'2026-08-20',reason:'Antigo',status:'PENDING'});const next=receive(data).data;assert.equal(next.replacements[0].id,'old');assert.equal(balance(next,'s1','2026-09-30').due,2);});
+test('5ª aula e saldo antecipado preservados',()=>{const data=fixture();data.lessons=Array.from({length:5},(_,i)=>({...data.lessons[0],id:'sep'+i,date:'2026-09-'+String(2+i*7).padStart(2,'0')}));assert.equal(balance(data,'s1','2026-09-30').balance,1);const next=receive(data,{...request,lessonId:'sep4'}).data;assert.equal(balance(next,'s1','2026-09-30').replaced,1);assert.equal(balance(next,'s1','2026-09-30').balance,0);assert.throws(()=>receive(next,{...request,lessonId:'sep4',revision:2,expectedRevision:1,replacementRight:false}),/protegido/);});
+test('opção DMP usa mesma regra e não duplica no DS',()=>{const data=fixture();const native=structuredClone(data);native.lessons[0].attendance.s1='ABSENT';native.lessons[0].absenceReplacementRights={s1:true};const updated=reconcileAbsenceRights(data,native);assert.equal(balance(updated,'s1','2026-09-30').due,1);const linked=receive(updated).data;assert.equal(balance(linked,'s1','2026-09-30').due,1);assert.equal(linked.replacements.length,1);});
+test('reversão DMP não burla proteção e auditoria vem do servidor',()=>{const locked=structuredClone(state.data);locked.replacementUsages=[{studentId:'s1',lessonId:'r',date:'2026-09-30'}];const next=structuredClone(locked);next.lessons[0].attendance.s1='PRESENT';assert.throws(()=>reconcileAbsenceRights(locked,next),/protegido/);const unchanged=reconcileAbsenceRights(state.data,{...state.data,absenceAudit:[]});assert.deepEqual(unchanged.absenceAudit,state.data.absenceAudit);});
+test('aula cancelada não gera direito individual duplicado',()=>{const data=fixture();data.lessons[0].status='CANCELLED';data.lessons[0].attendance.s1='ABSENT';data.lessons[0].absenceReplacementRights={s1:true};assert.equal(balance(data,'s1','2026-09-30').due,1);assert.throws(()=>receive(data),/incompatíveis/);});
+// Contrato HTTP com armazenamento simulado, sem acessar banco de produção.
+let stored=fixture(),version=now;let writes=0;
+const client={async query(sql,args){if(sql.startsWith('SELECT'))return {rows:[{payload:stored,updated_at:version}]};if(sql.startsWith('UPDATE')){stored=JSON.parse(args[1]);writes++;version=new Date(Date.parse(now)+writes).toISOString();return {rows:[{updated_at:version}]};}return {rows:[]};},release(){}};
+const original=Module._load;Module._load=function(id,parent,main){if(id==='@/lib/db')return {pool:{connect:async()=>client,query:async()=>({rows:[{payload:stored,updated_at:version}]})}};if(id.startsWith('@/'))return original(path.join(__dirname,'../.ds-tests',id.slice(2)),parent,main);return original(id,parent,main);};
+const {NextRequest}=require('next/server');const {POST}=require('../.ds-tests/app/api/integrations/ds/kids/absence/route');const {GET}=require('../.ds-tests/app/api/integrations/ds/kids/route');
+const http=(body,token='test-write')=>POST(new NextRequest('http://localhost/api/integrations/ds/kids/absence',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify(body)}));
+(async()=>{
+ process.env.DMP_DS_WRITE_TOKEN='test-write';process.env.DMP_DS_READ_TOKEN='test-read';
+ assert.equal((await http(request,'bad')).status,401);assert.equal((await http(request,'test-read')).status,401);passed++;console.log('OK autenticação inválida e token leitura sem escrita');
+ assert.equal((await http({...request,extra:true})).status,400);passed++;
+ const accepted=await http(request);assert.equal(accepted.status,200);assert.equal((await accepted.json()).balance.due,1);
+ const replay=await http(request);assert.equal((await replay.json()).duplicate,true);assert.equal(writes,1);passed++;console.log('OK HTTP aceitação e duplicidade sem segunda escrita');
+ const read=await GET(new NextRequest('http://localhost/api/integrations/ds/kids',{headers:{authorization:'Bearer test-read'}}));const payload=await read.json();assert.equal(payload.data.absenceAudit[0].sourceEventId,'ds-1');assert.equal(payload.data.lessons[0].absenceReplacementRights.s1,true);assert.equal(payload.studentReplacementBalances[0].due,1);passed++;console.log('OK GET DMP -> DS devolve evento e saldo oficial');
+ console.log(`${passed} testes passaram.`);
+})().catch(error=>{console.error(error);process.exitCode=1;});
