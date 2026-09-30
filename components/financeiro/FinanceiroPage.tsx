@@ -922,9 +922,16 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
   }
 
   const title = modalTitle(action);
+  useEffect(() => {
+    if(action.type !== "expense-create" && action.type !== "expense-edit") return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [action.type]);
   const isInstallment = kind === "INSTALLMENT";
 
-  return <div className={styles.modalBackdrop} onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><form className={`${styles.modal} ${(action.type === "personal-edit" || action.type === "expense-edit") ? styles.modalLarge : ""}`} onSubmit={submit}><div className={styles.modalHead}><div><span className="muted">Financeiro · {competenceLabel(competence)}</span><h2>{title}</h2></div><button type="button" className="text-button" onClick={onClose}>Fechar</button></div>
+  return <div className={styles.modalBackdrop} onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><form className={`${styles.modal} ${(action.type === "expense-create" || action.type === "expense-edit") ? styles.expenseModal : ""} ${(action.type === "personal-edit" || action.type === "expense-edit") ? styles.modalLarge : ""}`} onSubmit={submit}><div className={styles.modalHead}><div><span className="muted">Financeiro · {competenceLabel(competence)}</span><h2>{title}</h2></div><button type="button" className="text-button" onClick={onClose}>Fechar</button></div>
+    <div className={styles.modalBody}>
 
     {action.type === "personal-create" || action.type === "personal-edit" ? <><label>Aluno<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Mensalidade<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div>{action.type === "personal-edit" ? <PaymentHistory title="Recebimentos registrados" payments={action.invoice.payments} onDelete={payment => { if (window.confirm(`Excluir recebimento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "PERSONAL_PAYMENT_DELETE", invoiceId: action.invoice.id, paymentId: payment.id }); }} /> : null}</> : null}
 
@@ -949,12 +956,15 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     {action.type === "category-create" ? <label>Nova categoria<input value={newCategory} onChange={event => setNewCategory(event.target.value)} autoFocus placeholder="Ex.: Saúde" /></label> : null}
 
+    {action.type === "expense-edit" ? <div className={styles.deleteScope}>
+        {action.expense.kind!=="VARIABLE" && action.expense.seriesId?<label>Excluir<select value={deleteScope} onChange={event=>setDeleteScope(event.target.value as typeof deleteScope)}><option value="CURRENT">Somente esta parcela/competência</option><option value="CURRENT_AND_FUTURE">Esta e as próximas</option></select></label>:null}
+        {!action.expense.seriesId && action.expense.kind!=="VARIABLE"?<small>Conta antiga sem vínculo de série: exclusão somente desta competência.</small>:null}
+    </div> : null}
+    </div>
     <div className={styles.modalActions}>
       {action.type === "expense-detail" ? <><button type="button" className="secondary" onClick={onClose}>Fechar</button><span className={styles.modalSpacer}/>{remaining(action.expense.expectedAmount,action.expense.payments)>0?<button type="button" className="primary" onClick={()=>{const open=remaining(action.expense.expectedAmount,action.expense.payments);if(window.confirm(`Marcar ${action.expense.name} como paga no valor de ${money.format(open)}?`)){dispatch({type:"EXPENSE_PAYMENT_ADD",expenseId:action.expense.id,date:today(),amount:open,note:"Pagamento marcado pela tela de vencimentos."});onClose();}}}>Marcar como paga</button>:null}</> : null}
       {action.type === "personal-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir a mensalidade de ${action.invoice.studentName}?`)) { dispatch({ type: "PERSONAL_DELETE", id: action.invoice.id }); onClose(); } }}>Excluir mensalidade</button> : null}
-      {action.type === "expense-edit" ? <div>
-        {action.expense.kind!=="VARIABLE" && action.expense.seriesId?<label>Excluir<select value={deleteScope} onChange={event=>setDeleteScope(event.target.value as typeof deleteScope)}><option value="CURRENT">Somente esta parcela/competência</option><option value="CURRENT_AND_FUTURE">Esta e as próximas</option></select></label>:null}
-        {!action.expense.seriesId && action.expense.kind!=="VARIABLE"?<small>Conta antiga sem vínculo de série: exclusão somente desta competência.</small>:null}
+      {action.type === "expense-edit" ? <div className={styles.expenseDeleteAction}>
         <button type="button" className={styles.dangerButton} onClick={()=>{
           if(deleteScope==="CURRENT" && action.expense.payments.length){window.alert("Esta despesa possui pagamentos. A exclusão foi bloqueada para preservar o histórico.");return;}
           const description=deleteScope==="CURRENT"?"somente esta competência":"esta e as próximas cobranças da mesma série";

@@ -8102,3 +8102,11 @@ input:focus,textarea:focus{
 .home-student-actions button:disabled{opacity:.5;cursor:default}
 .today-summary-person{display:flex;flex-direction:column;gap:6px}
 .today-summary-people .home-student-actions button{width:auto;flex:0 0 auto;padding:7px 9px;font-size:12px}
+
+/* Home: os quatro atalhos compartilham uma faixa inteira, sem quebrar. */
+.home-student-actions{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));flex-wrap:nowrap!important;gap:4px!important;min-width:0;width:100%}
+.calendar-slot-student>.home-student-actions{grid-column:1/-1!important;flex-basis:100%;justify-content:stretch!important}
+.home-student-actions .compact-action,.today-summary-people .home-student-actions button{width:100%!important;min-width:0!important;margin:0;white-space:nowrap;padding:7px 4px!important;font-size:11px!important;line-height:1.2!important}
+.today-summary-person{min-width:0}
+@media(max-width:640px){.home-student-actions .compact-action,.today-summary-people .home-student-actions button{min-height:36px!important;font-size:10px!important}}
+@media(max-width:360px){.home-student-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}

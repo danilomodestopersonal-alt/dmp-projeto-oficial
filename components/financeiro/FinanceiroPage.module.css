@@ -183,3 +183,13 @@
 .kpiGridFour{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1100px){.kpiGridThree,.kpiGridFour{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.kpiGridThree,.kpiGridFour{grid-template-columns:1fr}}
+
+/* Despesas: cabeçalho e ações fora da região rolável. */
+.modalBody{display:grid;gap:16px;min-width:0}
+.expenseModal{box-sizing:border-box;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);padding:0;gap:0;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;min-height:0}
+.expenseModal .modalHead{padding:18px 22px;border-bottom:1px solid #e7ebe4;min-width:0}
+.expenseModal .modalHead>div{min-width:0}.expenseModal .modalHead h2{overflow-wrap:anywhere}.expenseModal .modalHead>button{flex-shrink:0}
+.expenseModal .modalBody{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0;padding:18px 22px;scrollbar-gutter:stable}
+.expenseModal .modalActions{margin:0;padding:12px 22px;border-top:1px solid #e7ebe4;background:#fff;align-items:center;flex-wrap:wrap;gap:8px}
+.expenseModal .modalActions button{white-space:nowrap}.expenseDeleteAction{margin-right:auto}.deleteScope{display:grid;gap:7px}.deleteScope small{font-weight:400;color:#687169}
+@media(max-width:640px){.expenseModal{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px)}.expenseModal .modalHead{padding:14px 16px}.expenseModal .modalBody{padding:14px 16px}.expenseModal .modalActions{padding:10px 16px;display:grid;grid-template-columns:1fr 1fr}.expenseDeleteAction{grid-column:1/-1;width:100%;margin:0}.expenseModal .dangerButton{width:100%;order:initial}.expenseModal .modalActions>button{width:100%}}
