@@ -8098,15 +8098,13 @@ input:focus,textarea:focus{
 }
 
 /* Acoes uniformes na agenda e no resumo de alunos da Home. */
-.home-student-actions{display:flex;flex-wrap:wrap;gap:6px}
+.home-student-actions{display:inline-flex!important;align-items:center;flex-wrap:nowrap!important;gap:4px!important;width:max-content!important;flex:0 0 auto!important}
 .home-student-actions button:disabled{opacity:.5;cursor:default}
 .today-summary-person{display:flex;flex-direction:column;gap:6px}
 .today-summary-people .home-student-actions button{width:auto;flex:0 0 auto;padding:7px 9px;font-size:12px}
 
-/* Home: os quatro atalhos compartilham uma faixa inteira, sem quebrar. */
-.home-student-actions{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));flex-wrap:nowrap!important;gap:4px!important;min-width:0;width:100%}
-.calendar-slot-student>.home-student-actions{grid-column:1/-1!important;flex-basis:100%;justify-content:stretch!important}
-.home-student-actions .compact-action,.today-summary-people .home-student-actions button{width:100%!important;min-width:0!important;margin:0;white-space:nowrap;padding:7px 4px!important;font-size:11px!important;line-height:1.2!important}
-.today-summary-person{min-width:0}
-@media(max-width:640px){.home-student-actions .compact-action,.today-summary-people .home-student-actions button{min-height:36px!important;font-size:10px!important}}
-@media(max-width:360px){.home-student-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Atalhos compactos no fluxo original, sem faixa larga ou quebra interna. */
+.home-student-actions .compact-action{width:auto!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:0!important}
+.today-summary-people .home-student-actions button{width:auto!important;flex:0 0 auto!important;white-space:nowrap!important}
+@media(max-width:700px){.home-student-actions .compact-action{padding:5px 4px!important;font-size:.60rem!important}}
+@media(max-width:360px){.home-student-actions .compact-action{padding:5px 3px!important;font-size:.56rem!important}}
