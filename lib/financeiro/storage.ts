@@ -68,6 +68,13 @@ export function normalizeFinanceData(value: unknown, fallback: FinanceData): Fin
         uniqueIds(Array.isArray(receipts) ? receipts : [], `ds-${competence}`),
       ])
     ),
+    dsReturns: Object.fromEntries(
+      Object.entries(value.dsReturns || {}).map(([competence, payments]) => [
+        competence,
+        uniqueIds(Array.isArray(payments) ? payments : [], `ds-return-${competence}`),
+      ])
+    ),
+    dsOpeningBalances: value.dsOpeningBalances && typeof value.dsOpeningBalances === "object" ? value.dsOpeningBalances : {},
     categories: [...new Set(value.categories.filter(item => typeof item === "string" && item.trim()).map(item => item.trim()))].sort((a, b) => a.localeCompare(b, "pt-BR")),
     history: normalizeHistory(value.history).length ? normalizeHistory(value.history) : normalizeHistory(fallback.history),
   };

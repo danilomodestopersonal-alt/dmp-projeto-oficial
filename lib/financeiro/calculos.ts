@@ -51,6 +51,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const expenses = data.expenses.filter(item => item.competence === competence);
   const extras = data.extraExpenses.filter(item => item.competence === competence);
   const receipts = data.dsReceipts[competence] || [];
+  const returns = data.dsReturns?.[competence] || [];
+  const dsOpeningBalance = roundMoney(data.dsOpeningBalances?.[competence] || 0);
 
   const personalExpected = sum(personal.map(item => item.expectedAmount));
   const personalReceived = sum(personal.map(item => paid(item.payments)));
@@ -61,7 +63,9 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const ranking = data.rankingByCompetence[competence] || 0;
   const dsSettlement = roundMoney(kidsNet + ranking);
   const dsReceived = sum(receipts.map(item => item.amount));
-  const dsBalance = roundMoney(dsSettlement - dsReceived);
+  const dsReturned = sum(returns.map(item => item.amount));
+  // Positivo: DS deve ao Danilo. Negativo: Danilo deve devolver para a DS.
+  const dsBalance = roundMoney(dsOpeningBalance + dsSettlement - dsReceived + dsReturned);
   const expensesExpected = sum(expenses.map(item => item.expectedAmount));
   const expensesPaid = sum(expenses.map(item => paid(item.payments)));
   const extrasTotal = sum(extras.map(item => item.amount));
@@ -89,6 +93,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
     expenses,
     extras,
     receipts,
+    returns,
+    dsOpeningBalance,
     personalExpected,
     personalReceived,
     personalOpen,
@@ -97,6 +103,7 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
     ranking,
     dsSettlement,
     dsReceived,
+    dsReturned,
     dsBalance,
     expensesExpected,
     expensesPaid,

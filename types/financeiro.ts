@@ -59,6 +59,13 @@ export type DsReceipt = {
   note?: string;
 };
 
+export type DsReturnPayment = {
+  id: string;
+  date: string;
+  amount: number;
+  note?: string;
+};
+
 export type FinanceExpenseKind = "RECURRING" | "INSTALLMENT" | "CARD" | "VARIABLE";
 
 export type FinanceExpense = {
@@ -102,6 +109,8 @@ export type FinanceHistoryKind =
   | "DS_KID_DELETED"
   | "DS_RECEIPT_ADDED"
   | "DS_RECEIPT_DELETED"
+  | "DS_RETURN_ADDED"
+  | "DS_RETURN_DELETED"
   | "RANKING_UPDATED"
   | "EXPENSE_CREATED"
   | "EXPENSE_UPDATED"
@@ -145,6 +154,8 @@ export type FinanceData = {
   personalInvoices: PersonalInvoice[];
   dsKids: DsKidEntry[];
   dsReceipts: Record<string, DsReceipt[]>;
+  dsReturns?: Record<string, DsReturnPayment[]>;
+  dsOpeningBalances?: Record<string, number>;
   expenses: FinanceExpense[];
   expenseContinuations?: FinanceExpense[];
   expenseSeriesStops?: Record<string,string>;

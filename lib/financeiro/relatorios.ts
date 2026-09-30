@@ -98,7 +98,9 @@ export function financeReportCsv(data: FinanceData, competence = data.currentCom
   lines.push(csvRow(["Kids liquido", summary.kidsNet.toFixed(2)]));
   lines.push(csvRow(["Ranking", summary.ranking.toFixed(2)]));
   lines.push(csvRow(["Acerto", summary.dsSettlement.toFixed(2)]));
+  lines.push(csvRow(["Saldo trazido do mês anterior", summary.dsOpeningBalance.toFixed(2)]));
   lines.push(csvRow(["Recebido", summary.dsReceived.toFixed(2)]));
+  lines.push(csvRow(["Devolvido para DS", summary.dsReturned.toFixed(2)]));
   lines.push(csvRow(["Saldo", summary.dsBalance.toFixed(2)]));
   lines.push(csvRow(["Aluno Kids", "Valor", "Parcela atual", "Parcelas"]));
   summary.kids.forEach(item => lines.push(csvRow([item.studentName, item.amount.toFixed(2), item.installmentCurrent, item.installmentTotal])));

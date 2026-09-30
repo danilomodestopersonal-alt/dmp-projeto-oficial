@@ -26,6 +26,8 @@ export type FinanceCommand =
   | { type: "DS_KID_DELETE"; id: string }
   | { type: "DS_RECEIPT_ADD"; competence: string; date: string; amount: number; sourceName?: string; note?: string }
   | { type: "DS_RECEIPT_DELETE"; competence: string; receiptId: string }
+  | { type: "DS_RETURN_ADD"; competence: string; date: string; amount: number; note?: string }
+  | { type: "DS_RETURN_DELETE"; competence: string; returnId: string }
   | { type: "RANKING_SET"; competence: string; amount: number }
   | { type: "EXPENSE_CREATE"; startCompetence?:string; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
   | { type: "EXPENSE_UPDATE"; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
@@ -52,6 +54,16 @@ function id(prefix: string) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function dsBalanceFor(data: FinanceData, competence: string) {
+  const transferred = new Set((data.carriedPendencies || []).filter(item => item.originCompetence === competence && item.sourceEntryId).map(item => item.sourceEntryId as string));
+  const kidsBase = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals && !!item.studentId && !transferred.has(item.id)).reduce((total, item) => total + item.amount, 0);
+  const carried = (data.carriedPendencies || []).filter(item => item.competence === competence && item.scope === "DS_KIDS").reduce((total, item) => total + item.amount, 0);
+  const settlement = Math.round((((kidsBase + carried) * data.dsPercent) + (data.rankingByCompetence[competence] || 0)) * 100) / 100;
+  const received = (data.dsReceipts[competence] || []).reduce((total, item) => total + item.amount, 0);
+  const returned = (data.dsReturns?.[competence] || []).reduce((total, item) => total + item.amount, 0);
+  return Math.round(((data.dsOpeningBalances?.[competence] || 0) + settlement - received + returned) * 100) / 100;
 }
 
 function historyEntry(competence: string, kind: FinanceHistoryKind, description: string, amount?: number, entityId?: string): FinanceHistoryEntry {
@@ -141,6 +153,8 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     personalInvoices: [...data.personalInvoices, ...personalInvoices],
     dsKids: [...data.dsKids, ...dsKids],
     dsReceipts: { ...data.dsReceipts, [target]: [] },
+    dsReturns: { ...(data.dsReturns || {}), [target]: [] },
+    dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [target]: dsBalanceFor(data, fromCompetence) },
     expenses: [...data.expenses, ...expenses],
   };
 
@@ -246,6 +260,16 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
     case "DS_RECEIPT_DELETE": { const receipt = (data.dsReceipts[command.competence] || []).find(item => item.id === command.receiptId); if (!receipt) return data;
       const updated = { ...data, dsReceipts: { ...data.dsReceipts, [command.competence]: (data.dsReceipts[command.competence] || []).filter(item => item.id !== command.receiptId) } };
       return withHistory(updated, historyEntry(command.competence, "DS_RECEIPT_DELETED", "Recebimento da DS removido.", receipt.amount, receipt.id));
+    }
+
+    case "DS_RETURN_ADD": { const payment = { id: id("dsreturn"), date: command.date, amount: command.amount, note: command.note?.trim() || undefined };
+      const updated = { ...data, dsReturns: { ...(data.dsReturns || {}), [command.competence]: [...(data.dsReturns?.[command.competence] || []), payment] } };
+      return withHistory(updated, historyEntry(command.competence, "DS_RETURN_ADDED", "Devolução para a DS registrada.", command.amount, payment.id));
+    }
+
+    case "DS_RETURN_DELETE": { const payment = (data.dsReturns?.[command.competence] || []).find(item => item.id === command.returnId); if (!payment) return data;
+      const updated = { ...data, dsReturns: { ...(data.dsReturns || {}), [command.competence]: (data.dsReturns?.[command.competence] || []).filter(item => item.id !== command.returnId) } };
+      return withHistory(updated, historyEntry(command.competence, "DS_RETURN_DELETED", "Devolução para a DS removida.", payment.amount, payment.id));
     }
 
     case "RANKING_SET": {
