@@ -111,7 +111,7 @@ type Movement={
 type FinanceContext={
   competence:string|null;
   categories:string[];
-  personal:Array<{id:string;studentName:string;expectedAmount:number;paid:number;remaining:number}>;
+  personal:Array<{id:string;competence:string;studentName:string;expectedAmount:number;paid:number;remaining:number}>;
   expenses:Array<{id:string;name:string;expectedAmount:number;paid:number;remaining:number}>;
 };
 
@@ -732,7 +732,11 @@ function financeContext(data:FinanceData|null):FinanceContext{
   return {
     competence,
     categories:Array.isArray(data.categories)?data.categories:[],
-    personal:data.personalInvoices.filter(item=>item.competence===competence&&!item.excludedFromTotals).map(item=>({id:item.id,studentName:item.studentName,expectedAmount:item.expectedAmount,paid:paid(item.payments),remaining:Math.max(0,item.expectedAmount-paid(item.payments))})).sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")),
+    personal:data.personalInvoices
+      .filter(item=>item.competence<=competence&&!item.excludedFromTotals)
+      .map(item=>({id:item.id,competence:item.competence,studentName:item.studentName,expectedAmount:item.expectedAmount,paid:paid(item.payments),remaining:Math.max(0,item.expectedAmount-paid(item.payments))}))
+      .filter(item=>item.remaining>0.005)
+      .sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")||a.competence.localeCompare(b.competence)),
     expenses:data.expenses.filter(item=>item.competence===competence).map(item=>({id:item.id,name:item.name,expectedAmount:item.expectedAmount,paid:paid(item.payments),remaining:Math.max(0,item.expectedAmount-paid(item.payments))})).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")),
   };
 }
@@ -991,11 +995,11 @@ function financeHistory(id:string,competence:string,kind:FinanceHistoryEntry["ki
   return {id:`history-${id}`,occurredAt:new Date().toISOString(),competence,kind,description,amount,entityId};
 }
 function resolvePersonal(data:FinanceData,competence:string,targetId?:string,targetName?:string){
-  const byId=targetId?data.personalInvoices.find(item=>item.id===targetId&&item.competence===competence&&!item.excludedFromTotals):undefined;
+  const byId=targetId?data.personalInvoices.find(item=>item.id===targetId&&item.competence<=competence&&!item.excludedFromTotals):undefined;
   if(byId)return byId;
   const key=normalizeKey(targetName||"");
   if(!key)return undefined;
-  const matches=data.personalInvoices.filter(item=>item.competence===competence&&!item.excludedFromTotals&&normalizeKey(item.studentName)===key);
+  const matches=data.personalInvoices.filter(item=>item.competence<=competence&&!item.excludedFromTotals&&Math.max(0,item.expectedAmount-paid(item.payments))>0.005&&normalizeKey(item.studentName)===key);
   return matches.length===1?matches[0]:undefined;
 }
 function resolveExpense(data:FinanceData,competence:string,targetId?:string,targetName?:string){
@@ -1014,7 +1018,7 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
   const competence=(move.dateKey||CUTOVER_DATE).slice(0,7);
   if(!data.competences?.[competence])return {ok:false as const,error:`A competência ${competence} não existe no Financeiro.`};
   if(data.competences[competence]?.status==="CLOSED")return {ok:false as const,error:`A competência ${competence} está fechada no Financeiro.`};
-  const unique=hashId(`${move.fingerprint}|${target}|${options.targetName||options.targetId||options.category||""}`);
+  const unique=hashId(`${move.fingerprint}|${target}|${options.targetId||options.targetName||options.category||""}`);
   const note=`Mercado Pago · ${move.description}${move.sourceId?` · ref. ${move.sourceId}`:""}`;
 
   if(target==="TRANSFER"||target==="IGNORE")return {ok:true as const,data,changed:false,entityId:undefined,targetName:options.targetName};
@@ -1050,12 +1054,12 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
     const paymentId=`mp-payment-${unique}`;
     if(invoice.payments.some(item=>item.id===paymentId))return {ok:true as const,data,changed:false,entityId:invoice.id,targetName:invoice.studentName};
     const open=Math.max(0,invoice.expectedAmount-paid(invoice.payments));
-    if(open<=0.005)return {ok:false as const,error:`${invoice.studentName} já está quitado nesta competência.`};
+    if(open<=0.005)return {ok:false as const,error:`${invoice.studentName} já está quitado em ${invoice.competence}.`};
     if(move.amount>open+0.005)return {ok:false as const,error:`O PIX de ${move.amount.toFixed(2)} é maior que o saldo em aberto de ${open.toFixed(2)} para ${invoice.studentName}.`};
     const payment={id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:move.amount,note};
     const next:FinanceData={
       ...data,personalInvoices:data.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:[...item.payments,payment]}:item),
-      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${invoice.studentName} registrado.`,move.amount,invoice.id)],
+      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${invoice.studentName} registrado para a mensalidade ${invoice.competence}.`,move.amount,invoice.id)],
     };
     return {ok:true as const,data:next,changed:true,entityId:invoice.id,targetName:invoice.studentName};
   }
@@ -1155,7 +1159,7 @@ async function persistPersonalSplitDecision(move:Movement,splitsInput:PersonalSp
       const invoice=resolvePersonal(finance,competence,item.targetId,undefined);
       if(!invoice)return {ok:false as const,error:"Não encontrei uma das mensalidades Personal selecionadas."};
       const open=Math.max(0,invoice.expectedAmount-paid(invoice.payments));
-      if(open<=0.005)return {ok:false as const,error:`${invoice.studentName} já está quitado nesta competência.`};
+      if(open<=0.005)return {ok:false as const,error:`${invoice.studentName} já está quitado em ${invoice.competence}.`};
       if(item.amount>open+0.005)return {ok:false as const,error:`O valor de ${item.amount.toFixed(2)} é maior que o saldo em aberto de ${open.toFixed(2)} para ${invoice.studentName}.`};
       return {ok:true as const,invoice,amount:item.amount};
     });
@@ -1173,7 +1177,7 @@ async function persistPersonalSplitDecision(move:Movement,splitsInput:PersonalSp
     });
     const historyEntries=valid.map(item=>{
       const historyId=`mp-${hashId(`${move.fingerprint}|PERSONAL_SPLIT|${item.invoice.id}`)}`;
-      return financeHistory(historyId,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${item.invoice.studentName} registrado em divisão.`,item.amount,item.invoice.id);
+      return financeHistory(historyId,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${item.invoice.studentName} registrado em divisão para a mensalidade ${item.invoice.competence}.`,item.amount,item.invoice.id);
     });
     const nextFinance:FinanceData={...finance,personalInvoices:nextInvoices,history:[...(finance.history||[]),...historyEntries]};
     await client.query(`

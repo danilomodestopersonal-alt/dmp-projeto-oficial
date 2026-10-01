@@ -6,6 +6,8 @@ export const roundMoney = (value: number) => Math.round((value + Number.EPSILON)
 export const sum = (values: number[]) => roundMoney(values.reduce((total, value) => total + value, 0));
 export const paid = (payments: FinancePayment[]) => sum(payments.map(item => item.amount));
 export const remaining = (expected: number, payments: FinancePayment[]) => roundMoney(Math.max(0, expected - paid(payments)));
+export const receivedInCompetence = (payments: FinancePayment[], competence: string) =>
+  sum(payments.filter(item => item.date?.slice(0, 7) === competence).map(item => item.amount));
 
 export function localDateISO(date = new Date()) {
   const year = date.getFullYear();
@@ -55,7 +57,12 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const dsOpeningBalance = roundMoney(data.dsOpeningBalances?.[competence] || 0);
 
   const personalExpected = sum(personal.map(item => item.expectedAmount));
-  const personalReceived = sum(personal.map(item => paid(item.payments)));
+  // A mensalidade pertence à competência cobrada, mas a receita pertence ao
+  // mês em que o dinheiro entrou. Isso permite quitar uma mensalidade atrasada
+  // sem reescrever o caixa de um mês anterior.
+  const personalReceived = sum(data.personalInvoices
+    .filter(item => !item.excludedFromTotals)
+    .map(item => receivedInCompetence(item.payments, competence)));
   const kidsGrossBase = sum(kids.map(item => item.amount));
   const kidsCarryoverTotal = sum(kidsCarryovers.map(item => item.amount));
   const kidsGross = sum([kidsGrossBase, kidsCarryoverTotal]);

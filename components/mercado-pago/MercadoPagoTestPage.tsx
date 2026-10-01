@@ -16,7 +16,7 @@ type LearnedRule={key:string;label:string;kind:"IN"|"OUT";target:Target;category
 type ReportState={id?:string|number|null;status?:string;generatedAt?:string|null;fileName?:string|null}|null;
 type FinanceContext={
   competence:string|null;categories:string[];
-  personal:Array<{id:string;studentName:string;expectedAmount:number;paid:number;remaining:number}>;
+  personal:Array<{id:string;competence:string;studentName:string;expectedAmount:number;paid:number;remaining:number}>;
   expenses:Array<{id:string;name:string;expectedAmount:number;paid:number;remaining:number}>;
 };
 type ApiData={
@@ -55,6 +55,11 @@ function reportRetryAt(payload:unknown){
   return new Date(Math.max(...times)).toISOString();
 }
 function localDateKey(value=new Date()){return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,"0")}-${String(value.getDate()).padStart(2,"0")}`;}
+function competenceLabel(value:string){
+  const [year,month]=value.split("-").map(Number);
+  if(!year||!month)return value;
+  return new Intl.DateTimeFormat("pt-BR",{month:"long",year:"numeric"}).format(new Date(year,month-1,1));
+}
 function reportStatus(value?:string){
   const s=(value||"").toLowerCase();
   if(!s)return "Sem relatório";
@@ -434,11 +439,11 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
                   <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
                   {choice.target==="EXTRA"?<label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>:null}
                   {choice.target==="EXTRA"?<label><span>Nome do gasto (opcional)</span><input value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})} placeholder="Ex.: Cachorro-quente"/></label>:null}
-                  {choice.target==="PERSONAL"&&!choice.splitPersonal?<label><span>Aluno Personal</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {money.format(item.remaining)} em aberto</option>)}</select><button type="button" className="secondary" onClick={()=>startPersonalSplit(move)}>Dividir entre alunos</button></label>:null}
+                  {choice.target==="PERSONAL"&&!choice.splitPersonal?<label><span>Aluno Personal</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {competenceLabel(item.competence)} · {money.format(item.remaining)} em aberto</option>)}</select><button type="button" className="secondary" onClick={()=>startPersonalSplit(move)}>Dividir entre alunos</button></label>:null}
                   {choice.target==="PERSONAL"&&choice.splitPersonal?<div className={styles.fullField} style={{display:"grid",gap:7,padding:"8px",border:"1px solid #dfe4d8",borderRadius:9,background:"#f8faf6"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><strong style={{fontSize:12}}>Dividir recebimento entre alunos</strong><button type="button" className="secondary" onClick={()=>stopPersonalSplit(move)}>Usar um aluno</button></div>
                     {choice.personalSplits.map((split,index)=><div key={index} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 130px auto",gap:6,alignItems:"end"}}>
-                      <label><span>Aluno {index+1}</span><select value={split.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchPersonalSplit(move,index,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {money.format(item.remaining)} em aberto</option>)}</select></label>
+                      <label><span>Aluno {index+1}</span><select value={split.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchPersonalSplit(move,index,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {competenceLabel(item.competence)} · {money.format(item.remaining)} em aberto</option>)}</select></label>
                       <label><span>Valor</span><input inputMode="decimal" value={split.amount} onChange={e=>patchPersonalSplit(move,index,{amount:e.target.value})} placeholder="0,00"/></label>
                       {choice.personalSplits.length>2?<button type="button" className="secondary" onClick={()=>patchChoice(move,{personalSplits:choice.personalSplits.filter((_,itemIndex)=>itemIndex!==index),ruleChoice:"ONCE"})}>Remover</button>:<span/>}
                     </div>)}
