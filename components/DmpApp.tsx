@@ -5029,8 +5029,7 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
                   const previous=findPreviousExercise(student,ex.name);
                   return previous?
                     <small className="last-load-inline">
-                      Última: {previous.sets&&previous.reps?`${previous.sets}×${previous.reps}`:""}
-                      {previous.load?` · ${previous.load}`:""} · {formatDate(previous.date)}
+                      Última carga: {previous.load||"não informada"}
                     </small>
                   :null;
                 })()}
@@ -5715,7 +5714,10 @@ function matchCalendarEvents(events:CalendarEvent[],students:Student[]):Calendar
   return events.map(event=>{
     if(event.allDay)return {...event,matchedStudentId:null,matchedStudentIds:[]};
     const title=normalizeName(event.summary||"");
-    const searchable=normalizeName(`${event.summary||""} ${event.description||""} ${event.location||""}`);
+    // A identificação automática de alunos usa somente o título.
+    // Descrição e local podem conter nomes de ruas ou outras pessoas e não devem
+    // transformar compromissos pessoais em atendimentos de alunos.
+    const searchable=title;
     const padded=` ${searchable} `;
     const tokens=new Set(searchable.split(" ").filter(Boolean));
     const matches=active.filter(student=>{

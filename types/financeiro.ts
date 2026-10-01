@@ -111,7 +111,9 @@ export type FinanceHistoryKind =
   | "DS_RECEIPT_DELETED"
   | "DS_RETURN_ADDED"
   | "DS_RETURN_DELETED"
+  | "DS_OPENING_BALANCE_UPDATED"
   | "RANKING_UPDATED"
+  | "EVENTS_UPDATED"
   | "EXPENSE_CREATED"
   | "EXPENSE_UPDATED"
   | "EXPENSE_DELETED"
@@ -151,6 +153,7 @@ export type FinanceData = {
   competences: Record<string, FinanceCompetenceMeta>;
   dsPercent: number;
   rankingByCompetence: Record<string, number>;
+  eventsByCompetence?: Record<string, number>;
   personalInvoices: PersonalInvoice[];
   dsKids: DsKidEntry[];
   dsReceipts: Record<string, DsReceipt[]>;

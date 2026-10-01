@@ -61,7 +61,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const kidsGross = sum([kidsGrossBase, kidsCarryoverTotal]);
   const kidsNet = roundMoney(kidsGross * data.dsPercent);
   const ranking = data.rankingByCompetence[competence] || 0;
-  const dsSettlement = roundMoney(kidsNet + ranking);
+  const events = data.eventsByCompetence?.[competence] || 0;
+  const dsSettlement = roundMoney(kidsNet + ranking + events);
   const dsReceived = sum(receipts.map(item => item.amount));
   const dsReturned = sum(returns.map(item => item.amount));
   // Positivo: DS deve ao Danilo. Negativo: Danilo deve devolver para a DS.
@@ -101,6 +102,7 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
     kidsGross,
     kidsNet,
     ranking,
+    events,
     dsSettlement,
     dsReceived,
     dsReturned,

@@ -81,7 +81,9 @@ type Action =
   | { type: "card-value"; expense: FinanceExpense }
   | { type: "ds-receipt" }
   | { type: "ds-return" }
+  | { type: "ds-opening-balance" }
   | { type: "ranking" }
+  | { type: "events" }
   | { type: "extra-create" }
   | { type: "extra-edit"; extra: ExtraExpense }
   | { type: "kid-create" }
@@ -659,11 +661,12 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         {tab === "ds" ? (
           <div className="finance-ds-single">
             <section className="panel">
-              <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button></div>
+              <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><div className={styles.inlineActions}><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "events" })}>Editar eventos</button></div></div>
               {competence === "2026-08" && summary.ranking === 6500 ? <div className={styles.importNote}><strong>Conferência da planilha</strong><span>O Resumo DS informa Ranking de R$ 6.500,00. Outro quadro da planilha mostra R$ 7.000,00. O DMP está usando R$ 6.500,00; altere aqui se necessário.</span></div> : null}
-              <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} />{summary.kidsCarryoverTotal>0?<Calc label="Incluído de pendências anteriores" value={summary.kidsCarryoverTotal}/>:null}<Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong />{summary.dsOpeningBalance!==0?<Calc label={summary.dsOpeningBalance>0?"Saldo anterior a receber":"Saldo anterior a devolver"} value={Math.abs(summary.dsOpeningBalance)}/>:null}<Calc label="Recebido da DS" value={summary.dsReceived} />{summary.dsReturned>0?<Calc label="Devolvido para DS" value={summary.dsReturned}/>:null}<Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
+              <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} />{summary.kidsCarryoverTotal>0?<Calc label="Incluído de pendências anteriores" value={summary.kidsCarryoverTotal}/>:null}<Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Eventos" value={summary.events} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong />{summary.dsOpeningBalance!==0?<Calc label={summary.dsOpeningBalance>0?"Saldo anterior a receber":"Saldo anterior a devolver"} value={Math.abs(summary.dsOpeningBalance)}/>:null}<Calc label="Recebido da DS" value={summary.dsReceived} />{summary.dsReturned>0?<Calc label="Devolvido para DS" value={summary.dsReturned}/>:null}<Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
               <button className={`primary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-receipt" })}>+ Registrar recebimento DS</button>
               <button className={`secondary ${styles.fullButton}`} disabled={!editable || summary.dsBalance>=0} onClick={() => openAction({ type: "ds-return" })}>+ Registrar devolução para DS</button>
+              {summary.dsOpeningBalance!==0?<button className={`secondary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-opening-balance" })}>Editar saldo anterior da DS</button>:null}
               <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{receipt.sourceName || "DS"}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
               <div className={styles.receiptList}>{summary.returns.length ? summary.returns.map(payment => <div key={payment.id} className={styles.receipt}><span>Devolução para DS<small>{formatDate(payment.date)}{payment.note?` · ${payment.note}`:""}</small></span><div className={styles.receiptActions}><strong>{money.format(payment.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir devolução de ${money.format(payment.amount)} para a DS?`)) dispatch({ type: "DS_RETURN_DELETE", competence, returnId: payment.id }); }}>Excluir</button></div></div>) : null}</div>
               <div className={styles.importNote}><strong>🔴 Pendências trazidas de meses anteriores</strong><span>Você escolhe somente quem deve entrar nesta competência. Esses valores entram no Kids bruto deste mês e não seguem automaticamente para o próximo.</span></div>
@@ -776,12 +779,14 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
     : action.type === "expense-payment" && expense ? remaining(expense.expectedAmount, expense.payments)
       : action.type === "card-value" && expense ? expense.expectedAmount
         : action.type === "ranking" ? data.rankingByCompetence[competence] || 0
+          : action.type === "events" ? data.eventsByCompetence?.[competence] || 0
           : kid ? kid.amount
             : carry ? carry.amount
               : extra ? extra.amount
               : action.type === "personal-edit" && invoice ? invoice.expectedAmount
                 : action.type === "expense-edit" && expense ? expense.expectedAmount
                   : action.type === "ds-return" ? Math.max(0, -financeSummary(data, competence).dsBalance)
+                    : action.type === "ds-opening-balance" ? Math.abs(financeSummary(data, competence).dsOpeningBalance)
                     : 0;
 
   const [amount, setAmount] = useState(initialAmount ? String(initialAmount).replace(".", ",") : "");
@@ -890,11 +895,24 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
       onClose(); return;
     }
 
+    if (action.type === "events") {
+      if (numeric === null || numeric < 0) return;
+      dispatch({ type: "EVENTS_SET", competence, amount: numeric }); onClose(); return;
+    }
+
     if (action.type === "ds-return") {
       if (numeric === null || numeric <= 0) return;
       const available = Math.max(0, -financeSummary(data, competence).dsBalance);
       if (numeric > available + .005) { window.alert(`A devolução não pode ultrapassar o saldo de ${money.format(available)} devido à DS.`); return; }
       dispatch({ type: "DS_RETURN_ADD", competence, date, amount: numeric, note });
+      onClose(); return;
+    }
+
+    if (action.type === "ds-opening-balance") {
+      if (numeric === null || numeric < 0 || !note.trim()) return;
+      const current = financeSummary(data, competence).dsOpeningBalance;
+      const sign = current < 0 ? -1 : 1;
+      dispatch({ type: "DS_OPENING_BALANCE_SET", competence, balance: numeric * sign, note });
       onClose(); return;
     }
 
@@ -958,9 +976,11 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     {action.type === "card-value" ? <label>Valor da fatura<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label> : null}
     {action.type === "ranking" ? <label>Ranking do mês<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label> : null}
+    {action.type === "events" ? <label>Eventos do mês<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label> : null}
 
     {action.type === "ds-receipt" ? <><div className={styles.formGrid}><label>Valor recebido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Origem<input value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="DS" /></label><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Opcional" /></label></> : null}
     {action.type === "ds-return" ? <><div className={styles.formGrid}><label>Valor devolvido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Ex.: devolução parcial" /></label></> : null}
+    {action.type === "ds-opening-balance" ? <><div className={styles.importNote}><strong>{financeSummary(data, competence).dsOpeningBalance<0?"Saldo anterior a devolver":"Saldo anterior a receber"}</strong><span>A direção do saldo será preservada. Informe o novo valor e o motivo da correção.</span></div><label>Novo valor<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Motivo da alteração<input value={note} onChange={event => setNote(event.target.value)} placeholder="Obrigatório" required /></label></> : null}
 
     {action.type === "kid-create" || action.type === "kid-edit" ? <><label>Aluno Kids<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event=>setDueDay(event.target.value)}/></label></div><label>Forma de cobrança<select value={kidBillingMode} onChange={event=>setKidBillingMode(event.target.value as typeof kidBillingMode)}><option value="SINGLE">Parcela única</option><option value="INSTALLMENT">Parcelado por quantidade de meses</option><option value="RECURRING">Recorrente sem término</option></select></label>{kidBillingMode==="INSTALLMENT"?<div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent||"1"} onChange={event=>setInstallmentCurrent(event.target.value)}/></label><label>Quantidade de parcelas<input type="number" min="1" value={installmentTotal} onChange={event=>setInstallmentTotal(event.target.value)}/></label></div>:null}<fieldset className={styles.categoryPicker}><legend>Categoria DS Tênis</legend>{([null,"RED","ORANGE","GREEN"] as const).map(value=><button type="button" key={value||"NONE"} className={kidCategory===value?styles.categorySelected:""} onClick={()=>setKidCategory(value)}>{value===null?"Sem categoria":value==="RED"?"🔴 Vermelha":value==="ORANGE"?"🟠 Laranja":"🟢 Verde"}</button>)}</fieldset></> : null}
 
@@ -1075,4 +1095,4 @@ function statusLabel(status: string) { return ({ PENDING: "Pendente", PARTIAL: "
 function competenceStatusLabel(status?: string) { return status === "CLOSED" ? "Fechada" : status === "REOPENED" ? "Reaberta" : "Aberta"; }
 function carryoverKindLabel(kind: FinanceCarryoverKind) { return ({ SINGLE: "Uma parcela", MONTHLY: "Mensalidade", INSTALLMENT: "Parcela", OTHER: "Outro" } as Record<FinanceCarryoverKind, string>)[kind]; }
 function expenseKindLabel(kind: FinanceExpenseKind) { return ({ RECURRING: "Recorrente", INSTALLMENT: "Parcelamento", CARD: "Cartão", VARIABLE: "Variável" } as Record<FinanceExpenseKind, string>)[kind]; }
-function modalTitle(action: Exclude<Action, null>) { if (action.type === "personal-create") return "Nova mensalidade Personal"; if (action.type === "personal-edit") return `Editar · ${action.invoice.studentName}`; if (action.type === "personal-payment") return `Receber · ${action.invoice.studentName}`; if (action.type === "expense-create") return action.kind === "CARD" ? "Novo cartão" : "Nova despesa"; if (action.type === "expense-edit") return `Editar · ${action.expense.name}`; if (action.type === "expense-payment") return `Pagar · ${action.expense.name}`; if (action.type === "card-value") return `Fatura · ${action.expense.name}`; if (action.type === "ranking") return "Ranking do mês"; if (action.type === "ds-receipt") return "Recebimento da DS"; if (action.type === "ds-return") return "Devolução para a DS"; if (action.type === "kid-create") return "Novo aluno Kids"; if (action.type === "kid-edit") return `Editar Kids · ${action.kid.studentName}`; if (action.type === "carry-create") return "Trazer pendência de mês anterior"; if (action.type === "carry-edit") return `Pendência · ${action.carry.studentName}`; if (action.type === "extra-create") return "Novo gasto extra"; if (action.type === "extra-edit") return `Editar gasto · ${action.extra.description}`; return "Nova categoria"; }
+function modalTitle(action: Exclude<Action, null>) { if (action.type === "personal-create") return "Nova mensalidade Personal"; if (action.type === "personal-edit") return `Editar · ${action.invoice.studentName}`; if (action.type === "personal-payment") return `Receber · ${action.invoice.studentName}`; if (action.type === "expense-create") return action.kind === "CARD" ? "Novo cartão" : "Nova despesa"; if (action.type === "expense-edit") return `Editar · ${action.expense.name}`; if (action.type === "expense-payment") return `Pagar · ${action.expense.name}`; if (action.type === "card-value") return `Fatura · ${action.expense.name}`; if (action.type === "ranking") return "Ranking do mês"; if (action.type === "events") return "Eventos do mês"; if (action.type === "ds-receipt") return "Recebimento da DS"; if (action.type === "ds-return") return "Devolução para a DS"; if (action.type === "ds-opening-balance") return "Editar saldo anterior da DS"; if (action.type === "kid-create") return "Novo aluno Kids"; if (action.type === "kid-edit") return `Editar Kids · ${action.kid.studentName}`; if (action.type === "carry-create") return "Trazer pendência de mês anterior"; if (action.type === "carry-edit") return `Pendência · ${action.carry.studentName}`; if (action.type === "extra-create") return "Novo gasto extra"; if (action.type === "extra-edit") return `Editar gasto · ${action.extra.description}`; return "Nova categoria"; }

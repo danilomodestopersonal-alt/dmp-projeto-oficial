@@ -28,7 +28,9 @@ export type FinanceCommand =
   | { type: "DS_RECEIPT_DELETE"; competence: string; receiptId: string }
   | { type: "DS_RETURN_ADD"; competence: string; date: string; amount: number; note?: string }
   | { type: "DS_RETURN_DELETE"; competence: string; returnId: string }
+  | { type: "DS_OPENING_BALANCE_SET"; competence: string; balance: number; note: string }
   | { type: "RANKING_SET"; competence: string; amount: number }
+  | { type: "EVENTS_SET"; competence: string; amount: number }
   | { type: "EXPENSE_CREATE"; startCompetence?:string; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
   | { type: "EXPENSE_UPDATE"; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
   | { type: "EXPENSE_DELETE"; id: string; scope?:"CURRENT"|"CURRENT_AND_FUTURE" }
@@ -60,7 +62,7 @@ function dsBalanceFor(data: FinanceData, competence: string) {
   const transferred = new Set((data.carriedPendencies || []).filter(item => item.originCompetence === competence && item.sourceEntryId).map(item => item.sourceEntryId as string));
   const kidsBase = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals && !!item.studentId && !transferred.has(item.id)).reduce((total, item) => total + item.amount, 0);
   const carried = (data.carriedPendencies || []).filter(item => item.competence === competence && item.scope === "DS_KIDS").reduce((total, item) => total + item.amount, 0);
-  const settlement = Math.round((((kidsBase + carried) * data.dsPercent) + (data.rankingByCompetence[competence] || 0)) * 100) / 100;
+  const settlement = Math.round((((kidsBase + carried) * data.dsPercent) + (data.rankingByCompetence[competence] || 0) + (data.eventsByCompetence?.[competence] || 0)) * 100) / 100;
   const received = (data.dsReceipts[competence] || []).reduce((total, item) => total + item.amount, 0);
   const returned = (data.dsReturns?.[competence] || []).reduce((total, item) => total + item.amount, 0);
   return Math.round(((data.dsOpeningBalances?.[competence] || 0) + settlement - received + returned) * 100) / 100;
@@ -150,6 +152,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
       [target]: { status: "OPEN", openedAt: nowIso() },
     },
     rankingByCompetence: { ...data.rankingByCompetence, [target]: 0 },
+    eventsByCompetence: { ...(data.eventsByCompetence || {}), [target]: 0 },
     personalInvoices: [...data.personalInvoices, ...personalInvoices],
     dsKids: [...data.dsKids, ...dsKids],
     dsReceipts: { ...data.dsReceipts, [target]: [] },
@@ -272,8 +275,19 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory(updated, historyEntry(command.competence, "DS_RETURN_DELETED", "Devolução para a DS removida.", payment.amount, payment.id));
     }
 
+    case "DS_OPENING_BALANCE_SET": {
+      const previous = data.dsOpeningBalances?.[command.competence] || 0;
+      const updated = { ...data, dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [command.competence]: command.balance } };
+      const reason = command.note.trim();
+      return withHistory(updated, historyEntry(command.competence, "DS_OPENING_BALANCE_UPDATED", `Saldo anterior da DS alterado de R$ ${previous.toFixed(2)} para R$ ${command.balance.toFixed(2)} · ${reason}.`, command.balance));
+    }
+
     case "RANKING_SET": {
       return withHistory({ ...data, rankingByCompetence: { ...data.rankingByCompetence, [command.competence]: command.amount } }, historyEntry(command.competence, "RANKING_UPDATED", "Valor do ranking atualizado.", command.amount));
+    }
+
+    case "EVENTS_SET": {
+      return withHistory({ ...data, eventsByCompetence: { ...(data.eventsByCompetence || {}), [command.competence]: command.amount } }, historyEntry(command.competence, "EVENTS_UPDATED", "Valor de eventos atualizado.", command.amount));
     }
 
     case "EXPENSE_CREATE": {

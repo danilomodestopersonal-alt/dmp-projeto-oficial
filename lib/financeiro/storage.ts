@@ -57,6 +57,7 @@ export function normalizeFinanceData(value: unknown, fallback: FinanceData): Fin
   return {
     ...value,
     currentCompetence,
+    eventsByCompetence: value.eventsByCompetence && typeof value.eventsByCompetence === "object" ? value.eventsByCompetence : {},
     personalInvoices: uniqueIds(value.personalInvoices, "personal").map(item => ({ ...item, payments: uniqueIds(Array.isArray(item.payments) ? item.payments : [], `personal-payment-${item.id}`) })),
     dsKids: uniqueIds(value.dsKids, "kid"),
     expenses: uniqueIds(value.expenses, "expense").map(item => ({ ...item, payments: uniqueIds(Array.isArray(item.payments) ? item.payments : [], `expense-payment-${item.id}`) })),
