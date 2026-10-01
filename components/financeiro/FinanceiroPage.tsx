@@ -1,5 +1,7 @@
 "use client";
 
+import { DsOpeningBalanceRow, DsOpeningBalanceEditButton } from "./DsOpeningBalance";
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   DsKidEntry,
@@ -40,7 +42,7 @@ import {
   financeReportCsv,
   personalStatusTotals,
 } from "@/lib/financeiro/relatorios";
-import { fetchFinanceCloud, loadFinanceData, saveFinanceCloud, saveFinanceData } from "@/lib/financeiro/storage";
+import { hasPendingDsOpeningInitialization, fetchFinanceCloud, loadFinanceData, saveFinanceCloud, saveFinanceData } from "@/lib/financeiro/storage";
 import { parseFinanceVoice, parseMoney, suggestCategory, type VoicePreview } from "@/lib/financeiro/voz";
 import styles from "./FinanceiroPage.module.css";
 import type { KidsData } from "@/types/kids";
@@ -287,7 +289,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
         const studentsChanged =
           JSON.stringify(nextStudents) !== JSON.stringify(originalStudents);
         const financeChanged =
-          JSON.stringify(next) !== JSON.stringify(base);
+          hasPendingDsOpeningInitialization(base) || JSON.stringify(next) !== JSON.stringify(base);
 
         if (studentsChanged || financeChanged) {
           // NADA é gravado antes deste backup.
@@ -663,10 +665,10 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
             <section className="panel">
               <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><div className={styles.inlineActions}><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "events" })}>Editar eventos</button></div></div>
               {competence === "2026-08" && summary.ranking === 6500 ? <div className={styles.importNote}><strong>Conferência da planilha</strong><span>O Resumo DS informa Ranking de R$ 6.500,00. Outro quadro da planilha mostra R$ 7.000,00. O DMP está usando R$ 6.500,00; altere aqui se necessário.</span></div> : null}
-              <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} />{summary.kidsCarryoverTotal>0?<Calc label="Incluído de pendências anteriores" value={summary.kidsCarryoverTotal}/>:null}<Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Eventos" value={summary.events} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong />{summary.dsOpeningBalance!==0?<Calc label={summary.dsOpeningBalance>0?"Saldo anterior a receber":"Saldo anterior a devolver"} value={Math.abs(summary.dsOpeningBalance)}/>:null}<Calc label="Recebido da DS" value={summary.dsReceived} />{summary.dsReturned>0?<Calc label="Devolvido para DS" value={summary.dsReturned}/>:null}<Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
+              <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} />{summary.kidsCarryoverTotal>0?<Calc label="Incluído de pendências anteriores" value={summary.kidsCarryoverTotal}/>:null}<Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Eventos" value={summary.events} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong /><DsOpeningBalanceRow balance={summary.dsOpeningBalance} className={styles.calcRow}/><Calc label="Recebido da DS" value={summary.dsReceived} />{summary.dsReturned>0?<Calc label="Devolvido para DS" value={summary.dsReturned}/>:null}<Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
               <button className={`primary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-receipt" })}>+ Registrar recebimento DS</button>
               <button className={`secondary ${styles.fullButton}`} disabled={!editable || summary.dsBalance>=0} onClick={() => openAction({ type: "ds-return" })}>+ Registrar devolução para DS</button>
-              {summary.dsOpeningBalance!==0?<button className={`secondary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-opening-balance" })}>Editar saldo anterior da DS</button>:null}
+              <DsOpeningBalanceEditButton editable={editable} className={`secondary ${styles.fullButton}`} onEdit={() => openAction({ type: "ds-opening-balance" })}/>
               <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{receipt.sourceName || "DS"}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
               <div className={styles.receiptList}>{summary.returns.length ? summary.returns.map(payment => <div key={payment.id} className={styles.receipt}><span>Devolução para DS<small>{formatDate(payment.date)}{payment.note?` · ${payment.note}`:""}</small></span><div className={styles.receiptActions}><strong>{money.format(payment.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir devolução de ${money.format(payment.amount)} para a DS?`)) dispatch({ type: "DS_RETURN_DELETE", competence, returnId: payment.id }); }}>Excluir</button></div></div>) : null}</div>
               <div className={styles.importNote}><strong>🔴 Pendências trazidas de meses anteriores</strong><span>Você escolhe somente quem deve entrar nesta competência. Esses valores entram no Kids bruto deste mês e não seguem automaticamente para o próximo.</span></div>
@@ -789,6 +791,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
                     : action.type === "ds-opening-balance" ? Math.abs(financeSummary(data, competence).dsOpeningBalance)
                     : 0;
 
+  const [dsOpeningDirection,setDsOpeningDirection] = useState<"RECEIVE"|"RETURN">(financeSummary(data,competence).dsOpeningBalance<0?"RETURN":"RECEIVE");
   const [amount, setAmount] = useState(initialAmount ? String(initialAmount).replace(".", ",") : "");
   const [date, setDate] = useState(extra?.date || today());
   const [name, setName] = useState(invoice?.studentName || kid?.studentName || expense?.name || "");
@@ -910,8 +913,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     if (action.type === "ds-opening-balance") {
       if (numeric === null || numeric < 0 || !note.trim()) return;
-      const current = financeSummary(data, competence).dsOpeningBalance;
-      const sign = current < 0 ? -1 : 1;
+      const sign = dsOpeningDirection === "RETURN" ? -1 : 1;
       dispatch({ type: "DS_OPENING_BALANCE_SET", competence, balance: numeric * sign, note });
       onClose(); return;
     }
@@ -980,7 +982,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     {action.type === "ds-receipt" ? <><div className={styles.formGrid}><label>Valor recebido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Origem<input value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="DS" /></label><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Opcional" /></label></> : null}
     {action.type === "ds-return" ? <><div className={styles.formGrid}><label>Valor devolvido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Ex.: devolução parcial" /></label></> : null}
-    {action.type === "ds-opening-balance" ? <><div className={styles.importNote}><strong>{financeSummary(data, competence).dsOpeningBalance<0?"Saldo anterior a devolver":"Saldo anterior a receber"}</strong><span>A direção do saldo será preservada. Informe o novo valor e o motivo da correção.</span></div><label>Novo valor<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Motivo da alteração<input value={note} onChange={event => setNote(event.target.value)} placeholder="Obrigatório" required /></label></> : null}
+    {action.type === "ds-opening-balance" ? <><label>Direção do saldo<select value={dsOpeningDirection} onChange={event=>setDsOpeningDirection(event.target.value as "RECEIVE"|"RETURN")}><option value="RECEIVE">A receber da DS</option><option value="RETURN">A devolver para DS</option></select></label><label>Novo valor<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus placeholder="0,00" /></label><label>Motivo da alteração<input value={note} onChange={event => setNote(event.target.value)} placeholder="Obrigatório" required /></label></> : null}
 
     {action.type === "kid-create" || action.type === "kid-edit" ? <><label>Aluno Kids<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor<input value={amount} onChange={event => setAmount(event.target.value)} /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event=>setDueDay(event.target.value)}/></label></div><label>Forma de cobrança<select value={kidBillingMode} onChange={event=>setKidBillingMode(event.target.value as typeof kidBillingMode)}><option value="SINGLE">Parcela única</option><option value="INSTALLMENT">Parcelado por quantidade de meses</option><option value="RECURRING">Recorrente sem término</option></select></label>{kidBillingMode==="INSTALLMENT"?<div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent||"1"} onChange={event=>setInstallmentCurrent(event.target.value)}/></label><label>Quantidade de parcelas<input type="number" min="1" value={installmentTotal} onChange={event=>setInstallmentTotal(event.target.value)}/></label></div>:null}<fieldset className={styles.categoryPicker}><legend>Categoria DS Tênis</legend>{([null,"RED","ORANGE","GREEN"] as const).map(value=><button type="button" key={value||"NONE"} className={kidCategory===value?styles.categorySelected:""} onClick={()=>setKidCategory(value)}>{value===null?"Sem categoria":value==="RED"?"🔴 Vermelha":value==="ORANGE"?"🟠 Laranja":"🟢 Verde"}</button>)}</fieldset></> : null}
 

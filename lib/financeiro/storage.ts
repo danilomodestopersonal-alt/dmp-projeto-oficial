@@ -1,4 +1,8 @@
+import { initializeDsOpeningBalances } from "./operacoes";
 import type { FinanceData, FinanceHistoryEntry } from "@/types/financeiro";
+
+const pendingDsOpeningInitialization = new WeakSet<FinanceData>();
+export function hasPendingDsOpeningInitialization(data: FinanceData) { return pendingDsOpeningInitialization.has(data); }
 
 const STORAGE_KEY = "dmp_finance_v1";
 const CLOUD_VERSION_KEY = "dmp_finance_cloud_updated_at";
@@ -54,7 +58,7 @@ export function normalizeFinanceData(value: unknown, fallback: FinanceData): Fin
     ? value.currentCompetence
     : Object.keys(value.competences).sort().at(-1) || fallback.currentCompetence;
 
-  return {
+  const normalized: FinanceData = {
     ...value,
     currentCompetence,
     eventsByCompetence: value.eventsByCompetence && typeof value.eventsByCompetence === "object" ? value.eventsByCompetence : {},
@@ -79,6 +83,9 @@ export function normalizeFinanceData(value: unknown, fallback: FinanceData): Fin
     categories: [...new Set(value.categories.filter(item => typeof item === "string" && item.trim()).map(item => item.trim()))].sort((a, b) => a.localeCompare(b, "pt-BR")),
     history: normalizeHistory(value.history).length ? normalizeHistory(value.history) : normalizeHistory(fallback.history),
   };
+  const initialized = initializeDsOpeningBalances(normalized);
+  if (initialized !== normalized) pendingDsOpeningInitialization.add(initialized);
+  return initialized;
 }
 
 export function loadFinanceData(fallback: FinanceData): FinanceData {

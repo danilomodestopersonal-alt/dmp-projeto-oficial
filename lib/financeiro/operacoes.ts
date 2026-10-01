@@ -68,6 +68,26 @@ function dsBalanceFor(data: FinanceData, competence: string) {
   return Math.round(((data.dsOpeningBalances?.[competence] || 0) + settlement - received + returned) * 100) / 100;
 }
 
+// Preenche apenas chaves ausentes de competências abertas; zero explícito é definitivo.
+export function initializeDsOpeningBalances(data: FinanceData): FinanceData {
+  let next = data;
+  for (const competence of Object.keys(data.competences).sort()) {
+    if (competence < data.currentCompetence && competence !== "2026-10") continue;
+    if (!isCompetenceEditable(data, competence) || Object.prototype.hasOwnProperty.call(next.dsOpeningBalances || {}, competence)) continue;
+    const previous = previousCompetence(competence);
+    // Correção específica aprovada para outubro, já existente antes do transporte.
+    const confirmedOctober = competence === "2026-10";
+    if (!confirmedOctober && !data.competences[previous]) continue;
+    const balance = confirmedOctober ? -1611.36 : dsBalanceFor(next, previous);
+    next = withHistory({...next, dsOpeningBalances:{...next.dsOpeningBalances,[competence]:balance}},
+      historyEntry(competence,"DS_OPENING_BALANCE_UPDATED",`Saldo anterior da DS inicializado: ${describeDsBalance(balance)} · ${confirmedOctober?"saldo de setembro confirmado com a DS":"transportado de " + previous}.`,balance));
+  }
+  return next;
+}
+function describeDsBalance(value: number) {
+  return `${value < 0 ? "A devolver" : value > 0 ? "A receber" : "Zerado"} R$ ${Math.abs(value).toFixed(2)}`;
+}
+
 function historyEntry(competence: string, kind: FinanceHistoryKind, description: string, amount?: number, entityId?: string): FinanceHistoryEntry {
   return { id: id("history"), occurredAt: nowIso(), competence, kind, description, amount, entityId };
 }
@@ -93,9 +113,10 @@ export function previousCompetence(value: string) {
 }
 
 function generateNextCompetence(data: FinanceData, fromCompetence: string) {
+  data = initializeDsOpeningBalances(data);
   const target = nextCompetence(fromCompetence);
   if (data.competences[target]) {
-    return { ...data, currentCompetence: target };
+    return { ...initializeDsOpeningBalances(data), currentCompetence: target };
   }
 
   const sourcePersonal = data.personalInvoices
@@ -157,7 +178,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     dsKids: [...data.dsKids, ...dsKids],
     dsReceipts: { ...data.dsReceipts, [target]: [] },
     dsReturns: { ...(data.dsReturns || {}), [target]: [] },
-    dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [target]: dsBalanceFor(data, fromCompetence) },
+    dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [target]: Object.prototype.hasOwnProperty.call(data.dsOpeningBalances || {}, target) ? data.dsOpeningBalances![target] : dsBalanceFor(data, fromCompetence) },
     expenses: [...data.expenses, ...expenses],
   };
 
@@ -276,10 +297,12 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
     }
 
     case "DS_OPENING_BALANCE_SET": {
+      if (!command.note.trim() || !Number.isFinite(command.balance)) return data;
       const previous = data.dsOpeningBalances?.[command.competence] || 0;
-      const updated = { ...data, dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [command.competence]: command.balance } };
+      const balance = Math.round(command.balance * 100) / 100;
+      const updated = { ...data, dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [command.competence]: balance } };
       const reason = command.note.trim();
-      return withHistory(updated, historyEntry(command.competence, "DS_OPENING_BALANCE_UPDATED", `Saldo anterior da DS alterado de R$ ${previous.toFixed(2)} para R$ ${command.balance.toFixed(2)} · ${reason}.`, command.balance));
+      return withHistory(updated, historyEntry(command.competence, "DS_OPENING_BALANCE_UPDATED", `Saldo anterior da DS alterado de “${describeDsBalance(previous)}” para “${describeDsBalance(balance)}” · Motivo: ${reason}.`, balance));
     }
 
     case "RANKING_SET": {
