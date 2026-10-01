@@ -1238,3 +1238,5 @@
 .exportPreview article small{color:#687974}
 .exportPreview article p{margin:4px 0 0;color:#687974;font-size:12px;line-height:1.4}
 @media(max-width:700px){.eventHeaderActions{width:100%;display:grid;grid-template-columns:1fr 1fr}.eventHeaderActions button{width:100%}.exportControls{grid-template-columns:1fr}.exportChecks{display:grid;gap:8px}.exportPreviewHead{align-items:flex-start}.exportPreviewHead img{width:92px;height:54px}.exportPreview article{grid-template-columns:70px 1fr;padding:13px}.eventExportModal{max-height:94vh}}
+
+.studentHistoryMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}.studentHistoryMetrics article{display:grid;gap:4px;background:#f4f7ee;border:1px solid #dfe5d8;border-radius:12px;padding:12px}.studentHistoryMetrics small{color:#63705e}.studentHistoryMetrics strong{font-size:22px}

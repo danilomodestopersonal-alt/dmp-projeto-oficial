@@ -1,4 +1,5 @@
 "use client";
+import { kidsStudentHistory } from "../../lib/kids/student-history";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
@@ -2463,42 +2464,14 @@ function StudentEditor({
       }));
     } catch {}
   }
-  const credits = replacements
-    .filter((item) => item.studentId === studentId)
-    .sort((a, b) => b.sourceDate.localeCompare(a.sourceDate));
-  const completedLessons = lessons.filter(
-    (lesson) =>
-      (lesson.status === "COMPLETED" ||
-        (lesson.status === "SCHEDULED" &&
-          lessonHasPassed(lesson, memberships))) &&
-      memberships.some((group) => group.id === lesson.classId),
-  );
-  const present = completedLessons.filter(
-    (lesson) => lesson.attendance[studentId] !== "ABSENT",
-  ).length;
-  const absent = completedLessons.filter(
-    (lesson) => lesson.attendance[studentId] === "ABSENT",
-  ).length;
-  const cancelledLessons=lessons.filter(lesson=>lesson.status==="CANCELLED"&&classes.some(group=>group.id===lesson.classId&&group.students.some(student=>student.id===studentId&&(!student.startDate||student.startDate<=lesson.date)))).sort((a,b)=>b.date.localeCompare(a.date));
-  const allMemberships=draft.filter(group=>group.students.some(student=>student.id===studentId));
+  const studentHistory=kidsStudentHistory({...data,classes:draft},studentId);
+  const {present,absent}=studentHistory.metrics;
   const historyItems=[
-    ...allMemberships.map(group=>{
+    ...draft.filter(group=>group.students.some(student=>student.id===studentId)).map(group=>{
       const member=group.students.find(student=>student.id===studentId)!;
       return {date:member.startDate||semesterStart,type:"Turma",title:`Entrada em ${group.name}`,detail:`Bola ${categoryLabel[group.category]} · ${weekdayLabel[group.weekday]}, ${group.startTime}${member.active?"":" · turma anterior/inativa"}`};
     }),
-    ...completedLessons.map(lesson=>({
-      date:lesson.date,
-      type:lesson.attendance[studentId]==="ABSENT"?"Falta":"Aula",
-      title:lesson.attendance[studentId]==="ABSENT"?(lesson.absenceReplacementRights?.[studentId]?"Falta com direito à reposição":"Falta registrada"):"Aula realizada",
-      detail:groupName(classes,lesson.classId),
-    })),
-    ...cancelledLessons.map(lesson=>({date:lesson.date,type:"Cancelamento",title:"Aula cancelada",detail:`${groupName(classes,lesson.classId)}${cancelReasonText(lesson)?` · ${cancelReasonText(lesson)}`:""}${lesson.notes?` · ${lesson.notes}`:""}`})),
-    ...credits.map(item=>({
-      date:item.completedDate||item.scheduledDate||item.sourceDate,
-      type:"Reposição",
-      title:item.status==="COMPLETED"?"Reposição concluída":item.status==="SCHEDULED"?"Reposição agendada":"Reposição pendente",
-      detail:item.status==="COMPLETED"?`Origem: ${formatDate(item.sourceDate)}`:item.reason,
-    })),
+    ...studentHistory.rows,
   ].filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd).sort((a,b)=>b.date.localeCompare(a.date));
   function printStudentReport() {
     printReport(buildReport({ ...data, classes: draft }, "student", studentId));
@@ -2731,6 +2704,9 @@ function StudentEditor({
               <p>Linha do tempo do semestre com turmas, aulas, faltas e reposições.</p>
             </div>
             <span>{historyItems.length} registros</span>
+          </div>
+          <div className={styles.studentHistoryMetrics}>
+            {[["Presenças",present],["Faltas",absent],["Reposições pendentes",studentHistory.metrics.pending],["Reposições realizadas",studentHistory.metrics.replaced],["Cancelamentos",studentHistory.metrics.cancelled]].map(([label,value])=><article key={label}><small>{label}</small><strong>{value}</strong></article>)}
           </div>
           {profile.notes?.trim()?<div className={styles.studentHistoryNote}><strong>Observação atual</strong><p>{profile.notes}</p></div>:null}
           <div className={styles.timeline}>
@@ -3056,33 +3032,10 @@ function buildReport(
       .map((student) => ({ group, student })),
   );
   const name = occurrences[0]?.student.name || "Aluno";
-  const lessonSet = data.lessons.filter(
-    (lesson) =>
-      occurrences.some(
-        (item) =>
-          item.group.id === lesson.classId &&
-          (!item.student.startDate || item.student.startDate <= lesson.date),
-      ) && eligible(lesson),
-  );
-  const completed = lessonSet.filter(
-    (item) =>
-      item.status === "COMPLETED" ||
-      (item.status === "SCHEDULED" && lessonHasPassed(item, data.classes)),
-  );
-  const present = completed.filter(
-    (item) => item.attendance[id] !== "ABSENT",
-  ).length;
-  const absent = completed.filter(
-    (item) => item.attendance[id] === "ABSENT",
-  ).length;
-  const cancelled = lessonSet.filter(
-    (item) => item.status === "CANCELLED",
-  ).length;
-  const rate =
-    present + absent ? Math.round((present / (present + absent)) * 100) : 0;
-  const replacements = lessonSet.filter(
-    (item) => item.replacementStatus !== "NONE",
-  );
+  const lessonSet = data.lessons.filter(lesson=>occurrences.some(item=>item.group.id===lesson.classId&&(!item.student.startDate||item.student.startDate<=lesson.date))&&eligible(lesson));
+  const history=kidsStudentHistory(data,id);
+  const {present,absent,cancelled,pending,replaced}=history.metrics;
+  const rate=present+absent?Math.round(present/(present+absent)*100):0;
   const contents = lessonSet
     .filter((item) => item.date <= localDate())
     .filter((item) => item.objective || item.actualPlan)
@@ -3093,8 +3046,9 @@ function buildReport(
     )
     .join("");
   const studentReplacementBalance = computeKidsStudentReplacementBalance(data, id);
-    const baseBody = `<div class="metrics"><b>${present}<small>Presenças</small></b><b>${absent}<small>Faltas</small></b><b>${cancelled}<small>Aulas canceladas</small></b><b>${rate}%<small>Frequência</small></b><b>${replacements.filter((item) => item.replacementStatus === "COMPLETED").length}<small>Reposições</small></b></div><h3>Turmas</h3><p>${occurrences.map((item) => escapeHtml(item.group.name)).join(" · ")}</p><h3>Objetivos e conteúdos</h3><ul>${contents || "<li>Nenhum conteúdo registrado.</li>"}</ul>`;
-    const body = `${kidsReplacementBalanceReportHtml(studentReplacementBalance)}${baseBody}`;
+    const baseBody = `<div class="metrics"><b>${present}<small>Presenças</small></b><b>${absent}<small>Faltas</small></b><b>${cancelled}<small>Aulas canceladas</small></b><b>${rate}%<small>Frequência</small></b><b>${replaced}<small>Reposições realizadas</small></b><b>${pending}<small>Reposições pendentes</small></b></div><h3>Turmas</h3><p>${occurrences.map((item) => escapeHtml(item.group.name)).join(" · ")}</p><h3>Objetivos e conteúdos</h3><ul>${contents || "<li>Nenhum conteúdo registrado.</li>"}</ul>`;
+    const timeline=`<h3>Histórico da criança</h3><ul>${history.rows.map(row=>`<li><b>${formatDate(row.date)}</b> · ${escapeHtml(row.type)} · ${escapeHtml(row.title)}<br>${escapeHtml(row.detail)}</li>`).join("")||"<li>Nenhum registro no período.</li>"}</ul>`;
+    const body = `${kidsReplacementBalanceReportHtml(studentReplacementBalance)}${baseBody}${timeline}`;
   return {
     title: `Relatório de ${name}`,
     subtitle: `Período: ${formatDate(data.semesterStart)} a ${formatDate(data.semesterEnd)}`,

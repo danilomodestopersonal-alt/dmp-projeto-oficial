@@ -1,5 +1,5 @@
 import type { FinanceData, FinanceExpenseKind } from "@/types/financeiro";
-import { expenseStatus, financeSummary, invoiceStatus, paid, sum } from "@/lib/financeiro/calculos";
+import { expenseStatus, financeSummary, invoiceStatus, paid, sum, receivedInCompetence } from "./calculos";
 
 export function categoryTotals(data: FinanceData, competence = data.currentCompetence) {
   const totals = new Map<string, number>();
@@ -25,7 +25,7 @@ export function expenseKindTotals(data: FinanceData, competence = data.currentCo
       kind,
       label: labels[kind],
       expected: sum(items.map(item => item.expectedAmount)),
-      paid: sum(items.map(item => paid(item.payments))),
+      paid: sum(data.expenses.filter(item=>item.kind===kind).map(item => receivedInCompetence(item.payments,competence))),
       count: items.length,
     };
   });
@@ -119,6 +119,11 @@ export function financeReportCsv(data: FinanceData, competence = data.currentCom
     item.installmentTotal,
     expenseStatus(item),
   ])));
+  lines.push("");
+
+  lines.push(csvRow(["PAGAMENTOS DE CONTAS NO MES"]));
+  lines.push(csvRow(["Conta", "Competencia da conta", "Data do pagamento", "Valor", "Referencia"]));
+  data.expenses.forEach(item=>item.payments.filter(payment=>payment.date.slice(0,7)===competence).forEach(payment=>lines.push(csvRow([item.name,item.competence,payment.date,payment.amount.toFixed(2),payment.note]))));
   lines.push("");
 
   lines.push(csvRow(["GASTOS EXTRAS"]));

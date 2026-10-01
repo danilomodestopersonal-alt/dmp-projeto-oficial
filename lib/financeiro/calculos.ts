@@ -75,7 +75,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   // Positivo: DS deve ao Danilo. Negativo: Danilo deve devolver para a DS.
   const dsBalance = roundMoney(dsOpeningBalance + dsSettlement - dsReceived + dsReturned);
   const expensesExpected = sum(expenses.map(item => item.expectedAmount));
-  const expensesPaid = sum(expenses.map(item => paid(item.payments)));
+  // A obrigação mantém sua competência; o caixa segue a data efetiva do pagamento.
+  const expensesPaid = sum(data.expenses.map(item => receivedInCompetence(item.payments, competence)));
   const extrasTotal = sum(extras.map(item => item.amount));
   // Gastos extras são informativos e ficam exclusivamente no quadro próprio.
   // Não alteram despesas pagas, resultado ou contas a pagar.

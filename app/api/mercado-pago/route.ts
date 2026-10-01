@@ -1,3 +1,4 @@
+import { reconcileExpenses, reverseExpenseReconciliation, type ExpenseAllocationInput, type ExpenseRemainder, type ExpenseReconciliation } from "@/lib/mercado-pago/expense-reconciliation";
 import {createHash} from "crypto";
 import {isAuthorized} from "@/lib/auth";
 import {NextRequest,NextResponse} from "next/server";
@@ -44,6 +45,7 @@ type LearnedRule={
   updatedAt:string;
 };
 type SavedDecision={
+  expenseReconciliation?:ExpenseReconciliation;
   fingerprint:string;
   target:TargetType;
   category?:string;
@@ -79,6 +81,7 @@ type MpReport={
   [key:string]:unknown;
 };
 type Movement={
+  expenseReconciliation?:ExpenseReconciliation;
   id:string;
   fingerprint:string;
   sourceId:string;
@@ -112,7 +115,7 @@ type FinanceContext={
   competence:string|null;
   categories:string[];
   personal:Array<{id:string;competence:string;studentName:string;expectedAmount:number;paid:number;remaining:number}>;
-  expenses:Array<{id:string;name:string;expectedAmount:number;paid:number;remaining:number}>;
+  expenses:Array<{id:string;competence:string;dueDay:number;closed:boolean;name:string;expectedAmount:number;paid:number;remaining:number}>;
 };
 
 function emptyState():MpState{return {version:1,rules:{},decisions:{},tasks:{}};}
@@ -595,7 +598,7 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
     description:candidate.description,expenseName,detail:candidate.detail,operation:candidate.operation,kind:candidate.kind,amount:candidate.amount,
     category,confidence,reason,technical,status,suggestedTarget,suggestedTargetName,ruleMode:learnedMode,ruleKey:learnedKey,
     learningKey,learningLabel,fingerprintAliases,
-    processedAutomatic:Boolean(saved?.automatic),historical:candidate.historical,canLearn,canAuto,
+    expenseReconciliation:saved?.expenseReconciliation,processedAutomatic:Boolean(saved?.automatic),historical:candidate.historical,canLearn,canAuto,
   };
 }
 function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):Movement[]{
@@ -737,7 +740,7 @@ function financeContext(data:FinanceData|null):FinanceContext{
       .map(item=>({id:item.id,competence:item.competence,studentName:item.studentName,expectedAmount:item.expectedAmount,paid:paid(item.payments),remaining:Math.max(0,item.expectedAmount-paid(item.payments))}))
       .filter(item=>item.remaining>0.005)
       .sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")||a.competence.localeCompare(b.competence)),
-    expenses:data.expenses.filter(item=>item.competence===competence).map(item=>({id:item.id,name:item.name,expectedAmount:item.expectedAmount,paid:paid(item.payments),remaining:Math.max(0,item.expectedAmount-paid(item.payments))})).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")),
+    expenses:data.expenses.map(item=>({id:item.id,competence:item.competence,dueDay:item.dueDay,closed:data.competences[item.competence]?.status==="CLOSED",name:item.name,expectedAmount:item.expectedAmount,paid:paid(item.payments),remaining:Math.max(0,item.expectedAmount-paid(item.payments))})).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")),
   };
 }
 async function loadFinance():Promise<FinanceData|null>{
@@ -1197,6 +1200,44 @@ async function persistPersonalSplitDecision(move:Movement,splitsInput:PersonalSp
   }finally{client.release();}
 }
 
+async function persistExpenseSplitDecision(move:Movement,splits:ExpenseAllocationInput[],remainder:ExpenseRemainder|undefined,correction=false,expectedRevision?:string){
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    await client.query("INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (id) DO NOTHING",[STATE_ID,JSON.stringify(emptyState())]);
+    const stateResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[STATE_ID]);
+    const state=parseState(stateResult.rows[0].payload);
+    const prior=decisionFor(state,move.fingerprintAliases||[move.fingerprint]);
+    if(!correction&&prior){await client.query("ROLLBACK");return {ok:true as const,already:true,financeChanged:false,decision:prior.decision};}
+    if(correction&&(!prior?.decision.expenseReconciliation||prior.decision.expenseReconciliation.revision!==expectedRevision)){
+      await client.query("ROLLBACK");return {ok:false as const,error:"Conciliação alterada ou indisponível. Atualize antes de corrigir."};
+    }
+    const financeResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[FINANCE_ID]);
+    const finance=financeResult.rows[0]?.payload as FinanceData|undefined;
+    if(!finance||finance.version!==1){await client.query("ROLLBACK");return {ok:false as const,error:"Financeiro oficial indisponível."};}
+    let prepared=finance;
+    if(correction&&prior?.decision.expenseReconciliation){
+      const receipt=prior.decision.expenseReconciliation;
+      if(receipt.date!==move.dateKey||receipt.amount!==move.amount){await client.query("ROLLBACK");return {ok:false as const,error:"Data ou valor do PIX mudou; correção bloqueada."};}
+      const reverted=reverseExpenseReconciliation(finance,receipt);
+      if(!reverted.ok){await client.query("ROLLBACK");return reverted;}
+      prepared=reverted.data;
+    }
+    const revision=createHash("sha256").update(`${move.fingerprint}|${Date.now()}|${Math.random()}`).digest("hex").slice(0,16);
+    const applied=reconcileExpenses(prepared,move,splits,remainder,revision);
+    if(!applied.ok){await client.query("ROLLBACK");return applied;}
+    await client.query("INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (id) DO NOTHING",[FINANCE_BACKUP_ID,JSON.stringify(finance)]);
+    await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(applied.data)]);
+    const receipt=applied.receipt;
+    const targetName=receipt.allocations.map(a=>`${a.name} (${a.competence}) ${a.payment.amount.toFixed(2)}`).join(" + ");
+    const decision:SavedDecision={fingerprint:prior?.decision.fingerprint||move.fingerprint,target:"EXPENSE",targetName,automatic:false,updatedAt:new Date().toISOString(),expenseReconciliation:receipt};
+    state.decisions[prior?.key||move.fingerprint]=decision;
+    await client.query("INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()",[STATE_ID,JSON.stringify(state)]);
+    await client.query("COMMIT");
+    return {ok:true as const,already:false,financeChanged:true,decision};
+  }catch(error){try{await client.query("ROLLBACK");}catch{}throw error;}finally{client.release();}
+}
+
 async function updateProcessedExtra(move:Movement,categoryInput:string,expenseNameInput:string){
   const category=categoryInput.trim();
   const expenseName=expenseNameInput.trim();
@@ -1305,6 +1346,19 @@ export async function POST(request:NextRequest){
       if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada no relatório atual. Atualize a leitura e tente novamente."},{status:404});
       if(move.historical||move.technical)return NextResponse.json({ok:false,error:"Esta movimentação não pode ser editada."},{status:400});
       const result=await updateProcessedExtra(move,category,expenseName);
+      if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
+      return NextResponse.json(result);
+    }
+
+    if(action==="decision-expense-split"||action==="correct-expense-split"){
+      const fingerprint=String(body?.fingerprint||"").trim();
+      const snapshot=await buildOverview();
+      const move=snapshot.movements.find(item=>item.fingerprint===fingerprint);
+      if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada. Atualize a leitura."},{status:404});
+      if(move.historical||move.technical||move.kind!=="OUT")return NextResponse.json({ok:false,error:"Selecione uma saída operacional atual."},{status:400});
+      const splits:ExpenseAllocationInput[]=(Array.isArray(body.splits)?body.splits:[]).map((item:any)=>({targetId:String(item?.targetId||""),amount:Number(item?.amount)}));
+      const remainder:ExpenseRemainder|undefined=body.remainder?{target:body.remainder.target,category:String(body.remainder.category||""),description:String(body.remainder.description||"")}:undefined;
+      const result=await persistExpenseSplitDecision(move,splits,remainder,action==="correct-expense-split",String(body.expectedRevision||""));
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
     }
