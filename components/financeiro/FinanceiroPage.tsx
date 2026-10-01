@@ -1,4 +1,5 @@
 "use client";
+import { PersonalManageButton, PersonalReceipts, PaymentHistory } from "./PersonalReceipts";
 
 import { DsOpeningBalanceRow, DsOpeningBalanceEditButton } from "./DsOpeningBalance";
 
@@ -75,6 +76,7 @@ type Filter = "ALL" | "OPEN" | "PAID" | "OVERDUE";
 type Action =
   | { type: "personal-create" }
   | { type: "personal-edit"; invoice: PersonalInvoice }
+  | { type: "personal-receipts"; invoice: PersonalInvoice }
   | { type: "personal-payment"; invoice: PersonalInvoice }
   | { type: "expense-create"; kind?: FinanceExpenseKind }
   | { type: "expense-edit"; expense: FinanceExpense }
@@ -381,7 +383,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
   }
 
   function openAction(next: Exclude<Action, null>) {
-    if (!requireEditable()) return;
+    if (next.type !== "personal-receipts" && !requireEditable()) return;
     setAction(next);
   }
 
@@ -654,7 +656,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
             <div className={styles.list}>
               {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).sort(compareDueDay).map(invoice => {
                 const received = paid(invoice.payments); const missing = remaining(invoice.expectedAmount, invoice.payments); const status = invoiceStatus(invoice);
-                return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><button className={styles.manageButton} disabled={!editable||invoice.profileManaged===true} title={invoice.profileManaged?"Mensalidade gerenciada no cadastro do aluno":"Editar mensalidade manual"} onClick={() => openAction({ type: "personal-edit", invoice })}>{invoice.profileManaged?"Cadastro":"Editar"}</button></div>;
+                return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><PersonalManageButton editable={editable} invoice={invoice} className={styles.manageButton} onManage={() => openAction({ type: invoice.profileManaged ? "personal-receipts" : "personal-edit", invoice })} /></div>;
               })}
             </div>
           </section>
@@ -770,7 +772,8 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 }
 
 function FinanceActionModal({ action, data, competence, kidsStudentOptions, onClose, dispatch }: { action: Exclude<Action, null>; data: FinanceData; competence: string; kidsStudentOptions:Array<{id:string;name:string}>; onClose: () => void; dispatch: (command: FinanceCommand) => void }) {
-  const invoice = action.type === "personal-edit" || action.type === "personal-payment" ? action.invoice : null;
+  const invoiceId = action.type === "personal-edit" || action.type === "personal-payment" || action.type === "personal-receipts" ? action.invoice.id : null;
+  const invoice = data.personalInvoices.find(item => item.id === invoiceId) || null;
   const expense = action.type === "expense-edit" || action.type === "expense-detail" || action.type === "expense-payment" || action.type === "card-value" ? action.expense : null;
   const kid = action.type === "kid-edit" ? action.kid : null;
   const carry = action.type === "carry-edit" ? action.carry : null;
@@ -837,6 +840,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (action.type === "personal-receipts") return;
     const numeric = numericAmount();
 
     if (action.type === "category-create") {
@@ -956,21 +960,26 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
   const title = modalTitle(action);
   useEffect(() => {
-    if(action.type !== "expense-create" && action.type !== "expense-edit") return;
+    if(action.type !== "expense-create" && action.type !== "expense-edit" && action.type !== "personal-receipts") return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previousOverflow; };
   }, [action.type]);
   const isInstallment = kind === "INSTALLMENT";
 
-  return <div className={styles.modalBackdrop} onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><form className={`${styles.modal} ${(action.type === "expense-create" || action.type === "expense-edit") ? styles.expenseModal : ""} ${(action.type === "personal-edit" || action.type === "expense-edit") ? styles.modalLarge : ""}`} onSubmit={submit}><div className={styles.modalHead}><div><span className="muted">Financeiro · {competenceLabel(competence)}</span><h2>{title}</h2></div><button type="button" className="text-button" onClick={onClose}>Fechar</button></div>
+  return <div className={styles.modalBackdrop} onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><form className={`${styles.modal} ${(action.type === "expense-create" || action.type === "expense-edit" || action.type === "personal-receipts") ? styles.expenseModal : ""} ${(action.type === "personal-edit" || action.type === "expense-edit" || action.type === "personal-receipts") ? styles.modalLarge : ""}`} onSubmit={submit}><div className={styles.modalHead}><div><span className="muted">Financeiro · {competenceLabel(competence)}</span><h2>{title}</h2></div><button type="button" className="text-button" onClick={onClose}>Fechar</button></div>
     <div className={styles.modalBody}>
 
-    {action.type === "personal-create" || action.type === "personal-edit" ? <><label>Aluno<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Mensalidade<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div>{action.type === "personal-edit" ? <PaymentHistory title="Recebimentos registrados" payments={action.invoice.payments} onDelete={payment => { if (window.confirm(`Excluir recebimento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "PERSONAL_PAYMENT_DELETE", invoiceId: action.invoice.id, paymentId: payment.id }); }} /> : null}</> : null}
+    {action.type === "personal-create" || action.type === "personal-edit" ? <><label>Aluno<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Mensalidade<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div>{action.type === "personal-edit" ? <PaymentHistory title="Recebimentos registrados" className={styles.paymentHistory} payments={invoice?.payments || []} onDelete={payment => { if (window.confirm(`Excluir recebimento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "PERSONAL_PAYMENT_DELETE", invoiceId: action.invoice.id, paymentId: payment.id }); }} /> : null}</> : null}
+
+    {action.type === "personal-receipts" ? invoice ? <PersonalReceipts invoice={invoice} editable={isCompetenceEditable(data, invoice.competence)} classes={styles} onDelete={payment => {
+      if (!isCompetenceEditable(data, invoice.competence)) return;
+      if (window.confirm(`Excluir o recebimento de ${money.format(payment.amount)} de ${invoice.studentName} em ${formatDate(payment.date)}? Esta ação será registrada no histórico.`)) dispatch({ type: "PERSONAL_PAYMENT_DELETE", invoiceId: invoice.id, paymentId: payment.id });
+    }} /> : <p>Mensalidade não encontrada.</p> : null}
 
     {action.type === "personal-payment" ? <><div className={styles.formGrid}><label>Valor recebido<input value={amount} onChange={event => setAmount(event.target.value)} autoFocus /></label><label>Data<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label>Observação<input value={note} onChange={event => setNote(event.target.value)} placeholder="Opcional" /></label><p className={styles.formHint}>Previsto {money.format(action.invoice.expectedAmount)} · já recebido {money.format(paid(action.invoice.payments))} · falta {money.format(remaining(action.invoice.expectedAmount, action.invoice.payments))}</p></> : null}
 
-    {action.type === "expense-create" || action.type === "expense-edit" ? <><label>Conta / despesa<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor previsto<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div>{action.type==="expense-create"?<label>Mês/Ano de início<input type="month" value={expenseStart} min="2000-01" max="2199-12" required onChange={event=>setExpenseStart(event.target.value)}/><small>A primeira cobrança será nesta competência.</small></label>:null}<label>Tipo<select value={kind} onChange={event => setKind(event.target.value as FinanceExpenseKind)}><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelamento</option><option value="CARD">Cartão</option><option value="VARIABLE">Variável / só este mês</option></select></label>{isInstallment ? <div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent} onChange={event => setInstallmentCurrent(event.target.value)} /></label><label>Total de parcelas<input type="number" min="1" value={installmentTotal} onChange={event => setInstallmentTotal(event.target.value)} /></label></div> : null}<label>Link para pagamento<input value={paymentLink} onChange={event=>setPaymentLink(event.target.value)} placeholder="https://... (opcional)" /></label><label>Observação da conta<textarea rows={2} value={expenseNote} onChange={event=>setExpenseNote(event.target.value)} placeholder="Opcional" /></label>{action.type === "expense-edit" ? <PaymentHistory title="Pagamentos registrados" payments={action.expense.payments} onDelete={payment => { if (window.confirm(`Excluir pagamento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "EXPENSE_PAYMENT_DELETE", expenseId: action.expense.id, paymentId: payment.id }); }} /> : null}</> : null}
+    {action.type === "expense-create" || action.type === "expense-edit" ? <><label>Conta / despesa<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Valor previsto<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div>{action.type==="expense-create"?<label>Mês/Ano de início<input type="month" value={expenseStart} min="2000-01" max="2199-12" required onChange={event=>setExpenseStart(event.target.value)}/><small>A primeira cobrança será nesta competência.</small></label>:null}<label>Tipo<select value={kind} onChange={event => setKind(event.target.value as FinanceExpenseKind)}><option value="RECURRING">Recorrente</option><option value="INSTALLMENT">Parcelamento</option><option value="CARD">Cartão</option><option value="VARIABLE">Variável / só este mês</option></select></label>{isInstallment ? <div className={styles.formGrid}><label>Parcela atual<input type="number" min="1" value={installmentCurrent} onChange={event => setInstallmentCurrent(event.target.value)} /></label><label>Total de parcelas<input type="number" min="1" value={installmentTotal} onChange={event => setInstallmentTotal(event.target.value)} /></label></div> : null}<label>Link para pagamento<input value={paymentLink} onChange={event=>setPaymentLink(event.target.value)} placeholder="https://... (opcional)" /></label><label>Observação da conta<textarea rows={2} value={expenseNote} onChange={event=>setExpenseNote(event.target.value)} placeholder="Opcional" /></label>{action.type === "expense-edit" ? <PaymentHistory title="Pagamentos registrados" className={styles.paymentHistory} payments={action.expense.payments} onDelete={payment => { if (window.confirm(`Excluir pagamento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "EXPENSE_PAYMENT_DELETE", expenseId: action.expense.id, paymentId: payment.id }); }} /> : null}</> : null}
 
     {action.type === "expense-detail" ? <div className={styles.expenseDetail}><div className={styles.expenseDetailHero}><div><small>Conta</small><h2>{action.expense.name}</h2><span>Vence dia {action.expense.dueDay}</span></div><strong>{money.format(remaining(action.expense.expectedAmount,action.expense.payments))}</strong></div><dl><div><dt>Valor previsto</dt><dd>{money.format(action.expense.expectedAmount)}</dd></div><div><dt>Já pago</dt><dd>{money.format(paid(action.expense.payments))}</dd></div><div><dt>Status</dt><dd>{remaining(action.expense.expectedAmount,action.expense.payments)>0?"Em aberto":"Pago"}</dd></div></dl>{action.expense.note?<div className={styles.expenseDetailNote}><strong>Observação</strong><p>{action.expense.note}</p></div>:null}{action.expense.paymentLink?<a className={styles.paymentLinkButton} href={normalizePaymentUrl(action.expense.paymentLink)} target="_blank" rel="noreferrer">Abrir para pagar ↗</a>:<p className={styles.formHint}>Esta conta ainda não possui link de pagamento cadastrado.</p>}</div> : null}
 
@@ -1010,7 +1019,8 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
       {action.type === "kid-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir ${action.kid.studentName} da lista Kids deste mês?`)) { dispatch({ type: "DS_KID_DELETE", id: action.kid.id }); onClose(); } }}>Excluir Kids</button> : null}
       {action.type === "carry-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir a pendência trazida de ${action.carry.studentName}?`)) { dispatch({ type: "CARRYOVER_DELETE", id: action.carry.id }); onClose(); } }}>Excluir pendência</button> : null}
       {action.type === "extra-edit" ? <button type="button" className={styles.dangerButton} onClick={() => { if (window.confirm(`Excluir o gasto “${action.extra.description}”?`)) { dispatch({ type: "EXTRA_DELETE", id: action.extra.id }); onClose(); } }}>Excluir gasto</button> : null}
-      {action.type !== "expense-detail" ? <><span className={styles.modalSpacer} /><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Salvar</button></> : null}
+      {action.type === "personal-receipts" ? <button type="button" className="secondary" onClick={onClose}>Fechar</button> : null}
+      {action.type !== "expense-detail" && action.type !== "personal-receipts" ? <><span className={styles.modalSpacer} /><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button className="primary">Salvar</button></> : null}
     </div>
   </form></div>;
 }
@@ -1060,10 +1070,6 @@ function ReportsTab({ data, competence, onDownload }: { data: FinanceData; compe
   </>;
 }
 
-function PaymentHistory({ title, payments, onDelete }: { title: string; payments: PersonalInvoice["payments"]; onDelete: (payment: PersonalInvoice["payments"][number]) => void }) {
-  return <div className={styles.paymentHistory}><strong>{title}</strong>{payments.length ? payments.slice().sort((a, b) => b.date.localeCompare(a.date)).map(payment => <div key={payment.id}><span>{formatDate(payment.date)}{payment.note ? ` · ${payment.note}` : ""}</span><strong>{money.format(payment.amount)}</strong><button type="button" onClick={() => onDelete(payment)}>Excluir</button></div>) : <span className="muted">Nenhum pagamento registrado.</span>}</div>;
-}
-
 function mergeKidsFinance(finance:FinanceData,kids:KidsData):FinanceData{
   const competence=finance.currentCompetence;const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
   const profiles=new Map<string,{student:KidsData["classes"][number]["students"][number];category:KidsData["classes"][number]["category"]}>();
@@ -1097,4 +1103,4 @@ function statusLabel(status: string) { return ({ PENDING: "Pendente", PARTIAL: "
 function competenceStatusLabel(status?: string) { return status === "CLOSED" ? "Fechada" : status === "REOPENED" ? "Reaberta" : "Aberta"; }
 function carryoverKindLabel(kind: FinanceCarryoverKind) { return ({ SINGLE: "Uma parcela", MONTHLY: "Mensalidade", INSTALLMENT: "Parcela", OTHER: "Outro" } as Record<FinanceCarryoverKind, string>)[kind]; }
 function expenseKindLabel(kind: FinanceExpenseKind) { return ({ RECURRING: "Recorrente", INSTALLMENT: "Parcelamento", CARD: "Cartão", VARIABLE: "Variável" } as Record<FinanceExpenseKind, string>)[kind]; }
-function modalTitle(action: Exclude<Action, null>) { if (action.type === "personal-create") return "Nova mensalidade Personal"; if (action.type === "personal-edit") return `Editar · ${action.invoice.studentName}`; if (action.type === "personal-payment") return `Receber · ${action.invoice.studentName}`; if (action.type === "expense-create") return action.kind === "CARD" ? "Novo cartão" : "Nova despesa"; if (action.type === "expense-edit") return `Editar · ${action.expense.name}`; if (action.type === "expense-payment") return `Pagar · ${action.expense.name}`; if (action.type === "card-value") return `Fatura · ${action.expense.name}`; if (action.type === "ranking") return "Ranking do mês"; if (action.type === "events") return "Eventos do mês"; if (action.type === "ds-receipt") return "Recebimento da DS"; if (action.type === "ds-return") return "Devolução para a DS"; if (action.type === "ds-opening-balance") return "Editar saldo anterior da DS"; if (action.type === "kid-create") return "Novo aluno Kids"; if (action.type === "kid-edit") return `Editar Kids · ${action.kid.studentName}`; if (action.type === "carry-create") return "Trazer pendência de mês anterior"; if (action.type === "carry-edit") return `Pendência · ${action.carry.studentName}`; if (action.type === "extra-create") return "Novo gasto extra"; if (action.type === "extra-edit") return `Editar gasto · ${action.extra.description}`; return "Nova categoria"; }
+function modalTitle(action: Exclude<Action, null>) { if (action.type === "personal-receipts") return `Recebimentos · ${action.invoice.studentName}`; if (action.type === "personal-create") return "Nova mensalidade Personal"; if (action.type === "personal-edit") return `Editar · ${action.invoice.studentName}`; if (action.type === "personal-payment") return `Receber · ${action.invoice.studentName}`; if (action.type === "expense-create") return action.kind === "CARD" ? "Novo cartão" : "Nova despesa"; if (action.type === "expense-edit") return `Editar · ${action.expense.name}`; if (action.type === "expense-payment") return `Pagar · ${action.expense.name}`; if (action.type === "card-value") return `Fatura · ${action.expense.name}`; if (action.type === "ranking") return "Ranking do mês"; if (action.type === "events") return "Eventos do mês"; if (action.type === "ds-receipt") return "Recebimento da DS"; if (action.type === "ds-return") return "Devolução para a DS"; if (action.type === "ds-opening-balance") return "Editar saldo anterior da DS"; if (action.type === "kid-create") return "Novo aluno Kids"; if (action.type === "kid-edit") return `Editar Kids · ${action.kid.studentName}`; if (action.type === "carry-create") return "Trazer pendência de mês anterior"; if (action.type === "carry-edit") return `Pendência · ${action.carry.studentName}`; if (action.type === "extra-create") return "Novo gasto extra"; if (action.type === "extra-edit") return `Editar gasto · ${action.extra.description}`; return "Nova categoria"; }
