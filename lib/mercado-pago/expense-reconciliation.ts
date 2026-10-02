@@ -1,3 +1,4 @@
+import { expensePaymentAllowed } from "./expense-options";
 import { createHash } from "node:crypto";
 import type { FinanceData, FinancePayment, FinanceHistoryEntry } from "../../types/financeiro";
 import { paid, roundMoney } from "../financeiro/calculos";
@@ -29,7 +30,7 @@ export function reconcileExpenses(data:FinanceData,move:ExpenseMovement,input:Ex
   for(const item of input){
     const expense=data.expenses.find(e=>e.id===item.targetId);
     if(!expense||expense.competence>month)return fail("Conta inexistente ou de competência futura.");
-    if(!openMonth(data,expense.competence))return fail(`A competência ${expense.competence} da conta está fechada.`);
+    if(!expensePaymentAllowed(expense.competence,month,data.competences[expense.competence]?.status,data.competences[month]?.status))return fail("A conta ou o mês do pagamento não permite esta conciliação.");
     const available=roundMoney(Math.max(0,expense.expectedAmount-paid(expense.payments)));
     if(available<=0||cents(item.amount)>cents(available))return fail(`Valor superior ao saldo em aberto de ${expense.name}.`);
     const payment:FinancePayment={id:`mp-expense-${digest(`${move.fingerprint}|${revision}|${expense.id}`)}`,date:move.dateKey,amount:item.amount,note:`Mercado Pago · ${move.description} · PIX ${move.sourceId||digest(move.fingerprint)} · conciliação ${revision}`};
@@ -57,7 +58,7 @@ export function reverseExpenseReconciliation(data:FinanceData,receipt:ExpenseRec
   if(!openMonth(data,receipt.date.slice(0,7)))return fail("O mês do pagamento está fechado.");
   for(const allocation of receipt.allocations){
     const expense=data.expenses.find(e=>e.id===allocation.expenseId);
-    if(!expense||!openMonth(data,expense.competence))return fail("Conta ausente ou competência fechada; correção bloqueada.");
+    if(!expense||!expensePaymentAllowed(expense.competence,receipt.date.slice(0,7),data.competences[expense.competence]?.status,data.competences[receipt.date.slice(0,7)]?.status))return fail("Conta ausente ou mês de pagamento fechado; correção bloqueada.");
     const index=expense.payments.findIndex(p=>p.id===allocation.payment.id),payment=expense.payments[index];
     if(!payment||(payment.date!==allocation.payment.date||payment.amount!==allocation.payment.amount||payment.note!==allocation.payment.note))return fail("O pagamento vinculado foi removido ou alterado; correção bloqueada.");
     if(index!==expense.payments.length-1)return fail("A conta possui pagamentos posteriores. Confira esses pagamentos antes de corrigir a conciliação.");

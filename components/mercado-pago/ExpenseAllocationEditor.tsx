@@ -1,3 +1,4 @@
+import { expenseOptionsForPayment } from "../../lib/mercado-pago/expense-options";
 import { parseMoney } from "../../lib/financeiro/voz";
 import { useState } from "react";
 export type ExpenseOption={id:string;name:string;competence:string;dueDay:number;closed:boolean;expectedAmount:number;paid:number;remaining:number};
@@ -14,7 +15,7 @@ export function ExpenseAllocationEditor({amount,date,expenses,splits,remainder,c
   onChange:(value:ExpenseSplit[])=>void;onRemainder:(target:RemainderChoice,category:string,description:string)=>void;
 }){
   const [search,setSearch]=useState("");
-  const options=expenses.filter(e=>e.competence<=date.slice(0,7)&&!e.closed&&e.remaining>0.005);
+  const options=expenseOptionsForPayment(expenses,date);
   const totals=allocationTotals(amount,splits,expenses);
   const normalized=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   return <div style={{display:"grid",gap:10,minWidth:0}}>

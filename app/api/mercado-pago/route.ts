@@ -1399,6 +1399,14 @@ export async function POST(request:NextRequest){
       if(target==="EXPENSE"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha a conta do plano."},{status:400});
       if(ruleChoice!=="ONCE"&&!move.canLearn)return NextResponse.json({ok:false,error:"Esta movimentação não possui identificação suficiente para memorizar uma sugestão."},{status:400});
       if(ruleChoice==="AUTO"&&!move.canAuto)return NextResponse.json({ok:false,error:"O Mercado Pago não informou uma pessoa, estabelecimento ou conta repetível. Para sua segurança, use Sugerir e pedir confirmação."},{status:400});
+      // Explicit one-off expense selection shares the atomic allocation flow.
+      if(target==="EXPENSE"&&targetId&&ruleChoice==="ONCE"){
+        const result=await persistExpenseSplitDecision(move,[{targetId,amount:move.amount}],undefined);
+        if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
+        return NextResponse.json(result);
+      }
+      const selectedExpense=target==="EXPENSE"&&targetId?(snapshot.response.financeContext as FinanceContext).expenses.find(item=>item.id===targetId):undefined;
+      if(selectedExpense&&selectedExpense.competence<move.dateKey.slice(0,7))return NextResponse.json({ok:false,error:"Concilie a conta atrasada somente nesta movimentação, sem memorizar a obrigação antiga."},{status:400});
       const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false});
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
