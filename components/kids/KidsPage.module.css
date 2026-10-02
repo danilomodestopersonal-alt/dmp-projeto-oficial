@@ -1240,3 +1240,9 @@
 @media(max-width:700px){.eventHeaderActions{width:100%;display:grid;grid-template-columns:1fr 1fr}.eventHeaderActions button{width:100%}.exportControls{grid-template-columns:1fr}.exportChecks{display:grid;gap:8px}.exportPreviewHead{align-items:flex-start}.exportPreviewHead img{width:92px;height:54px}.exportPreview article{grid-template-columns:70px 1fr;padding:13px}.eventExportModal{max-height:94vh}}
 
 .studentHistoryMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}.studentHistoryMetrics article{display:grid;gap:4px;background:#f4f7ee;border:1px solid #dfe5d8;border-radius:12px;padding:12px}.studentHistoryMetrics small{color:#63705e}.studentHistoryMetrics strong{font-size:22px}
+
+.studentHistoryMetrics button { text-align:left; border:1px solid #d9e2de; border-radius:12px; padding:12px; background:#fff; color:inherit; cursor:pointer; }
+.studentHistoryMetrics button small { display:block; }
+.studentHistoryMetrics button strong { display:block; font-size:24px; }
+.studentHistoryMetrics button[aria-pressed="true"] { background:#e6f2de; border-color:#54792f; }
+.studentHistoryMetrics button:focus-visible { outline:3px solid #54792f; outline-offset:2px; }

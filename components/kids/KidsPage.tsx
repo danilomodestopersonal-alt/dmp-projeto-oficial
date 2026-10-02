@@ -103,9 +103,15 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
   const kidsBackRestoring=useRef(false);
 
   useEffect(()=>{
-    const snapshot={...window.history.state,dmpKids:true,dmpKidsTab:tab,dmpKidsLessonId:lessonId,dmpKidsClassId:classId,dmpKidsStudentId:studentId};
+    const snapshot={...window.history.state,dmpKids:true,dmpKidsMonth:month,dmpKidsAgendaFilter:agendaFilter,dmpKidsTab:tab,dmpKidsLessonId:lessonId,dmpKidsClassId:classId,dmpKidsStudentId:studentId};
     if(!kidsHistoryReady.current){
-      window.history.replaceState(snapshot,"",window.location.href);
+      const saved=window.history.state;
+      if(saved?.view==="kids"&&saved?.dmpKids&&["dashboard","agenda","classes","students","replacements","events","reports"].includes(saved.dmpKidsTab)){
+        setTab(saved.dmpKidsTab);setLessonId(saved.dmpKidsLessonId||null);setClassId(saved.dmpKidsClassId||null);setStudentId(saved.dmpKidsStudentId||null);
+        if(/^\d{4}-\d{2}$/.test(saved.dmpKidsMonth||""))setMonth(saved.dmpKidsMonth);
+        if(["ALL","COMPLETED","CANCELLED"].includes(saved.dmpKidsAgendaFilter))setAgendaFilter(saved.dmpKidsAgendaFilter);
+        kidsBackRestoring.current=true;
+      }else window.history.replaceState(snapshot,"",window.location.href);
       kidsHistoryReady.current=true;
       return;
     }
@@ -113,7 +119,8 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     const state=window.history.state;
     const same=state?.dmpKids&&state.dmpKidsTab===tab&&(state.dmpKidsLessonId||null)===(lessonId||null)&&(state.dmpKidsClassId||null)===(classId||null)&&(state.dmpKidsStudentId||null)===(studentId||null);
     if(!same)window.history.pushState(snapshot,"",window.location.href);
-  },[tab,lessonId,classId,studentId]);
+    else window.history.replaceState(snapshot,"",window.location.href);
+  },[tab,lessonId,classId,studentId,month,agendaFilter]);
 
   useEffect(()=>{
     const onPopState=(event:PopStateEvent)=>{
@@ -124,6 +131,8 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setLessonId(state.dmpKidsLessonId||null);
       setClassId(state.dmpKidsClassId||null);
       setStudentId(state.dmpKidsStudentId||null);
+      if(/^\d{4}-\d{2}$/.test(state.dmpKidsMonth||""))setMonth(state.dmpKidsMonth);
+      if(["ALL","COMPLETED","CANCELLED"].includes(state.dmpKidsAgendaFilter))setAgendaFilter(state.dmpKidsAgendaFilter);
     };
     window.addEventListener("popstate",onPopState);
     return()=>window.removeEventListener("popstate",onPopState);
@@ -154,6 +163,12 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     if(!response.ok||!payload?.ok)throw new Error("Backup financeiro não foi criado.");
     return payload.backup;
   }
+  useEffect(()=>{
+    if(!data)return;
+    if(lessonId&&!data.lessons.some(item=>item.id===lessonId))setLessonId(null);
+    if(classId&&!data.classes.some(item=>item.id===classId))setClassId(null);
+    if(studentId&&!data.classes.some(group=>group.students.some(item=>item.id===studentId)))setStudentId(null);
+  },[data,lessonId,classId,studentId]);
   async function load() {
     setLoading(true);
     try {
@@ -2352,6 +2367,15 @@ function StudentEditor({
     ...source!,
     name: source?.name || "",
   });
+  const [historyFilter,setHistoryFilter]=useState<"present"|"absent"|"pending"|"replaced"|"cancelled"|null>(null);
+  useEffect(()=>{
+    const saved=window.history.state?.dmpKidsHistoryFilter;
+    if(saved?.studentId===studentId&&saved?.start===data.semesterStart&&saved?.end===data.semesterEnd&&["present","absent","pending","replaced","cancelled"].includes(saved?.filter))setHistoryFilter(saved.filter);
+    else setHistoryFilter(null);
+  },[studentId,data.semesterStart,data.semesterEnd]);
+  useEffect(()=>{
+    window.history.replaceState({...window.history.state,dmpKidsHistoryFilter:{studentId,start:data.semesterStart,end:data.semesterEnd,filter:historyFilter}},"",window.location.href);
+  },[historyFilter,studentId,data.semesterStart,data.semesterEnd]);
   const [newClassId, setNewClassId] = useState("");
   const [newStartDate, setNewStartDate] = useState(semesterStart);
   const memberships = draft.filter((group) =>
@@ -2469,10 +2493,10 @@ function StudentEditor({
   const historyItems=[
     ...draft.filter(group=>group.students.some(student=>student.id===studentId)).map(group=>{
       const member=group.students.find(student=>student.id===studentId)!;
-      return {date:member.startDate||semesterStart,type:"Turma",title:`Entrada em ${group.name}`,detail:`Bola ${categoryLabel[group.category]} · ${weekdayLabel[group.weekday]}, ${group.startTime}${member.active?"":" · turma anterior/inativa"}`};
+      return {indicator:undefined,date:member.startDate||semesterStart,type:"Turma",title:`Entrada em ${group.name}`,detail:`Bola ${categoryLabel[group.category]} · ${weekdayLabel[group.weekday]}, ${group.startTime}${member.active?"":" · turma anterior/inativa"}`};
     }),
     ...studentHistory.rows,
-  ].filter(item=>item.date>=data.semesterStart&&item.date<=data.semesterEnd).sort((a,b)=>b.date.localeCompare(a.date));
+  ].filter(item=>(!historyFilter||item.indicator===historyFilter)&&item.date>=data.semesterStart&&item.date<=data.semesterEnd).sort((a,b)=>b.date.localeCompare(a.date));
   function printStudentReport() {
     printReport(buildReport({ ...data, classes: draft }, "student", studentId));
   }
@@ -2706,15 +2730,16 @@ function StudentEditor({
             <span>{historyItems.length} registros</span>
           </div>
           <div className={styles.studentHistoryMetrics}>
-            {[["Presenças",present],["Faltas",absent],["Reposições pendentes",studentHistory.metrics.pending],["Reposições realizadas",studentHistory.metrics.replaced],["Cancelamentos",studentHistory.metrics.cancelled]].map(([label,value])=><article key={label}><small>{label}</small><strong>{value}</strong></article>)}
+            {([ ["present","Presenças",present], ["absent","Faltas",absent], ["pending","Reposições pendentes",studentHistory.metrics.pending], ["replaced","Reposições realizadas",studentHistory.metrics.replaced], ["cancelled","Cancelamentos",studentHistory.metrics.cancelled] ] as const).map(([key,label,value])=><button type="button" key={key} aria-pressed={historyFilter===key} onClick={()=>setHistoryFilter(current=>current===key?null:key)}><small>{label}</small><strong>{value}</strong></button>)}
           </div>
+          <button type="button" aria-pressed={!historyFilter} onClick={()=>setHistoryFilter(null)}>Todos / Histórico completo</button>
           {profile.notes?.trim()?<div className={styles.studentHistoryNote}><strong>Observação atual</strong><p>{profile.notes}</p></div>:null}
           <div className={styles.timeline}>
             {historyItems.length?historyItems.map((item,index)=><article key={`${item.type}-${item.date}-${index}`}>
               <time>{formatDate(item.date)}</time>
               <span className={styles.timelineDot}/>
               <div><small>{item.type}</small><strong>{item.title}</strong><p>{item.detail}</p></div>
-            </article>):<p>Nenhum registro disponível para este semestre.</p>}
+            </article>):<p>Nenhum registro disponível neste filtro e semestre.</p>}
           </div>
         </section>
         <KidsStudentReplacementBalance data={{ ...data, classes: draft }} studentId={studentId} />

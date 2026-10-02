@@ -3,7 +3,7 @@ import { PersonalManageButton, PersonalReceipts, PaymentHistory } from "./Person
 
 import { DsOpeningBalanceRow, DsOpeningBalanceEditButton } from "./DsOpeningBalance";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DsKidEntry,
   ExtraExpense,
@@ -140,6 +140,8 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
   const [cloudWritable, setCloudWritable] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [financeCloudRevision, setFinanceCloudRevision] = useState(0);
+  const financeNavRestored=useRef(false);
+  const [financeNavReady,setFinanceNavReady]=useState(false);
   const [tab, setTab] = useState<Tab>("summary");
   const [action, setAction] = useState<Action>(null);
   const [voiceText, setVoiceText] = useState("");
@@ -151,6 +153,21 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
   const [kidsStudentOptions, setKidsStudentOptions] = useState<Array<{id:string;name:string}>>([]);
   const [mercadoPagoBalance, setMercadoPagoBalance] = useState<number | null>(null);
   const competence = data.currentCompetence;
+  useEffect(()=>{
+    if(!loaded||financeNavRestored.current)return;
+    financeNavRestored.current=true;
+    const saved=window.history.state?.dmpFinanceQuery;
+    if(saved){
+      if(["summary","mercado-pago","personal","ds","expenses","extras","closing","reports"].includes(saved.tab))setTab(saved.tab);
+      if(["ALL","PAID","OPEN","OVERDUE"].includes(saved.filter))setListFilter(saved.filter);
+      if(typeof saved.competence==="string"&&data.competences[saved.competence])setData(current=>({...current,currentCompetence:saved.competence}));
+    }
+    setFinanceNavReady(true);
+  },[loaded,data]);
+  useEffect(()=>{
+    if(!financeNavReady)return;
+    window.history.replaceState({...window.history.state,dmpFinanceQuery:{tab,filter:listFilter,competence}},"",window.location.href);
+  },[financeNavReady,tab,listFilter,competence]);
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
   const editable = isCompetenceEditable(data, competence);

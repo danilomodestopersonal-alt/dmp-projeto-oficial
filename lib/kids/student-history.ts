@@ -1,7 +1,7 @@
 import type { KidsData, KidsLesson } from "../../types/kids";
 import { computeKidsStudentReplacementBalance, isKidsFifthMonthlyLesson } from "./replacement-balance";
 
-export type StudentHistoryRow = { id:string; date:string; type:string; title:string; detail:string };
+export type StudentHistoryRow = { id:string; date:string; type:string; title:string; detail:string; indicator?:"present"|"absent"|"pending"|"replaced"|"cancelled" };
 export function kidsStudentHistory(data:KidsData,studentId:string,start=data.semesterStart,end=data.semesterEnd,now=new Date()) {
   const inPeriod=(date:string)=>date>=start&&date<=end;
   const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
@@ -40,7 +40,8 @@ export function kidsStudentHistory(data:KidsData,studentId:string,start=data.sem
     if(replacement&&held&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY"){realized.add(`${lesson.id}|${lesson.date}`);title=`Reposição realizada · ${absent?"falta":"presença"}`;}
     if(replacement&&!held&&lesson.status==="SCHEDULED")title="Reposição agendada";
     if(absent&&lesson.absenceReplacementRights?.[studentId]&&!replacement)title+=" · com direito à reposição";
-    rows.push({id:`lesson:${lesson.id}`,date:lesson.date,type:replacement?"Reposição":"Aula regular",title,detail:[className,fifth?"5ª aula do mês":"",lesson.objective,lesson.notes,lesson.cancelReason==="RAIN"?"Chuva":lesson.cancelReasonOther].filter(Boolean).join(" · ")});
+    const indicator=lesson.status==="CANCELLED"?"cancelled":lesson.status==="HOLIDAY"?undefined:replacement&&held?"replaced":held&&!replacement&&(!member||member.active||explicit)?absent?"absent":"present":undefined;
+    rows.push({indicator,id:`lesson:${lesson.id}`,date:lesson.date,type:replacement?"Reposição":"Aula regular",title,detail:[className,fifth?"5ª aula do mês":"",lesson.objective,lesson.notes,lesson.cancelReason==="RAIN"?"Chuva":lesson.cancelReasonOther].filter(Boolean).join(" · ")});
     if(replacement)represented.add(lesson.id);
   }
   // Registros preservados e legados aparecem quando a aula não fornece o vínculo.
@@ -49,14 +50,14 @@ export function kidsStudentHistory(data:KidsData,studentId:string,start=data.sem
     realized.add(`${event.lessonId}|${event.date}`);
     const usage=(data.replacementUsages||[]).find(u=>u.studentId===studentId&&u.lessonId===event.lessonId);
     const legacy=(data.replacements||[]).find(r=>r.studentId===studentId&&(r.destinationLessonId||r.sourceLessonId)===event.lessonId&&r.status==="COMPLETED");
-    rows.push({id:event.id,date:event.date,type:"Reposição",title:`Reposição realizada · ${(usage?.attendance||legacy?.attendance)==="ABSENT"?"falta":usage||legacy?.attendance?"presença":"chamada não registrada"}`,detail:event.label});represented.add(event.lessonId);
+    rows.push({indicator:"replaced",id:event.id,date:event.date,type:"Reposição",title:`Reposição realizada · ${(usage?.attendance||legacy?.attendance)==="ABSENT"?"falta":usage||legacy?.attendance?"presença":"chamada não registrada"}`,detail:event.label});represented.add(event.lessonId);
   }
   for(const credit of data.replacements||[]) {
     if(credit.studentId!==studentId||credit.status!=="SCHEDULED")continue;
     const date=credit.scheduledDate||credit.sourceDate;if(!inPeriod(date)||credit.destinationLessonId&&represented.has(credit.destinationLessonId))continue;
     rows.push({id:`scheduled:${credit.id}`,date,type:"Reposição",title:"Reposição agendada",detail:credit.reason});
   }
-  for(const event of pending)rows.push({id:`pending:${event.id}`,date:event.date,type:"Direito de reposição",title:"Reposição pendente",detail:event.label});
+  for(const event of pending)rows.push({indicator:"pending",id:`pending:${event.id}`,date:event.date,type:"Direito de reposição",title:"Reposição pendente",detail:event.label});
   metrics.replaced=realized.size;
   return {metrics,rows:rows.sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id))};
 }

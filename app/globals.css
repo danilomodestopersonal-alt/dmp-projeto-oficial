@@ -8108,3 +8108,8 @@ input:focus,textarea:focus{
 .today-summary-people .home-student-actions button{width:auto!important;flex:0 0 auto!important;white-space:nowrap!important}
 @media(max-width:700px){.home-student-actions .compact-action{padding:5px 4px!important;font-size:.60rem!important}}
 @media(max-width:360px){.home-student-actions .compact-action{padding:5px 3px!important;font-size:.56rem!important}}
+
+.historical-edit-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:10px;}
+.historical-edit-controls label {flex:1 1 140px;min-width:0;}
+.historical-edit-controls input {width:100%;box-sizing:border-box;}
+.header-left a:focus-visible,.dashboard-sidebar a:focus-visible {outline:3px solid #729929;outline-offset:3px;}

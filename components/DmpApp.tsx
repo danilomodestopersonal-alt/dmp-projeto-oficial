@@ -2,6 +2,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { restoredNavigation, moveDraftExercise, draftExercisesForReuse } from "../lib/navigation";
 import { useRouter } from "next/navigation";
 import type { Assessment, CalendarEvent, Exercise, Measurements, Session, Student, TennisCategory, Workout, WorkoutProtocol, WorkoutSlot } from "@/types/models";
 import { importedStudents2026 } from "@/lib/imported-data";
@@ -73,7 +74,6 @@ type PersonalWorkoutTemplate = {
 
 const FINANCE_UNLOCK_KEY = "dmp_finance_unlocked_until";
 const FINANCE_UNLOCK_MS = 10 * 60 * 1000;
-const FINANCE_PIN_SHA256 = "6249017f9372350bfc9cf3456c324bbb3661e1bb5a7a10d61912fd1be650d52f";
 const STUDENTS_CHANNEL = "dmp_students_sync";
 
 function isPhoneDevice() {
@@ -81,17 +81,16 @@ function isPhoneDevice() {
   return /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-async function sha256(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await window.crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
-}
 
 export default function DmpApp() {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>(importedStudents2026);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
 const [cloudWritable, setCloudWritable] = useState(false);
+  const [navigationReady,setNavigationReady]=useState(false);
+  const financeSubmitting=useRef(false);
+  const financeAttempt=useRef(0);
+  const [financeBusy,setFinanceBusy]=useState(false);
   const [view, setView] = useState<View>("today");
   const [tab, setTab] = useState<StudentTab>("summary");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -181,9 +180,43 @@ const [cloudWritable, setCloudWritable] = useState(false);
     };
   }, []);
 
+  useEffect(()=>{
+    let active=true;
+    const params=new URLSearchParams(window.location.search);
+    const saved=restoredNavigation(window.history.state?.dmpFinancePending?{...window.history.state,view:"finance"}:window.history.state,params.get("home")==="1");
+    if(params.get("home")==="1")window.history.replaceState(null,"","/app");
+    async function restore(){
+      if(saved){
+        const q=window.history.state?.dmpQueries||{};
+        if(typeof q.search==="string")setSearch(q.search);
+        if(typeof q.historySearch==="string")setHistorySearch(q.historySearch);
+        if(["ACTIVE","ARCHIVED"].includes(q.studentFilter))setStudentFilter(q.studentFilter);
+        if(["ALL","PLANNED","FREE","ATTENDANCE","IMPORTED"].includes(q.historySource))setHistorySource(q.historySource);
+        if(["ALL","30","90","YEAR"].includes(q.historyPeriod))setHistoryPeriod(q.historyPeriod);
+        if(["day","week","month","year","list"].includes(q.calendarRange))setCalendarRange(q.calendarRange);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(q.calendarAnchor||""))setCalendarAnchor(q.calendarAnchor);
+        setSelectedStudentId(saved.selectedStudentId);setTab(saved.tab as StudentTab);
+        if(saved.view==="finance"){
+          try{const r=await fetch("/api/finance/pin",{cache:"no-store"});const result=await r.json();
+            if(!active)return;
+            if(r.ok&&result.unlocked){sessionStorage.setItem(FINANCE_UNLOCK_KEY,String(result.until));setView("finance");}
+            else {sessionStorage.removeItem(FINANCE_UNLOCK_KEY);setShowFinancePin(true);}
+          }catch{if(active)setShowFinancePin(true);}
+        }else setView(saved.view as View);
+      }
+      if(active)setNavigationReady(true);
+    }
+    void restore();return()=>{active=false;};
+  },[]);
+  useEffect(()=>{
+    if(navigationReady&&studentsLoaded&&view==="student"&&!students.some(s=>s.id===selectedStudentId)){setSelectedStudentId(null);setView("today");}
+  },[navigationReady,studentsLoaded,students,view,selectedStudentId]);
+
+
   // Histórico real de navegação: cada tela do DMP vira uma etapa do botão/gesto Voltar.
   useEffect(() => {
-    const snapshot={dmpNav:true,view,tab,selectedStudentId};
+    if(!navigationReady)return;
+    const snapshot={dmpNav:true,view,tab,selectedStudentId,dmpFinancePending:showFinancePin,dmpQueries:{search,studentFilter,historySearch,historySource,historyPeriod,calendarRange,calendarAnchor}};
     if(!browserHistoryReady.current){
       window.history.replaceState({...window.history.state,...snapshot},"",window.location.href);
       browserHistoryReady.current=true;
@@ -196,7 +229,8 @@ const [cloudWritable, setCloudWritable] = useState(false);
     const state=window.history.state;
     const same=state?.dmpNav&&state.view===view&&state.tab===tab&&(state.selectedStudentId||null)===(selectedStudentId||null);
     if(!same)window.history.pushState({...state,...snapshot},"",window.location.href);
-  },[view,tab,selectedStudentId]);
+    else window.history.replaceState({...state,...snapshot},"",window.location.href);
+  },[view,tab,selectedStudentId,navigationReady,search,studentFilter,historySearch,historySource,historyPeriod,calendarRange,calendarAnchor,showFinancePin]);
 
   useEffect(() => {
     const restoreCurrent=()=>window.history.pushState({...window.history.state,dmpNav:true,view,tab,selectedStudentId},"",window.location.href);
@@ -212,7 +246,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
         browserBackRestoring.current=true;
         setSelectedStudentId(state.selectedStudentId||null);
         setTab((state.tab||"summary") as StudentTab);
-        setView((state.view||"today") as View);
+        if(state.view==="finance"){setView("today");void navigateMain("finance");}else {financeAttempt.current++;setView((state.view||"today") as View);}
         return;
       }
       // Fallback: sem histórico interno válido, volta para Hoje em vez de saltar de forma imprevisível.
@@ -1355,13 +1389,17 @@ fetch("/api/google/status")
     return until > Date.now();
   }
 
-  function navigateMain(target: View) {
-    if (target === "finance" && !isPhoneDevice() && !financeUnlocked()) {
-      setFinancePin("");
-      setFinancePinError("");
-      setShowFinancePin(true);
-      return;
+  async function navigateMain(target: View) {
+    const attempt=++financeAttempt.current;
+    if(target==="finance"){
+      try{
+        const response=await fetch("/api/finance/pin",{cache:"no-store"});const result=await response.json();
+        if(attempt!==financeAttempt.current)return;
+        if(!response.ok||!result.unlocked){sessionStorage.removeItem(FINANCE_UNLOCK_KEY);setFinancePin("");setFinancePinError("");setShowFinancePin(true);return;}
+        sessionStorage.setItem(FINANCE_UNLOCK_KEY,String(result.until));
+      }catch{if(attempt===financeAttempt.current){setFinancePin("");setFinancePinError("Não foi possível conferir o acesso. Tente novamente.");setShowFinancePin(true);}return;}
     }
+    setShowFinancePin(false);
     if(target==="workouts-overview")setWorkoutsOnly(false);
     if(target==="kids"){setKidsLessonRequest(null);setKidsStudentRequest(null);setKidsEntryKey(current=>current+1);}
     setView(target);
@@ -1410,20 +1448,22 @@ fetch("/api/google/status")
     setView("kids");
   }
 
-  async function unlockFinance(event: FormEvent) {
-    event.preventDefault();
-    const digest = await sha256(financePin);
-    if (digest !== FINANCE_PIN_SHA256) {
-      setFinancePinError("PIN incorreto.");
-      setFinancePin("");
-      return;
-    }
-    window.sessionStorage.setItem(FINANCE_UNLOCK_KEY, String(Date.now() + FINANCE_UNLOCK_MS));
-    setFinancePin("");
-    setFinancePinError("");
-    setShowFinancePin(false);
-    setView("finance");
+  async function unlockFinance(event?:FormEvent,pinValue=financePin) {
+    event?.preventDefault();
+    if(financeSubmitting.current||pinValue.length!==4)return;
+    financeSubmitting.current=true;setFinanceBusy(true);
+    const attempt=++financeAttempt.current;
+    try{
+      const response=await fetch("/api/finance/pin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pinValue})});
+      const result=await response.json();if(attempt!==financeAttempt.current)return;
+      if(!response.ok){setFinancePinError(result.message||"Não foi possível validar o PIN.");setFinancePin("");return;}
+      sessionStorage.setItem(FINANCE_UNLOCK_KEY,String(result.until));
+      setFinancePin("");setFinancePinError("");setShowFinancePin(false);setView("finance");
+    }catch{if(attempt===financeAttempt.current){setFinancePinError("Não foi possível validar o PIN. Tente novamente.");setFinancePin("");}}
+    finally{financeSubmitting.current=false;setFinanceBusy(false);}
   }
+
+  if(!navigationReady)return <main className="app-page" aria-busy="true">Carregando DMP...</main>;
 
   if (["today","students","workouts-overview","history-overview","assessments-overview","agenda","finance","reports","kids","performance","data","settings","weather"].includes(view)) {
     const activeCount = students.filter(student => student.status === "ACTIVE").length;
@@ -1830,7 +1870,7 @@ fetch("/api/google/status")
           {view === "settings" ? <SettingsCenter logout={logout} /> : null}
           {view === "weather" ? <WeatherPage onBack={()=>setView("today")} /> : null}
         </div>
-        {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} onChange={value => { setFinancePin(value.replace(/\D/g, "").slice(0, 4)); setFinancePinError(""); }} onClose={() => { setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
+        {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} busy={financeBusy} onChange={value => { const next=value.replace(/\D/g, "").slice(0,4);setFinancePin(next);setFinancePinError("");if(next.length===4)void unlockFinance(undefined,next); }} onClose={() => { financeAttempt.current++;setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
         {showGoogleEventForm ? <GoogleEventForm students={students} onClose={()=>setShowGoogleEventForm(false)} onSaved={()=>{setShowGoogleEventForm(false);void refreshCalendarAutomatic(true);}} /> : null}
       </main>
@@ -2233,8 +2273,8 @@ function AccessSettings({compact=false}:{compact?:boolean}){
   return <>{!compact?<header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Segurança da conta</p><h1>Configurações</h1><p>Defina seu e-mail e sua senha definitiva de acesso ao DMP.</p></div></header>:null}<section className={compact?"":"dashboard-content"}><article className="panel access-settings-panel"><div className="panel-head"><div><h2>Acesso ao DMP</h2><p className="muted">Para alterar o acesso, confirme sua senha atual e defina a nova senha.</p></div><span className="status-chip ok">Sessão protegida</span></div><form className="form-grid" onSubmit={save} autoComplete="off"><label className="full">Login / e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" required/></label><label className="full">Senha atual<input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" placeholder="Digite sua senha atual"/></label><label>Nova senha<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo 8 caracteres" required/></label><label>Confirmar nova senha<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password" required/></label>{message?<div className="full access-settings-message">{message}</div>:null}<button className="primary full" disabled={saving}>{saving?"Salvando...":"Cadastrar acesso definitivo"}</button></form></article></section></>;
 }
 
-function FinancePinModal({pin,error,onChange,onClose,onSubmit}:{pin:string;error:string;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
-  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" autoComplete="off" onSubmit={onSubmit}><label className="full">PIN<input autoFocus className="finance-pin-input" type="text" name="dmp-finance-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={4} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={pin.length!==4}>Entrar no Financeiro</button></form></section></div>;
+function FinancePinModal({pin,error,busy,onChange,onClose,onSubmit}:{pin:string;error:string;busy:boolean;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
+  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" autoComplete="off" onSubmit={onSubmit}><label className="full">PIN<input autoFocus className="finance-pin-input" type="text" name="dmp-finance-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={4} disabled={busy} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={busy||pin.length!==4}>{busy?"Validando...":"Entrar no Financeiro"}</button></form></section></div>;
 }
 
 function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onMobileQuick,onMobileVoice}:{current:View;onNavigate:(view:View)=>void;logout:()=>void;students:Student[];onStudent:(id:string)=>void;onKidsStudent:(id:string)=>void;onMobileQuick:()=>void;onMobileVoice:()=>void}) {
@@ -2270,7 +2310,7 @@ function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onM
   return (
     <aside className="dashboard-sidebar">
       <div className="dashboard-logo-card" role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}>
-        <img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" />
+        <a href="/app?home=1" aria-label="Ir para a Home do DMP" onClick={event=>{event.preventDefault();onNavigate("today");}}><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></a>
       </div>
       {mobile&&current==="today"?<div className="sidebar-mobile-actions"><button className="mobile-quick-launch" onClick={onMobileQuick} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={onMobileVoice} aria-label="Falar lançamento financeiro">🎤</button></div>:null}
       {!mobile?<button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><strong>Aulas Kids</strong></span></button>:null}
@@ -2983,7 +3023,7 @@ function MobileQuickActions({onClose,onNavigate}:{onClose:()=>void;onNavigate:(t
   return <div className="mobile-actions-backdrop" onClick={onClose}><section className="mobile-actions-sheet" onClick={event=>event.stopPropagation()}><div><strong>Ações rápidas</strong><button onClick={onClose}>×</button></div><button className="primary" onClick={()=>onNavigate("extra")}>💸 Lançar gasto extra</button><button onClick={()=>onNavigate("receive")}>💰 Registrar recebimento</button><button onClick={()=>onNavigate("students")}>✍ Registrar treino ou presença</button><button onClick={()=>onNavigate("kids")}>🎾 Abrir Aulas Kids</button></section></div>;
 }
 function kidsCategoryName(category:KidsCategory){return category==="RED"?"Bola vermelha":category==="ORANGE"?"Bola laranja":category==="GREEN"?"Bola verde":"Bola amarela";}
-function Header({title,back,titleClassName}:{title:string;back?:()=>void;titleClassName?:string}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /><strong className={titleClassName}>{title}</strong></div></header>; }
+function Header({title,back,titleClassName}:{title:string;back?:()=>void;titleClassName?:string}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<a href="/app?home=1" aria-label="Ir para a Home do DMP"><img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /></a><strong className={titleClassName}>{title}</strong></div></header>; }
 
 function looksLikeTrainingSchedule(value?:string){
   const text=(value||"").trim().toLowerCase();
@@ -3365,7 +3405,7 @@ async function printPersonalStudentReport(student:Student){
   const esc=(value:unknown)=>String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]!));
   const money=(value:number)=>value.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
   const monthLabel=(value:string)=>new Date(`${value}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Relatório · ${esc(student.name)}</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial;color:#13202b;margin:0}header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #abd92f;padding-bottom:12px}header img{width:170px}h1{margin:0;font-size:25px}h2{font-size:17px;margin:22px 0 8px;color:#126d94}.muted{color:#65717b}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.card{border:1px solid #dfe5e8;border-radius:10px;padding:10px}.card small{display:block;color:#65717b}.card strong{font-size:18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:7px;border-bottom:1px solid #e3e7e9;vertical-align:top}th{background:#f2f7e9}footer{margin-top:28px;border-top:1px solid #ddd;padding-top:8px;font-size:11px;color:#777}@media print{button{display:none}}</style></head><body><header><div><p class="muted">RELATÓRIO INDIVIDUAL</p><h1>${esc(student.name)}</h1><p>${esc(student.goal||"Objetivo não informado")}</p></div><img src="/logo-danilo.jpg"></header><div class="cards"><div class="card"><small>Sessões</small><strong>${student.sessions.length}</strong></div><div class="card"><small>Avaliações</small><strong>${student.assessments.length}</strong></div><div class="card"><small>Recebido</small><strong>${money(paid)}</strong></div><div class="card"><small>Em aberto</small><strong>${money(Math.max(0,expected-paid))}</strong></div></div><h2>Frequência por mês</h2><table><thead><tr><th>Mês</th><th>Registros</th><th>Fichas</th><th>Treinos livres</th><th>Presenças</th></tr></thead><tbody>${[...months.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([key,list])=>`<tr><td>${monthLabel(key)}</td><td>${list.length}</td><td>${list.filter(item=>(item.source||"PLANNED")==="PLANNED").length}</td><td>${list.filter(item=>item.source==="FREE").length}</td><td>${list.filter(item=>item.source==="ATTENDANCE").length}</td></tr>`).join("")||"<tr><td colspan='5'>Nenhum registro.</td></tr>"}</tbody></table><h2>Treinos e evolução recente</h2><table><thead><tr><th>Data</th><th>Treino</th><th>Exercícios / cargas</th></tr></thead><tbody>${student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(session=>`<tr><td>${formatDate(session.date)}</td><td>${esc(session.workoutName)}</td><td>${session.completedExercises.map(exercise=>`${esc(exercise.name)}${exercise.sets||exercise.reps?` · ${esc(exercise.sets)}×${esc(exercise.reps)}`:""}${exercise.load?` · ${esc(exercise.load)}`:""}`).join("<br>")||"Presença sem detalhamento"}</td></tr>`).join("")||"<tr><td colspan='3'>Nenhuma sessão.</td></tr>"}</tbody></table><h2>Financeiro</h2><table><thead><tr><th>Competência</th><th>Vencimento</th><th>Previsto</th><th>Pago</th><th>Saldo</th></tr></thead><tbody>${invoices.map(item=>{const received=item.payments.reduce((sum,payment)=>sum+payment.amount,0);return `<tr><td>${esc(item.competence)}</td><td>Dia ${item.dueDay}</td><td>${money(item.expectedAmount)}</td><td>${money(received)}</td><td>${money(Math.max(0,item.expectedAmount-received))}</td></tr>`}).join("")||"<tr><td colspan='5'>Nenhum lançamento financeiro localizado.</td></tr>"}</tbody></table><footer>Danilo Modesto Personal Trainer · Emitido em ${new Date().toLocaleString("pt-BR")}</footer><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>Relatório · ${esc(student.name)}</title><style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial;color:#13202b;margin:0}header{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #abd92f;padding-bottom:12px}header img{width:170px}h1{margin:0;font-size:25px}h2{font-size:17px;margin:22px 0 8px;color:#126d94}.muted{color:#65717b}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}.card{border:1px solid #dfe5e8;border-radius:10px;padding:10px}.card small{display:block;color:#65717b}.card strong{font-size:18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:7px;border-bottom:1px solid #e3e7e9;vertical-align:top}th{background:#f2f7e9}footer{margin-top:28px;border-top:1px solid #ddd;padding-top:8px;font-size:11px;color:#777}@media print{button{display:none}}</style></head><body><header><div><p class="muted">RELATÓRIO INDIVIDUAL</p><h1>${esc(student.name)}</h1><p>${esc(student.goal||"Objetivo não informado")}</p></div><a href="${location.origin}/app?home=1" aria-label="Ir para a Home do DMP"><img src="/logo-danilo.jpg"></a></header><div class="cards"><div class="card"><small>Sessões</small><strong>${student.sessions.length}</strong></div><div class="card"><small>Avaliações</small><strong>${student.assessments.length}</strong></div><div class="card"><small>Recebido</small><strong>${money(paid)}</strong></div><div class="card"><small>Em aberto</small><strong>${money(Math.max(0,expected-paid))}</strong></div></div><h2>Frequência por mês</h2><table><thead><tr><th>Mês</th><th>Registros</th><th>Fichas</th><th>Treinos livres</th><th>Presenças</th></tr></thead><tbody>${[...months.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([key,list])=>`<tr><td>${monthLabel(key)}</td><td>${list.length}</td><td>${list.filter(item=>(item.source||"PLANNED")==="PLANNED").length}</td><td>${list.filter(item=>item.source==="FREE").length}</td><td>${list.filter(item=>item.source==="ATTENDANCE").length}</td></tr>`).join("")||"<tr><td colspan='5'>Nenhum registro.</td></tr>"}</tbody></table><h2>Treinos e evolução recente</h2><table><thead><tr><th>Data</th><th>Treino</th><th>Exercícios / cargas</th></tr></thead><tbody>${student.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(session=>`<tr><td>${formatDate(session.date)}</td><td>${esc(session.workoutName)}</td><td>${session.completedExercises.map(exercise=>`${esc(exercise.name)}${exercise.sets||exercise.reps?` · ${esc(exercise.sets)}×${esc(exercise.reps)}`:""}${exercise.load?` · ${esc(exercise.load)}`:""}`).join("<br>")||"Presença sem detalhamento"}</td></tr>`).join("")||"<tr><td colspan='3'>Nenhuma sessão.</td></tr>"}</tbody></table><h2>Financeiro</h2><table><thead><tr><th>Competência</th><th>Vencimento</th><th>Previsto</th><th>Pago</th><th>Saldo</th></tr></thead><tbody>${invoices.map(item=>{const received=item.payments.reduce((sum,payment)=>sum+payment.amount,0);return `<tr><td>${esc(item.competence)}</td><td>Dia ${item.dueDay}</td><td>${money(item.expectedAmount)}</td><td>${money(received)}</td><td>${money(Math.max(0,item.expectedAmount-received))}</td></tr>`}).join("")||"<tr><td colspan='5'>Nenhum lançamento financeiro localizado.</td></tr>"}</tbody></table><footer>Danilo Modesto Personal Trainer · Emitido em ${new Date().toLocaleString("pt-BR")}</footer><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`;
   popup.document.open();popup.document.write(html);popup.document.close();
 }
 
@@ -3644,7 +3684,7 @@ function historicalSessionToWorkout(student:Student,session:Session,slot:Workout
 function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWorkout}:{student:Student;session:Session;onBack:()=>void;onUseToday:(session:Session)=>void;onSaveAsWorkout:(slot:WorkoutSlot,session:Session,protocol:WorkoutProtocol)=>Promise<boolean>}){
   const protocol=historicalSessionProtocol(student,session);
   const sequenceSize=historicalSessionSequenceSize(student,session,protocol);
-  const [exercises,setExercises]=useState<Exercise[]>(()=>historicalSessionWorkoutExercises(session).map(exercise=>({...exercise})));
+  const [exercises,setExercises]=useState<Exercise[]>(()=>historicalSessionWorkoutExercises(session).map((exercise,index)=>({...exercise,block:exercise.block?.trim()||(protocol==="CONVENTIONAL"?"Individual":`${workoutProtocolLabel(protocol)} ${Math.floor(index/Math.max(1,sequenceSize))+1}`)})));
   const [completed,setCompleted]=useState<Record<string,boolean>>(()=>Object.fromEntries(historicalSessionWorkoutExercises(session).map(exercise=>[exercise.id,false])));
   const [savingSlot,setSavingSlot]=useState<WorkoutSlot|null>(null);
 
@@ -3653,13 +3693,13 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
   }
 
   function editedSession(){
-    return {...session,completedExercises:exercises.map(exercise=>({...exercise}))};
+    return {...session,completedExercises:draftExercisesForReuse(exercises)};
   }
 
   const rawGroups:{key:string;label:string;items:{exercise:Exercise;index:number}[]}[]=[];
   exercises.forEach((exercise,index)=>{
     const explicit=(exercise.block||"").trim();
-    const automatic=explicit||sequenceBlockLabel(protocol,index,sequenceSize)||`__single_${index}`;
+    const automatic=explicit==="Individual"?`__single_${index}`:explicit||`__single_${index}`;
     const previous=rawGroups[rawGroups.length-1];
     if(previous&&previous.key===automatic&&!automatic.startsWith("__single_"))previous.items.push({exercise,index});
     else rawGroups.push({key:automatic,label:automatic.startsWith("__single_")?"":automatic,items:[{exercise,index}]});
@@ -3673,10 +3713,13 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
   });
   const completedCount=exercises.filter(exercise=>completed[exercise.id]).length;
 
+  function validDraft(){if(!exercises.length||exercises.some(ex=>!ex.name.trim())){alert("Informe o nome de todos os exercícios antes de reutilizar ou salvar.");return false;}return true;}
+
   async function saveAs(slot:WorkoutSlot){
+    if(!validDraft())return;
     if(savingSlot)return;
     setSavingSlot(slot);
-    try{await onSaveAsWorkout(slot,editedSession(),protocol);}finally{setSavingSlot(null);}
+    try{await onSaveAsWorkout(slot,editedSession(),"MIXED");}finally{setSavingSlot(null);}
   }
 
   return <main className="app-page">
@@ -3689,7 +3732,7 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
         <span>🕘 Histórico · {formatDate(session.date)} · {workoutProtocolLabel(protocol)}</span>
         <strong>{session.focus||session.workoutName||"Treino realizado"}</strong>
         <small>{completedCount}/{exercises.length} marcados nesta visualização · abrir este treino não cria um novo registro.</small>
-        <button className="primary compact-button" disabled={!exercises.length} onClick={()=>onUseToday(editedSession())}>Usar hoje</button>
+        <button className="primary compact-button" disabled={!exercises.length} onClick={()=>{if(validDraft())onUseToday(editedSession());}}>Usar hoje</button>
       </div>
 
       <section className="panel">
@@ -3701,10 +3744,12 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
 
       {session.notes?.trim()?<div className="planned-note">📌 {session.notes}</div>:null}
 
+      <button type="button" className="secondary" onClick={()=>setExercises(current=>[...current,{id:crypto.randomUUID(),name:"",sets:"3",reps:"",load:"",block:"Individual"}])}>Adicionar exercício</button>
+      <datalist id="historical-blocks">{Array.from(new Set(exercises.map(ex=>ex.block).filter(Boolean))).map(block=><option key={block} value={block}/>)}<option value="Bi-set A"/><option value="Tri-set A"/></datalist>
       <div className="session-list">{groups.map((group,groupIndex)=>{
         const localProtocol=detectWorkoutProtocol(group.label||"");
         const groupProtocol=localProtocol&&localProtocol!=="CONVENTIONAL"?localProtocol:protocol;
-        const groupType=group.grouped?groupProtocol==="BISET"?"BI-SET":groupProtocol==="TRISET"?"TRI-SET":groupProtocol==="CIRCUIT"?"CIRCUITO":groupProtocol==="B7"?"B7":"COMBINADO":"";
+        const groupType=group.grouped?groupProtocol==="B7"?"B7":groupProtocol==="CIRCUIT"?"CIRCUITO":group.items.length===2?"BI-SET":group.items.length===3?"TRI-SET":"COMBINADO":"";
         return <section className={`planned-exercise-group ${group.grouped?"combined":"single"}`} key={`${group.key}-${groupIndex}`}>
           {group.grouped?<div className="planned-sequence-header"><div className="planned-sequence-heading"><span>{groupType}</span><strong>{group.label||`Bloco ${group.letter}`}</strong></div><small>{group.items.length} exercícios juntos</small></div>:null}
           <div className="planned-sequence-items">{group.items.map(({exercise,index},position)=><article className={`session-exercise planned-row ${completed[exercise.id]?"is-done":""}`} key={exercise.id}>
@@ -3712,14 +3757,21 @@ function HistoricalWorkoutScreen({student,session,onBack,onUseToday,onSaveAsWork
             <div className="planned-exercise-main">
               <div className="planned-title-line">
                 {group.grouped?<span className="planned-sequence-code">{group.letter}{position+1}</span>:exercise.block?<span className="status-chip">{exercise.block}</span>:<span className="status-chip">#{index+1}</span>}
-                <input className="planned-name" value={exercise.name} readOnly aria-label="Exercício do histórico"/>
+                <input className="planned-name" value={exercise.name} onChange={event=>patchExercise(exercise.id,{name:event.target.value})} aria-label="Exercício do histórico"/>
               </div>
               <div className="planned-fields planned-fields-core">
                 <input value={exercise.sets||""} placeholder="Séries" onChange={event=>patchExercise(exercise.id,{sets:event.target.value})} aria-label="Séries"/>
                 <input value={exercise.reps||""} placeholder="Repetições" onChange={event=>patchExercise(exercise.id,{reps:event.target.value})} aria-label="Repetições"/>
                 <input value={exercise.load||""} placeholder="Carga" onChange={event=>patchExercise(exercise.id,{load:event.target.value})} aria-label="Carga"/>
               </div>
-              {exercise.notes?.trim()?<div className="planned-note">📌 {exercise.notes}</div>:null}
+              <div className="historical-edit-controls">
+                <label>Grupo<input list="historical-blocks" value={exercise.block||"Individual"} onChange={event=>patchExercise(exercise.id,{block:event.target.value})}/></label>
+                <label>Observações<input value={exercise.notes||""} onChange={event=>patchExercise(exercise.id,{notes:event.target.value})}/></label>
+                <button type="button" disabled={index===0} onClick={()=>setExercises(current=>moveDraftExercise(current,index,-1))} aria-label={`Mover ${exercise.name||"exercício"} para cima`}>↑</button>
+                <button type="button" disabled={index===exercises.length-1} onClick={()=>setExercises(current=>moveDraftExercise(current,index,1))} aria-label={`Mover ${exercise.name||"exercício"} para baixo`}>↓</button>
+                <button type="button" onClick={()=>{if(confirm(`Excluir ${exercise.name||"este exercício"} da cópia?`))setExercises(current=>current.filter(ex=>ex.id!==exercise.id));}}>Excluir</button>
+                {group.grouped?<button type="button" onClick={()=>{const added={id:crypto.randomUUID(),name:"",sets:"3",reps:"",load:"",block:group.label};setExercises(current=>[...current.slice(0,index+1),added,...current.slice(index+1)]);}}>Adicionar ao grupo</button>:null}
+              </div>
             </div>
           </article>)}</div>
         </section>;
@@ -3744,7 +3796,7 @@ function openAssessmentReport(student:Student,assessment:Assessment){
   const bmi=assessmentBmi(assessment),prevBmi=previous?assessmentBmi(previous):null,leanPct=assessmentLeanPercent(assessment),prevLeanPct=previous?assessmentLeanPercent(previous):null;
   const measurements=Object.entries(assessment.measurements||{}).filter(([,value])=>String(value||"").trim()).map(([key,value])=>`<tr><td>${esc(MEASUREMENT_LABELS[key]||key)}</td><td>${esc(value)} cm</td>${previous?.measurements?.[key as keyof Measurements]?`<td>${esc(previous.measurements[key as keyof Measurements])} cm</td>`:"<td>—</td>"}</tr>`).join("");
   const series=(pick:(a:Assessment)=>number|null|undefined)=>history.map(a=>({label:formatDate(a.date),value:pick(a)})).filter((item):item is {label:string;value:number}=>item.value!==null&&item.value!==undefined&&!Number.isNaN(item.value));
-  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Avaliação · ${esc(student.name)} · ${formatDate(assessment.date)}</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#eef2ef;color:#17232a;font-family:Arial,Helvetica,sans-serif}.sheet{width:min(1000px,calc(100% - 32px));margin:20px auto;background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 22px 70px rgba(20,39,44,.14)}header{padding:28px 34px;background:linear-gradient(135deg,#143f38,#1d6f66);color:#fff;display:flex;justify-content:space-between;gap:24px;align-items:center}header img{width:170px;border-radius:12px;background:#fff}header p{margin:0 0 7px;font-size:12px;letter-spacing:.12em;font-weight:800;color:#dce9a8}h1{margin:0;font-size:30px}header .date{margin-top:8px;color:#d9e8e5}.content{padding:28px 34px}.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;margin-bottom:22px}.hero-card{padding:20px;border:1px solid #dfe8e3;border-radius:18px;background:#fbfcfa}.hero-card h2{margin:0 0 8px;font-size:19px;color:#166b91}.hero-card p{margin:4px 0;color:#5d6d72}.comparison{display:flex;align-items:center;justify-content:center;text-align:center;background:#f4f8e7}.comparison strong{font-size:25px;color:#597319}.comparison span{display:block;font-size:12px;color:#6e7b7d;margin-top:5px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{border:1px solid #dfe7e4;border-radius:15px;padding:14px;background:#fff}.metric span,.metric small{display:block;color:#738084;font-size:11px}.metric strong{display:block;font-size:22px;margin:6px 0;color:#143f38}.metric.primary{background:#f4f9df;border-color:#dbe8a9}.metric.blue{background:#edf7fb;border-color:#cbe4ef}.section{margin-top:28px}.section h2{font-size:18px;color:#166b91;margin:0 0 12px}.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}.chart{border:1px solid #dfe7e4;border-radius:16px;padding:14px}.chart-title{display:flex;justify-content:space-between;align-items:center}.chart-title span{font-weight:800;color:#597319}.chart svg{width:100%;height:145px}.chart-labels{display:flex;justify-content:space-between;font-size:10px;color:#788588}table{width:100%;border-collapse:collapse;border:1px solid #e1e7e5;border-radius:14px;overflow:hidden}th,td{padding:9px 10px;border-bottom:1px solid #e6ece9;text-align:left;font-size:12px}th{background:#f2f7e8;color:#41551f}.notes{padding:16px;border-radius:14px;background:#f7f9f8;white-space:pre-wrap}.photos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photos img{width:100%;max-height:360px;object-fit:contain;border:1px solid #e1e7e5;border-radius:14px;background:#fafafa}footer{margin-top:28px;padding-top:12px;border-top:1px solid #e1e6e4;display:flex;justify-content:space-between;font-size:10px;color:#7a8688}.printbar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid #e1e6e4;z-index:5}.printbar button{border:0;border-radius:9px;padding:9px 13px;font-weight:800;cursor:pointer}.printbar .primary{background:#a8c93b;color:#24310d}@media(max-width:760px){.hero,.charts{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.sheet{width:100%;margin:0;border-radius:0}header,.content{padding:20px}header img{width:120px}}@media print{body{background:#fff}.sheet{width:100%;margin:0;box-shadow:none;border-radius:0}.printbar{display:none}.content{padding:18px 20px}.metrics{grid-template-columns:repeat(4,1fr)}.chart svg{height:115px}}</style></head><body><div class="sheet"><div class="printbar"><button onclick="window.close()">Fechar</button><button class="primary" onclick="window.print()">Imprimir / Salvar PDF</button></div><header><div><p>AVALIAÇÃO CORPORAL · DMP</p><h1>${esc(student.name)}</h1><div class="date">${formatDate(assessment.date)} · ${esc(student.goal||"Objetivo não informado")}</div></div><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal"></header><div class="content"><div class="hero"><div class="hero-card"><h2>Resumo da avaliação</h2><p>Relatório consolidado com composição corporal, medidas e evolução registrada no DMP.</p><p>${previous?`Comparação com ${formatDate(previous.date)}.`:"Primeira avaliação disponível para comparação."}</p></div><div class="hero-card comparison"><div><strong>${history.length}</strong><span>avaliação${history.length===1?"":"ões"} no histórico</span></div></div></div><div class="metrics">${metric("Peso",assessment.weight," kg",previous?.weight,"primary")}${metric("IMC",bmi,"",prevBmi,"blue")}${metric("Gordura corporal",assessment.bodyFatPercent,"%",previous?.bodyFatPercent,"primary")}${metric("Massa de gordura",assessment.fatMass," kg",previous?.fatMass,"blue")}${metric("Massa magra (kg)",assessmentLeanMassKg(assessment)," kg",previous?assessmentLeanMassKg(previous):null,"primary")}${metric("Massa magra (%)",leanPct,"%",prevLeanPct,"blue")}${metric("Água corporal",assessment.waterPercent,"%",previous?.waterPercent,"primary")}${metric("Massa muscular",assessment.muscleMass," kg",previous?.muscleMass,"blue")}${metric("Metabolismo basal",assessment.basalMetabolicRate," kcal",previous?.basalMetabolicRate,"primary")}${metric("Ângulo de fase",assessment.phaseAngle,"°",previous?.phaseAngle,"blue")}${metric("Gordura visceral",assessment.visceralFat,"",previous?.visceralFat,"primary")}${metric("Massa celular",assessment.bodyCellMass," kg",previous?.bodyCellMass,"blue")}${metric("Índice de hidratação",assessment.hydrationIndex,"",previous?.hydrationIndex,"primary")}${metric("Água corporal total",assessment.totalBodyWaterLiters," L",previous?.totalBodyWaterLiters,"blue")}${metric("Água na massa magra",assessment.waterLeanPercent,"%",previous?.waterLeanPercent,"primary")}${metric("Água intracelular",assessment.intracellularWaterLiters," L",previous?.intracellularWaterLiters,"blue")}${metric("Água extracelular",assessment.extracellularWaterLiters," L",previous?.extracellularWaterLiters,"primary")}${metric("Água intracelular",assessment.intracellularWaterPercent,"%",previous?.intracellularWaterPercent,"blue")}${metric("Massa muscular",assessment.muscleMassPercent,"%",previous?.muscleMassPercent,"primary")}${metric("Razão músculo/gordura",assessment.muscleFatRatio,"",previous?.muscleFatRatio,"blue")}${metric("Idade celular",assessment.cellularAge," anos",previous?.cellularAge,"primary")}</div>${history.length>1?`<section class="section"><h2>Evolução corporal</h2><div class="charts">${assessmentSparkline(series(a=>a.weight),"Peso"," kg")}${assessmentSparkline(series(a=>a.bodyFatPercent),"Gordura corporal","%")}${assessmentSparkline(series(a=>assessmentLeanMassKg(a)),"Massa magra (kg)"," kg")}${assessmentSparkline(series(a=>assessmentLeanPercent(a)),"Massa magra (%)","%")}</div></section>`:""}${measurements?`<section class="section"><h2>Perimetria</h2><table><thead><tr><th>Medida</th><th>Atual</th><th>Anterior</th></tr></thead><tbody>${measurements}</tbody></table></section>`:""}${assessment.notes?`<section class="section"><h2>Observações</h2><div class="notes">${esc(assessment.notes)}</div></section>`:""}${assessment.photos?.length?`<section class="section"><h2>Imagens da avaliação</h2><div class="photos">${assessment.photos.map(photo=>`<img src="${photo}" alt="Imagem da avaliação">`).join("")}</div></section>`:""}<footer><span>Danilo Modesto Personal Trainer</span><span>Relatório emitido em ${new Date().toLocaleString("pt-BR")}</span></footer></div></div></body></html>`;
+  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Avaliação · ${esc(student.name)} · ${formatDate(assessment.date)}</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#eef2ef;color:#17232a;font-family:Arial,Helvetica,sans-serif}.sheet{width:min(1000px,calc(100% - 32px));margin:20px auto;background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 22px 70px rgba(20,39,44,.14)}header{padding:28px 34px;background:linear-gradient(135deg,#143f38,#1d6f66);color:#fff;display:flex;justify-content:space-between;gap:24px;align-items:center}header img{width:170px;border-radius:12px;background:#fff}header p{margin:0 0 7px;font-size:12px;letter-spacing:.12em;font-weight:800;color:#dce9a8}h1{margin:0;font-size:30px}header .date{margin-top:8px;color:#d9e8e5}.content{padding:28px 34px}.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;margin-bottom:22px}.hero-card{padding:20px;border:1px solid #dfe8e3;border-radius:18px;background:#fbfcfa}.hero-card h2{margin:0 0 8px;font-size:19px;color:#166b91}.hero-card p{margin:4px 0;color:#5d6d72}.comparison{display:flex;align-items:center;justify-content:center;text-align:center;background:#f4f8e7}.comparison strong{font-size:25px;color:#597319}.comparison span{display:block;font-size:12px;color:#6e7b7d;margin-top:5px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{border:1px solid #dfe7e4;border-radius:15px;padding:14px;background:#fff}.metric span,.metric small{display:block;color:#738084;font-size:11px}.metric strong{display:block;font-size:22px;margin:6px 0;color:#143f38}.metric.primary{background:#f4f9df;border-color:#dbe8a9}.metric.blue{background:#edf7fb;border-color:#cbe4ef}.section{margin-top:28px}.section h2{font-size:18px;color:#166b91;margin:0 0 12px}.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}.chart{border:1px solid #dfe7e4;border-radius:16px;padding:14px}.chart-title{display:flex;justify-content:space-between;align-items:center}.chart-title span{font-weight:800;color:#597319}.chart svg{width:100%;height:145px}.chart-labels{display:flex;justify-content:space-between;font-size:10px;color:#788588}table{width:100%;border-collapse:collapse;border:1px solid #e1e7e5;border-radius:14px;overflow:hidden}th,td{padding:9px 10px;border-bottom:1px solid #e6ece9;text-align:left;font-size:12px}th{background:#f2f7e8;color:#41551f}.notes{padding:16px;border-radius:14px;background:#f7f9f8;white-space:pre-wrap}.photos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.photos img{width:100%;max-height:360px;object-fit:contain;border:1px solid #e1e7e5;border-radius:14px;background:#fafafa}footer{margin-top:28px;padding-top:12px;border-top:1px solid #e1e6e4;display:flex;justify-content:space-between;font-size:10px;color:#7a8688}.printbar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid #e1e6e4;z-index:5}.printbar button{border:0;border-radius:9px;padding:9px 13px;font-weight:800;cursor:pointer}.printbar .primary{background:#a8c93b;color:#24310d}@media(max-width:760px){.hero,.charts{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.sheet{width:100%;margin:0;border-radius:0}header,.content{padding:20px}header img{width:120px}}@media print{body{background:#fff}.sheet{width:100%;margin:0;box-shadow:none;border-radius:0}.printbar{display:none}.content{padding:18px 20px}.metrics{grid-template-columns:repeat(4,1fr)}.chart svg{height:115px}}</style></head><body><div class="sheet"><div class="printbar"><button onclick="window.close()">Fechar</button><button class="primary" onclick="window.print()">Imprimir / Salvar PDF</button></div><header><div><p>AVALIAÇÃO CORPORAL · DMP</p><h1>${esc(student.name)}</h1><div class="date">${formatDate(assessment.date)} · ${esc(student.goal||"Objetivo não informado")}</div></div><a href="${location.origin}/app?home=1" aria-label="Ir para a Home do DMP"><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal"></a></header><div class="content"><div class="hero"><div class="hero-card"><h2>Resumo da avaliação</h2><p>Relatório consolidado com composição corporal, medidas e evolução registrada no DMP.</p><p>${previous?`Comparação com ${formatDate(previous.date)}.`:"Primeira avaliação disponível para comparação."}</p></div><div class="hero-card comparison"><div><strong>${history.length}</strong><span>avaliação${history.length===1?"":"ões"} no histórico</span></div></div></div><div class="metrics">${metric("Peso",assessment.weight," kg",previous?.weight,"primary")}${metric("IMC",bmi,"",prevBmi,"blue")}${metric("Gordura corporal",assessment.bodyFatPercent,"%",previous?.bodyFatPercent,"primary")}${metric("Massa de gordura",assessment.fatMass," kg",previous?.fatMass,"blue")}${metric("Massa magra (kg)",assessmentLeanMassKg(assessment)," kg",previous?assessmentLeanMassKg(previous):null,"primary")}${metric("Massa magra (%)",leanPct,"%",prevLeanPct,"blue")}${metric("Água corporal",assessment.waterPercent,"%",previous?.waterPercent,"primary")}${metric("Massa muscular",assessment.muscleMass," kg",previous?.muscleMass,"blue")}${metric("Metabolismo basal",assessment.basalMetabolicRate," kcal",previous?.basalMetabolicRate,"primary")}${metric("Ângulo de fase",assessment.phaseAngle,"°",previous?.phaseAngle,"blue")}${metric("Gordura visceral",assessment.visceralFat,"",previous?.visceralFat,"primary")}${metric("Massa celular",assessment.bodyCellMass," kg",previous?.bodyCellMass,"blue")}${metric("Índice de hidratação",assessment.hydrationIndex,"",previous?.hydrationIndex,"primary")}${metric("Água corporal total",assessment.totalBodyWaterLiters," L",previous?.totalBodyWaterLiters,"blue")}${metric("Água na massa magra",assessment.waterLeanPercent,"%",previous?.waterLeanPercent,"primary")}${metric("Água intracelular",assessment.intracellularWaterLiters," L",previous?.intracellularWaterLiters,"blue")}${metric("Água extracelular",assessment.extracellularWaterLiters," L",previous?.extracellularWaterLiters,"primary")}${metric("Água intracelular",assessment.intracellularWaterPercent,"%",previous?.intracellularWaterPercent,"blue")}${metric("Massa muscular",assessment.muscleMassPercent,"%",previous?.muscleMassPercent,"primary")}${metric("Razão músculo/gordura",assessment.muscleFatRatio,"",previous?.muscleFatRatio,"blue")}${metric("Idade celular",assessment.cellularAge," anos",previous?.cellularAge,"primary")}</div>${history.length>1?`<section class="section"><h2>Evolução corporal</h2><div class="charts">${assessmentSparkline(series(a=>a.weight),"Peso"," kg")}${assessmentSparkline(series(a=>a.bodyFatPercent),"Gordura corporal","%")}${assessmentSparkline(series(a=>assessmentLeanMassKg(a)),"Massa magra (kg)"," kg")}${assessmentSparkline(series(a=>assessmentLeanPercent(a)),"Massa magra (%)","%")}</div></section>`:""}${measurements?`<section class="section"><h2>Perimetria</h2><table><thead><tr><th>Medida</th><th>Atual</th><th>Anterior</th></tr></thead><tbody>${measurements}</tbody></table></section>`:""}${assessment.notes?`<section class="section"><h2>Observações</h2><div class="notes">${esc(assessment.notes)}</div></section>`:""}${assessment.photos?.length?`<section class="section"><h2>Imagens da avaliação</h2><div class="photos">${assessment.photos.map(photo=>`<img src="${photo}" alt="Imagem da avaliação">`).join("")}</div></section>`:""}<footer><span>Danilo Modesto Personal Trainer</span><span>Relatório emitido em ${new Date().toLocaleString("pt-BR")}</span></footer></div></div></body></html>`;
   popup.document.open();popup.document.write(html);popup.document.close();
 }
 const MEASUREMENT_LABELS:Record<string,string>={neck:"Pescoço",shoulders:"Ombros",chest:"Tórax",waist:"Cintura",abdomen:"Abdômen",hips:"Quadril",rightArm:"Braço direito",leftArm:"Braço esquerdo",rightForearm:"Antebraço direito",leftForearm:"Antebraço esquerdo",rightThigh:"Coxa direita",leftThigh:"Coxa esquerda",rightCalf:"Panturrilha direita",leftCalf:"Panturrilha esquerda"};
@@ -5636,7 +5688,7 @@ function openWorkoutSharePreview(student:Student,workout:Workout){
   (window as any).__dmpShareWorkout={student,workout};
   (window as any).downloadWorkoutJpgFromShare=()=>downloadWorkoutJpg(student,workout);
   (window as any).generateWorkoutJpgFromShare=()=>downloadWorkoutJpg(student,workout,true);
-  popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(student.name)} - ${esc(workout.name)}</title><style>body{font-family:Arial,sans-serif;margin:0;background:#f4f7ee;color:#25272c}.sheet{max-width:760px;margin:24px auto;background:#fff;padding:34px;border-radius:18px}.head{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:3px solid #a8c93b;padding-bottom:18px}.head img{width:150px;height:82px;object-fit:contain;object-position:right center}.head h1{margin:0}.head p{margin:6px 0 0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.meta span{background:#eef4df;padding:8px 12px;border-radius:999px}.workout-notes{margin:18px 0;padding:15px 17px;border-radius:12px;background:#f5f8ed;border-left:5px solid #a8c93b}.workout-notes p{margin:6px 0 0;white-space:pre-wrap}section{margin:22px 0}h3{border-left:5px solid #a8c93b;padding-left:10px}.exercise{display:grid;grid-template-columns:1fr auto;gap:5px 16px;padding:11px 0;border-bottom:1px solid #e3e8d8}.exercise small{grid-column:1/-1;color:#707781}.actions{display:flex;gap:10px;margin:20px auto;max-width:760px}.actions button{padding:12px 16px;border:0;border-radius:10px;cursor:pointer}.primary{background:#a8c93b;font-weight:700}@media print{body{background:#fff}.actions{display:none}.sheet{margin:0;max-width:none;box-shadow:none}}</style></head><body><div class="actions"><button class="primary" onclick="window.print()">Salvar / imprimir PDF</button><button onclick="window.opener.downloadWorkoutJpgFromShare && window.opener.downloadWorkoutJpgFromShare()">Salvar como JPG</button><button onclick="sendWorkoutToWhatsappFromPreview()">Enviar pelo WhatsApp</button><button onclick="window.close()">Fechar prévia</button></div><main class="sheet"><div class="head"><div><h1>${esc(student.name)}</h1><p>${esc(workout.name||`Treino ${workout.slot||""}`)}</p></div><img src="${location.origin}/logo-danilo.jpg" alt="Danilo Modesto Personal"></div><div class="meta"><span>Treino ${esc(workout.slot||"—")}</span><span>${esc(workoutProtocolLabel(workout.protocol||"CONVENTIONAL"))}</span><span>${date}</span></div>${workoutNotes}${blocks}</main><script>async function sendWorkoutToWhatsappFromPreview(){  const whatsappUrl=${JSON.stringify(whatsappUrl)};  if(!whatsappUrl){alert("Cadastre um telefone valido para o aluno antes de enviar pelo WhatsApp.");return;}  try{    const blobs=await window.opener.generateWorkoutJpgFromShare();    if(!blobs||!blobs.length)throw new Error("image_generation_failed");    const files=blobs.map((blob,index)=>new File([blob],"treino_"+(index+1)+".jpg",{type:"image/jpeg"}));    if(navigator.maxTouchPoints>0&&navigator.share&&navigator.canShare&&navigator.canShare({files})){      await navigator.share({files,title:"Treino DMP"});      return;    }    if(!navigator.clipboard||typeof ClipboardItem==="undefined")throw new Error("clipboard_not_supported");    const images=await Promise.all(blobs.map(blob=>createImageBitmap(blob)));    const canvas=document.createElement("canvas");    canvas.width=Math.max(...images.map(image=>image.width));    canvas.height=images.reduce((total,image)=>total+image.height,0);    const ctx=canvas.getContext("2d");    if(!ctx)throw new Error("canvas_context_failed");    ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);    let y=0;for(const image of images){ctx.drawImage(image,0,y);y+=image.height;}    const pngBlob=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("png_generation_failed")),"image/png"));    await navigator.clipboard.write([new ClipboardItem({"image/png":pngBlob})]);    alert("Treino copiado. O WhatsApp do aluno sera aberto agora. Na conversa, pressione Ctrl+V e envie.");    window.location.href=whatsappUrl;  }catch(error){    console.error(error);    alert("O navegador nao permitiu o compartilhamento automatico. O WhatsApp sera aberto; se necessario, use Salvar como JPG como alternativa.");    window.location.href=whatsappUrl;  }}</script></body></html>`);
+  popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(student.name)} - ${esc(workout.name)}</title><style>body{font-family:Arial,sans-serif;margin:0;background:#f4f7ee;color:#25272c}.sheet{max-width:760px;margin:24px auto;background:#fff;padding:34px;border-radius:18px}.head{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:3px solid #a8c93b;padding-bottom:18px}.head img{width:150px;height:82px;object-fit:contain;object-position:right center}.head h1{margin:0}.head p{margin:6px 0 0}.meta{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.meta span{background:#eef4df;padding:8px 12px;border-radius:999px}.workout-notes{margin:18px 0;padding:15px 17px;border-radius:12px;background:#f5f8ed;border-left:5px solid #a8c93b}.workout-notes p{margin:6px 0 0;white-space:pre-wrap}section{margin:22px 0}h3{border-left:5px solid #a8c93b;padding-left:10px}.exercise{display:grid;grid-template-columns:1fr auto;gap:5px 16px;padding:11px 0;border-bottom:1px solid #e3e8d8}.exercise small{grid-column:1/-1;color:#707781}.actions{display:flex;gap:10px;margin:20px auto;max-width:760px}.actions button{padding:12px 16px;border:0;border-radius:10px;cursor:pointer}.primary{background:#a8c93b;font-weight:700}@media print{body{background:#fff}.actions{display:none}.sheet{margin:0;max-width:none;box-shadow:none}}</style></head><body><div class="actions"><button class="primary" onclick="window.print()">Salvar / imprimir PDF</button><button onclick="window.opener.downloadWorkoutJpgFromShare && window.opener.downloadWorkoutJpgFromShare()">Salvar como JPG</button><button onclick="sendWorkoutToWhatsappFromPreview()">Enviar pelo WhatsApp</button><button onclick="window.close()">Fechar prévia</button></div><main class="sheet"><div class="head"><div><h1>${esc(student.name)}</h1><p>${esc(workout.name||`Treino ${workout.slot||""}`)}</p></div><a href="${location.origin}/app?home=1" aria-label="Ir para a Home do DMP"><img src="${location.origin}/logo-danilo.jpg" alt="Danilo Modesto Personal"></a></div><div class="meta"><span>Treino ${esc(workout.slot||"—")}</span><span>${esc(workoutProtocolLabel(workout.protocol||"CONVENTIONAL"))}</span><span>${date}</span></div>${workoutNotes}${blocks}</main><script>async function sendWorkoutToWhatsappFromPreview(){  const whatsappUrl=${JSON.stringify(whatsappUrl)};  if(!whatsappUrl){alert("Cadastre um telefone valido para o aluno antes de enviar pelo WhatsApp.");return;}  try{    const blobs=await window.opener.generateWorkoutJpgFromShare();    if(!blobs||!blobs.length)throw new Error("image_generation_failed");    const files=blobs.map((blob,index)=>new File([blob],"treino_"+(index+1)+".jpg",{type:"image/jpeg"}));    if(navigator.maxTouchPoints>0&&navigator.share&&navigator.canShare&&navigator.canShare({files})){      await navigator.share({files,title:"Treino DMP"});      return;    }    if(!navigator.clipboard||typeof ClipboardItem==="undefined")throw new Error("clipboard_not_supported");    const images=await Promise.all(blobs.map(blob=>createImageBitmap(blob)));    const canvas=document.createElement("canvas");    canvas.width=Math.max(...images.map(image=>image.width));    canvas.height=images.reduce((total,image)=>total+image.height,0);    const ctx=canvas.getContext("2d");    if(!ctx)throw new Error("canvas_context_failed");    ctx.fillStyle="#ffffff";ctx.fillRect(0,0,canvas.width,canvas.height);    let y=0;for(const image of images){ctx.drawImage(image,0,y);y+=image.height;}    const pngBlob=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("png_generation_failed")),"image/png"));    await navigator.clipboard.write([new ClipboardItem({"image/png":pngBlob})]);    alert("Treino copiado. O WhatsApp do aluno sera aberto agora. Na conversa, pressione Ctrl+V e envie.");    window.location.href=whatsappUrl;  }catch(error){    console.error(error);    alert("O navegador nao permitiu o compartilhamento automatico. O WhatsApp sera aberto; se necessario, use Salvar como JPG como alternativa.");    window.location.href=whatsappUrl;  }}</script></body></html>`);
   popup.document.close();
 }
 
