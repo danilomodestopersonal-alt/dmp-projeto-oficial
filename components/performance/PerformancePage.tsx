@@ -14,6 +14,8 @@ import type {
   PerformanceTennisKind,
 } from "@/types/performance";
 import styles from "./PerformancePage.module.css";
+import PerformanceEvolution from "./PerformanceEvolution";
+import AssessmentInsights from "@/components/assessments/AssessmentInsights";
 import StravaSyncCard from "./StravaSyncCard";
 
 type Tab = "summary" | "activities" | "goals" | "assessments" | "records";
@@ -375,6 +377,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [consultMonth,setConsultMonth]=useState<string|null>(null);
   const [tab, setTab] = useState<Tab>("summary");
   const [modal, setModal] = useState<Modal>(null);
   const [activityForm, setActivityForm] = useState<ActivityForm>(emptyActivity());
@@ -1094,23 +1097,14 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
           <div className={styles.stack}>
 
 
-            <div className={styles.statsGrid}>
-              <Metric label="Distância no mês" value={`${fmtNumber(monthTotals.distance, 1)} km`} detail={`${fmtNumber(yearTotals.distance, 1)} km no ano`} icon="↗" />
-              <Metric label="Tempo no mês" value={fmtHours(monthTotals.minutes)} detail={`${fmtHours(yearTotals.minutes)} no ano`} icon="◷" />
-              <Metric label="Altimetria no mês" value={`${fmtNumber(monthTotals.elevation)} m`} detail={`${fmtNumber(yearTotals.elevation)} m no ano`} icon="△" />
-              <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} icon="✓" />
+            <div className={`${styles.statsGrid} ${styles.compactSummaryStats}`}>
+              <Metric label="Distância no mês" value={`${fmtNumber(monthTotals.distance, 1)} km`} detail={`${fmtNumber(yearTotals.distance, 1)} km no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="↗" />
+              <Metric label="Tempo no mês" value={fmtHours(monthTotals.minutes)} detail={`${fmtHours(yearTotals.minutes)} no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="◷" />
+              <Metric label="Altimetria no mês" value={`${fmtNumber(monthTotals.elevation)} m`} detail={`${fmtNumber(yearTotals.elevation)} m no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="△" />
+              <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="✓" />
             </div>
 
-            <div className={`${styles.twoColumns} ${styles.summaryEvolutionOnly}`}>
-              <section className={styles.panel}>
-                <div className={styles.panelHeader}>
-                  <div><span className={styles.kicker}>EVOLUÇÃO {currentYear}</span><h2>Distância por mês</h2></div>
-                  <span className={styles.statusChip}>12 meses</span>
-                </div>
-                <MonthlyBars series={monthlySeries.map(item => item.km)} currentMonth={currentMonth} />
-              </section>
-
-            </div>
+            <PerformanceEvolution activities={data.activities} year={currentYear} month={currentMonth} onOpenMonth={setConsultMonth}/>
 
             <div className={styles.twoColumns}>
               <section className={styles.panel}>
@@ -1165,10 +1159,11 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <div><span className={styles.kicker}>CORPO & COMPOSIÇÃO</span><h2>Avaliações físicas</h2><p>Acompanhe mudanças de composição e medidas.</p></div>
               <button className="primary" onClick={openNewAssessment}>+ Nova avaliação</button>
             </div>
+            <AssessmentInsights assessments={data.assessments.map(item=>({...item,weight:item.weightKg,muscleMass:item.muscleMassKg,measurements:{},notes:item.notes||"",photos:[]}))} preferenceKey="performance-owner" onOpenRecord={id=>document.getElementById(`performance-assessment-${id}`)?.scrollIntoView({behavior:"smooth",block:"center"})}/>
             {data.assessments.length ? (
               <div className={styles.assessmentTable}>
                 {[...data.assessments].sort((a,b) => b.date.localeCompare(a.date)).map(item => (
-                  <article className={styles.assessmentRow} key={item.id}>
+                  <article id={`performance-assessment-${item.id}`} className={styles.assessmentRow} key={item.id}>
                     <div className={styles.assessmentDate}><strong>{fmtDate(item.date)}</strong><span>{item.notes || "Avaliação física"}</span></div>
                     <Measure label="Peso" value={item.weightKg} unit="kg" />
                     <Measure label="Gordura" value={item.bodyFatPercent} unit="%" />
@@ -1240,6 +1235,11 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
         </ModalShell>
       ) : null}
 
+      {consultMonth?<ModalShell title={`Atividades de ${consultMonth.split("-").reverse().join("/")}`} eyebrow="ORIGEM DOS INDICADORES" onClose={()=>setConsultMonth(null)}>
+        <p>As mesmas atividades usadas nos totais de distância, tempo, altimetria e treinos deste mês.</p>
+        {data.activities.filter(activity=>activity.date.startsWith(consultMonth)).sort((a,b)=>b.date.localeCompare(a.date)).map(activity=><ActivityRow key={activity.id} activity={activity} onClick={()=>{setConsultMonth(null);setDetailActivity(activity);}}/>)}
+        {!data.activities.some(activity=>activity.date.startsWith(consultMonth))?<p>Nenhuma atividade registrada neste mês.</p>:null}
+      </ModalShell>:null}
       {modal === "activity" ? (
         <ModalShell title={activityForm.id ? "Editar atividade" : "Registrar atividade"} eyebrow="PERFORMANCE" onClose={() => {stopStrengthVoice();setStrengthTranscript("");setModal(null);}}>
           <form onSubmit={submitActivity} className={styles.form}>
@@ -1323,8 +1323,9 @@ function summarize(activities: PerformanceActivity[]) {
   }), { distance: 0, minutes: 0, elevation: 0, count: 0 });
 }
 
-function Metric({label,value,detail,icon}:{label:string;value:string;detail:string;icon:string}) {
-  return <article className={styles.metric}><div className={styles.metricIcon}>{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>;
+function Metric({label,value,detail,icon,onClick}:{label:string;value:string;detail:string;icon:string;onClick?:()=>void}) {
+  const body=<><div className={styles.metricIcon}>{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></>;
+  return onClick?<button type="button" className={styles.metric} onClick={onClick} aria-label={`${label}: ${value}. Ver atividades do mês.`}>{body}</button>:<article className={styles.metric}>{body}</article>;
 }
 
 function MonthlyBars({series,currentMonth}:{series:number[];currentMonth:number}) {

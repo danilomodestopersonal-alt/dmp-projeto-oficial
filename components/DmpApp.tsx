@@ -11,6 +11,10 @@ import { exportStudentSessionsCsv } from "@/lib/export";
 import { exportWorkoutJpeg, exportWorkoutPdf } from "@/lib/workout-export";
 import { parseGalileuStructuredText, ocrNumber, type GalileuPdfImport } from "@/lib/assessments/text-import";
 import { workoutPageTitle } from "@/lib/workout-page-title";
+import RecordsConsultation, {type ConsultationRecord} from "@/components/assessments/RecordsConsultation";
+import consultationStyles from "@/components/assessments/RecordsConsultation.module.css";
+import AssessmentInsights from "@/components/assessments/AssessmentInsights";
+import StudentConsultationSummary from "@/components/assessments/StudentConsultationSummary";
 import HomeStudentActions from "@/components/HomeStudentActions";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
 import PerformancePage from "@/components/performance/PerformancePage";
@@ -1937,6 +1941,7 @@ fetch("/api/google/status")
 
           </section>
 
+          {tab === "summary" ? <StudentConsultationSummary student={selectedStudent} events={calendarEvents.filter(event=>getCalendarEventStudents(event,students).some(item=>item.id===selectedStudent.id))} onOpenSession={session=>{setHistoricalSessionPreview({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});setView("historical-workout");}} onOpen={setTab} onAgenda={date=>{setCalendarAnchor(date);setView("agenda");}}/> : null}
           {tab === "summary" ? <StudentDashboardComplete student={selectedStudent} allStudents={students} onOpen={setTab} onReport={()=>void printPersonalStudentReport(selectedStudent)} onStudentUpdate={updateStudentRecord} /> : null}
           {tab === "timeline" ? <StudentTimeline student={selectedStudent} /> : null}
 
@@ -3507,6 +3512,7 @@ function HomeClosingSummary({students,performanceActivities}:{students:Student[]
 }
 
 function HistoryPanel({student,onSave,onDelete,onUseToday,onOpenWorkout}:{student:Student;onSave:(session:Session)=>Promise<void>;onDelete:(sessionId:string)=>Promise<void>;onUseToday:(session:Session)=>void;onOpenWorkout:(session:Session)=>void}) {
+  const [consultation,setConsultation]=useState<{title:string;records:ConsultationRecord[]}|null>(null);
   const [query,setQuery]=useState("");
   const [source,setSource]=useState<"ALL"|"PLANNED"|"FREE"|"ATTENDANCE"|"IMPORTED">("ALL");
   const [period,setPeriod]=useState<"ALL"|"30"|"90"|"YEAR">("ALL");
@@ -3541,14 +3547,18 @@ function HistoryPanel({student,onSave,onDelete,onUseToday,onOpenWorkout}:{studen
   async function saveEdit(){if(!editing)return;setSaving(true);try{await onSave({...editing,completedExercises:editing.completedExercises.filter(ex=>ex.name.trim())});setEditing(null);}finally{setSaving(false);}}
   async function removeSession(session:Session){if(!confirm(`Excluir definitivamente a sessão de ${formatDate(session.date)}?\n\nEsta ação remove somente este registro do histórico e não altera a ficha de treino do aluno.`))return;setSaving(true);try{await onDelete(session.id);if(editing?.id===session.id)setEditing(null);}finally{setSaving(false);}}
 
+  const sessionConsultation=(title:string,items:Session[])=>setConsultation({title,records:items.map(item=>({id:item.id,date:item.date,title:item.source==="ABSENCE"?"Ausência registrada":item.workoutName,notes:item.notes,lines:item.completedExercises.map(exercise=>`${exercise.name} · ${exercise.sets}×${exercise.reps} · ${exercise.load}`)}))});
+  const assessmentConsultation=()=>setConsultation({title:"Avaliações nos últimos 30 dias",records:recentAssessments.map(item=>({id:item.id,date:item.date,title:"Avaliação registrada",notes:item.notes,lines:[item.weight!=null?`Peso: ${item.weight} kg`:"Peso: não disponível",item.bodyFatPercent!=null?`Gordura corporal: ${item.bodyFatPercent}%`:"Gordura corporal: não disponível"]}))});
+  const consultationTrigger=(title:string,open:()=>void)=>({role:"button",tabIndex:0,className:consultationStyles.trigger,"aria-label":`${title}. Ver registros dos últimos 30 dias.`,onClick:open,onKeyDown:(event:React.KeyboardEvent<HTMLElement>)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();open();}}});
   return <div className="student-history-stack">
+    {consultation?<RecordsConsultation title={consultation.title} records={consultation.records} onClose={()=>setConsultation(null)}/>:null}
     <section className="panel intelligent-history-panel">
       <div className="panel-head"><div><h2>{"Histórico inteligente"}</h2><p className="muted">{"Visão dos últimos 30 dias do aluno."}</p></div></div>
       <div className="intelligent-history-grid">
-        <article><span>Registros</span><strong>{recentSessions.length}</strong><small>{"Últimos 30 dias"}</small></article>
-        <article><span>Atendimentos</span><strong>{recentAttendances.length}</strong><small>{"Treinos e presenças"}</small></article>
-        <article><span>{"Ausências"}</span><strong>{recentAbsences.length}</strong><small>{"No período"}</small></article>
-        <article><span>{"Avaliações"}</span><strong>{recentAssessments.length}</strong><small>{"Nos últimos 30 dias"}</small></article>
+        <article {...consultationTrigger("Registros",()=>sessionConsultation("Registros dos últimos 30 dias",recentSessions))}><span>Registros</span><strong>{recentSessions.length}</strong><small>{"Últimos 30 dias"}</small></article>
+        <article {...consultationTrigger("Atendimentos",()=>sessionConsultation("Atendimentos dos últimos 30 dias",recentAttendances))}><span>Atendimentos</span><strong>{recentAttendances.length}</strong><small>{"Treinos e presenças"}</small></article>
+        <article {...consultationTrigger("Ausências",()=>sessionConsultation("Ausências dos últimos 30 dias",recentAbsences))}><span>{"Ausências"}</span><strong>{recentAbsences.length}</strong><small>{"No período"}</small></article>
+        <article {...consultationTrigger("Avaliações",assessmentConsultation)}><span>{"Avaliações"}</span><strong>{recentAssessments.length}</strong><small>{"Nos últimos 30 dias"}</small></article>
       </div>
       <div className="intelligent-history-details">
         <div><span>{"Última sessão"}</span><strong>{latestSession?formatDate(latestSession.date):"—"}</strong><small>{latestSession?.focus?`Foco: ${latestSession.focus}`:latestSession?.workoutName||"Nenhum registro"}</small></div>
@@ -3829,6 +3839,7 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
       <button className="primary" onClick={onNew}>+ Nova avaliação</button>
     </div>
 
+    <AssessmentInsights assessments={student.assessments} preferenceKey={student.id} onOpenRecord={id=>document.getElementById(`assessment-record-${id}`)?.scrollIntoView({behavior:"smooth",block:"center"})}/>
     {latest?
       <section className="assessment-comparison">
         <div className="assessment-comparison-head">
@@ -3857,7 +3868,7 @@ function AssessmentPanel({student,onNew}:{student:Student;onNew:()=>void}) {
       <div className="assessment-history-list">
         {sorted.map(assessment=>{
           const previousAssessment=assessmentPrevious(student,assessment);
-          return <article className="assessment-card assessment-card-rich" key={assessment.id}>
+          return <article id={`assessment-record-${assessment.id}`} className="assessment-card assessment-card-rich" key={assessment.id}>
             <div className="assessment-card-main">
               <div className="assessment-card-date">
                 <small>Avaliação</small>

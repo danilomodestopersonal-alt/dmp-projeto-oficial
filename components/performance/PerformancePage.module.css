@@ -207,3 +207,7 @@
   color:#fff!important;
   fill:#fff!important;
 }
+
+/* Apenas os quatro indicadores abaixo do topo original. */
+.compactSummaryStats{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.compactSummaryStats .metric{padding:16px;border-radius:20px;gap:12px;text-align:left;font:inherit;cursor:pointer;min-width:0}.compactSummaryStats .metricIcon{width:42px;height:42px;flex:0 0 42px;border-radius:13px;font-size:24px}.compactSummaryStats .metric>div:last-child{min-width:0}.compactSummaryStats .metric strong{font-size:clamp(20px,2vw,28px);overflow-wrap:anywhere}.compactSummaryStats .metric span,.compactSummaryStats .metric small{font-size:12px}.compactSummaryStats .metric:focus-visible{outline:3px solid #7a982f;outline-offset:3px}
+@media(max-width:1100px){.compactSummaryStats{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.compactSummaryStats{gap:10px}.compactSummaryStats .metric{padding:13px;gap:8px;flex-direction:column;align-items:flex-start}.compactSummaryStats .metricIcon{width:32px;height:32px;flex:0 0 32px;font-size:21px}.compactSummaryStats .metric strong{font-size:22px}.compactSummaryStats .metric small{font-size:11px}}@media(max-width:340px){.compactSummaryStats{grid-template-columns:1fr}}

@@ -27,6 +27,13 @@ function normalizeSearch(value: string) {
 }
 
 type ReplacementReportRow={name:string;quantity:number;details:string[]};
+function replacementReportTone(title:string,detail:string){
+  const attendanceView=/quem já realizou|faltas nas reposições|presenças e faltas/i.test(title);
+  if(attendanceView&&/falta/i.test(detail))return "absent";
+  if(/a repor|pendente/i.test(detail)&&!/saldo|crédito[s]? gerado/i.test(detail))return "pending";
+  if(/reposta|reposição|5ª aula/i.test(detail))return "resolved";
+  return "neutral";
+}
 
 function reportPeriodLabel(period:OperationPeriod,data:KidsData){
   if(period==="month")return new Date(`${dateKey().slice(0,7)}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
@@ -47,31 +54,35 @@ function reportEscape(value:string){
 function exportReplacementPdf(title:string,periodLabel:string,summary:string,rows:ReplacementReportRow[],fileName:string){
   const popup=window.open("","_blank");
   if(!popup){window.alert("Permita a abertura de janelas para gerar o PDF.");return;}
-  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${reportEscape(fileName.replace(/\.pdf$/i,""))}</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{margin:0;color:#173d37;font-family:Arial,sans-serif}header{border-bottom:4px solid #b6dd39;padding-bottom:12px}header small{font-weight:800;color:#71803f;letter-spacing:.08em}h1{margin:5px 0;font-size:24px}header p{margin:3px 0;color:#66726c}.summary{margin:16px 0;padding:12px 14px;border-radius:10px;background:#203a29;color:#fff;font-weight:700}.row{break-inside:avoid;border:1px solid #dfe7dc;border-radius:10px;margin:0 0 8px;padding:10px}.row h2{display:flex;justify-content:space-between;margin:0 0 6px;font-size:15px}.row h2 b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:#203a29;color:#fff}.row ul{margin:0;padding-left:18px;color:#5f6d66;font-size:11px;line-height:1.45}footer{margin-top:20px;border-top:1px solid #dfe5db;padding-top:8px;color:#77827c;font-size:10px}@media print{button{display:none}}</style></head><body><header><small>REPOSIÇÕES KIDS · DMP</small><h1>${reportEscape(title)}</h1><p>Período: ${reportEscape(periodLabel)}</p></header><div class="summary">${reportEscape(summary)}</div>${rows.map(row=>`<section class="row"><h2><span>${reportEscape(row.name)}</span><b>${row.quantity}</b></h2><ul>${row.details.map(detail=>`<li>${reportEscape(detail)}</li>`).join("")||"<li>Sem registros detalhados.</li>"}</ul></section>`).join("")||"<p>Nenhum registro neste período.</p>"}<footer>Emitido em ${new Date().toLocaleString("pt-BR")} · Danilo Modesto Personal Trainer</footer><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${reportEscape(fileName.replace(/\.pdf$/i,""))}</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{margin:0;color:#173d37;font-family:Arial,sans-serif}header{border-bottom:4px solid #b6dd39;padding-bottom:12px}header small{font-weight:800;color:#71803f;letter-spacing:.08em}h1{margin:5px 0;font-size:24px}header p{margin:3px 0;color:#66726c}.summary{margin:16px 0;padding:12px 14px;border-radius:10px;background:#203a29;color:#fff;font-weight:700}.row{break-inside:avoid;border:1px solid #dfe7dc;border-radius:10px;margin:0 0 8px;padding:10px}.row h2{display:flex;justify-content:space-between;margin:0 0 6px;font-size:15px}.row h2 b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:#203a29;color:#fff}.resolved{color:#237940}.pending,.absent{color:#ad392a}.row ul{margin:0;padding-left:18px;color:#5f6d66;font-size:11px;line-height:1.45}footer{margin-top:20px;border-top:1px solid #dfe5db;padding-top:8px;color:#77827c;font-size:10px}@media print{button{display:none}}</style></head><body><header><small>REPOSIÇÕES KIDS · DMP</small><h1>${reportEscape(title)}</h1><p>Período: ${reportEscape(periodLabel)}</p></header><div class="summary">${reportEscape(summary)}</div>${rows.map(row=>`<section class="row"><h2><span>${reportEscape(row.name)}</span><b>${row.quantity}</b></h2><ul>${row.details.map(detail=>`<li class="${replacementReportTone(title,detail)}">${reportEscape(detail)}</li>`).join("")||"<li>Sem registros detalhados.</li>"}</ul></section>`).join("")||"<p>Nenhum registro neste período.</p>"}<footer>Emitido em ${new Date().toLocaleString("pt-BR")} · Danilo Modesto Personal Trainer</footer><script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`;
   popup.document.open();popup.document.write(html);popup.document.close();
 }
 
 function exportReplacementPng(title:string,periodLabel:string,summary:string,rows:ReplacementReportRow[],fileName:string){
-  const width=1200;
-  const lineCount=rows.reduce((sum,row)=>sum+Math.max(2,row.details.length),0);
-  const height=Math.max(700,250+rows.length*55+lineCount*28);
-  const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
-  const ctx=canvas.getContext("2d");if(!ctx){window.alert("Não foi possível gerar a imagem.");return;}
-  ctx.fillStyle="#f8fbf5";ctx.fillRect(0,0,width,height);
-  ctx.fillStyle="#203a29";ctx.fillRect(0,0,width,185);
-  ctx.fillStyle="#d8ee52";ctx.font="700 20px Arial";ctx.fillText("REPOSIÇÕES KIDS · DMP",55,48);
-  ctx.fillStyle="#fff";ctx.font="700 38px Arial";ctx.fillText(title,55,98);
-  ctx.font="22px Arial";ctx.fillText(`Período: ${periodLabel}`,55,137);ctx.fillText(summary,55,169);
-  let y=225;
-  rows.forEach(row=>{
-    const blockHeight=54+Math.max(1,row.details.length)*28;
+  const width=1200;const canvas=document.createElement("canvas");const ctx=canvas.getContext("2d");
+  if(!ctx){window.alert("Não foi possível gerar a imagem.");return;}
+  const wrap=(text:string,font:string,maxWidth:number)=>{
+    ctx.font=font;const lines:string[]=[];let line="";
+    for(const word of text.split(/\s+/)){const next=line?`${line} ${word}`:word;if(line&&ctx.measureText(next).width>maxWidth){lines.push(line);line=word;}else line=next;}
+    if(line)lines.push(line);return lines;
+  };
+  const summaryLines=wrap(summary,"20px Arial",width-110);
+  const blocks=rows.map(row=>({row,nameLines:wrap(row.name,"700 23px Arial",width-170),details:(row.details.length?row.details:["Sem registros detalhados."]).flatMap(detail=>wrap(`• ${detail}`,"18px Arial",width-145).map(text=>({text,tone:replacementReportTone(title,detail)})))}));
+  const headerHeight=155+summaryLines.length*26;
+  const height=Math.max(500,headerHeight+60+blocks.reduce((sum,b)=>sum+35+b.nameLines.length*28+b.details.length*26,0));
+  canvas.width=width;canvas.height=height;ctx.fillStyle="#f8fbf5";ctx.fillRect(0,0,width,height);
+  ctx.fillStyle="#203a29";ctx.fillRect(0,0,width,headerHeight);ctx.fillStyle="#d8ee52";ctx.font="700 20px Arial";ctx.fillText("REPOSIÇÕES KIDS · DMP",55,40);
+  ctx.fillStyle="#fff";ctx.font="700 34px Arial";ctx.fillText(title,55,86,width-110);ctx.font="20px Arial";ctx.fillText(`Período: ${periodLabel}`,55,122);
+  summaryLines.forEach((line,index)=>ctx.fillText(line,55,151+index*26));let y=headerHeight+20;
+  blocks.forEach(({row,nameLines,details})=>{
+    const blockHeight=23+nameLines.length*28+details.length*26;
     ctx.fillStyle="#fff";ctx.strokeStyle="#dce5d8";ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(40,y,width-80,blockHeight,14);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#173d37";ctx.font="700 23px Arial";ctx.fillText(row.name,62,y+34);
-    ctx.fillStyle="#203a29";ctx.beginPath();ctx.arc(width-75,y+29,22,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="700 18px Arial";ctx.textAlign="center";ctx.fillText(String(row.quantity),width-75,y+35);ctx.textAlign="left";
-    ctx.fillStyle="#66736c";ctx.font="18px Arial";(row.details.length?row.details:["Sem registros detalhados."]).forEach((detail,index)=>ctx.fillText(`• ${detail}`,66,y+68+index*28,width-145));
+    ctx.fillStyle="#173d37";ctx.font="700 23px Arial";nameLines.forEach((line,index)=>ctx.fillText(line,62,y+28+index*28));
+    ctx.fillStyle="#203a29";ctx.beginPath();ctx.arc(width-75,y+25,22,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="700 18px Arial";ctx.textAlign="center";ctx.fillText(String(row.quantity),width-75,y+31);ctx.textAlign="left";
+    ctx.font="18px Arial";details.forEach(({text,tone},index)=>{ctx.fillStyle=tone==="resolved"?"#237940":tone==="absent"||tone==="pending"?"#ad392a":"#66736c";ctx.fillText(text,62,y+29+nameLines.length*28+index*26);});
     y+=blockHeight+12;
   });
-  ctx.fillStyle="#77827c";ctx.font="16px Arial";ctx.fillText(`Emitido em ${new Date().toLocaleString("pt-BR")}`,45,height-28);
+  ctx.fillStyle="#77827c";ctx.font="16px Arial";ctx.fillText(`Emitido em ${new Date().toLocaleString("pt-BR")}`,45,height-12);
   canvas.toBlob(blob=>{if(!blob)return;const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=fileName;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);},"image/png");
 }
 
@@ -124,7 +135,7 @@ function Metrics({balance}:{balance:KidsReplacementBalance}) {
 
 // DMP_KIDS_EXTRATO_CREDITOS_REPOSICAO_V615_20260919
 type OperationPeriod = "semester" | "month";
-type OperationDetail = "generated" | "performed" | "pending" | "scheduled" | "advance" | "attendance" | "attention";
+type OperationDetail = "generated" | "performed" | "pending" | "absent" | "advance" | "attendance" | "attention";
 type CreditLedgerItem = {
   credit:KidsReplacementBalanceEvent;
   replacement?:KidsReplacementBalanceEvent;
@@ -135,6 +146,7 @@ type DetailEvent = {
   label:string;
   className?:string;
   tone?:"resolved"|"anticipated"|"pending"|"absent";
+  section?:string;
 };
 
 type StudentOperationRow = {
@@ -149,7 +161,9 @@ type StudentOperationRow = {
   replacedEvents:KidsReplacementBalanceEvent[];
   pendingEvents:KidsReplacementBalanceEvent[];
   advanceEvents:KidsReplacementBalanceEvent[];
+  allAdvanceEvents:KidsReplacementBalanceEvent[];
   scheduledDates:string[];
+  absentReplacementEvents:KidsReplacementBalanceEvent[];
   attendanceEvents:Array<{date:string;status:"PRESENT"|"ABSENT";source:"REPLACEMENT"|"FIFTH_CLASS";className:string}>;
   creditLedger:CreditLedgerItem[];
 };
@@ -165,6 +179,7 @@ type KidsReplacementOperationMetrics = {
   studentsWaiting:number;
   studentsTwoPlus:number;
   scheduledStudents:number;
+  absentReplacements:number;
   attendancePresent:number;
   attendanceAbsent:number;
   attendanceRate:number;
@@ -194,9 +209,9 @@ function replacementLessonOccurred(lesson:KidsLesson,data:KidsData){
   return new Date(`${lesson.date}T${end}:00`).getTime()<=Date.now();
 }
 
-function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPeriod):KidsReplacementOperationMetrics {
+function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPeriod,includeAll=false):KidsReplacementOperationMetrics {
   const students=new Map<string,string>();
-  data.classes.forEach(group=>group.students.filter(student=>student.active).forEach(student=>{
+  data.classes.forEach(group=>group.students.filter(student=>includeAll||student.active).forEach(student=>{
     if(!students.has(student.id))students.set(student.id,student.name);
   }));
   const studentIds=[...students.keys()];
@@ -272,12 +287,16 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
       replaced:replacedEvents.length,
       pending:pendingEvents.length,
       advance:advanceEvents.length,
-      netBalance:allDueEvents.length-allReplacedEvents.length,
+      netBalance:balance.due-balance.replaced,
       dueEvents,
       replacedEvents,
       pendingEvents,
       advanceEvents,
+      allAdvanceEvents:allReplacedEvents.slice(resolved),
       scheduledDates:(scheduledByStudent.get(studentId)||[]).sort(),
+      absentReplacementEvents:replacedEvents.filter(event=>
+        event.label.toLowerCase().includes("falta")||data.lessons.find(lesson=>lesson.id===event.lessonId)?.attendance?.[studentId]==="ABSENT"
+      ).filter((event,index,events)=>events.findIndex(other=>other.lessonId===event.lessonId)===index),
       attendanceEvents:(attendanceByStudent.get(studentId)||[]).sort((a,b)=>a.date.localeCompare(b.date)),
       creditLedger,
     };
@@ -304,6 +323,7 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
     studentsWaiting:rows.filter(item=>item.pending>0).length,
     studentsTwoPlus:rows.filter(item=>item.pending>=2).length,
     scheduledStudents:rows.filter(item=>item.scheduledDates.length>0).length,
+    absentReplacements:rows.reduce((sum,row)=>sum+row.absentReplacementEvents.length,0),
     attendancePresent,
     attendanceAbsent,
     attendanceRate:attendanceTotal?Math.round((attendancePresent/attendanceTotal)*100):0,
@@ -323,23 +343,26 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
   const [detail,setDetail]=useState<OperationDetail|null>(null);
   const [detailSearch,setDetailSearch]=useState("");
   const metric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period):null,[data,period]);
-  if(!data||!metric)return null;
+  const allMetric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period,true):null,[data,period]);
+  if(!data||!metric||!allMetric)return null;
   const reportData=data;
   const reportMetric=metric;
+  const reportAllMetric=allMetric;
 
   const detailMeta:Record<OperationDetail,{eyebrow:string;title:string;description:string}>={
-    generated:{eyebrow:"PAINEL GERAL DE REPOSIÇÕES",title:"Situação completa por aluno",description:"Todas as aulas canceladas: verde identifica o que já foi reposto, azul a reposição antecipada e vermelho o que ainda falta repor."},
-    performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"Mostra a data da reposição e qual aula cancelada foi compensada, inclusive quando houve falta."},
+    generated:{eyebrow:"CONTROLE GERAL",title:"Controle de reposições por aluno",description:"Verde: compensada ou crédito antecipado contabilizado. Vermelho: ainda a repor. Saldo a repor = canceladas − reposições, desde a base oficial; registros abaixo seguem o período selecionado."},
+    performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"🟢 Verde: presença na reposição | 🔴 Vermelho: falta na reposição (crédito consumido). Mostra a data e a aula compensada."},
     pending:{eyebrow:"ALUNOS AGUARDANDO REPOSIÇÃO",title:"Crianças que ainda precisam repor",description:"Exibe apenas crianças com pendência, mantendo em verde o histórico já resolvido e em vermelho o que falta."},
-    scheduled:{eyebrow:"PRÓXIMAS REPOSIÇÕES",title:"Crianças já agendadas",description:"Vagas futuras já reservadas nas aulas de reposição."},
+    absent:{eyebrow:"REPOSIÇÕES COM FALTA",title:"Faltas nas reposições realizadas",description:"Ocorrências reais no período: falta na reposição — crédito consumido. Inclui a 5ª aula efetivamente realizada; não inclui faltas regulares."},
     advance:{eyebrow:"CRÉDITOS ANTECIPADOS",title:"Crianças com saldo positivo",description:"Mostra o histórico completo da criança: aulas canceladas, reposições já feitas e créditos positivos, incluindo a 5ª aula do mês."},
     attendance:{eyebrow:"COMPARECIMENTO",title:"Presenças e faltas nas reposições",description:"Inclui aulas avulsas e a 5ª aula do mês. A falta permanece registrada e também consome a reposição utilizada."},
     attention:{eyebrow:"PRECISAM DE ATENÇÃO",title:"Crianças com 2 ou mais pendências",description:"Lista somente as pendências reais que ainda precisam ser repostas."},
   };
-  const rowValue=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.due:kind==="performed"?row.replaced:kind==="pending"||kind==="attention"?row.pending:kind==="scheduled"?row.scheduledDates.length:kind==="advance"?row.advance:row.attendanceEvents.length;
+  const rowValue=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.due:kind==="performed"?row.replaced:kind==="pending"||kind==="attention"?row.pending:kind==="absent"?row.absentReplacementEvents.length:kind==="advance"?row.advance:row.attendanceEvents.length;
   const rowDisplayValue=(row:StudentOperationRow,kind:OperationDetail)=>kind==="generated"?row.netBalance:rowValue(row,kind);
   const ledgerForPeriod=(row:StudentOperationRow)=>row.creditLedger.filter(item=>periodIncludes(item.credit.date,period,data));
-  const ledgerDetail=(item:CreditLedgerItem):DetailEvent=>{
+  const ledgerDetail=(item:CreditLedgerItem,studentId?:string):DetailEvent=>{
+    const replacementAbsent=item.replacement?.label.toLowerCase().includes("falta")||Boolean(studentId&&item.replacement&&data.lessons.find(lesson=>lesson.id===item.replacement?.lessonId)?.attendance?.[studentId]==="ABSENT");
     const replacementSource=item.replacement?.source==="FIFTH_CLASS"?" · 5ª aula do mês":"";
     return {
       date:item.credit.date,
@@ -347,31 +370,36 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
       label:item.status!=="PENDING"&&item.replacement
         ? item.status==="ANTICIPATED"
           ? `Reposição antecipada para ${fmtDate(item.replacement.date)}${replacementSource} · já contabilizada`
-          : `Reposta em ${fmtDate(item.replacement.date)}${replacementSource}${item.replacement.label.toLowerCase().includes("falta")?" · falta registrada":""}`
+          : `Reposta em ${fmtDate(item.replacement.date)}${replacementSource}${replacementAbsent?" · falta registrada":""}`
         :"A repor",
-      tone:item.status==="RESOLVED"?"resolved":item.status==="ANTICIPATED"?"anticipated":"pending",
+      tone:item.status!=="PENDING"?"resolved":"pending",
     };
   };
   const rowDates=(row:StudentOperationRow,kind:OperationDetail):DetailEvent[]=>{
-    if(kind==="generated"||kind==="pending")return ledgerForPeriod(row).map(ledgerDetail);
-    if(kind==="attention")return ledgerForPeriod(row).filter(item=>item.status==="PENDING").map(ledgerDetail);
+    if(kind==="generated")return [
+      ...ledgerForPeriod(row).map(item=>ledgerDetail(item,row.id)),
+      ...row.creditLedger.filter(item=>!periodIncludes(item.credit.date,period,data)).map(item=>({...ledgerDetail(item,row.id),section:"Origem do saldo fora do período selecionado"})),
+      ...row.allAdvanceEvents.map(event=>({date:event.date,className:event.className,label:event.label,tone:"resolved" as const,section:event.stage==="ANTICIPATED"?"5ª aula agendada ainda sem cancelamento vinculado":"Reposições antecipadas ainda sem cancelamento vinculado"})),
+    ].filter((event,index,events)=>events.findIndex(other=>other.date===event.date&&other.className===event.className&&other.label===event.label)===index);
+    if(kind==="pending")return ledgerForPeriod(row).map(item=>ledgerDetail(item,row.id));
+    if(kind==="attention")return ledgerForPeriod(row).filter(item=>item.status==="PENDING").map(item=>ledgerDetail(item,row.id));
     if(kind==="performed")return row.replacedEvents.map(event=>{
       const paired=row.creditLedger.find(item=>item.replacement?.id===event.id);
       return {
         date:event.date,
         className:paired?`Compensou ${fmtDate(paired.credit.date)} · ${paired.credit.className}`:event.className,
-        label:event.label,
-        tone:event.label.toLowerCase().includes("falta")?"absent":"resolved",
+        label:`${event.label}${row.absentReplacementEvents.some(item=>item.id===event.id)&&!event.label.toLowerCase().includes("falta")?" · falta registrada, crédito consumido":""}`,
+        tone:row.absentReplacementEvents.some(item=>item.id===event.id)?"absent":"resolved",
       };
     });
-    if(kind==="scheduled")return row.scheduledDates.map(date=>({date,label:"Reposição agendada"}));
+    if(kind==="absent")return row.absentReplacementEvents.map(event=>({date:event.date,className:event.className,label:`Falta na reposição — crédito consumido${event.source==="FIFTH_CLASS"?" · 5ª aula do mês":""}`,tone:"absent"}));
     if(kind==="advance"){
-      const history=ledgerForPeriod(row).map(ledgerDetail);
+      const history=ledgerForPeriod(row).map(item=>ledgerDetail(item,row.id));
       const positive=row.advanceEvents.map(event=>({
         date:event.date,
         className:event.className,
         label:event.label,
-        tone:(event.stage==="ANTICIPATED"?"anticipated":"resolved") as DetailEvent["tone"],
+        tone:"resolved" as DetailEvent["tone"],
       }));
       return [...history,...positive];
     }
@@ -382,42 +410,39 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
       tone:event.status==="ABSENT"?"absent":undefined,
     }));
   };
-  const detailRows=detail?metric.rows
-    .filter(row=>(detail==="attention"?row.pending>=2:rowValue(row,detail)>0)&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
+  const detailRows=detail?(detail==="generated"?allMetric:metric).rows
+    .filter(row=>(detail==="generated"?true:detail==="attention"?row.pending>=2:rowValue(row,detail)>0)&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
     .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")):[];
   function openDetail(next:OperationDetail){setDetailSearch("");setDetail(next);}
   const toReportRows=(kind:OperationDetail,rows:StudentOperationRow[]):ReplacementReportRow[]=>rows.map(row=>({
     name:row.name,
     quantity:rowDisplayValue(row,kind),
     details:rowDates(row,kind).sort((a,b)=>a.date.localeCompare(b.date)).map(event=>
-      `${fmtDate(event.date)} · ${event.className||event.label}${event.className?` · ${event.label}`:""}`,
+      `${event.section?event.section+": ":""}${fmtDate(event.date)} · ${event.className||event.label}${event.className?` · ${event.label}`:""}`,
     ),
   }));
   function exportDetailReport(format:"pdf"|"png"){
     if(!detail)return;
     const title=detailMeta[detail].title;
     const rows=toReportRows(detail,detailRows);
-    const total=detailRows.reduce((sum,row)=>sum+rowValue(row,detail),0);
-    const summary=`${rows.length} criança${rows.length===1?"":"s"} · ${total} registro${total===1?"":"s"}`;
+    const total=detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0);
+    const summary=`${rows.length} crianças · ${total} registros. ${detailMeta[detail].description}`;
     const fileName=reportFileName(period,format);
     if(format==="pdf")exportReplacementPdf(title,reportPeriodLabel(period,reportData),summary,rows,fileName);
     else exportReplacementPng(title,reportPeriodLabel(period,reportData),summary,rows,fileName);
   }
   function exportPanelReport(format:"pdf"|"png"){
-    const rows=reportMetric.rows.filter(row=>row.due||row.replaced||row.pending||row.scheduledDates.length).map(row=>({
+    const rows=reportAllMetric.rows.map(row=>({
       name:row.name,
       quantity:row.netBalance,
       details:[
         `${row.due} crédito${row.due===1?" gerado":"s gerados"}`,
         `${row.replaced} reposição${row.replaced===1?" realizada":"ões realizadas"}`,
         `Saldo atual a repor: ${row.netBalance}`,
-        ...ledgerForPeriod(row).sort((a,b)=>a.credit.date.localeCompare(b.credit.date)).map(item=>{
-          const detail=ledgerDetail(item);
-          return `${fmtDate(detail.date)} · ${detail.className||"Turma"} · ${detail.label}`;
-        }),
+        ...rowDates(row,"generated").map(event=>`${event.section?event.section+": ":""}${fmtDate(event.date)} · ${event.className||"Turma"} · ${event.label}`),
       ],
     })).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
-    const summary=`${reportMetric.creditsPending} pendentes · ${reportMetric.creditsGenerated} gerados · ${reportMetric.creditsPerformed} realizados · ${reportMetric.creditsCoverage}% compensados`;
+    const summary=`Verde: compensada/antecipada; vermelho: a repor. Saldo desde a base oficial. ${reportMetric.creditsPending} pendentes · ${reportMetric.creditsGenerated} gerados · ${reportMetric.creditsPerformed} realizados · ${reportMetric.creditsCoverage}% compensados`;
     const fileName=reportFileName(period,format);
     if(format==="pdf")exportReplacementPdf("Painel Geral de Reposições Kids",reportPeriodLabel(period,reportData),summary,rows,fileName);
     else exportReplacementPng("Painel Geral de Reposições Kids",reportPeriodLabel(period,reportData),summary,rows,fileName);
@@ -429,7 +454,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
         <div>
           <span>REPOSIÇÕES KIDS · CONTROLE INDIVIDUAL</span>
           <h2>Painel de Reposições Kids</h2>
-          <p>Veja quem precisa repor, quem já está agendado e o histórico real de cada criança.</p>
+          <p>Consulte pendências, reposições com falta e o histórico real de cada criança.</p>
         </div>
         <div className={styles.operationActions}>
           <div className={styles.periodSwitch} aria-label="Período do painel">
@@ -451,7 +476,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
         <button type="button" onClick={()=>openDetail("generated")}><span className={styles.statIcon}>＋</span><small>Créditos pendentes de reposição</small><strong>{metric.creditsPending}</strong><em>Ver todas as aulas canceladas →</em></button>
         <button type="button" onClick={()=>openDetail("performed")}><span className={styles.statIcon}>✓</span><small>Reposições feitas</small><strong>{metric.creditsPerformed}</strong><em>Ver histórico →</em></button>
         <button type="button" onClick={()=>openDetail("pending")} className={metric.studentsWaiting?styles.statAttention:""}><span className={styles.statIcon}>!</span><small>Alunos aguardando reposição</small><strong>{metric.studentsWaiting}</strong><em>{metric.creditsPending} créditos pendentes →</em></button>
-        <button type="button" onClick={()=>openDetail("scheduled")}><span className={styles.statIcon}>▣</span><small>Já agendados</small><strong>{metric.scheduledStudents}</strong><em>Ver próximas datas →</em></button>
+        <button type="button" onClick={()=>openDetail("absent")}><span className={styles.statIcon}>!</span><small>Reposições com falta</small><strong>{metric.absentReplacements}</strong><em>Ver ocorrências e buscar criança →</em></button>
         <button type="button" onClick={()=>openDetail("advance")} className={metric.creditsAdvance?styles.statPositive:""}><span className={styles.statIcon}>↗</span><small>Créditos antecipados</small><strong>{metric.creditsAdvance}</strong><em>Ver saldos positivos →</em></button>
         <button type="button" onClick={()=>openDetail("attendance")}><span className={styles.statIcon}>●</span><small>Comparecimento</small><strong>{metric.attendanceRate}%</strong><em>{metric.attendancePresent} presenças · {metric.attendanceAbsent} faltas →</em></button>
       </div>
@@ -470,15 +495,19 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
           <div><span>{detailMeta[detail].eyebrow}</span><h3>{detailMeta[detail].title}</h3><p>{detailMeta[detail].description}</p></div>
           <div className={styles.detailHeadActions}><button type="button" onClick={()=>exportDetailReport("pdf")}>PDF</button><button type="button" onClick={()=>exportDetailReport("png")}>Imagem</button><button type="button" className={styles.detailClose} onClick={()=>setDetail(null)} aria-label="Fechar detalhamento">×</button></div>
         </header>
-        <div className={styles.detailSummary}><strong>{detailRows.length}</strong><span>criança{detailRows.length===1?"":"s"} na lista</span><b>{detailRows.reduce((sum,row)=>sum+rowValue(row,detail),0)}</b><span>registro{detailRows.reduce((sum,row)=>sum+rowValue(row,detail),0)===1?"":"s"}</span></div>
+        <div className={styles.detailSummary}><strong>{detailRows.length}</strong><span>criança{detailRows.length===1?"":"s"} na lista</span><b>{detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0)}</b><span>registro{detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0)===1?"":"s"}</span></div>
         <label className={styles.detailSearch}><span>⌕</span><input value={detailSearch} onChange={event=>setDetailSearch(event.target.value)} placeholder="Buscar criança..." autoComplete="off"/></label>
         <div className={styles.detailList}>
           {detailRows.length?detailRows.map(row=><article className={styles.detailRow} key={row.id}>
             <div className={styles.detailStudent}>
               {onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}><strong>{row.name}</strong></button>:<strong>{row.name}</strong>}
-              <small>{detail==="generated"?`${row.due} aula${row.due===1?"":"s"} cancelada${row.due===1?"":"s"} · saldo ${row.netBalance}`:`${rowValue(row,detail)} ${detail==="attendance"?"registro":detail==="scheduled"?"agendamento":"crédito"}${rowValue(row,detail)===1?"":"s"}`}</small>
+              <small>{detail==="generated"?`${row.due} aula${row.due===1?"":"s"} cancelada${row.due===1?"":"s"} · saldo ${row.netBalance}`:`${rowValue(row,detail)} ${detail==="attendance"?"registro":detail==="absent"?"falta na reposição":"crédito"}${rowValue(row,detail)===1?"":"s"}`}</small>
             </div>
-            <div className={styles.detailDates}>{rowDates(row,detail).sort((a,b)=>a.date.localeCompare(b.date)).map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>)}</div>
+            <div className={styles.detailDates}>{[undefined,...new Set(rowDates(row,detail).map(event=>event.section).filter(Boolean))].map(section=>{
+              const events=rowDates(row,detail).filter(event=>event.section===section).sort((a,b)=>a.date.localeCompare(b.date));
+              const content=events.map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>);
+              return section?<section className={styles.detailExtraGroup} key={section}><h4>{section}</h4><div className={styles.detailDates}>{content}</div></section>:content;
+            })}{rowDates(row,detail).length===0?<small>Sem eventos no período; saldo oficial preservado.</small>:null}</div>
             <b className={styles.detailCount}>{rowDisplayValue(row,detail)}</b>
           </article>):<div className={styles.detailEmpty}>Nenhuma criança encontrada neste indicador.</div>}
         </div>
