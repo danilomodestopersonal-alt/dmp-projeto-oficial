@@ -1,4 +1,6 @@
 "use client";
+import { FinanceSummaryView } from "./FinanceSummaryView";
+import { FinanceDeviceTrust } from "./FinanceDeviceTrust";
 import { PersonalManageButton, PersonalReceipts, PaymentHistory } from "./PersonalReceipts";
 
 import { DsOpeningBalanceRow, DsOpeningBalanceEditButton } from "./DsOpeningBalance";
@@ -134,7 +136,7 @@ function ensureCalendarCompetence(base: FinanceData): FinanceData {
     : base;
 }
 
-export default function FinanceiroPage({students=[],onStudentsChange}:{students?:Student[];onStudentsChange?:(next:Student[])=>void}) {
+export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevoked}:{students?:Student[];onStudentsChange?:(next:Student[])=>void;onTrustRevoked?:()=>void}) {
   const [data, setData] = useState<FinanceData>(financeSeedAugust2026);
   const [loaded, setLoaded] = useState(false);
   const [cloudWritable, setCloudWritable] = useState(false);
@@ -573,13 +575,14 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
   return (
     <>
-      <header className={`dashboard-topbar ${styles.topbar}`}>
+      <header className={`dashboard-topbar ${styles.topbar} ${tab === "summary" ? styles.approvedTopbar : ""}`}>
         <div>
           <p className="dashboard-eyebrow">Gestão financeira</p>
           <h1>Financeiro</h1>
           <p>{competenceLabel(competence)} · <strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
         <div className={styles.quickActions}>
+          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
           <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
           <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
           <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
@@ -628,36 +631,7 @@ export default function FinanceiroPage({students=[],onStudentsChange}:{students?
 
         {tab === "summary" ? (
           <>
-            <div className={styles.summaryKpiRows}>
-              <div className={`${styles.kpiGrid} ${styles.kpiGridThree}`}>
-                <Kpi label="Saldo projetado das contas" value={summary.projectedResult} />
-                {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo Mercado Pago" value={mercadoPagoBalance} /> : <Kpi label="Saldo Mercado Pago" text="Aguardando saldo" />}
-                {typeof mercadoPagoBalance === "number" ? <Kpi label="Saldo projetado consolidado" value={summary.projectedResult + mercadoPagoBalance} emphasis /> : <Kpi label="Saldo projetado consolidado" text="Aguardando saldo MP" emphasis />}
-              </div>
-              <div className={`${styles.kpiGrid} ${styles.kpiGridThree}`}>
-                <Kpi label="Receitas previstas" value={summary.projectedRevenue} tone="income" onClick={()=>{setListFilter("ALL");setTab("personal");}} />
-                <Kpi label="Receitas recebidas" value={summary.realizedRevenue} tone="income" onClick={()=>{setListFilter("PAID");setTab("personal");}} />
-                <Kpi label="Receitas a receber" value={summary.receivable} tone="income" onClick={()=>{setListFilter("OPEN");setTab("personal");}} />
-              </div>
-              <div className={`${styles.kpiGrid} ${styles.kpiGridFour}`}>
-                <Kpi label="Despesas previstas" value={summary.expensesExpected} tone="expense" onClick={()=>{setListFilter("ALL");setTab("expenses");}} />
-                <Kpi label="Despesas pagas" value={summary.expensesPaid} tone="expense" onClick={()=>{setListFilter("PAID");setTab("expenses");}} />
-                <Kpi label="A pagar" value={summary.payable} tone="expense" onClick={()=>{setListFilter("OPEN");setTab("expenses");}} />
-                <Kpi label="Gastos extras do mês" value={summary.extrasTotal} tone="expense" onClick={()=>setTab("extras")} />
-              </div>
-            </div>
-
-            <section className={`panel ${styles.weeklyDue}`}>
-              <div className="panel-head"><div><h2>Vencimentos da semana</h2><p className="muted">Somente contas previstas que ainda estão em aberto.</p></div><button className="secondary" onClick={()=>setTab("expenses")}>Ver despesas</button></div>
-              {weeklyDue.length?<div className={styles.list}>{weeklyDue.map(item=><button className={`${styles.row} ${styles.weeklyDueRow}`} key={item.id} onClick={()=>openAction({type:"expense-detail",expense:item})}><span><strong>{item.name}</strong><small>Vence em {formatDate(item.dueDate)}</small></span><span className={styles.weeklyDueValue}><strong className={styles.outValue}>{money.format(item.open)}</strong><small>Abrir ›</small></span></button>)}</div>:<Empty text="Nenhuma conta em aberto vence nesta semana."/>}
-            </section>
-
-
-            <div className={styles.threeCol}>
-              <MiniSummary title="Personal" rows={[["Previsto", summary.personalExpected], ["Recebido", summary.personalReceived], ["A receber", summary.personalOpen]]} onClick={() => setTab("personal")} />
-              <MiniSummary title="DS Tênis" rows={[["Kids líquido", summary.kidsNet], ["Ranking", summary.ranking], ["Recebido", summary.dsReceived], [summary.dsBalance >= 0 ? "A receber" : "A devolver", Math.abs(summary.dsBalance)]]} onClick={() => setTab("ds")} />
-              <MiniSummary title="Despesas" rows={[["Previstas", summary.expensesExpected], ["Pagas", summary.expensesPaid], ["A pagar", summary.payable]]} onClick={() => setTab("expenses")} />
-            </div>
+            <FinanceSummaryView summary={summary} mercadoPagoBalance={mercadoPagoBalance} onOpen={setTab} onFilter={(next,target)=>{setListFilter(next);setTab(target);}} />
 
             <section className="panel">
               <div className="panel-head"><div><h2>Movimentações recentes</h2><p className="muted">Seu extrato interno do Financeiro.</p></div></div>

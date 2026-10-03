@@ -91,6 +91,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const financeSubmitting=useRef(false);
   const financeAttempt=useRef(0);
   const [financeBusy,setFinanceBusy]=useState(false);
+  const [financeTrust,setFinanceTrust]=useState(false);
   const [view, setView] = useState<View>("today");
   const [tab, setTab] = useState<StudentTab>("summary");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -1448,16 +1449,17 @@ fetch("/api/google/status")
     setView("kids");
   }
 
-  async function unlockFinance(event?:FormEvent,pinValue=financePin) {
+  async function unlockFinance(event?:FormEvent,pinValue=financePin,trustDevice=false) {
     event?.preventDefault();
     if(financeSubmitting.current||pinValue.length!==4)return;
     financeSubmitting.current=true;setFinanceBusy(true);
     const attempt=++financeAttempt.current;
     try{
-      const response=await fetch("/api/finance/pin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pinValue})});
+      const response=await fetch("/api/finance/pin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pinValue,trustDevice})});
       const result=await response.json();if(attempt!==financeAttempt.current)return;
       if(!response.ok){setFinancePinError(result.message||"Não foi possível validar o PIN.");setFinancePin("");return;}
       sessionStorage.setItem(FINANCE_UNLOCK_KEY,String(result.until));
+      if(trustDevice)setFinanceTrust(false);
       setFinancePin("");setFinancePinError("");setShowFinancePin(false);setView("finance");
     }catch{if(attempt===financeAttempt.current){setFinancePinError("Não foi possível validar o PIN. Tente novamente.");setFinancePin("");}}
     finally{financeSubmitting.current=false;setFinanceBusy(false);}
@@ -1862,7 +1864,7 @@ fetch("/api/google/status")
 })() : null}
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
-          {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} /> : null}
+          {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} onTrustRevoked={() => { financeAttempt.current++;setFinanceTrust(false);sessionStorage.removeItem(FINANCE_UNLOCK_KEY);setView("today");setFinancePin("");setShowFinancePin(true); }} /> : null}
           {view === "reports" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}
           {view === "performance" ? <PerformancePage openActivityId={selectedPerformanceActivityId} /> : null}
@@ -1870,7 +1872,7 @@ fetch("/api/google/status")
           {view === "settings" ? <SettingsCenter logout={logout} /> : null}
           {view === "weather" ? <WeatherPage onBack={()=>setView("today")} /> : null}
         </div>
-        {showFinancePin ? <FinancePinModal pin={financePin} error={financePinError} busy={financeBusy} onChange={value => { const next=value.replace(/\D/g, "").slice(0,4);setFinancePin(next);setFinancePinError("");if(next.length===4)void unlockFinance(undefined,next); }} onClose={() => { financeAttempt.current++;setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={unlockFinance} /> : null}
+        {showFinancePin ? <FinancePinModal trust={financeTrust} onTrustChange={setFinanceTrust} pin={financePin} error={financePinError} busy={financeBusy} onChange={value => { const next=value.replace(/\D/g, "").slice(0,4);setFinancePin(next);setFinancePinError("");if(next.length===4)void unlockFinance(undefined,next,financeTrust); }} onClose={() => { financeAttempt.current++;setFinanceTrust(false);setShowFinancePin(false); setFinancePin(""); setFinancePinError(""); }} onSubmit={event => void unlockFinance(event,financePin,financeTrust)} /> : null}
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
         {showGoogleEventForm ? <GoogleEventForm students={students} onClose={()=>setShowGoogleEventForm(false)} onSaved={()=>{setShowGoogleEventForm(false);void refreshCalendarAutomatic(true);}} /> : null}
       </main>
@@ -2273,8 +2275,10 @@ function AccessSettings({compact=false}:{compact?:boolean}){
   return <>{!compact?<header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Segurança da conta</p><h1>Configurações</h1><p>Defina seu e-mail e sua senha definitiva de acesso ao DMP.</p></div></header>:null}<section className={compact?"":"dashboard-content"}><article className="panel access-settings-panel"><div className="panel-head"><div><h2>Acesso ao DMP</h2><p className="muted">Para alterar o acesso, confirme sua senha atual e defina a nova senha.</p></div><span className="status-chip ok">Sessão protegida</span></div><form className="form-grid" onSubmit={save} autoComplete="off"><label className="full">Login / e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" required/></label><label className="full">Senha atual<input type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password" placeholder="Digite sua senha atual"/></label><label>Nova senha<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo 8 caracteres" required/></label><label>Confirmar nova senha<input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password" required/></label>{message?<div className="full access-settings-message">{message}</div>:null}<button className="primary full" disabled={saving}>{saving?"Salvando...":"Cadastrar acesso definitivo"}</button></form></article></section></>;
 }
 
-function FinancePinModal({pin,error,busy,onChange,onClose,onSubmit}:{pin:string;error:string;busy:boolean;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
-  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" autoComplete="off" onSubmit={onSubmit}><label className="full">PIN<input autoFocus className="finance-pin-input" type="text" name="dmp-finance-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={4} disabled={busy} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={busy||pin.length!==4}>{busy?"Validando...":"Entrar no Financeiro"}</button></form></section></div>;
+function FinancePinModal({trust,onTrustChange,pin,error,busy,onChange,onClose,onSubmit}:{trust:boolean;onTrustChange:(value:boolean)=>void;pin:string;error:string;busy:boolean;onChange:(value:string)=>void;onClose:()=>void;onSubmit:(event:FormEvent)=>void}) {
+  const [canTrust,setCanTrust]=useState(false);
+  useEffect(()=>{setCanTrust(window.matchMedia("(pointer: coarse)").matches);},[]);
+  return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" autoComplete="off" onSubmit={onSubmit}><label className="full">PIN<input autoFocus className="finance-pin-input" type="text" name="dmp-finance-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={4} disabled={busy} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{canTrust?<label className="full" style={{display:"flex",alignItems:"center",gap:10}}><input type="checkbox" style={{width:20,height:20}} checked={trust} disabled={busy} onChange={event=>onTrustChange(event.target.checked)} />Confiar neste dispositivo por 30 dias</label>:null}<p className="full muted">No celular pessoal, marque “Confiar neste dispositivo” antes de digitar o PIN para acessar diretamente nos próximos 30 dias. A confiança pode ser revogada no Financeiro.</p>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={busy||pin.length!==4}>{busy?"Validando...":"Entrar no Financeiro"}</button></form></section></div>;
 }
 
 function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onMobileQuick,onMobileVoice}:{current:View;onNavigate:(view:View)=>void;logout:()=>void;students:Student[];onStudent:(id:string)=>void;onKidsStudent:(id:string)=>void;onMobileQuick:()=>void;onMobileVoice:()=>void}) {

@@ -75,6 +75,9 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   // Positivo: DS deve ao Danilo. Negativo: Danilo deve devolver para a DS.
   const dsBalance = roundMoney(dsOpeningBalance + dsSettlement - dsReceived + dsReturned);
   const expensesExpected = sum(expenses.map(item => item.expectedAmount));
+  // Planejamento: quitação das obrigações da competência, em qualquer data.
+  // O caixa e relatórios abaixo continuam pela data efetiva do pagamento.
+  const plannedExpensesPaid = sum(expenses.map(item => paid(item.payments)));
   // A obrigação mantém sua competência; o caixa segue a data efetiva do pagamento.
   const expensesPaid = sum(data.expenses.map(item => receivedInCompetence(item.payments, competence)));
   const extrasTotal = sum(extras.map(item => item.amount));
@@ -116,6 +119,7 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
     dsReturned,
     dsBalance,
     expensesExpected,
+    plannedExpensesPaid,
     expensesPaid,
     extrasTotal,
     totalExpensesPaid,
