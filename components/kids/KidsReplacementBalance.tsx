@@ -342,6 +342,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
   const [period,setPeriod]=useState<OperationPeriod>("semester");
   const [detail,setDetail]=useState<OperationDetail|null>(null);
   const [detailSearch,setDetailSearch]=useState("");
+  const [expandedStudent,setExpandedStudent]=useState<string|null>(null);
   const metric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period):null,[data,period]);
   const allMetric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period,true):null,[data,period]);
   if(!data||!metric||!allMetric)return null;
@@ -413,7 +414,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
   const detailRows=detail?(detail==="generated"?allMetric:metric).rows
     .filter(row=>(detail==="generated"?true:detail==="attention"?row.pending>=2:rowValue(row,detail)>0)&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
     .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")):[];
-  function openDetail(next:OperationDetail){setDetailSearch("");setDetail(next);}
+  function openDetail(next:OperationDetail){setDetailSearch("");setExpandedStudent(null);setDetail(next);}
   const toReportRows=(kind:OperationDetail,rows:StudentOperationRow[]):ReplacementReportRow[]=>rows.map(row=>({
     name:row.name,
     quantity:rowDisplayValue(row,kind),
@@ -481,6 +482,8 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
         <button type="button" onClick={()=>openDetail("attendance")}><span className={styles.statIcon}>●</span><small>Comparecimento</small><strong>{metric.attendanceRate}%</strong><em>{metric.attendancePresent} presenças · {metric.attendanceAbsent} faltas →</em></button>
       </div>
 
+      <button type="button" className={styles.studentControlButton} onClick={()=>openDetail("generated")}><span><strong>Controle de reposições por aluno</strong><small>Todos os alunos · busca por nome · saldo e histórico individual</small></span><b aria-hidden="true">→</b></button>
+
       {!compact?<div className={styles.operationAttention}>
         <button type="button" className={styles.operationAttentionButton} onClick={()=>openDetail("attention")}><small>PRECISAM DE ATENÇÃO</small><strong>{metric.studentsTwoPlus} criança{metric.studentsTwoPlus===1?"":"s"} com 2 ou mais pendências</strong><span>Abrir lista →</span></button>
         <div><small>CRÉDITO MAIS ANTIGO</small><strong>{metric.oldestPendingDate?fmtDate(metric.oldestPendingDate):"Nenhum pendente"}</strong></div>
@@ -490,24 +493,24 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
     </section>
 
     {detail?<div className={styles.detailBackdrop} onMouseDown={event=>{if(event.currentTarget===event.target)setDetail(null);}}>
-      <section className={styles.detailDialog} role="dialog" aria-modal="true" aria-label={detailMeta[detail].title}>
+      <section className={styles.detailDialog} role="dialog" aria-modal="true" aria-label={detailMeta[detail].title} onKeyDown={event=>{if(event.key==="Escape")setDetail(null);}}>
         <header className={styles.detailHead}>
           <div><span>{detailMeta[detail].eyebrow}</span><h3>{detailMeta[detail].title}</h3><p>{detailMeta[detail].description}</p></div>
           <div className={styles.detailHeadActions}><button type="button" onClick={()=>exportDetailReport("pdf")}>PDF</button><button type="button" onClick={()=>exportDetailReport("png")}>Imagem</button><button type="button" className={styles.detailClose} onClick={()=>setDetail(null)} aria-label="Fechar detalhamento">×</button></div>
         </header>
         <div className={styles.detailSummary}><strong>{detailRows.length}</strong><span>criança{detailRows.length===1?"":"s"} na lista</span><b>{detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0)}</b><span>registro{detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0)===1?"":"s"}</span></div>
-        <label className={styles.detailSearch}><span>⌕</span><input value={detailSearch} onChange={event=>setDetailSearch(event.target.value)} placeholder="Buscar criança..." autoComplete="off"/></label>
+        <label className={styles.detailSearch}><span>⌕</span><input value={detailSearch} onChange={event=>{setDetailSearch(event.target.value);setExpandedStudent(null);}} placeholder="Buscar criança..." autoComplete="off"/></label>
         <div className={styles.detailList}>
-          {detailRows.length?detailRows.map(row=><article className={styles.detailRow} key={row.id}>
+          {detailRows.length?detailRows.map(row=><article className={`${styles.detailRow} ${detail==="generated"?styles.studentControlRow:""}`} key={row.id}>
             <div className={styles.detailStudent}>
-              {onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}><strong>{row.name}</strong></button>:<strong>{row.name}</strong>}
+              {detail==="generated"?<button type="button" className={styles.studentHistoryButton} onClick={()=>setExpandedStudent(current=>current===row.id?null:row.id)} aria-expanded={expandedStudent===row.id} aria-controls={`replacement-history-${row.id}`}><strong>{row.name}</strong><span>{expandedStudent===row.id?"Recolher histórico −":"Ver histórico +"}</span></button>:onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}><strong>{row.name}</strong></button>:<strong>{row.name}</strong>}
               <small>{detail==="generated"?`${row.due} aula${row.due===1?"":"s"} cancelada${row.due===1?"":"s"} · saldo ${row.netBalance}`:`${rowValue(row,detail)} ${detail==="attendance"?"registro":detail==="absent"?"falta na reposição":"crédito"}${rowValue(row,detail)===1?"":"s"}`}</small>
             </div>
-            <div className={styles.detailDates}>{[undefined,...new Set(rowDates(row,detail).map(event=>event.section).filter(Boolean))].map(section=>{
+            {detail!=="generated"||expandedStudent===row.id?<div className={styles.detailDates} id={`replacement-history-${row.id}`}>{[undefined,...new Set(rowDates(row,detail).map(event=>event.section).filter(Boolean))].map(section=>{
               const events=rowDates(row,detail).filter(event=>event.section===section).sort((a,b)=>a.date.localeCompare(b.date));
               const content=events.map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>);
               return section?<section className={styles.detailExtraGroup} key={section}><h4>{section}</h4><div className={styles.detailDates}>{content}</div></section>:content;
-            })}{rowDates(row,detail).length===0?<small>Sem eventos no período; saldo oficial preservado.</small>:null}</div>
+            })}{rowDates(row,detail).length===0?<small>Sem eventos no período; saldo oficial preservado.</small>:null}{detail==="generated"&&onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}>Abrir cadastro do aluno →</button>:null}</div>:null}
             <b className={styles.detailCount}>{rowDisplayValue(row,detail)}</b>
           </article>):<div className={styles.detailEmpty}>Nenhuma criança encontrada neste indicador.</div>}
         </div>

@@ -18,3 +18,20 @@
 .detailSection{display:block;font-size:11px;line-height:1.35;margin-bottom:5px;color:#234a32}.detailDates{min-width:0}.detailDates>span{overflow-wrap:anywhere}.detailStudent{min-width:0}.operationStats button:focus-visible{outline:3px solid #688529;outline-offset:3px}
 
 .detailExtraGroup{flex:1 0 100%;min-width:0;border-top:1px dashed #cbdcc4;padding-top:10px;margin-top:4px}.detailExtraGroup h4{margin:0 0 7px;font-size:12px;line-height:1.4;color:#355432}
+
+/* Consulta compacta: nenhum histórico geral fica aberto por padrão. */
+.operationPanel{gap:12px;padding:16px}
+.operationHeading h2{font-size:1.2rem}.operationHeading p{margin:4px 0 0}
+.operationHero{padding:12px 15px;gap:12px;border-radius:13px}
+.operationHero>div:first-child>strong{font-size:2rem}.coverageBlock>strong{font-size:1.4rem}
+.operationStats button{padding:10px 12px}.operationStats em{margin-top:4px}
+.studentControlButton{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:11px 13px;border:1px solid #dce4d7;border-radius:12px;background:#f7faf3;color:#173d37;text-align:left;font:inherit;cursor:pointer}
+.studentControlButton>span{display:grid;gap:3px;min-width:0}.studentControlButton strong{font-size:.82rem}.studentControlButton small{font-size:.68rem;color:#637267}.studentControlButton>b{font-size:1.2rem}
+.studentControlButton:hover{background:#edf4e5}.studentControlButton:focus-visible,.studentHistoryButton:focus-visible{outline:3px solid #688529;outline-offset:3px}
+.detailRow.studentControlRow{grid-template-columns:minmax(0,1fr) 42px;align-items:start}
+.studentControlRow>.detailCount{grid-column:2;grid-row:1}
+.studentControlRow>.detailDates{grid-column:1/-1;padding-top:9px;border-top:1px solid #e3e9df}
+.studentHistoryButton{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:36px;border:0;border-radius:6px;background:transparent;padding:0;text-align:left;color:#173d37;font:inherit;cursor:pointer}
+.studentHistoryButton strong{white-space:normal;overflow-wrap:anywhere;font-size:.8rem}.studentHistoryButton>span{flex-shrink:0;color:#526940;font-size:.65rem;font-weight:800}
+.studentControlRow .detailDates>span{max-width:100%;min-width:0;flex:1 1 180px}.studentControlRow .detailDates small,.studentControlRow .detailDates em{font-size:.68rem}
+@media(max-width:520px){.operationPanel{padding:12px;gap:10px}.operationHero{padding:10px 12px;gap:8px}.operationHero>div:first-child>strong{font-size:1.8rem}.operationStats button{padding:9px}.studentControlButton{padding:10px}.studentHistoryButton{align-items:flex-start;flex-direction:column;gap:3px}.detailRow.studentControlRow{grid-template-columns:minmax(0,1fr) 34px}.studentControlRow .detailDates>span{flex-basis:100%}.detailHead{flex-wrap:wrap;gap:8px}.detailSummary{flex-wrap:wrap}}
