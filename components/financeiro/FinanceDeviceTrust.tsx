@@ -6,7 +6,7 @@ export function FinanceDeviceTrust({onRevoked}:{onRevoked?:()=>void}){
   async function revoke(){
     if(!confirm("Revogar a confiança deste dispositivo? O próximo acesso exigirá o PIN."))return;
     setBusy(true);setError("");
-    try{const response=await fetch("/api/finance/pin",{method:"DELETE"});if(!response.ok)throw Error();setTrusted(false);onRevoked?.();}catch{setError("Não foi possível revogar. Tente novamente.");}finally{setBusy(false);}
+    try{const protection=await fetch("/api/finance/pin",{cache:"no-store"});const access=await protection.json();if(!protection.ok||typeof access.csrfToken!=="string")throw Error();const response=await fetch("/api/finance/pin",{method:"DELETE",headers:{"X-DMP-Finance-CSRF":access.csrfToken}});if(!response.ok)throw Error();setTrusted(false);onRevoked?.();}catch{setError("Não foi possível revogar. Tente novamente.");}finally{setBusy(false);}
   }
   return trusted?<div><button className="secondary" disabled={busy} onClick={()=>void revoke()}>{busy?"Revogando...":"Revogar confiança deste dispositivo"}</button>{error?<p role="alert">{error}</p>:null}</div>:null;
 }

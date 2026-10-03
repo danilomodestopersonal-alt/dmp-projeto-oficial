@@ -23,7 +23,7 @@ function apiHarness(){
  // Isolated tests substitute only the credential digest, never read/store the real PIN.
  const pinHash=apiSource.match(/PIN_HASH="([a-f0-9]+)"/)[1];
  const api=compile(apiSource,name=>name==='@/lib/auth'?{isAuthorized:async()=>authorized}:name==='@/lib/db'?{pool:{query,connect:async()=>({query,release(){}})}}:name==='next/server'?{NextResponse:{json:(body,options={})=>({body,status:options.status||200,headers:options.headers,cookies:{values:[],set(...args){this.values.push(args);}}})}}:name==='node:crypto'?{...crypto,createHash:algo=>{let v;return {update(x){v=x;return this;},digest(format){if(/^\d{4}$/.test(v))return Buffer.from(valid?pinHash:'0'.repeat(64),'hex');return crypto.createHash(algo).update(v).digest(format);}};}}:require(name));
- const request=(body={},token,origin='https://dmp.test',session='session-a')=>({json:async()=>body,cookies:{get:n=>n==='dmp_session'?{value:session}:token?{value:token}:undefined},headers:{get:n=>n==='origin'?origin:null},nextUrl:{origin:'https://dmp.test'}});
+ const request=(body={},token,origin='https://dmp.test',session='session-a')=>({json:async()=>body,cookies:{get:n=>n==='dmp_session'?{value:session}:token?{value:token}:undefined},headers:{get:n=>n==='x-dmp-finance-csrf'?crypto.createHash('sha256').update('dmp_finance_csrf_v1:'+session).digest('hex'):n==='sec-fetch-site'?(origin==='https://dmp.test'?'same-origin':'cross-site'):n==='origin'?origin:null},nextUrl:{origin:'https://dmp.test'}});
  return {api,request,rows:()=>rows,authorized:v=>authorized=v,valid:v=>valid=v,fail:v=>failInsert=v};
 }
 module.exports=(async()=>{
@@ -50,7 +50,7 @@ module.exports=(async()=>{
  await test('cookie de confiança usa Secure em produção',async()=>{const previous=process.env.NODE_ENV;process.env.NODE_ENV='production';try{const h=apiHarness(),r=await h.api.POST(h.request({pin:'0000',trustDevice:true}));assert.equal(r.cookies.values[0][2].secure,true);}finally{if(previous===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=previous;}});
  await test('consentimento do modal acompanha PIN automático e é limpo após registrar',async()=>{
   const app=fs.readFileSync(path.join(root,'components/DmpApp.tsx'),'utf8'),start=app.indexOf('  async function unlockFinance('),end=app.indexOf('  if(!navigationReady)',start);let body,trust=true,view='today';
-  const api=compile(app.slice(start,end)+'exports.unlock=unlockFinance;',require,{financePin:'0000',financeSubmitting:{current:false},financeAttempt:{current:0},setFinanceBusy(){},setFinancePin(){},setFinancePinError(){},setFinanceTrust:v=>trust=v,setShowFinancePin(){},setView:v=>view=v,FINANCE_UNLOCK_KEY:'test',sessionStorage:{setItem(){}},fetch:async(url,opts)=>{body=JSON.parse(opts.body);return {ok:true,json:async()=>({until:123})};}});
+  const api=compile(app.slice(start,end)+'exports.unlock=unlockFinance;',require,{financePin:'0000',financeSubmitting:{current:false},financeAttempt:{current:0},setFinanceBusy(){},setFinancePin(){},setFinancePinError(){},setFinanceTrust:v=>trust=v,setShowFinancePin(){},setView:v=>view=v,FINANCE_UNLOCK_KEY:'test',sessionStorage:{setItem(){}},fetch:async(url,opts)=>{if(!opts?.method)return {ok:true,json:async()=>({csrfToken:'test-csrf'})};body=JSON.parse(opts.body);return {ok:true,json:async()=>({until:123})};}});
   await api.unlock(undefined,'0000',true);assert.equal(body.trustDevice,true);assert.equal(trust,false);assert.equal(view,'finance');
  });
  const h=apiHarness();

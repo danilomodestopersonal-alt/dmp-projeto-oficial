@@ -1455,7 +1455,10 @@ fetch("/api/google/status")
     financeSubmitting.current=true;setFinanceBusy(true);
     const attempt=++financeAttempt.current;
     try{
-      const response=await fetch("/api/finance/pin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pinValue,trustDevice})});
+      const protection=await fetch("/api/finance/pin",{cache:"no-store"});
+      const access=await protection.json();if(attempt!==financeAttempt.current)return;
+      if(!protection.ok||typeof access.csrfToken!=="string"){setFinancePinError(access.message||"Atualize a página para conferir o acesso.");setFinancePin("");return;}
+      const response=await fetch("/api/finance/pin",{method:"POST",headers:{"Content-Type":"application/json","X-DMP-Finance-CSRF":access.csrfToken},body:JSON.stringify({pin:pinValue,trustDevice})});
       const result=await response.json();if(attempt!==financeAttempt.current)return;
       if(!response.ok){setFinancePinError(result.message||"Não foi possível validar o PIN.");setFinancePin("");return;}
       sessionStorage.setItem(FINANCE_UNLOCK_KEY,String(result.until));

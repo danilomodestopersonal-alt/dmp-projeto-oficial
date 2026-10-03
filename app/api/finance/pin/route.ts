@@ -9,7 +9,14 @@ const trustLifetime=30*24*60*60*1000;
 const trustCookie="dmp_finance_trust";
 const cookieOptions={httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"strict" as const,path:"/api/finance/pin",maxAge:trustLifetime/1000};
 function trustKey(request:NextRequest){const token=request.cookies.get(trustCookie)?.value;return token&&/^[a-f0-9]{64}$/.test(token)?"finance_trust_"+createHash("sha256").update(token).digest("hex"):null;}
-function sameOrigin(request:NextRequest){const origin=request.headers?.get("origin");return !origin||origin===request.nextUrl?.origin;}
+// A session-bound CSRF challenge avoids relying on a reverse proxy's internal URL.
+function financeCsrfToken(request:NextRequest){return createHash("sha256").update("dmp_finance_csrf_v1:"+(request.cookies.get("dmp_session")?.value||"")).digest("hex");}
+function financeRequestAllowed(request:NextRequest){
+  const site=request.headers?.get("sec-fetch-site");
+  if(site&&site!=="same-origin")return false;
+  const token=request.headers?.get("x-dmp-finance-csrf");
+  return !!token&&/^[a-f0-9]{64}$/.test(token)&&timingSafeEqual(Buffer.from(token,"hex"),Buffer.from(financeCsrfToken(request),"hex"));
+}
 
 function sessionKey(request:NextRequest){return "finance_pin_"+createHash("sha256").update(request.cookies.get("dmp_session")?.value||"").digest("hex");}
 export async function GET(request:NextRequest){
@@ -20,13 +27,13 @@ export async function GET(request:NextRequest){
     const trustedUntil=Number(trusted?.rows[0]?.payload?.until||0);
     const result=await pool.query("SELECT payload FROM dmp_data WHERE id=$1",[sessionKey(request)]);
     const until=trustedUntil>Date.now()?Date.now()+lifetime:Number(result.rows[0]?.payload?.until||0);
-    return NextResponse.json({unlocked:until>Date.now(),until:until>Date.now()?until:0,trusted:trustedUntil>Date.now(),trustedUntil:trustedUntil>Date.now()?trustedUntil:0},{headers:{"Cache-Control":"no-store"}});
+    return NextResponse.json({unlocked:until>Date.now(),until:until>Date.now()?until:0,trusted:trustedUntil>Date.now(),trustedUntil:trustedUntil>Date.now()?trustedUntil:0,csrfToken:financeCsrfToken(request)},{headers:{"Cache-Control":"no-store"}});
   }catch{return NextResponse.json({message:"Não foi possível conferir o acesso."},{status:500,headers:{"Cache-Control":"no-store"}});}
 
 }
 export async function POST(request:NextRequest){
   if(!await isAuthorized(request))return NextResponse.json({message:"Sessão inválida."},{status:401});
-  if(!sameOrigin(request))return NextResponse.json({message:"Origem inválida."},{status:403});
+  if(!financeRequestAllowed(request))return NextResponse.json({message:"Proteção de sessão inválida. Atualize a página e tente novamente."},{status:403});
   let pin:unknown,trustDevice=false;try{const body=await request.json();pin=body.pin;trustDevice=body.trustDevice===true;}catch{return NextResponse.json({message:"PIN inválido."},{status:400});}
   if(typeof pin!=="string"||!/^\d{4}$/.test(pin))return NextResponse.json({message:"Informe os quatro dígitos do PIN."},{status:400});
   const client=await pool.connect();
@@ -58,7 +65,7 @@ export async function POST(request:NextRequest){
 
 export async function DELETE(request:NextRequest){
   if(!await isAuthorized(request))return NextResponse.json({message:"Sessão inválida."},{status:401});
-  if(!sameOrigin(request))return NextResponse.json({message:"Origem inválida."},{status:403});
+  if(!financeRequestAllowed(request))return NextResponse.json({message:"Proteção de sessão inválida. Atualize a página e tente novamente."},{status:403});
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
