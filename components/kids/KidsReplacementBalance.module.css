@@ -35,3 +35,9 @@
 .studentHistoryButton strong{white-space:normal;overflow-wrap:anywhere;font-size:.8rem}.studentHistoryButton>span{flex-shrink:0;color:#526940;font-size:.65rem;font-weight:800}
 .studentControlRow .detailDates>span{max-width:100%;min-width:0;flex:1 1 180px}.studentControlRow .detailDates small,.studentControlRow .detailDates em{font-size:.68rem}
 @media(max-width:520px){.operationPanel{padding:12px;gap:10px}.operationHero{padding:10px 12px;gap:8px}.operationHero>div:first-child>strong{font-size:1.8rem}.operationStats button{padding:9px}.studentControlButton{padding:10px}.studentHistoryButton{align-items:flex-start;flex-direction:column;gap:3px}.detailRow.studentControlRow{grid-template-columns:minmax(0,1fr) 34px}.studentControlRow .detailDates>span{flex-basis:100%}.detailHead{flex-wrap:wrap;gap:8px}.detailSummary{flex-wrap:wrap}}
+
+/* Cinco indicadores, população operacional ativa e créditos antecipados amarelos. */
+.operationStats{grid-template-columns:repeat(4,minmax(0,1fr))}.operationStats .primaryCreditCard{grid-column:1/-1;background:#fff0eb;border-color:#e9b6aa;grid-template-areas:"icon label value" "icon foot value";grid-template-columns:auto 1fr auto}.primaryCreditCard strong{font-size:2rem;color:#a23c2d}.operationCompact .operationStats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.detailDates .detailAnticipated{background:#fff6d9;border-color:#ebca70}.detailAnticipated b,.detailAnticipated small,.detailAnticipated em{color:#875c00}
+.detailHeadActions .detailClose{width:auto;min-width:92px;min-height:44px;padding:8px 12px;border-radius:10px;background:#203a29;color:#fff;font-size:.85rem}
+@media(max-width:900px){.operationStats{grid-template-columns:repeat(2,minmax(0,1fr))}.operationStats .primaryCreditCard{grid-template-areas:"icon label value" "icon foot value";grid-template-columns:29px minmax(0,1fr) auto}}

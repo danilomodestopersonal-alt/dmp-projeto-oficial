@@ -1246,3 +1246,5 @@
 .studentHistoryMetrics button strong { display:block; font-size:24px; }
 .studentHistoryMetrics button[aria-pressed="true"] { background:#e6f2de; border-color:#54792f; }
 .studentHistoryMetrics button:focus-visible { outline:3px solid #54792f; outline-offset:2px; }
+
+.capacityOver i{background:#c6403f}.capacityLimit i{background:#e0b23c}.capacityAvailable i{background:#43a779}.capacityNear{background:#fff4d5;color:#896300}

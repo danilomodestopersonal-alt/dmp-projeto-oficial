@@ -703,7 +703,7 @@ const relatedGroup = lessonGroup(next);
     const classCapacity=item.category==="RED"||item.category==="ORANGE"?6:4;
     const enrolled=item.students.filter(student=>student.active).length;
     const rate=classCapacity?Math.round((enrolled/classCapacity)*100):0;
-    const status=rate>=100?"Lotada":rate>=80?"Quase lotada":rate>=50?"Equilibrada":"Baixa ocupação";
+    const status=enrolled>classCapacity?"Acima da capacidade":enrolled===classCapacity?"No limite da capacidade":"Vagas disponíveis";
     return {...item,classCapacity,enrolled,rate,status,vacancies:Math.max(0,classCapacity-enrolled)};
   }).sort((a,b)=>b.rate-a.rate||a.weekday-b.weekday||a.startTime.localeCompare(b.startTime));
   const replacementQuery=normalizeName(replacementSearch);
@@ -796,8 +796,8 @@ const relatedGroup = lessonGroup(next);
                 <span className={styles.categoryDots}><CategoryDot category={item.category}/></span>
                 <span className={styles.capacityMain}><strong>{item.name}</strong><small>{weekdayLabel[item.weekday]} · {item.startTime} · {item.teacher}</small></span>
                 <span className={styles.capacityNumbers}><b>{item.enrolled}/{item.classCapacity}</b><small>{item.vacancies} vaga{item.vacancies===1?"":"s"}</small></span>
-                <span className={`${styles.capacityStatus} ${item.status==="Lotada"?styles.capacityFull:item.status==="Quase lotada"?styles.capacityNear:item.status==="Baixa ocupação"?styles.capacityLow:styles.capacityOk}`}>{item.status}</span>
-                <span className={styles.capacityBar}><i style={{width:`${Math.min(100,item.rate)}%`}}/></span>
+                <span className={`${styles.capacityStatus} ${item.enrolled>item.classCapacity?styles.capacityFull:item.enrolled===item.classCapacity?styles.capacityNear:styles.capacityOk}`}>{item.status}</span>
+                <span className={`${styles.capacityBar} ${item.enrolled>item.classCapacity?styles.capacityOver:item.enrolled===item.classCapacity?styles.capacityLimit:styles.capacityAvailable}`}><i style={{width:`${Math.min(100,item.rate)}%`}}/></span>
               </button>)}
             </div>
           </section>

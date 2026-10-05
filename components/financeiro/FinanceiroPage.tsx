@@ -581,13 +581,6 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           <h1>Financeiro</h1>
           <p>{competenceLabel(competence)} · <strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
-        <div className={styles.quickActions}>
-          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
-          <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
-          <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
-          <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
-          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>Gasto extra</button>
-        </div>
         <div className={styles.topActions}>
           <label className={styles.competencePicker}>
             <span>Competência</span>
@@ -595,7 +588,6 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
               {competences.map(item => <option key={item} value={item}>{competenceLabel(item)}</option>)}
             </select>
           </label>
-          <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
         </div>
       </header>
 
@@ -633,11 +625,31 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           <>
             <FinanceSummaryView summary={summary} mercadoPagoBalance={mercadoPagoBalance} onOpen={setTab} onFilter={(next,target)=>{setListFilter(next);setTab(target);}} />
 
+        <div className={styles.quickActions}>
+          <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
+          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
+          <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
+          <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
+          <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
+          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>Gasto extra</button>
+        </div>
+
             <section className="panel">
               <div className="panel-head"><div><h2>Movimentações recentes</h2><p className="muted">Seu extrato interno do Financeiro.</p></div></div>
               <div className={styles.list}>{recent.length ? recent.map(item => <div className={`${styles.row} ${styles.staticRow}`} key={item.id}><span><strong>{item.label}</strong><small>{formatDate(item.date)}</small></span><strong className={item.direction === "IN" ? styles.inValue : styles.outValue}>{item.direction === "IN" ? "+ " : "− "}{money.format(item.amount)}</strong></div>) : <Empty text="Nenhuma movimentação registrada nesta competência." />}</div>
             </section>
           </>
+        ) : null}
+
+        {tab !== "summary" ? (
+        <div className={styles.quickActions}>
+          <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
+          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
+          <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
+          <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
+          <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
+          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>Gasto extra</button>
+        </div>
         ) : null}
 
         {tab === "personal" ? (

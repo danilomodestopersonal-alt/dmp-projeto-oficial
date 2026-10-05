@@ -14,6 +14,7 @@ import type {
   PerformanceTennisKind,
 } from "@/types/performance";
 import styles from "./PerformancePage.module.css";
+import PerformanceSummaryInsights,{PerformanceStreak} from "./PerformanceSummaryInsights";
 import PerformanceEvolution from "./PerformanceEvolution";
 import AssessmentInsights from "@/components/assessments/AssessmentInsights";
 import StravaSyncCard from "./StravaSyncCard";
@@ -1104,6 +1105,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
               <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="✓" />
             </div>
 
+            <PerformanceSummaryInsights activities={data.activities} today={`${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(new Date().getDate()).padStart(2,"0")}`} goals={activeGoals} onConfigureGoal={openNewGoal} onEditGoal={openEditGoal} onOpen={setDetailActivity}/>
+
             <PerformanceEvolution activities={data.activities} year={currentYear} month={currentMonth} onOpenMonth={setConsultMonth}/>
 
             <div className={styles.twoColumns}>
@@ -1179,6 +1182,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
 
         {tab === "records" ? (
           <div className={styles.stack}>
+            <PerformanceStreak activities={data.activities} today={`${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(new Date().getDate()).padStart(2,"0")}`} onOpen={setDetailActivity}/>
             <div className={styles.recordGrid}>
               <RecordCard title="Maior distância" activity={derivedRecords.distance} metric="distance" />
               <RecordCard title="Maior duração" activity={derivedRecords.duration} metric="duration" />

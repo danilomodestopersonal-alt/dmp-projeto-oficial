@@ -1,0 +1,20 @@
+/* Todos os seletores ficam dentro do centro: nenhuma regra de Sidebar ou right rail. */
+.central{min-width:0}
+.central :global(.today-highlight-grid.todoist-home-grid){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important;align-items:start!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.mini-month){grid-column:1/-1!important;width:100%!important}
+.central :global(.today-highlight-card){min-width:0!important;width:100%!important;min-height:0!important;height:auto!important;border:1px solid #dce7e1!important;border-radius:20px!important;background:#fff!important;padding:16px!important;box-shadow:0 3px 12px rgba(31,75,53,.035)!important;text-align:left}
+.central :global(.today-highlight-card)>div{width:100%;min-width:0}
+.central :global(.today-highlight-card strong){font-size:1.03rem;color:#173d35}
+.central :global(.today-summary-card)>div>strong,.central :global(.month-closing-today-card)>div>strong{color:#df7a20!important;font-size:1.08rem!important;margin-bottom:12px;display:block}
+.central :global(.highlight-lines){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;margin-top:10px!important}
+.central :global(.highlight-lines)>small{display:block!important;min-width:0;padding:11px 10px!important;border-radius:13px;background:#edf7fc;color:#23423c!important;font-size:.75rem!important;line-height:1.45;overflow-wrap:anywhere}
+.central :global(.highlight-lines)>small>b:first-child{display:block;font-size:1.45rem!important;line-height:1.2;color:#13362d!important;margin-bottom:4px}
+.central :global(.highlight-lines)>small:nth-child(2){background:#edf8f2}.central :global(.highlight-lines)>small:nth-child(3){background:#f2effb}.central :global(.highlight-lines)>small:nth-child(4){background:#edf8f2}.central :global(.highlight-lines)>small:nth-child(5){background:#fdf0f3}.central :global(.highlight-lines)>small:nth-child(6){background:#fff5e9}
+.central :global(.month-closing-today-card) :global(.highlight-lines){grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.central :global(.performance-today-card) :global(.highlight-lines){grid-template-columns:1fr!important}.central :global(.performance-today-card) :global(.highlight-lines)>small{background:#f3f5f6;padding:16px!important;color:#64706d!important}
+.central :global(.performance-today-card)>div>strong::before{content:'⌁';display:inline-grid;place-items:center;margin-right:8px;width:28px;height:28px;border-radius:8px;background:#e1f2e8;color:#18724e}
+.central :global(.calendar-today-panel){border:1px solid #dce7e1;border-radius:20px;padding:16px;box-shadow:0 3px 12px rgba(31,75,53,.035)}
+.central :global(.calendar-today-panel) h2{color:#df7a20}.central :global(.calendar-today-panel) :global(.panel-head){gap:10px;flex-wrap:wrap}.central :global(.calendar-today-panel) :global(.panel-head)>button{background:#edf7f2;border:1px solid #d2e4da;color:#234c3b;border-radius:12px}
+.central :global(.todoist-widget-head){gap:8px}.central :global(.todoist-widget-title){min-width:0}.central :global(.todoist-widget-task){border-bottom:1px solid #edf0ee;padding:9px 0}.central :global(.today-kids-inline){margin-top:10px}
+@media(max-width:900px){.central :global(.today-highlight-grid.todoist-home-grid){grid-template-columns:minmax(0,1fr)!important}.central :global(.today-highlight-card){padding:14px!important}.central :global(.calendar-today-panel){padding:14px}.central :global(.highlight-lines)>small{min-height:74px}.central :global(.month-closing-today-card) :global(.highlight-lines){grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:380px){.central :global(.month-closing-today-card) :global(.highlight-lines){grid-template-columns:repeat(2,minmax(0,1fr))!important}}
