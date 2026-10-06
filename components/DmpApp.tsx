@@ -147,6 +147,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [kidsStudentRequest,setKidsStudentRequest]=useState<string|null>(null);
   const [kidsEntryKey,setKidsEntryKey]=useState(0);
   const [homeMonthKidsCount,setHomeMonthKidsCount]=useState<number|null>(null);
+  const [homeMonthKidsRows,setHomeMonthKidsRows]=useState<CalendarEvent[]>([]);
   const [homeKidsCalendarEvents,setHomeKidsCalendarEvents]=useState<CalendarEvent[]>([]);
   const [showMobileActions,setShowMobileActions]=useState(false);
   const [todayPerformanceActivities,setTodayPerformanceActivities]=useState<PerformanceActivity[]>([]);
@@ -960,12 +961,13 @@ fetch("/api/google/status")
         const raw=payload.data as KidsData|null;
         if(!raw){
           setHomeMonthKidsCount(0);
+          setHomeMonthKidsRows([]);
           setHomeKidsCalendarEvents([]);
           return;
         }
         const data=normalizeKidsData(raw);
         const monthKey=today().slice(0,7);
-        const count=data.lessons.filter(lesson=>{
+        const countedLessons=data.lessons.filter(lesson=>{
           if(lesson.date.slice(0,7)!==monthKey)return false;
           if(lesson.status==="COMPLETED")return true;
           if(lesson.status!=="SCHEDULED")return false;
@@ -973,8 +975,14 @@ fetch("/api/google/status")
           const endTime=lesson.replacementEndTime||group?.endTime||group?.startTime;
           if(!endTime)return lesson.date<today();
           return new Date(`${lesson.date}T${endTime}:00`).getTime()<=Date.now();
-        }).length;
-        setHomeMonthKidsCount(count);
+        });
+        setHomeMonthKidsCount(countedLessons.length);
+        setHomeMonthKidsRows(countedLessons.map(lesson=>{
+          const group=data.classes.find(item=>item.id===lesson.classId);
+          const category=lesson.replacementCategory||group?.category;
+          const time=lesson.replacementStartTime||group?.startTime||"12:00";
+          return {id:`dmp-kids:${lesson.id}`,summary:`${lesson.replacementName||group?.name||"Aula Kids"}${category?` · Bola ${categoryLabelForHome(category)}`:""}`,start:`${lesson.date}T${time}:00-03:00`,end:`${lesson.date}T${lesson.replacementEndTime||group?.endTime||time}:00-03:00`} satisfies CalendarEvent;
+        }));
         const todayKey=today();
         const localEvents=data.lessons
           .filter(lesson=>(view==="agenda"||lesson.date===todayKey)&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY"&&(lesson.kind==="REPLACEMENT"||isKidsFifthMonthlyLesson(data,lesson)))
@@ -1004,7 +1012,7 @@ fetch("/api/google/status")
         setHomeKidsCalendarEvents(localEvents);
       })
       .catch(()=>{
-        if(!cancelled){setHomeMonthKidsCount(null);setHomeKidsCalendarEvents([]);}
+        if(!cancelled){setHomeMonthKidsCount(null);setHomeMonthKidsRows([]);setHomeKidsCalendarEvents([]);}
       });
     return()=>{cancelled=true;};
   },[view]);
@@ -1502,7 +1510,7 @@ fetch("/api/google/status")
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
             <div className="home-desktop-layout"><section className={`dashboard-content home-main-content ${homeCentral.central}`}>
-              <div data-home-size-key="highlights"><TodayHighlights events={homeAgendaEvents} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
+              <div data-home-size-key="highlights"><TodayHighlights events={homeAgendaEvents} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} monthKidsRows={homeMonthKidsCount===null?undefined:homeMonthKidsRows} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={homeAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
               <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
                 <div className="panel-head todoist-panel-head">
@@ -2525,9 +2533,18 @@ function GlobalSearch({value,onChange,students,events,onStudent,onAgenda,onKidsS
   const eventHits=events.filter(event=>normalizeName(`${event.summary} ${event.description||""} ${event.location||""}`).includes(q)).slice(0,5);
   return <div className="global-search global-search-open"><span>⌕</span><input autoFocus value={value} onChange={e=>onChange(e.target.value)} placeholder="Buscar Personal, Kids, treino, avaliação, financeiro..."/><div className="global-search-results">{studentHits.map(hit=><button key={`${hit.student.id}-${hit.label}`} onClick={()=>{onChange("");onStudent(hit.student.id)}}><b>{hit.student.name}</b><small>{hit.label} · {hit.detail}</small></button>)}{kidsHits.map(student=><button key={`kids-${student.id}`} onClick={()=>{onChange("");onKidsStudent(student.id)}}><b>{student.name}</b><small>Kids · Abrir ficha da criança</small></button>)}{financeHits.map(item=>{const st=students.find(s=>normalizeName(s.name)===normalizeName(item.studentName));return <button key={`fin-${item.id}`} onClick={()=>{onChange("");if(st)onStudent(st.id)}}><b>{item.studentName}</b><small>Financeiro · {item.competence} · {formatStudentMoney(item.expectedAmount)}</small></button>})}{eventHits.map(event=><button key={`ev-${event.id}`} onClick={()=>{onChange("");onAgenda(calendarEventDate(event))}}><b>{event.summary}</b><small>Agenda · {formatDate(calendarEventDate(event))}</small></button>)}{!studentHits.length&&!kidsHits.length&&!financeHits.length&&!eventHits.length?<p>Nenhum resultado encontrado.</p>:null}</div></div>;
 }
-function TodayHighlights({events,monthEvents,monthKidsCount,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote,onCompleteNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string,tab?:StudentTab)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void;onCompleteNote:(note:DmpNote)=>void}){
+function TodayHighlights({events,monthEvents,monthKidsCount,monthKidsRows,notes,students,sessions,performanceActivities,monthPerformanceActivities,onAgenda,onStudent,onKids,onKidsModule,onHistory,onAssessments,onPerformance,onOpenPerformanceActivity,onNotes,onOpenNote,onCompleteNote}:{events:CalendarEvent[];monthEvents:CalendarEvent[];monthKidsCount:number|null;monthKidsRows?:CalendarEvent[];notes:DmpNote[];students:Student[];sessions:{student:Student;session:Session}[];performanceActivities:PerformanceActivity[];monthPerformanceActivities:PerformanceActivity[];onAgenda:(date:string)=>void;onStudent:(id:string,tab?:StudentTab)=>void;onKids:(event:CalendarEvent)=>void;onKidsModule:()=>void;onHistory:()=>void;onAssessments:()=>void;onPerformance:()=>void;onOpenPerformanceActivity:(activity:PerformanceActivity)=>void;onNotes:()=>void;onOpenNote:(note:DmpNote)=>void;onCompleteNote:(note:DmpNote)=>void}){
   const [showSummary,setShowSummary]=useState(false);
   const [showMonthClosing,setShowMonthClosing]=useState(false);
+  const [desktop,setDesktop]=useState(false);
+  const [selectedMetric,setSelectedMetric]=useState<string|null>(null);
+  useEffect(()=>{
+    const media=window.matchMedia("(min-width:901px)");
+    const update=()=>{setDesktop(media.matches);setSelectedMetric(null);};
+    update();media.addEventListener("change",update);return()=>media.removeEventListener("change",update);
+  },[]);
+  const openMetric=(key:string)=>{setShowSummary(false);setShowMonthClosing(false);setSelectedMetric(key);};
+  const metricAction=(key:string)=>({role:"button" as const,tabIndex:0,"data-home-metric":key,"aria-label":`Abrir ${{programmed:"alunos programados",attended:"atendidos",absent:"ausências",remaining:"ainda faltam",sessions:"atendimentos",assessments:"avaliações",kids:"aulas Kids",cycling:"ciclismo",strength:"musculação",pilates:"pilates"}[key as "programmed"]}`,onClick:()=>openMetric(key),onKeyDown:(event:React.KeyboardEvent)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openMetric(key);}}});
 
   const timed=events
     .filter(event=>!event.allDay)
@@ -2714,6 +2731,43 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
         :null}
       </section>
 
+      {desktop?<>
+      <section
+        className="today-highlight-card today-summary-card"
+      >
+        <div>
+          <strong><button type="button" className="home-card-title-toggle" aria-expanded={showSummary} onClick={()=>{setSelectedMetric(null);setShowSummary(value=>!value);}}>Resumo do dia</button></strong>
+
+          <span className="highlight-lines">
+            <small {...metricAction("programmed")}><b>{programmed}</b> alunos programados</small>
+            <small {...metricAction("attended")}><b>{attended.length}</b> atendidos</small>
+            <small {...metricAction("absent")}><b>{absent.length}</b> ausências</small>
+            <small {...metricAction("remaining")}><b>{remaining.length}</b> ainda faltam</small>
+          </span>
+
+          <i><b style={{width:`${progress}%`}}/></i>
+
+          {kids.length?
+            <span className="today-kids-inline">
+              {kids.map(({event,kids:item})=>
+                <span
+                  className="today-kids-inline-row" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onKids(event);}}}
+                  key={event.id}
+                  onClick={click=>{
+                    click.stopPropagation();
+                    onKids(event);
+                  }}
+                >
+                  <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
+                  <b>{formatCalendarTime(event)}</b>
+                  <span> · {kidsCategoryName(item.category)}</span>
+                </span>
+              )}
+            </span>
+          :null}
+        </div>
+      </section>
+      </>:<>
       <button
         className="today-highlight-card today-summary-card"
         onClick={()=>setShowSummary(value=>!value)}
@@ -2751,7 +2805,25 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
           :null}
         </div>
       </button>
+      </>}
 
+      {desktop?<>
+      <section
+        className="today-highlight-card month-closing-today-card"
+      >
+        <div>
+          <strong><button type="button" className="home-card-title-toggle" aria-expanded={showMonthClosing} onClick={()=>{setSelectedMetric(null);setShowMonthClosing(value=>!value);}}>Fechamento do mês</button></strong>
+          <span className="highlight-lines">
+            <small {...metricAction("sessions")}><b>{monthAttended}</b> atendimentos</small>
+            <small {...metricAction("assessments")}><b>{monthAssessments}</b> avaliações</small>
+            <small {...metricAction("kids")}><b>{monthKids}</b> aulas Kids</small>
+            <small {...metricAction("cycling")}><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
+            <small {...metricAction("strength")}><b>{monthStrength.length}</b> musculação</small>
+            <small {...metricAction("pilates")}><b>{monthPilates.length}</b> pilates</small>
+          </span>
+        </div>
+      </section>
+      </>:<>
       <button
         className="today-highlight-card month-closing-today-card"
         onClick={()=>setShowMonthClosing(value=>!value)}
@@ -2769,6 +2841,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
           </span>
         </div>
       </button>
+      </>}
 
       <button
         className="today-highlight-card performance-today-card"
@@ -2789,6 +2862,19 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
       </button>
 
     </div>
+
+    {desktop&&selectedMetric?<section className="home-exact-detail panel" aria-live="polite">
+      <div className="panel-head"><h2>{({programmed:"Alunos programados",attended:"Atendidos",absent:"Ausências",remaining:"Ainda faltam",sessions:"Atendimentos",assessments:"Avaliações",kids:"Aulas Kids",cycling:"Ciclismo",strength:"Musculação",pilates:"Pilates"} as Record<string,string>)[selectedMetric]}</h2><button type="button" className="secondary" onClick={()=>setSelectedMetric(null)}>Fechar</button></div>
+      <p className="muted">{["programmed","attended","absent","remaining"].includes(selectedMetric)?`Dia ${formatDate(today())}`:`Mês ${new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}`}</p>
+      {selectedMetric==="programmed"?renderPeople("Alunos programados",[...programmedStudents.values()],"Nenhum aluno programado.","programmed"):null}
+      {selectedMetric==="attended"?renderPeople("Atendidos",attended,"Nenhum atendimento concluído.","done"):null}
+      {selectedMetric==="absent"?renderPeople("Ausências",absent,"Nenhuma ausência registrada.","absent"):null}
+      {selectedMetric==="remaining"?renderPeople("Ainda faltam",remaining,"Nenhum atendimento pendente.","pending"):null}
+      {selectedMetric==="sessions"?<div className="month-closing-detail-list">{monthSessionRows.map(({student,session})=><button key={student.id+session.id} onClick={()=>onStudent(student.id)}><span>{formatDate(session.date)} · {session.workoutName||"Atendimento"}</span><strong>{student.name}</strong></button>)}{!monthSessionRows.length?<p>Nenhum atendimento neste mês.</p>:null}</div>:null}
+      {selectedMetric==="assessments"?<div className="month-closing-detail-list">{monthAssessmentRows.map(({student,assessment})=><button key={student.id+assessment.id} onClick={()=>onStudent(student.id,"assessments")}><span>{formatDate(assessment.date)}</span><strong>{student.name}</strong></button>)}{!monthAssessmentRows.length?<p>Nenhuma avaliação neste mês.</p>:null}</div>:null}
+      {selectedMetric==="kids"?<div className="month-closing-detail-list">{(monthKidsRows??monthEvents.filter(event=>Boolean(kidsCalendarRequest(event)))).map(event=><button key={event.id} onClick={()=>kidsCalendarRequest(event)?onKids(event):onKidsModule()}><span>{formatDate(event.start.slice(0,10))} · {formatCalendarTime(event)}</span><strong>{event.summary}</strong></button>)}{monthKids===0?<p>Nenhuma aula Kids neste mês.</p>:null}</div>:null}
+      {["cycling","strength","pilates"].includes(selectedMetric)?<div className="month-closing-detail-list">{(selectedMetric==="cycling"?monthCycling:selectedMetric==="strength"?monthStrength:monthPilates).map(activity=><button key={activity.id} onClick={()=>onOpenPerformanceActivity(activity)}><span>{formatDate(activity.date)}{activity.type==="CYCLING"?` · ${(activity.distanceKm||0).toLocaleString("pt-BR",{maximumFractionDigits:1})} km`:""}</span><strong>{activity.title||activityTodayLine(activity)}</strong></button>)}{!(selectedMetric==="cycling"?monthCycling:selectedMetric==="strength"?monthStrength:monthPilates).length?<p>Nenhum registro neste mês.</p>:null}{selectedMetric==="cycling"?<p>Total: {monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</p>:null}</div>:null}
+    </section>:null}
 
     {showMonthClosing?
       <section className="month-closing-detail panel">

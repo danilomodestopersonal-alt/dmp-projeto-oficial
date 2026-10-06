@@ -1,3 +1,4 @@
+import {reportPixPayer,manualPixPayer,pixTitle,pixForDestination,type PixMetadata} from "@/lib/mercado-pago/pix-payer";
 import { reconcileExpenses, reverseExpenseReconciliation, type ExpenseAllocationInput, type ExpenseRemainder, type ExpenseReconciliation } from "@/lib/mercado-pago/expense-reconciliation";
 import {createHash} from "crypto";
 import {isAuthorized} from "@/lib/auth";
@@ -45,6 +46,7 @@ type LearnedRule={
   updatedAt:string;
 };
 type SavedDecision={
+  pix?:PixMetadata;
   expenseReconciliation?:ExpenseReconciliation;
   fingerprint:string;
   target:TargetType;
@@ -81,6 +83,7 @@ type MpReport={
   [key:string]:unknown;
 };
 type Movement={
+  pix?:PixMetadata;
   expenseReconciliation?:ExpenseReconciliation;
   id:string;
   fingerprint:string;
@@ -532,6 +535,7 @@ function learnedRuleFor(state:MpState,identityKey:string,description:string,kind
   return null;
 }
 type MovementCandidate={
+  pix?:PixMetadata;
   sourceId:string;date:string;dateKey:string;description:string;detail:string;operation:string;kind:MoveKind;amount:number;
   paymentType:string;fee:number;identityKey:string;identityLabel:string;historical:boolean;emergency?:boolean;
 };
@@ -598,6 +602,7 @@ function classifyMovement(candidate:MovementCandidate,state:MpState):Movement{
     description:candidate.description,expenseName,detail:candidate.detail,operation:candidate.operation,kind:candidate.kind,amount:candidate.amount,
     category,confidence,reason,technical,status,suggestedTarget,suggestedTargetName,ruleMode:learnedMode,ruleKey:learnedKey,
     learningKey,learningLabel,fingerprintAliases,
+    pix:saved?.pix|| (candidate.pix?{...candidate.pix,fingerprint,date:candidate.dateKey,amount:candidate.amount}:undefined),
     expenseReconciliation:saved?.expenseReconciliation,processedAutomatic:Boolean(saved?.automatic),historical:candidate.historical,canLearn,canAuto,
   };
 }
@@ -627,7 +632,7 @@ function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):M
     const genericSettlement=normalizeKey(type)==="settlement"&&!useful&&description==="Liquidação Mercado Pago";
     if(genericSettlement)return;
     result.push(classifyMovement({
-      sourceId,date:rawDate||String(index),dateKey,description,detail,operation:type,kind,amount,paymentType,fee,identityKey:identity.key,identityLabel:identity.label,historical,
+      pix:reportPixPayer(row,kind)|| (release?reportPixPayer(release,kind):undefined),sourceId,date:rawDate||String(index),dateKey,description,detail,operation:type,kind,amount,paymentType,fee,identityKey:identity.key,identityLabel:identity.label,historical,
     },state));
   });
   return result;
@@ -685,7 +690,7 @@ function releaseMovements(rows:AnyRow[],settlementRows:AnyRow[],settlement:Movem
     const reference=compactRef(row.EXTERNAL_REFERENCE||row.ITEM_ID);
     const detail=["Relatório de Liberações",paymentType,reference].filter(Boolean).join(" · ");
     result.push(classifyMovement({
-      sourceId,date:rawDate||String(index),dateKey,description,detail,operation,kind,amount,paymentType,fee:0,
+      pix:reportPixPayer(row,kind),sourceId,date:rawDate||String(index),dateKey,description,detail,operation,kind,amount,paymentType,fee:0,
       identityKey:finalIdentity.key,identityLabel:finalIdentity.label,historical:Boolean(dateKey&&dateKey<CUTOVER_DATE),emergency,
     },state));
   });
@@ -994,8 +999,8 @@ async function createReport(kind:ReportKind,state:MpState,force:boolean){
   recordReportRequest(state,kind);
   return {created:true,pending:true,report:summaryReport(report),taskId:id??null,reason:"created"};
 }
-function financeHistory(id:string,competence:string,kind:FinanceHistoryEntry["kind"],description:string,amount:number|undefined,entityId:string):FinanceHistoryEntry{
-  return {id:`history-${id}`,occurredAt:new Date().toISOString(),competence,kind,description,amount,entityId};
+function financeHistory(id:string,competence:string,kind:FinanceHistoryEntry["kind"],description:string,amount:number|undefined,entityId:string,pix?:PixMetadata):FinanceHistoryEntry{
+  return {...(pix?{mercadoPago:pix}:{}),id:`history-${id}`,occurredAt:new Date().toISOString(),competence,kind,description:pix?`${pixTitle(pix)} · ${description}`:description,amount,entityId};
 }
 function resolvePersonal(data:FinanceData,competence:string,targetId?:string,targetName?:string){
   const byId=targetId?data.personalInvoices.find(item=>item.id===targetId&&item.competence<=competence&&!item.excludedFromTotals):undefined;
@@ -1022,7 +1027,7 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
   if(!data.competences?.[competence])return {ok:false as const,error:`A competência ${competence} não existe no Financeiro.`};
   if(data.competences[competence]?.status==="CLOSED")return {ok:false as const,error:`A competência ${competence} está fechada no Financeiro.`};
   const unique=hashId(`${move.fingerprint}|${target}|${options.targetId||options.targetName||options.category||""}`);
-  const note=`Mercado Pago · ${move.description}${move.sourceId?` · ref. ${move.sourceId}`:""}`;
+  const note=`${pixTitle(move.pix)?pixTitle(move.pix)+" · ":""}Mercado Pago · ${move.description}${move.sourceId?` · ref. ${move.sourceId}`:""}`;
 
   if(target==="TRANSFER"||target==="IGNORE")return {ok:true as const,data,changed:false,entityId:undefined,targetName:options.targetName};
   if(target==="EXTRA"){
@@ -1043,10 +1048,10 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
     if(move.kind!=="IN")return {ok:false as const,error:"Recebimento DS só pode ser usado em uma entrada."};
     const id=`mp-ds-${unique}`;
     if(Object.values(data.dsReceipts||{}).flat().some(item=>item.id===id))return {ok:true as const,data,changed:false,entityId:id,targetName:move.description};
-    const receipt={id,date:move.dateKey||CUTOVER_DATE,amount:move.amount,sourceName:move.description,note};
+    const receipt={id,date:move.dateKey||CUTOVER_DATE,amount:move.amount,sourceName:pixTitle(move.pix)||move.description,note,...(move.pix?{mercadoPago:pixForDestination(move.pix,target)}:{})};
     const next:FinanceData={
       ...data,dsReceipts:{...data.dsReceipts,[competence]:[...(data.dsReceipts[competence]||[]),receipt]},
-      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"DS_RECEIPT_ADDED",`Mercado Pago · recebimento DS registrado · ${move.description}.`,move.amount,id)],
+      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"DS_RECEIPT_ADDED",`Mercado Pago · recebimento DS registrado · ${move.description}.`,move.amount,id,pixForDestination(move.pix,target))],
     };
     return {ok:true as const,data:next,changed:true,entityId:id,targetName:move.description};
   }
@@ -1059,10 +1064,10 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
     const open=Math.max(0,invoice.expectedAmount-paid(invoice.payments));
     if(open<=0.005)return {ok:false as const,error:`${invoice.studentName} já está quitado em ${invoice.competence}.`};
     if(move.amount>open+0.005)return {ok:false as const,error:`O PIX de ${move.amount.toFixed(2)} é maior que o saldo em aberto de ${open.toFixed(2)} para ${invoice.studentName}.`};
-    const payment={id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:move.amount,note};
+    const payment={id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:move.amount,note,...(move.pix?{mercadoPago:pixForDestination(move.pix,target)}:{})};
     const next:FinanceData={
       ...data,personalInvoices:data.personalInvoices.map(item=>item.id===invoice.id?{...item,payments:[...item.payments,payment]}:item),
-      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${invoice.studentName} registrado para a mensalidade ${invoice.competence}.`,move.amount,invoice.id)],
+      history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${invoice.studentName} registrado para a mensalidade ${invoice.competence}.`,move.amount,invoice.id,pixForDestination(move.pix,target))],
     };
     return {ok:true as const,data:next,changed:true,entityId:invoice.id,targetName:invoice.studentName};
   }
@@ -1113,7 +1118,7 @@ async function persistDecision(move:Movement,target:TargetType,options:{category
       await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(applied.data)]);
     }
     const appliedExpenseName="expenseName" in applied?applied.expenseName:undefined;
-    const decision:SavedDecision={fingerprint:move.fingerprint,target,category:options.category||undefined,targetName:applied.targetName||options.targetName||undefined,expenseName:appliedExpenseName||options.expenseName||undefined,financeEntityId:applied.entityId,automatic:options.automatic,updatedAt:new Date().toISOString()};
+    const decision:SavedDecision={pix:pixForDestination(move.pix,target),fingerprint:move.fingerprint,target,category:options.category||undefined,targetName:applied.targetName||options.targetName||undefined,expenseName:appliedExpenseName||options.expenseName||undefined,financeEntityId:applied.entityId,automatic:options.automatic,updatedAt:new Date().toISOString()};
     state.decisions[move.fingerprint]=decision;
     if(options.ruleChoice!=="ONCE"&&move.canLearn){
       const key=ruleKey(move.learningKey,move.kind);
@@ -1169,18 +1174,18 @@ async function persistPersonalSplitDecision(move:Movement,splitsInput:PersonalSp
     const invalid=resolved.find(item=>!item.ok);
     if(invalid&&!invalid.ok){await client.query("ROLLBACK");return {ok:false as const,error:invalid.error};}
     const valid=resolved.filter((item):item is Extract<(typeof resolved)[number],{ok:true}>=>item.ok);
-    const note=`Mercado Pago · ${move.description}${move.sourceId?` · ref. ${move.sourceId}`:""}`;
+    const note=`${pixTitle(move.pix)?pixTitle(move.pix)+" · ":""}Mercado Pago · ${move.description}${move.sourceId?` · ref. ${move.sourceId}`:""}`;
     const byInvoice=new Map(valid.map(item=>[item.invoice.id,item]));
     const nextInvoices=finance.personalInvoices.map(invoice=>{
       const item=byInvoice.get(invoice.id);
       if(!item)return invoice;
       const paymentId=`mp-payment-${hashId(`${move.fingerprint}|PERSONAL_SPLIT|${invoice.id}`)}`;
       if(invoice.payments.some(payment=>payment.id===paymentId))return invoice;
-      return {...invoice,payments:[...invoice.payments,{id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:item.amount,note}]};
+      return {...invoice,payments:[...invoice.payments,{id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:item.amount,note,...(move.pix?{mercadoPago:pixForDestination(move.pix,"PERSONAL")}:{})}]};
     });
     const historyEntries=valid.map(item=>{
       const historyId=`mp-${hashId(`${move.fingerprint}|PERSONAL_SPLIT|${item.invoice.id}`)}`;
-      return financeHistory(historyId,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${item.invoice.studentName} registrado em divisão para a mensalidade ${item.invoice.competence}.`,item.amount,item.invoice.id);
+      return financeHistory(historyId,competence,"PERSONAL_PAYMENT_ADDED",`Mercado Pago · recebimento de ${item.invoice.studentName} registrado em divisão para a mensalidade ${item.invoice.competence}.`,item.amount,item.invoice.id,pixForDestination(move.pix,"PERSONAL"));
     });
     const nextFinance:FinanceData={...finance,personalInvoices:nextInvoices,history:[...(finance.history||[]),...historyEntries]};
     await client.query(`
@@ -1189,7 +1194,7 @@ async function persistPersonalSplitDecision(move:Movement,splitsInput:PersonalSp
     `,[FINANCE_BACKUP_ID,JSON.stringify(finance)]);
     await client.query("UPDATE dmp_data SET payload=$2, updated_at=NOW() WHERE id=$1",[FINANCE_ID,JSON.stringify(nextFinance)]);
     const targetName=valid.map(item=>`${item.invoice.studentName} ${item.amount.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`).join(" + ");
-    const decision:SavedDecision={fingerprint:move.fingerprint,target:"PERSONAL",targetName,automatic:false,updatedAt:new Date().toISOString()};
+    const decision:SavedDecision={pix:pixForDestination(move.pix,"PERSONAL"),fingerprint:move.fingerprint,target:"PERSONAL",targetName,automatic:false,updatedAt:new Date().toISOString()};
     state.decisions[move.fingerprint]=decision;
     await client.query(`INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()`,[STATE_ID,JSON.stringify(state)]);
     await client.query("COMMIT");
@@ -1374,6 +1379,7 @@ export async function POST(request:NextRequest){
       if(move.historical)return NextResponse.json({ok:false,error:"Movimentações anteriores ao corte de 18/09/2026 ficam apenas no histórico."},{status:400});
       if(move.technical)return NextResponse.json({ok:false,error:"Este movimento é técnico e não precisa ser lançado no Financeiro."},{status:400});
       if(move.kind!=="IN")return NextResponse.json({ok:false,error:"A divisão entre alunos só pode ser usada em um recebimento."},{status:400});
+      try{move.pix=manualPixPayer(move.pix,body.payerName);}catch{return NextResponse.json({ok:false,error:"Informe uma identificação de pagador válida, com até 200 caracteres."},{status:400});}
       const result=await persistPersonalSplitDecision(move,splits);
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
@@ -1407,6 +1413,7 @@ export async function POST(request:NextRequest){
       }
       const selectedExpense=target==="EXPENSE"&&targetId?(snapshot.response.financeContext as FinanceContext).expenses.find(item=>item.id===targetId):undefined;
       if(selectedExpense&&selectedExpense.competence<move.dateKey.slice(0,7))return NextResponse.json({ok:false,error:"Concilie a conta atrasada somente nesta movimentação, sem memorizar a obrigação antiga."},{status:400});
+      try{move.pix=manualPixPayer(move.pix,body.payerName);}catch{return NextResponse.json({ok:false,error:"Informe uma identificação de pagador válida, com até 200 caracteres."},{status:400});}
       const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false});
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);

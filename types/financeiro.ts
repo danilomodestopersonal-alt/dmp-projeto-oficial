@@ -1,6 +1,9 @@
+import type {PixMetadata} from "../lib/mercado-pago/pix-payer";
+
 export type FinanceCompetenceStatus = "OPEN" | "CLOSED" | "REOPENED";
 
 export type FinancePayment = {
+  mercadoPago?:PixMetadata;
   id: string;
   date: string;
   amount: number;
@@ -52,6 +55,7 @@ export type FinanceCarryoverEntry = {
 };
 
 export type DsReceipt = {
+  mercadoPago?:PixMetadata;
   id: string;
   date: string | null;
   amount: number;
@@ -131,6 +135,7 @@ export type FinanceHistoryKind =
   | "CARRYOVER_DELETED";
 
 export type FinanceHistoryEntry = {
+  mercadoPago?:PixMetadata;
   id: string;
   occurredAt: string;
   competence: string;

@@ -79,3 +79,35 @@
 .central :global(.mini-month-today){min-height:23px;margin-bottom:5px}
 .central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card) :global(.performance-today-list){height:auto!important;max-height:none!important;overflow:visible!important}
 }
+
+/* Acabamento desktop: mesma família de caixas, sem alterar o mobile aprovado. */
+@media(min-width:901px){
+.central :global(.today-highlight-grid.todoist-home-grid){align-items:stretch!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.mini-month),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-highlight-card){align-self:stretch!important;padding:16px!important;border:1px solid #dce7e1!important;border-radius:20px!important;background:#fff!important;box-shadow:0 3px 12px rgba(31,75,53,.035)!important;text-align:left!important}
+/* Duas e três colunas com a mesma largura de mini-card: inset 34, gap 12 e intervalo 14. */
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card){grid-column:1/-1!important;width:calc(40% - 1.2px)!important;justify-self:start!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card){grid-column:1/-1!important;width:calc(60% - 12.8px)!important;justify-self:end!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.mini-month) :global(.mini-month-nav),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-head),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card)>div>strong{min-height:34px!important;margin:0 0 12px!important;align-items:center!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.mini-month) :global(.mini-month-nav)>strong,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-title)>strong,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card)>div>strong,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card)>div>strong,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card)>div>strong{color:#df7a20!important;font-size:1rem!important;line-height:1.35!important;font-weight:700!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-head){display:grid!important;grid-template-columns:minmax(0,1fr) 30px!important;gap:8px!important;width:100%!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-title){display:flex!important;align-items:center!important;gap:8px!important;min-width:0!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-title)>strong{min-width:0!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-add){width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;padding:0!important;justify-self:end!important;border-radius:9px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-list){padding:0!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-task){padding:10px 0!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card) :global(.performance-today-row),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card) :global(.highlight-lines)>small,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-notes-card) :global(.todoist-widget-empty){padding:14px!important;border:1px solid #e3ede7!important;border-radius:12px!important;background:#f4f8f5!important;font-size:.8rem!important;line-height:1.5!important;margin:0!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card)>div>strong,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card)>div>strong{display:flex!important;align-items:center!important;min-height:34px!important;margin:0 0 12px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines){gap:12px!important;margin:0!important;grid-auto-rows:minmax(132px,1fr)!important;align-items:stretch!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small{display:block!important;box-sizing:border-box!important;min-height:132px!important;padding:14px!important;border-radius:14px!important;font-size:.76rem!important;line-height:1.45!important;align-self:stretch!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small>b:first-child,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small>b:first-child{margin:0 0 12px 40px!important;min-height:28px!important;font-size:1.55rem!important;line-height:28px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small::before,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small::before{position:absolute!important;left:14px!important;top:14px!important;width:28px!important;height:28px!important;margin:0!important;background-size:22px!important;border-radius:8px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small::after,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small::after{top:auto!important;bottom:10px!important;right:10px!important;font-size:1.2rem!important}
+}
+
+@media(min-width:901px){
+.central :global(.home-card-title-toggle){border:0;background:transparent;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
+.central :global(.highlight-lines)>small[role="button"]{cursor:pointer}
+.central :global(.highlight-lines)>small[role="button"]:focus-visible{outline:3px solid #087965;outline-offset:3px}
+.central :global(.home-exact-detail){height:auto;max-height:none;overflow:visible;grid-column:1/-1}
+.central :global(.home-exact-detail) :global(.month-closing-detail-list){max-height:none;overflow:visible}
+}

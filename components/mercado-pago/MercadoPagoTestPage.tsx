@@ -1,4 +1,5 @@
 "use client";
+import {pixTitle,type PixMetadata} from "../../lib/mercado-pago/pix-payer";
 import { expenseOptionsForPayment } from "../../lib/mercado-pago/expense-options";
 import { ExpenseAllocationEditor, allocationAmount, type ExpenseOption, type ExpenseSplit, type RemainderChoice } from "./ExpenseAllocationEditor";
 import type { ExpenseReconciliation } from "../../lib/mercado-pago/expense-reconciliation";
@@ -11,6 +12,7 @@ type Filter="ALL"|"REVIEW"|"PROCESSED"|"IN_DAY"|"OUT_DAY"|"IN_MONTH"|"OUT_MONTH"
 type Target="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleChoice="ONCE"|"SUGGEST"|"AUTO";
 type Move={
+  pix?:PixMetadata;
   expenseReconciliation?:ExpenseReconciliation;
   id:string;fingerprint:string;sourceId?:string;date:string;dateKey:string;description:string;detail:string;operation?:string;kind:"IN"|"OUT";amount:number;
   category:string;expenseName?:string;confidence:number;reason:string;technical:boolean;status:Status;suggestedTarget:Target;suggestedTargetName?:string;ruleMode?:"SUGGEST"|"AUTO";
@@ -31,7 +33,7 @@ type ApiData={
   financeContext:FinanceContext;financeConnected:boolean;
 };
 type PersonalSplit={targetId:string;targetName:string;amount:string};
-type Choice={splitExpenses:boolean;expenseSplits:ExpenseSplit[];remainder:RemainderChoice;remainderCategory:string;remainderDescription:string;target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice;splitPersonal:boolean;personalSplits:PersonalSplit[]};
+type Choice={payerName:string;splitExpenses:boolean;expenseSplits:ExpenseSplit[];remainder:RemainderChoice;remainderCategory:string;remainderDescription:string;target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice;splitPersonal:boolean;personalSplits:PersonalSplit[]};
 
 type Props={financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
@@ -254,7 +256,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
       const found=data?.financeContext.expenses.find(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
       if(found)targetId=found.id;
     }
-    return {target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:[],remainder:"",remainderCategory:"",remainderDescription:""};
+    return {payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:[],remainder:"",remainderCategory:"",remainderDescription:""};
   }
   function choiceFor(move:Move){return choices[move.fingerprint]||defaultChoice(move);}
   function patchChoice(move:Move,patch:Partial<Choice>){setChoices(current=>({...current,[move.fingerprint]:{...choiceFor(move),...patch}}));}
@@ -309,7 +311,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
       setSavingId(move.id);setMessage("");setError("");
       try{
         const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-          action:"decision-personal-split",fingerprint:move.fingerprint,splits:splits.map(item=>({targetId:item.targetId,amount:item.amount})),
+          action:"decision-personal-split",fingerprint:move.fingerprint,payerName:move.pix?choice.payerName:undefined,splits:splits.map(item=>({targetId:item.targetId,amount:item.amount})),
         })});
         const payload=await response.json();
         if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível dividir este recebimento.");
@@ -334,7 +336,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
       if(choice.target==="PERSONAL")targetName=data?.financeContext.personal.find(item=>item.id===choice.targetId)?.studentName||"";
       if(choice.target==="EXPENSE")targetName=data?.financeContext.expenses.find(item=>item.id===choice.targetId)?.name||"";
       const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        action:"decision",fingerprint:move.fingerprint,target:choice.target,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,
+        action:"decision",fingerprint:move.fingerprint,payerName:move.pix?choice.payerName:undefined,target:choice.target,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,
       })});
       const payload=await response.json();
       if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível conciliar esta movimentação.");
@@ -408,7 +410,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
       if(filter==="OUT_MONTH"&&(x.kind!=="OUT"||x.technical||x.historical||!x.dateKey.startsWith(monthKey)))return false;
       if(filter==="TECHNICAL"&&!x.technical)return false;
       if(filter==="HISTORICAL"&&!x.historical)return false;
-      return !n||`${x.description} ${x.detail} ${x.category} ${x.reason}`.toLocaleLowerCase("pt-BR").includes(n);
+      return !n||`${pixTitle(x.pix)||x.description} ${x.detail} ${x.category} ${x.reason}`.toLocaleLowerCase("pt-BR").includes(n);
     });
   },[moves,filter,q]);
 
@@ -453,7 +455,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
           return <article className={`${styles.move} ${move.status==="REVIEW"||move.status==="AUTO_READY"?styles.review:""} ${move.technical?styles.technicalMove:""} ${move.historical?styles.historicalMove:""}`} key={move.id}>
             <div className={`${styles.icon} ${move.technical||move.historical?styles.iconTechnical:move.kind==="IN"?styles.iconIn:styles.iconOut}`}>{move.historical?"◷":move.technical?"⚙":move.kind==="IN"?"↓":"↑"}</div>
             <div className={styles.info}>
-              <div><strong>{move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
+              <div><strong>{pixTitle(move.pix)||move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
               <small>{date(move.date)}{move.detail?` · ${move.detail}`:""}</small>
               {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedWrap}>
                 <div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{resolvedDestinationLabel(move)?` · ${resolvedDestinationLabel(move)}`:""} · {move.reason}</span>{move.suggestedTarget==="EXTRA"?<button type="button" onClick={()=>{setEditingId(current=>current===move.id?"":move.id);setError("");}}>✎ {editingId===move.id?"Fechar":"Editar"}</button>:null}</div>
@@ -472,6 +474,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
                 </div>:null}
               </div>:<div className={styles.reconcileBox}>
                 <div className={styles.reconcileGrid}>
+                  {move.pix?<label className={styles.fullField}><span>Pagador / identificação</span><input maxLength={200} value={choice.payerName} onChange={e=>patchChoice(move,{payerName:e.target.value})} placeholder="Pagador não identificado"/><small>{move.pix.payerOrigin==="mercado_pago"?"Identificação fornecida pelo Mercado Pago. Alterações serão registradas como manuais.":"Opcional. A identificação informada é manual e não cria uma regra automática."}</small></label>:null}
                   <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
                   {choice.target==="EXTRA"?<label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>:null}
                   {choice.target==="EXTRA"?<label><span>Nome do gasto (opcional)</span><input value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})} placeholder="Ex.: Cachorro-quente"/></label>:null}
@@ -489,7 +492,7 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
                   {choice.target==="EXPENSE"?<div className={styles.fullField}>
                     {!choice.splitExpenses?<><label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.expenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||"",...(item&&item.competence<move.dateKey.slice(0,7)?{ruleChoice:"ONCE" as const}:{})});}}><option value="">Selecione...</option>{expenseOptionsForPayment(data?.financeContext.expenses||[],move.dateKey).map(item=><option key={item.id} value={item.id}>{item.name} · {item.competence} · {money.format(item.remaining)} em aberto</option>)}</select></label><button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:true,expenseSplits:[],ruleChoice:"ONCE"})}>Conciliar com uma ou várias contas</button></>:<>{allocationEditor(move)}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:false,expenseSplits:[]})}>Voltar à seleção simples</button></>}
                   </div>:null}
-                  {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
+                  {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{pixTitle(move.pix)||move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}
                   <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn||choice.splitPersonal||choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))?"A conciliação de contas atrasadas ou distribuídas vale somente para esta movimentação.":choice.splitPersonal?"Divisões entre vários alunos são sempre tratadas somente nesta movimentação.":move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
                 </div>
