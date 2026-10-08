@@ -1,6 +1,7 @@
 // DMP_HOME_TREINO_CLICAVEL_V2
 "use client";
 import homeCentral from "./HomeCentral.module.css";
+import {createPortal} from "react-dom";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { restoredNavigation, moveDraftExercise, draftExercisesForReuse } from "../lib/navigation";
@@ -1512,6 +1513,7 @@ fetch("/api/google/status")
             <div className="home-desktop-layout"><section className={`dashboard-content home-main-content ${homeCentral.central}`}>
               <div data-home-size-key="highlights"><TodayHighlights events={homeAgendaEvents} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} monthKidsRows={homeMonthKidsCount===null?undefined:homeMonthKidsRows} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={homeAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
+              <div id="home-desktop-commitments"/>
               <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
                 <div className="panel-head todoist-panel-head">
                   <div>
@@ -2668,12 +2670,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
     return activity.title||"Atividade";
   };
 
-  return <>
-    <div className="today-highlight-grid todoist-home-grid">
-
-      <MiniMonthCalendar onSelect={onAgenda}/>
-
-      <section
+  const commitmentsCard=(<section
         className="today-highlight-card today-notes-card todoist-inbox-widget todoist-inbox-clickable"
         role="link"
         tabIndex={0}
@@ -2729,7 +2726,14 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
             }}
           >+ {scheduledNotes.length-5} com data</button>
         :null}
-      </section>
+      </section>);
+
+  return <>
+    <div className="today-highlight-grid todoist-home-grid">
+
+      <MiniMonthCalendar onSelect={onAgenda}/>
+
+      {desktop?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():commitmentsCard}
 
       {desktop?<>
       <section

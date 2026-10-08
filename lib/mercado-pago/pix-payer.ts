@@ -1,5 +1,7 @@
 export type PixMetadata={
   isPix:true;
+  payerEdits?:Array<{at:string;previous:string;name:string}>;
+  displayContext?:string;
   payerName?:string;
   payerOrigin?:"mercado_pago"|"manual";
   sourceId?:string;
@@ -25,3 +27,10 @@ export function manualPixPayer(pix:PixMetadata|undefined,value:unknown):PixMetad
 }
 export function pixTitle(pix:PixMetadata|undefined){return pix?`PIX recebido — ${pix.payerName||"Pagador não identificado"}`:undefined;}
 export function pixForDestination(pix:PixMetadata|undefined,destination:string){return pix?{...pix,destination}:undefined;}
+
+export function pixDisplayLabel(pix:PixMetadata|undefined,label:string){
+ if(!pix)return label;
+ const title=pixTitle(pix)!;
+ if(pix.displayContext!==undefined&&/^PIX(?: recebido|\/transferência)/i.test(label))return title+(pix.displayContext?" · "+pix.displayContext:"");
+ return label.startsWith(title)?label:title+" · "+label;
+}

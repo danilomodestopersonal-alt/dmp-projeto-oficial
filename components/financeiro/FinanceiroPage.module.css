@@ -252,3 +252,6 @@
 .quickActions>div>button{background:#f3f5f3;color:#617169;border-color:#e0e6e1;font-weight:600;font-size:13px;min-height:48px}
 .quickActions>div>p{font-size:13px;white-space:normal;overflow-wrap:anywhere;line-height:1.4}
 }
+
+/* Somente representação redundante; lista compacta e ações preservadas. */
+@media(max-width:900px){.mobileDuplicateExpenses{display:none!important}}

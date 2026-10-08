@@ -1,4 +1,6 @@
 "use client";
+import {PixPayerProvider,PixPayerEditButton} from "./PixPayerEditor";
+import {pixDisplayLabel} from "@/lib/mercado-pago/pix-payer";
 import { FinanceSummaryView } from "./FinanceSummaryView";
 import { FinanceDeviceTrust } from "./FinanceDeviceTrust";
 import { PersonalManageButton, PersonalReceipts, PaymentHistory } from "./PersonalReceipts";
@@ -141,6 +143,8 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   const [loaded, setLoaded] = useState(false);
   const [cloudWritable, setCloudWritable] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [payerSaving,setPayerSaving]=useState(false);
+  const [payerMetadataReady,setPayerMetadataReady]=useState(false);
   const [financeCloudRevision, setFinanceCloudRevision] = useState(0);
   const financeNavRestored=useRef(false);
   const [financeNavReady,setFinanceNavReady]=useState(false);
@@ -371,11 +375,13 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   useEffect(() => {
     if (!loaded) return;
     saveFinanceData(data);
-    if (!cloudWritable) return;
+    if (!cloudWritable || payerSaving) return;
+    setPayerMetadataReady(false);
+    setSyncing(true); // Bloqueia edição de metadados também enquanto uma gravação está agendada.
     const timer = window.setTimeout(() => {
       setSyncing(true);
       void saveFinanceCloud(data)
-        .then(() => setFinanceCloudRevision(current => current + 1))
+        .then(() => {setFinanceCloudRevision(current => current + 1);setPayerMetadataReady(true);})
         .catch(error => {
           console.error("Financeiro: erro ao salvar na nuvem.", error);
           if(error instanceof Error&&error.message==="FINANCE_CONFLICT"){
@@ -386,7 +392,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         .finally(() => setSyncing(false));
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [data, loaded, cloudWritable]);
+  }, [data, loaded, cloudWritable, payerSaving]);
 
   function dispatch(command: FinanceCommand) {
     if(command.type.endsWith("_DELETE"))setUndoDeletion(data);
@@ -522,8 +528,8 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
 
   const recent = useMemo(() => {
     const rows: { id: string; date: string; label: string; amount: number; direction: "IN" | "OUT" }[] = [];
-    summary.personal.forEach(invoice => invoice.payments.forEach(payment => rows.push({ id: payment.id, date: payment.date, label: `${invoice.studentName} · Personal`, amount: payment.amount, direction: "IN" })));
-    summary.receipts.forEach(receipt => rows.push({ id: receipt.id, date: receipt.date || `${competence}-01`, label: receipt.sourceName ? `${receipt.sourceName} · DS` : "Recebimento DS", amount: receipt.amount, direction: "IN" }));
+    summary.personal.forEach(invoice => invoice.payments.forEach(payment => rows.push({ id: payment.id, date: payment.date, label: pixDisplayLabel(payment.mercadoPago,`${invoice.studentName} · Personal`), amount: payment.amount, direction: "IN" })));
+    summary.receipts.forEach(receipt => rows.push({ id: receipt.id, date: receipt.date || `${competence}-01`, label: receipt.mercadoPago ? `${pixDisplayLabel(receipt.mercadoPago,receipt.sourceName||"Recebimento DS")} · DS` : receipt.sourceName ? `${receipt.sourceName} · DS` : "Recebimento DS", amount: receipt.amount, direction: "IN" }));
     summary.returns.forEach(payment => rows.push({ id: payment.id, date: payment.date, label: "Devolução para DS", amount: payment.amount, direction: "OUT" }));
     summary.expenses.forEach(expense => expense.payments.forEach(payment => rows.push({ id: payment.id, date: payment.date, label: expense.name, amount: payment.amount, direction: "OUT" })));
     summary.extras.forEach(extra => rows.push({ id: extra.id, date: extra.date, label: extra.description, amount: extra.amount, direction: "OUT" }));
@@ -574,6 +580,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   }
 
   return (
+    <PixPayerProvider revision={financeCloudRevision} disabled={!loaded||!cloudWritable||syncing||!payerMetadataReady} onSavingChange={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Não foi possível recarregar o Financeiro.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setFinanceCloudRevision(value=>value+1);}}>
     <>
       <header className={`dashboard-topbar ${styles.topbar} ${tab === "summary" ? styles.approvedTopbar : ""}`}>
         <div>
@@ -636,7 +643,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
 
             <section className="panel">
               <div className="panel-head"><div><h2>Movimentações recentes</h2><p className="muted">Seu extrato interno do Financeiro.</p></div></div>
-              <div className={styles.list}>{recent.length ? recent.map(item => <div className={`${styles.row} ${styles.staticRow}`} key={item.id}><span><strong>{item.label}</strong><small>{formatDate(item.date)}</small></span><strong className={item.direction === "IN" ? styles.inValue : styles.outValue}>{item.direction === "IN" ? "+ " : "− "}{money.format(item.amount)}</strong></div>) : <Empty text="Nenhuma movimentação registrada nesta competência." />}</div>
+              <div className={styles.list}>{recent.length ? recent.map(item => <div className={`${styles.row} ${styles.staticRow}`} key={item.id}><span><strong>{item.label}</strong><PixPayerEditButton recordId={item.id}/><small>{formatDate(item.date)}</small></span><strong className={item.direction === "IN" ? styles.inValue : styles.outValue}>{item.direction === "IN" ? "+ " : "− "}{money.format(item.amount)}</strong></div>) : <Empty text="Nenhuma movimentação registrada nesta competência." />}</div>
             </section>
           </>
         ) : null}
@@ -674,7 +681,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
               <button className={`primary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-receipt" })}>+ Registrar recebimento DS</button>
               <button className={`secondary ${styles.fullButton}`} disabled={!editable || summary.dsBalance>=0} onClick={() => openAction({ type: "ds-return" })}>+ Registrar devolução para DS</button>
               <DsOpeningBalanceEditButton editable={editable} className={`secondary ${styles.fullButton}`} onEdit={() => openAction({ type: "ds-opening-balance" })}/>
-              <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{receipt.sourceName || "DS"}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
+              <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{pixDisplayLabel(receipt.mercadoPago,receipt.sourceName || "DS")}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><PixPayerEditButton recordId={receipt.id}/><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
               <div className={styles.receiptList}>{summary.returns.length ? summary.returns.map(payment => <div key={payment.id} className={styles.receipt}><span>Devolução para DS<small>{formatDate(payment.date)}{payment.note?` · ${payment.note}`:""}</small></span><div className={styles.receiptActions}><strong>{money.format(payment.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir devolução de ${money.format(payment.amount)} para a DS?`)) dispatch({ type: "DS_RETURN_DELETE", competence, returnId: payment.id }); }}>Excluir</button></div></div>) : null}</div>
               <div className={styles.importNote}><strong>🔴 Pendências trazidas de meses anteriores</strong><span>Você escolhe somente quem deve entrar nesta competência. Esses valores entram no Kids bruto deste mês e não seguem automaticamente para o próximo.</span></div>
               <button className={`secondary ${styles.fullButton}`} disabled={!editable || !Object.keys(data.competences).some(item=>item<competence)} onClick={() => openAction({ type: "carry-create" })}>+ Trazer pendência</button>
@@ -771,6 +778,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
 
       {action ? <FinanceActionModal action={action} data={data} competence={competence} kidsStudentOptions={kidsStudentOptions} onClose={() => setAction(null)} dispatch={dispatch} /> : null}
     </>
+    </PixPayerProvider>
   );
 }
 
@@ -1049,7 +1057,7 @@ function ClosingTab({ data, competence, summary, pendencies, editable, onClose, 
     </section>
     <section className="panel">
       <div className="panel-head"><div><h2>Histórico do mês</h2><p className="muted">Alterações importantes ficam registradas automaticamente.</p></div></div>
-      <div className={`${styles.historyList} ${styles.scrollList}`}>{monthHistory.length ? monthHistory.map(item => <div className={styles.historyItem} key={item.id}><span><strong>{item.description}</strong><small>{formatDateTime(item.occurredAt)}</small></span>{typeof item.amount === "number" ? <strong>{money.format(item.amount)}</strong> : null}</div>) : <Empty text="O histórico começará a registrar as alterações feitas a partir desta versão." />}</div>
+      <div className={`${styles.historyList} ${styles.scrollList}`}>{monthHistory.length ? monthHistory.map(item => <div className={styles.historyItem} key={item.id}><span><strong>{pixDisplayLabel(item.mercadoPago,item.description)}</strong><PixPayerEditButton recordId={item.id}/><small>{formatDateTime(item.occurredAt)}</small></span>{typeof item.amount === "number" ? <strong>{money.format(item.amount)}</strong> : null}</div>) : <Empty text="O histórico começará a registrar as alterações feitas a partir desta versão." />}</div>
     </section>
   </div>;
 }

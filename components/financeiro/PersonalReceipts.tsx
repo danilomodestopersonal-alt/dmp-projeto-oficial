@@ -1,3 +1,5 @@
+import {PixPayerEditButton} from "./PixPayerEditor";
+import {pixDisplayLabel} from "../../lib/mercado-pago/pix-payer";
 import type { PersonalInvoice } from "../../types/financeiro";
 import { paid, remaining, roundMoney } from "../../lib/financeiro/calculos";
 
@@ -10,7 +12,7 @@ export function PersonalManageButton({ invoice, className, onManage, editable = 
 }
 
 export function PaymentHistory({ title, payments, onDelete, className, editable = true }: { title: string; payments: PersonalInvoice["payments"]; onDelete: (payment: PersonalInvoice["payments"][number]) => void; className?: string; editable?: boolean }) {
-  return <div className={className}><strong>{title}</strong>{payments.length ? payments.slice().sort((a, b) => b.date.localeCompare(a.date)).map(payment => <div key={payment.id}><span>{formatDate(payment.date)}{payment.note ? ` · ${payment.note}` : ""}</span><strong>{money.format(payment.amount)}</strong><button type="button" disabled={!editable} onClick={() => { if (editable) onDelete(payment); }}>Excluir</button></div>) : <span className="muted">Nenhum pagamento registrado.</span>}</div>;
+  return <div className={className}><strong>{title}</strong>{payments.length ? payments.slice().sort((a, b) => b.date.localeCompare(a.date)).map(payment => <div key={payment.id}><span>{formatDate(payment.date)}{payment.note || payment.mercadoPago ? ` · ${pixDisplayLabel(payment.mercadoPago,payment.note||"")}` : ""}</span><strong>{money.format(payment.amount)}</strong><button type="button" disabled={!editable} onClick={() => { if (editable) onDelete(payment); }}>Excluir</button><PixPayerEditButton recordId={payment.id}/></div>) : <span className="muted">Nenhum pagamento registrado.</span>}</div>;
 }
 
 export function PersonalReceipts({ invoice, editable, classes, onDelete }: { invoice: PersonalInvoice; editable: boolean; classes: Record<string, string>; onDelete: (payment: PersonalInvoice["payments"][number]) => void }) {
