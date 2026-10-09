@@ -158,3 +158,39 @@
 .central :global(.month-closing-today-card) :global(.highlight-lines)>small::before{left:6px!important;top:7px!important;width:22px!important;height:22px!important;background-size:18px!important}
 .central :global(.month-closing-today-card) :global(.highlight-lines)>small::after{right:6px!important;bottom:6px!important}
 }
+
+/* Relatório final: linhas clicáveis; desktop e mobile isolados. */
+@media(min-width:901px){
+.central :global(.today-highlight-grid.todoist-home-grid){align-items:stretch!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.mini-month),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card){align-self:stretch!important}
+.central :global(.today-summary-card) :global(.highlight-lines),.central :global(.month-closing-today-card) :global(.highlight-lines){grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:minmax(40px,1fr)!important;gap:7px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small{display:grid!important;grid-template-columns:minmax(0,1fr) max-content!important;align-items:center!important;min-height:40px!important;height:auto!important;min-width:0!important;padding:7px 18px 7px 34px!important;gap:6px!important;font-size:.72rem!important;line-height:1.35!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small>b:first-child,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small>b:first-child{grid-column:2!important;grid-row:1!important;margin:0!important;min-height:0!important;line-height:1.2!important;font-size:1.2rem!important}
+.central :global(.today-summary-card) :global(.home-metric-label),.central :global(.month-closing-today-card) :global(.home-metric-label){grid-column:1;grid-row:1;min-width:0;overflow-wrap:anywhere}
+.central :global(.month-closing-today-card) :global(.home-metric-distance){display:block;font-size:.68rem;line-height:1.3}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small::before,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small::before{left:6px!important;top:50%!important;transform:translateY(-50%);width:22px!important;height:22px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small::after,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small::after{right:5px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%);font-size:1.1rem!important}
+.central :global(.month-closing-today-card) :global(.highlight-lines)>small[data-home-metric="pilates"]{display:none!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card){text-align:left!important;display:flex!important;flex-direction:column!important}
+.central :global(.performance-today-card)>div{display:flex;flex:1;flex-direction:column;width:100%;min-width:0}
+.central :global(.performance-today-card) :global(.performance-today-list),.central :global(.performance-today-card) :global(.highlight-lines){flex:1;align-content:center!important}
+.central :global(.performance-today-card) :global(.highlight-lines)>small{text-align:center!important}
+}
+@media(max-width:900px){
+.central :global(.today-summary-card) :global(.highlight-lines),.central :global(.month-closing-today-card) :global(.highlight-lines){grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:auto!important;gap:8px!important;width:100%!important;box-sizing:border-box!important}
+.central :global(.today-summary-card) :global(.highlight-lines)>small,.central :global(.month-closing-today-card) :global(.highlight-lines)>small{display:grid!important;grid-template-columns:minmax(0,1fr) max-content!important;align-items:center!important;min-height:48px!important;height:auto!important;min-width:0!important;padding:9px 26px 9px 44px!important;gap:8px!important;font-size:.8rem!important;line-height:1.35!important;overflow-wrap:anywhere!important;word-break:normal!important;cursor:pointer}
+.central :global(.today-summary-card) :global(.highlight-lines)>small>b:first-child,.central :global(.month-closing-today-card) :global(.highlight-lines)>small>b:first-child{grid-column:2!important;grid-row:1!important;margin:0!important;min-height:0!important;font-size:1.4rem!important;line-height:1.2!important}
+.central :global(.today-summary-card) :global(.home-metric-label),.central :global(.month-closing-today-card) :global(.home-metric-label){grid-column:1;grid-row:1;min-width:0;overflow-wrap:anywhere}
+.central :global(.month-closing-today-card) :global(.home-metric-distance){display:block;font-size:.72rem;line-height:1.3}
+.central :global(.today-summary-card) :global(.highlight-lines)>small::before,.central :global(.month-closing-today-card) :global(.highlight-lines)>small::before{left:10px!important;top:50%!important;transform:translateY(-50%);width:26px!important;height:26px!important;background-size:21px!important}
+.central :global(.today-summary-card) :global(.highlight-lines)>small::after,.central :global(.month-closing-today-card) :global(.highlight-lines)>small::after{right:10px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%);font-size:1.25rem!important}
+.central :global(.home-card-title-toggle){border:0;background:transparent;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
+.central :global(.highlight-lines)>small[role="button"]:focus-visible{outline:3px solid #087965;outline-offset:3px}
+.central :global(.home-exact-detail),.central :global(.home-exact-detail) :global(.month-closing-detail-list){height:auto;max-height:none;overflow:visible}
+}
+
+@media(min-width:901px){
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card){display:flex!important;flex-direction:column!important}
+.central :global(.today-summary-card)>div,.central :global(.month-closing-today-card)>div{display:flex;flex-direction:column;flex:1;min-width:0;width:100%}
+.central :global(.today-summary-card) :global(.highlight-lines),.central :global(.month-closing-today-card) :global(.highlight-lines){flex:1}
+}

@@ -2735,7 +2735,6 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
       {desktop?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():commitmentsCard}
 
-      {desktop?<>
       <section
         className="today-highlight-card today-summary-card"
       >
@@ -2743,10 +2742,10 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
           <strong><button type="button" className="home-card-title-toggle" aria-expanded={showSummary} onClick={()=>{setSelectedMetric(null);setShowSummary(value=>!value);}}>Resumo do dia</button></strong>
 
           <span className="highlight-lines">
-            <small {...metricAction("programmed")}><b>{programmed}</b> alunos programados</small>
-            <small {...metricAction("attended")}><b>{attended.length}</b> atendidos</small>
-            <small {...metricAction("absent")}><b>{absent.length}</b> ausências</small>
-            <small {...metricAction("remaining")}><b>{remaining.length}</b> ainda faltam</small>
+            <small {...metricAction("programmed")}><b>{programmed}</b><span className="home-metric-label">alunos programados</span></small>
+            <small {...metricAction("attended")}><b>{attended.length}</b><span className="home-metric-label">atendidos</span></small>
+            <small {...metricAction("absent")}><b>{absent.length}</b><span className="home-metric-label">ausências</span></small>
+            <small {...metricAction("remaining")}><b>{remaining.length}</b><span className="home-metric-label">ainda faltam</span></small>
           </span>
 
           <i><b style={{width:`${progress}%`}}/></i>
@@ -2771,81 +2770,24 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
           :null}
         </div>
       </section>
-      </>:<>
-      <button
-        className="today-highlight-card today-summary-card"
-        onClick={()=>setShowSummary(value=>!value)}
-        aria-expanded={showSummary}
-      >
-        <div>
-          <strong>Resumo do dia</strong>
 
-          <span className="highlight-lines">
-            <small><b>{programmed}</b> alunos programados</small>
-            <small><b>{attended.length}</b> atendidos</small>
-            <small><b>{absent.length}</b> ausências</small>
-            <small><b>{remaining.length}</b> ainda faltam</small>
-          </span>
 
-          <i><b style={{width:`${progress}%`}}/></i>
-
-          {kids.length?
-            <span className="today-kids-inline">
-              {kids.map(({event,kids:item})=>
-                <span
-                  className="today-kids-inline-row"
-                  key={event.id}
-                  onClick={click=>{
-                    click.stopPropagation();
-                    onKids(event);
-                  }}
-                >
-                  <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
-                  <b>{formatCalendarTime(event)}</b>
-                  <span> · {kidsCategoryName(item.category)}</span>
-                </span>
-              )}
-            </span>
-          :null}
-        </div>
-      </button>
-      </>}
-
-      {desktop?<>
       <section
         className="today-highlight-card month-closing-today-card"
       >
         <div>
           <strong><button type="button" className="home-card-title-toggle" aria-expanded={showMonthClosing} onClick={()=>{setSelectedMetric(null);setShowMonthClosing(value=>!value);}}>Fechamento do mês</button></strong>
           <span className="highlight-lines">
-            <small {...metricAction("sessions")}><b>{monthAttended}</b> atendimentos</small>
-            <small {...metricAction("assessments")}><b>{monthAssessments}</b> avaliações</small>
-            <small {...metricAction("kids")}><b>{monthKids}</b> aulas Kids</small>
-            <small {...metricAction("cycling")}><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
-            <small {...metricAction("strength")}><b>{monthStrength.length}</b> musculação</small>
-            <small {...metricAction("pilates")}><b>{monthPilates.length}</b> pilates</small>
+            <small {...metricAction("sessions")}><b>{monthAttended}</b><span className="home-metric-label">atendimentos</span></small>
+            <small {...metricAction("assessments")}><b>{monthAssessments}</b><span className="home-metric-label">avaliações</span></small>
+            <small {...metricAction("kids")}><b>{monthKids}</b><span className="home-metric-label">aulas Kids</span></small>
+            <small {...metricAction("cycling")}><b>{monthCycling.length}</b><span className="home-metric-label">ciclismo<span className="home-metric-distance"><b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></span></span></small>
+            <small {...metricAction("strength")}><b>{monthStrength.length}</b><span className="home-metric-label">musculação</span></small>
+            <small {...metricAction("pilates")}><b>{monthPilates.length}</b><span className="home-metric-label">pilates</span></small>
           </span>
         </div>
       </section>
-      </>:<>
-      <button
-        className="today-highlight-card month-closing-today-card"
-        onClick={()=>setShowMonthClosing(value=>!value)}
-        aria-expanded={showMonthClosing}
-      >
-        <div>
-          <strong>Fechamento do mês</strong>
-          <span className="highlight-lines">
-            <small><b>{monthAttended}</b> atendimentos</small>
-            <small><b>{monthAssessments}</b> avaliações</small>
-            <small><b>{monthKids}</b> aulas Kids</small>
-            <small><b>{monthCycling.length}</b> ciclismo · <b>{monthCyclingDistance.toLocaleString("pt-BR",{maximumFractionDigits:1})} km</b></small>
-            <small><b>{monthStrength.length}</b> musculação</small>
-            <small><b>{monthPilates.length}</b> pilates</small>
-          </span>
-        </div>
-      </button>
-      </>}
+
 
       <button
         className="today-highlight-card performance-today-card"
@@ -2867,7 +2809,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
     </div>
 
-    {desktop&&selectedMetric?<section className="home-exact-detail panel" aria-live="polite">
+    {selectedMetric?<section className="home-exact-detail panel" aria-live="polite">
       <div className="panel-head"><h2>{({programmed:"Alunos programados",attended:"Atendidos",absent:"Ausências",remaining:"Ainda faltam",sessions:"Atendimentos",assessments:"Avaliações",kids:"Aulas Kids",cycling:"Ciclismo",strength:"Musculação",pilates:"Pilates"} as Record<string,string>)[selectedMetric]}</h2><button type="button" className="secondary" onClick={()=>setSelectedMetric(null)}>Fechar</button></div>
       <p className="muted">{["programmed","attended","absent","remaining"].includes(selectedMetric)?`Dia ${formatDate(today())}`:`Mês ${new Date(`${monthKey}-01T12:00:00`).toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}`}</p>
       {selectedMetric==="programmed"?renderPeople("Alunos programados",[...programmedStudents.values()],"Nenhum aluno programado.","programmed"):null}
