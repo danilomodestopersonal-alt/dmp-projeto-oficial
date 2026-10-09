@@ -194,3 +194,15 @@
 .central :global(.today-summary-card)>div,.central :global(.month-closing-today-card)>div{display:flex;flex-direction:column;flex:1;min-width:0;width:100%}
 .central :global(.today-summary-card) :global(.highlight-lines),.central :global(.month-closing-today-card) :global(.highlight-lines){flex:1}
 }
+
+/* Correção urgente desktop: linhas completas; neutraliza largura intrínseca e cascata antiga. */
+@media(min-width:901px){
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card)>div,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card)>div{display:block!important;flex:0 0 auto!important;height:auto!important;min-height:0!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card){grid-column:6/span 5!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card){grid-column:11/span 5!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines){display:flex!important;flex-direction:column!important;grid-template-columns:none!important;grid-auto-rows:auto!important;width:100%!important;max-width:100%!important;min-width:0!important;align-items:stretch!important;justify-items:stretch!important;margin-left:0!important;margin-right:0!important;gap:7px!important;flex:0 0 auto!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small{display:flex!important;align-items:center!important;grid-template-columns:none!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;flex:0 0 auto!important;min-height:40px!important;height:auto!important;padding:7px 16px 7px 28px!important;overflow:visible!important;white-space:normal!important;word-break:normal!important;overflow-wrap:normal!important;hyphens:none!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.home-metric-label),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.home-metric-label){order:1;flex:1 1 0;text-align:left!important;min-width:0;width:auto;white-space:normal;word-break:normal;overflow-wrap:normal;hyphens:auto}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small>b:first-child,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small>b:first-child{order:2!important;flex:0 0 auto!important;margin:0!important;white-space:nowrap!important;font-size:1rem!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small[data-home-metric="pilates"]{display:none!important}
+}
