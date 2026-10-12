@@ -1,7 +1,7 @@
 "use client";
 import {pixTitle,type PixMetadata} from "../../lib/mercado-pago/pix-payer";
 import { expenseOptionsForPayment } from "../../lib/mercado-pago/expense-options";
-import { ExpenseAllocationEditor, allocationAmount, type ExpenseOption, type ExpenseSplit, type RemainderChoice } from "./ExpenseAllocationEditor";
+import { ExpenseAllocationEditor, allocationAmount, allocationError, type ExpenseOption, type ExpenseSplit, type RemainderChoice } from "./ExpenseAllocationEditor";
 import type { ExpenseReconciliation } from "../../lib/mercado-pago/expense-reconciliation";
 
 import {useEffect,useMemo,useRef,useState} from "react";
@@ -35,7 +35,7 @@ type ApiData={
 type PersonalSplit={targetId:string;targetName:string;amount:string};
 type Choice={payerName:string;splitExpenses:boolean;expenseSplits:ExpenseSplit[];remainder:RemainderChoice;remainderCategory:string;remainderDescription:string;target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice;splitPersonal:boolean;personalSplits:PersonalSplit[]};
 
-type Props={financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
+type Props={financeData?:import("../../types/financeiro").FinanceData;financeBusy?:boolean;financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
 const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 const REPORT_SEARCH_INTERVAL_MS=30*60*1000;
@@ -102,7 +102,7 @@ function resolvedDestinationLabel(move:Move){
   return "";
 }
 
-export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChanged,onBalanceChanged}:Props){
+export default function MercadoPagoTestPage({financeData,financeBusy=false,financeRefreshKey=0,onFinanceChanged,onBalanceChanged}:Props){
   const [data,setData]=useState<ApiData|null>(null);
   const [filter,setFilter]=useState<Filter>("ALL");
   const [q,setQ]=useState("");
@@ -119,15 +119,21 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
   const generationRef=useRef<number|null>(null);
   const mountedRef=useRef(true);
   const financeRefreshRef=useRef(0);
+  const financeDataRef=useRef(financeData);financeDataRef.current=financeData;
+  const revisionRef=useRef(financeRefreshKey);revisionRef.current=financeRefreshKey;
+  const loadedFinanceRef=useRef<typeof financeData>(undefined);
+  const loadedRevisionRef=useRef(-1);
 
   async function load(silent=false){
     if(!silent)setLoading(true);
     try{
+      const requestFinance=financeDataRef.current,requestRevision=revisionRef.current;
       const response=await fetch("/api/mercado-pago",{cache:"no-store"});
       const payload=await response.json();
       if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Falha ao consultar Mercado Pago.");
       const next=payload as ApiData;
       if(!mountedRef.current)return null;
+      loadedFinanceRef.current=requestFinance;loadedRevisionRef.current=requestRevision;
       setData(next);setError("");onBalanceChanged?.(typeof next.balance==="number"?next.balance:null);
       return next;
     }catch(err){if(mountedRef.current)setError(err instanceof Error?err.message:"Não foi possível consultar o Mercado Pago.");return null;}
@@ -253,10 +259,10 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
       if(found)targetId=found.id;
     }
     if(target==="EXPENSE"&&targetName){
-      const found=data?.financeContext.expenses.find(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
+      const found=currentExpenses.find(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
       if(found)targetId=found.id;
     }
-    return {payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:[],remainder:"",remainderCategory:"",remainderDescription:""};
+    return {payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:target==="EXPENSE"&&targetId?[{targetId,amount:String(currentExpenses.find(e=>e.id===targetId)?.remaining||0).replace(".",",")}]:[],remainder:"",remainderCategory:"",remainderDescription:""};
   }
   function choiceFor(move:Move){return choices[move.fingerprint]||defaultChoice(move);}
   function patchChoice(move:Move,patch:Partial<Choice>){setChoices(current=>({...current,[move.fingerprint]:{...choiceFor(move),...patch}}));}
@@ -274,15 +280,20 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
     patchChoice(move,{personalSplits,ruleChoice:"ONCE"});
   }
 
+  const currentExpenses:ExpenseOption[]=financeData&&(financeBusy||financeData!==loadedFinanceRef.current||financeRefreshKey!==loadedRevisionRef.current)?financeData.expenses.map(e=>{const paid=e.payments.reduce((s,p)=>s+p.amount,0);return {id:e.id,name:e.name,competence:e.competence,dueDay:e.dueDay,expectedAmount:e.expectedAmount,paid,remaining:Math.max(0,e.expectedAmount-paid),closed:financeData.competences[e.competence]?.status==="CLOSED"};}):data?.financeContext.expenses||[];
   function expenseOptions(move:Move):ExpenseOption[]{
-    return (data?.financeContext.expenses||[]).map(item=>{
+    return currentExpenses.map(item=>{
       const previous=editingId===move.id?move.expenseReconciliation?.allocations.find(a=>a.expenseId===item.id)?.payment.amount||0:0;
-      return {...item,paid:item.paid-previous,remaining:item.remaining+previous};
+      const adjustment=editingId===move.id?move.expenseReconciliation?.allocations.find(a=>a.expenseId===item.id)?.adjustment:undefined;
+      return {...item,paid:item.paid-previous,remaining:item.remaining+previous-(adjustment?.treatment==="UPDATE"?adjustment.difference:0)};
     });
   }
   async function saveExpenseAllocation(move:Move,correct=false){
     const choice=choiceFor(move);
-    const splits=choice.expenseSplits.map(s=>({targetId:s.targetId,amount:allocationAmount(s.amount)}));
+    if(financeBusy){setError("Aguarde a gravação do Financeiro antes de conciliar.");return;}
+    const options=expenseOptions(move),issue=allocationError(move.amount,choice.expenseSplits,options,choice.remainder,choice.remainderCategory,choice.remainderDescription);
+    if(issue){setError(issue);return;}
+    const splits=choice.expenseSplits.map(s=>({targetId:s.targetId,amount:allocationAmount(s.amount),treatment:s.treatment||undefined,expectedRemaining:options.find(e=>e.id===s.targetId)?.remaining}));
     if(!splits.length||splits.some(s=>!Number.isFinite(s.amount)||s.amount<=0)){setError("Selecione as contas e informe valores positivos.");return;}
     if(!window.confirm(`${correct?"Corrigir":"Confirmar"} a conciliação de ${money.format(move.amount)} com ${splits.length} conta(s)? A operação será registrada no histórico.`))return;
     setSavingId(move.id);setError("");setMessage("");
@@ -300,7 +311,8 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
 
   async function decide(move:Move){
     const choice=choiceFor(move);
-    if(choice.target==="EXPENSE"&&choice.splitExpenses){await saveExpenseAllocation(move);return;}
+    if(choice.target==="EXPENSE"&&financeBusy){setError("Aguarde a gravação do Financeiro.");return;}
+    if(choice.target==="EXPENSE"&&(choice.splitExpenses||choice.ruleChoice==="ONCE"||choice.expenseSplits.length!==1||Math.round(allocationAmount(choice.expenseSplits[0]?.amount||"")*100)!==Math.round(move.amount*100)||choice.expenseSplits.some(s=>s.treatment))){await saveExpenseAllocation(move);return;}
     if(choice.target==="PERSONAL"&&choice.splitPersonal){
       const splits=choice.personalSplits.map(item=>({...item,amount:Number(String(item.amount).replace(",","."))||0})).filter(item=>item.targetId||item.amount>0);
       if(splits.length<2){setError("Escolha pelo menos dois alunos para dividir este recebimento.");return;}
@@ -334,9 +346,9 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
     try{
       let targetName=choice.targetName;
       if(choice.target==="PERSONAL")targetName=data?.financeContext.personal.find(item=>item.id===choice.targetId)?.studentName||"";
-      if(choice.target==="EXPENSE")targetName=data?.financeContext.expenses.find(item=>item.id===choice.targetId)?.name||"";
+      if(choice.target==="EXPENSE")targetName=currentExpenses.find(item=>item.id===choice.targetId)?.name||"";
       const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        action:"decision",fingerprint:move.fingerprint,payerName:move.pix?choice.payerName:undefined,target:choice.target,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,
+        action:"decision",fingerprint:move.fingerprint,payerName:move.pix?choice.payerName:undefined,target:choice.target,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,expectedExpenseRemaining:choice.target==="EXPENSE"?expenseOptions(move).find(e=>e.id===choice.targetId)?.remaining:undefined,
       })});
       const payload=await response.json();
       if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível conciliar esta movimentação.");
@@ -461,10 +473,10 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
                 <div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{resolvedDestinationLabel(move)?` · ${resolvedDestinationLabel(move)}`:""} · {move.reason}</span>{move.suggestedTarget==="EXTRA"?<button type="button" onClick={()=>{setEditingId(current=>current===move.id?"":move.id);setError("");}}>✎ {editingId===move.id?"Fechar":"Editar"}</button>:null}</div>
                 {move.expenseReconciliation?<div style={{display:"grid",gap:8,padding:10,border:"1px solid #dfe4d8",borderRadius:10}}>
                   <strong>Contas vinculadas ao PIX · {move.expenseReconciliation.date}</strong>
-                  {move.expenseReconciliation.allocations.map(a=><span key={a.expenseId}>{a.name} · {a.competence} · {money.format(a.payment.amount)} · saldo após conciliação {money.format(a.remaining)}</span>)}
+                  {move.expenseReconciliation.allocations.map(a=><span key={a.expenseId}>{a.name} · {a.competence} · {money.format(a.payment.amount)} · saldo após conciliação {money.format(a.remaining)}{a.adjustment?` · ${a.adjustment.treatment==="INTEREST"?"juros/encargos":"obrigação ajustada"}: ${money.format(a.adjustment.difference)}`:""}</span>)}
                   {move.expenseReconciliation.remainder?<span>Diferença: {money.format(move.expenseReconciliation.remainder.amount)} · {move.expenseReconciliation.remainder.target==="EXTRA"?move.expenseReconciliation.remainder.description:"Transferência / repasse"}</span>:null}
-                  <button type="button" className="secondary" onClick={()=>{setEditingId(move.id);patchChoice(move,{target:"EXPENSE",splitExpenses:true,expenseSplits:move.expenseReconciliation!.allocations.map(a=>({targetId:a.expenseId,amount:String(a.payment.amount).replace(".",",")})),remainder:move.expenseReconciliation!.remainder?.target||"",remainderCategory:move.expenseReconciliation!.remainder?.category||"",remainderDescription:move.expenseReconciliation!.remainder?.description||"",ruleChoice:"ONCE"});}}>Corrigir conciliação</button>
-                  {editingId===move.id?<>{allocationEditor(move)}<small>Pagamentos alterados, removidos, posteriores ou meses fechados bloqueiam a correção.</small><div><button type="button" className="secondary" onClick={()=>setEditingId("")}>Cancelar</button><button type="button" className="primary" disabled={savingId===move.id} onClick={()=>void saveExpenseAllocation(move,true)}>Confirmar correção</button></div></>:null}
+                  <button type="button" className="secondary" onClick={()=>{setEditingId(move.id);patchChoice(move,{target:"EXPENSE",splitExpenses:true,expenseSplits:move.expenseReconciliation!.allocations.map(a=>({targetId:a.expenseId,amount:String(a.payment.amount+(a.adjustment?.treatment==="INTEREST"?a.adjustment.difference:0)).replace(".",","),treatment:a.adjustment?.treatment})),remainder:move.expenseReconciliation!.remainder?.target||"",remainderCategory:move.expenseReconciliation!.remainder?.category||"",remainderDescription:move.expenseReconciliation!.remainder?.description||"",ruleChoice:"ONCE"});}}>Corrigir conciliação</button>
+                  {editingId===move.id?<>{allocationEditor(move)}<small>Pagamentos alterados, removidos, posteriores ou meses fechados bloqueiam a correção.</small><div><button type="button" className="secondary" onClick={()=>setEditingId("")}>Cancelar</button><button type="button" className="primary" disabled={savingId===move.id||financeBusy||Boolean(allocationError(move.amount,choice.expenseSplits,expenseOptions(move),choice.remainder,choice.remainderCategory,choice.remainderDescription))} onClick={()=>void saveExpenseAllocation(move,true)}>Confirmar correção</button></div></>:null}
                 </div>:null}
                 {editingId===move.id&&move.suggestedTarget==="EXTRA"?<div className={styles.compactEdit}>
                   <label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
@@ -490,16 +502,16 @@ export default function MercadoPagoTestPage({financeRefreshKey=0,onFinanceChange
                     <small style={{color:"#71796d"}}>A soma precisa fechar exatamente o valor do PIX. Esta divisão vale somente para esta movimentação.</small>
                   </div>:null}
                   {choice.target==="EXPENSE"?<div className={styles.fullField}>
-                    {!choice.splitExpenses?<><label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.expenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||"",...(item&&item.competence<move.dateKey.slice(0,7)?{ruleChoice:"ONCE" as const}:{})});}}><option value="">Selecione...</option>{expenseOptionsForPayment(data?.financeContext.expenses||[],move.dateKey).map(item=><option key={item.id} value={item.id}>{item.name} · {item.competence} · {money.format(item.remaining)} em aberto</option>)}</select></label><button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:true,expenseSplits:[],ruleChoice:"ONCE"})}>Conciliar com uma ou várias contas</button></>:<>{allocationEditor(move)}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:false,expenseSplits:[]})}>Voltar à seleção simples</button></>}
+                    {!choice.splitExpenses?<><label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=currentExpenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||"",expenseSplits:item?[{targetId:item.id,amount:String(item.remaining).replace(".",",")}]:[],...(item&&item.competence<move.dateKey.slice(0,7)?{ruleChoice:"ONCE" as const}:{})});}}><option value="">Selecione...</option>{expenseOptionsForPayment(currentExpenses,move.dateKey).map(item=><option key={item.id} value={item.id}>{item.name} · {item.competence} · {money.format(item.remaining)} em aberto</option>)}</select></label>{choice.targetId?allocationEditor(move):null}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:true,expenseSplits:[],ruleChoice:"ONCE"})}>Conciliar com uma ou várias contas</button></>:<>{allocationEditor(move)}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:false,expenseSplits:[]})}>Voltar à seleção simples</button></>}
                   </div>:null}
                   {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{pixTitle(move.pix)||move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}
-                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn||choice.splitPersonal||choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))?"A conciliação de contas atrasadas ou distribuídas vale somente para esta movimentação.":choice.splitPersonal?"Divisões entre vários alunos são sempre tratadas somente nesta movimentação.":move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
+                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn||choice.splitPersonal||choice.splitExpenses||(choice.target==="EXPENSE"&&(choice.expenseSplits.length!==1||Math.round(allocationAmount(choice.expenseSplits[0]?.amount||"")*100)!==Math.round(move.amount*100)||choice.expenseSplits.some(s=>s.treatment)))||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))?"A conciliação de contas atrasadas ou distribuídas vale somente para esta movimentação.":choice.splitPersonal?"Divisões entre vários alunos são sempre tratadas somente nesta movimentação.":move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
                 </div>
                 <div className={styles.suggestionNote}>{move.confidence}% · {move.reason}</div>
               </div>}
             </div>
-            <div className={styles.value}><strong className={move.kind==="IN"?styles.green:styles.red}>{move.kind==="IN"?"+ ":"− "}{money.format(move.amount)}</strong>{!move.technical&&!move.historical&&!resolved?<button className="primary" disabled={savingId===move.id} onClick={()=>void decide(move)}>{savingId===move.id?"Salvando...":"Confirmar"}</button>:null}</div>
+            <div className={styles.value}><strong className={move.kind==="IN"?styles.green:styles.red}>{move.kind==="IN"?"+ ":"− "}{money.format(move.amount)}</strong>{!move.technical&&!move.historical&&!resolved?<button className="primary" disabled={savingId===move.id||(choice.target==="EXPENSE"&&(financeBusy||Boolean(allocationError(move.amount,choice.expenseSplits,expenseOptions(move),choice.remainder,choice.remainderCategory,choice.remainderDescription))))} onClick={()=>void decide(move)}>{savingId===move.id?"Salvando...":"Confirmar"}</button>:null}</div>
           </article>;
         })}{!loading&&!visible.length?<div className={styles.empty}><strong>{data?.pending?"O Mercado Pago está preparando a nova leitura.":"Nada encontrado neste filtro."}</strong><span>{filter==="ALL"&&summary.historical?"O histórico anterior ao corte fica separado para não poluir sua operação diária.":""}</span></div>:null}</div>
       </section>

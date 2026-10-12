@@ -1,3 +1,4 @@
+import {editExpenseSeries,expenseSeriesValues,type ExpenseEditScope} from "./expense-series";
 import type {
   DsKidEntry,
   ExtraExpense,
@@ -32,7 +33,7 @@ export type FinanceCommand =
   | { type: "RANKING_SET"; competence: string; amount: number }
   | { type: "EVENTS_SET"; competence: string; amount: number }
   | { type: "EXPENSE_CREATE"; startCompetence?:string; competence: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
-  | { type: "EXPENSE_UPDATE"; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
+  | { type: "EXPENSE_UPDATE"; scope?:ExpenseEditScope; id: string; name: string; dueDay: number; expectedAmount: number; kind: FinanceExpenseKind; installmentCurrent?: number | null; installmentTotal?: number | null; note?: string; paymentLink?: string }
   | { type: "EXPENSE_DELETE"; id: string; scope?:"CURRENT"|"CURRENT_AND_FUTURE" }
   | { type: "EXPENSE_PAYMENT_ADD"; expenseId: string; date: string; amount: number; note?: string }
   | { type: "EXPENSE_PAYMENT_DELETE"; expenseId: string; paymentId: string }
@@ -149,18 +150,20 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     }));
 
   const expenses: FinanceExpense[] = sourceExpenses.flatMap(item => {
-    if (item.kind === "VARIABLE" || (data.expenseSeriesStops?.[item.seriesId||item.id] && target >= data.expenseSeriesStops[item.seriesId||item.id])) return [];
-    if (item.kind === "INSTALLMENT" && item.installmentCurrent && item.installmentTotal && item.installmentCurrent >= item.installmentTotal) return [];
+    const pattern=expenseSeriesValues(data,item,target),futureKind=pattern?.kind||item.kind;
+    if (futureKind === "VARIABLE" || (data.expenseSeriesStops?.[item.seriesId||item.id] && target >= data.expenseSeriesStops[item.seriesId||item.id])) return [];
+    if(futureKind==="INSTALLMENT"&&(pattern?Number(pattern.installmentCurrent)>Number(pattern.installmentTotal):item.installmentCurrent&&item.installmentTotal&&item.installmentCurrent>=item.installmentTotal))return [];
     return [{
       ...item,
+      ...pattern,
       id: id("expense"),
       seriesId: item.seriesId || item.id,
       startCompetence: item.startCompetence || item.competence,
       competence: target,
-      expectedAmount: item.kind === "CARD" ? 0 : item.expectedAmount,
-      installmentCurrent: item.kind === "INSTALLMENT" && item.installmentCurrent && item.installmentTotal
+      expectedAmount: pattern?.expectedAmount ?? (item.kind === "CARD" ? 0 : item.expectedAmount),
+      installmentCurrent: pattern?.installmentCurrent ?? (item.kind === "INSTALLMENT" && item.installmentCurrent && item.installmentTotal
         ? Math.min(item.installmentCurrent + 1, item.installmentTotal)
-        : item.installmentCurrent ?? null,
+        : item.installmentCurrent ?? null),
       payments: [],
     }];
   });
@@ -331,8 +334,8 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
     }
 
     case "EXPENSE_UPDATE": { const current = data.expenses.find(item => item.id === command.id); if (!current) return data;
-      const updated = data.expenses.map(item => item.id === command.id ? { ...item, name: command.name.trim(), dueDay: command.dueDay, expectedAmount: command.expectedAmount, kind: command.kind, installmentCurrent: command.installmentCurrent ?? null, installmentTotal: command.installmentTotal ?? null, note: command.note?.trim() || undefined, paymentLink: command.paymentLink?.trim() || undefined } : item);
-      return withHistory({ ...data, expenses: updated }, historyEntry(current.competence, "EXPENSE_UPDATED", `Despesa ${command.name.trim()} atualizada.`, command.expectedAmount, command.id));
+      const result=editExpenseSeries(data,command.id,command,command.scope||"CURRENT");
+      return result.ok?withHistory(result.data,historyEntry(current.competence,"EXPENSE_UPDATED",result.audit,command.expectedAmount,command.id)):data;
     }
 
     case "EXPENSE_DELETE": {

@@ -1,3 +1,4 @@
+import type {ExpenseSeriesChange} from "../lib/financeiro/expense-series";
 import type {PixMetadata} from "../lib/mercado-pago/pix-payer";
 
 export type FinanceCompetenceStatus = "OPEN" | "CLOSED" | "REOPENED";
@@ -89,6 +90,7 @@ export type FinanceExpense = {
 };
 
 export type ExtraExpense = {
+  expenseCharge?:{expenseId:string;originalCompetence:string;fingerprint:string;paymentId:string;principal:number;total:number;revision:string};
   id: string;
   competence: string;
   date: string;
@@ -166,6 +168,7 @@ export type FinanceData = {
   dsOpeningBalances?: Record<string, number>;
   expenses: FinanceExpense[];
   expenseContinuations?: FinanceExpense[];
+  expenseSeriesChanges?: ExpenseSeriesChange[];
   expenseSeriesStops?: Record<string,string>;
   extraExpenses: ExtraExpense[];
   carriedPendencies?: FinanceCarryoverEntry[];

@@ -1022,7 +1022,7 @@ function validateTarget(kind:MoveKind,target:TargetType){
   if(kind==="IN")return ["PERSONAL","DS","TRANSFER","IGNORE"].includes(target);
   return ["EXTRA","EXPENSE","TRANSFER","IGNORE"].includes(target);
 }
-function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options:{category?:string;targetId?:string;targetName?:string;expenseName?:string}){
+function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options:{expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string}){
   const competence=(move.dateKey||CUTOVER_DATE).slice(0,7);
   if(!data.competences?.[competence])return {ok:false as const,error:`A competência ${competence} não existe no Financeiro.`};
   if(data.competences[competence]?.status==="CLOSED")return {ok:false as const,error:`A competência ${competence} está fechada no Financeiro.`};
@@ -1078,8 +1078,9 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
     const paymentId=`mp-payment-${unique}`;
     if(expense.payments.some(item=>item.id===paymentId))return {ok:true as const,data,changed:false,entityId:expense.id,targetName:expense.name};
     const open=Math.max(0,expense.expectedAmount-paid(expense.payments));
-    if(open<=0.005)return {ok:false as const,error:`A conta ${expense.name} já está quitada nesta competência.`};
-    if(move.amount>open+0.005)return {ok:false as const,error:`O PIX de ${move.amount.toFixed(2)} é maior que o saldo em aberto de ${open.toFixed(2)} da conta ${expense.name}.`};
+    if(options.expectedExpenseRemaining!==undefined&&(!Number.isFinite(options.expectedExpenseRemaining)||Math.round(options.expectedExpenseRemaining*100)!==Math.round(open*100)))return {ok:false as const,error:"O saldo da conta mudou. Atualize antes de confirmar."};
+    if(Math.round(open*100)<=0)return {ok:false as const,error:`A conta ${expense.name} já está quitada nesta competência.`};
+    if(Math.round(move.amount*100)>Math.round(open*100))return {ok:false as const,error:`O PIX de ${move.amount.toFixed(2)} é maior que o saldo em aberto de ${open.toFixed(2)} da conta ${expense.name}.`};
     const payment={id:paymentId,date:move.dateKey||CUTOVER_DATE,amount:move.amount,note};
     const next:FinanceData={
       ...data,expenses:data.expenses.map(item=>item.id===expense.id?{...item,payments:[...item.payments,payment]}:item),
@@ -1094,7 +1095,7 @@ function ruleFromChoice(move:Movement,target:TargetType,mode:RuleMode,options:{c
   const key=ruleKey(move.learningKey,move.kind);
   return {key,label:move.learningLabel||move.description,kind:move.kind,target,category:options.category||undefined,targetName:options.targetName||undefined,expenseName:options.expenseName||undefined,mode,approvals:(current?.approvals||0)+1,createdAt:current?.createdAt||now,updatedAt:now};
 }
-async function persistDecision(move:Movement,target:TargetType,options:{category?:string;targetId?:string;targetName?:string;expenseName?:string;ruleChoice:RuleChoice;automatic:boolean}){
+async function persistDecision(move:Movement,target:TargetType,options:{expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string;ruleChoice:RuleChoice;automatic:boolean}){
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
@@ -1361,7 +1362,7 @@ export async function POST(request:NextRequest){
       const move=snapshot.movements.find(item=>item.fingerprint===fingerprint);
       if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada. Atualize a leitura."},{status:404});
       if(move.historical||move.technical||move.kind!=="OUT")return NextResponse.json({ok:false,error:"Selecione uma saída operacional atual."},{status:400});
-      const splits:ExpenseAllocationInput[]=(Array.isArray(body.splits)?body.splits:[]).map((item:any)=>({targetId:String(item?.targetId||""),amount:Number(item?.amount)}));
+      const splits:ExpenseAllocationInput[]=(Array.isArray(body.splits)?body.splits:[]).map((item:any)=>({targetId:String(item?.targetId||""),amount:Number(item?.amount),treatment:item?.treatment,expectedRemaining:item?.expectedRemaining===undefined?undefined:Number(item.expectedRemaining)}));
       const remainder:ExpenseRemainder|undefined=body.remainder?{target:body.remainder.target,category:String(body.remainder.category||""),description:String(body.remainder.description||"")}:undefined;
       const result=await persistExpenseSplitDecision(move,splits,remainder,action==="correct-expense-split",String(body.expectedRevision||""));
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
@@ -1414,7 +1415,7 @@ export async function POST(request:NextRequest){
       const selectedExpense=target==="EXPENSE"&&targetId?(snapshot.response.financeContext as FinanceContext).expenses.find(item=>item.id===targetId):undefined;
       if(selectedExpense&&selectedExpense.competence<move.dateKey.slice(0,7))return NextResponse.json({ok:false,error:"Concilie a conta atrasada somente nesta movimentação, sem memorizar a obrigação antiga."},{status:400});
       try{move.pix=manualPixPayer(move.pix,body.payerName);}catch{return NextResponse.json({ok:false,error:"Informe uma identificação de pagador válida, com até 200 caracteres."},{status:400});}
-      const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false});
+      const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false,expectedExpenseRemaining:target==="EXPENSE"&&body.expectedExpenseRemaining!==undefined?Number(body.expectedExpenseRemaining):undefined});
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
     }

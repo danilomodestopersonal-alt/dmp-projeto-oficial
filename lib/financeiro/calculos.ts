@@ -79,7 +79,7 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   // O caixa e relatórios abaixo continuam pela data efetiva do pagamento.
   const plannedExpensesPaid = sum(expenses.map(item => paid(item.payments)));
   // A obrigação mantém sua competência; o caixa segue a data efetiva do pagamento.
-  const expensesPaid = sum(data.expenses.map(item => receivedInCompetence(item.payments, competence)));
+  const expensesPaid = roundMoney(sum(data.expenses.map(item => receivedInCompetence(item.payments, competence))) + sum(data.extraExpenses.filter(item=>item.expenseCharge&&item.date.slice(0,7)===competence).map(item=>item.amount)));
   const extrasTotal = sum(extras.map(item => item.amount));
   // Gastos extras são informativos e ficam exclusivamente no quadro próprio.
   // Não alteram despesas pagas, resultado ou contas a pagar.

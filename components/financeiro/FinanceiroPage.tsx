@@ -1,4 +1,5 @@
 "use client";
+import {editExpenseSeries,type ExpenseEditScope} from "@/lib/financeiro/expense-series";
 import {PixPayerProvider,PixPayerEditButton} from "./PixPayerEditor";
 import {pixDisplayLabel} from "@/lib/mercado-pago/pix-payer";
 import { FinanceSummaryView } from "./FinanceSummaryView";
@@ -395,6 +396,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   }, [data, loaded, cloudWritable, payerSaving]);
 
   function dispatch(command: FinanceCommand) {
+    if(command.type==="EXPENSE_UPDATE"){setSyncing(true);setPayerMetadataReady(false);}
     if(command.type.endsWith("_DELETE"))setUndoDeletion(data);
     setData(current => applyFinanceCommand(current, command));
   }
@@ -502,7 +504,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
       dispatch({ type: "RANKING_SET", competence, amount: preview.amount });
     } else if (preview.kind === "card" && preview.expenseId) {
       const card = summary.expenses.find(item => item.id === preview.expenseId);
-      if (card) dispatch({ type: "EXPENSE_UPDATE", id: card.id, name: card.name, dueDay: card.dueDay, expectedAmount: preview.amount, kind: card.kind, installmentCurrent: card.installmentCurrent, installmentTotal: card.installmentTotal });
+      if(card)openAction({type:"card-value",expense:{...card,expectedAmount:preview.amount}});
     } else if (preview.kind === "expense" && preview.expenseId) {
       const expense = summary.expenses.find(item => item.id === preview.expenseId);
       if (expense) {
@@ -769,7 +771,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           </div>
         ) : null}
 
-        {tab === "mercado-pago" ? <MercadoPagoTestPage financeRefreshKey={financeCloudRevision} onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
+        {tab === "mercado-pago" ? <MercadoPagoTestPage financeData={data} financeBusy={syncing||!cloudWritable||!payerMetadataReady} financeRefreshKey={financeCloudRevision} onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
 
         {tab === "closing" ? <ClosingTab data={data} competence={competence} summary={summary} pendencies={pendencies} editable={editable} onClose={closeCompetence} onReopen={reopenCompetence} onCreateNext={createNextCompetence} onSwitch={value => dispatch({ type: "SWITCH_COMPETENCE", competence: value })} /> : null}
 
@@ -815,6 +817,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
   const [method, setMethod] = useState(extra?.paymentMethod || "");
   const [dueDay, setDueDay] = useState(String(invoice?.dueDay || kid?.dueDay || expense?.dueDay || 10));
   const [expenseStart,setExpenseStart]=useState(competence);
+  const [editScope,setEditScope]=useState<ExpenseEditScope|"">(expense?.kind==="VARIABLE"?"CURRENT":"");
   const [deleteScope,setDeleteScope]=useState<"CURRENT"|"CURRENT_AND_FUTURE">("CURRENT");
   const [kind, setKind] = useState<FinanceExpenseKind>(defaultKind);
   const [installmentCurrent, setInstallmentCurrent] = useState(String(kid?.installmentCurrent || expense?.installmentCurrent || ""));
@@ -885,7 +888,10 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
         if(distance>120){window.alert("Selecione uma competência existente ou um início até 120 meses após a última competência disponível.");return;}
       }
       if (action.type === "expense-create") dispatch({ type: "EXPENSE_CREATE", competence, startCompetence:expenseStart, name, dueDay: validDay(), expectedAmount: numeric, kind, installmentCurrent: current, installmentTotal: total, note: expenseNote, paymentLink });
-      else dispatch({ type: "EXPENSE_UPDATE", id: action.expense.id, name, dueDay: validDay(), expectedAmount: numeric, kind, installmentCurrent: current, installmentTotal: total, note: expenseNote, paymentLink });
+      else {if(!editScope){window.alert("Escolha se a edição vale somente nesta competência ou nesta e nas próximas.");return;}
+        const update={name,dueDay:validDay(),expectedAmount:numeric,kind,installmentCurrent:current,installmentTotal:total,note:expenseNote,paymentLink};
+        const check=editExpenseSeries(data,action.expense.id,update,editScope);if(!check.ok){window.alert(check.error);return;}if(check.skipped.length)window.alert("Competências protegidas não alteradas: "+check.skipped.join("; "));
+        dispatch({type:"EXPENSE_UPDATE",id:action.expense.id,scope:editScope,...update});}
       onClose(); return;
     }
 
@@ -898,7 +904,9 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     if (action.type === "card-value") {
       if (numeric === null || numeric < 0) return;
-      dispatch({ type: "EXPENSE_UPDATE", id: action.expense.id, name: action.expense.name, dueDay: action.expense.dueDay, expectedAmount: numeric, kind: action.expense.kind, installmentCurrent: action.expense.installmentCurrent, installmentTotal: action.expense.installmentTotal, note: action.expense.note, paymentLink: action.expense.paymentLink });
+      if(!editScope){window.alert("Escolha o escopo da edição.");return;}
+      const check=editExpenseSeries(data,action.expense.id,{...action.expense,expectedAmount:numeric},editScope);if(!check.ok){window.alert(check.error);return;}if(check.skipped.length)window.alert("Competências protegidas não alteradas: "+check.skipped.join("; "));
+      dispatch({ type: "EXPENSE_UPDATE", scope:editScope, id: action.expense.id, name: action.expense.name, dueDay: action.expense.dueDay, expectedAmount: numeric, kind: action.expense.kind, installmentCurrent: action.expense.installmentCurrent, installmentTotal: action.expense.installmentTotal, note: action.expense.note, paymentLink: action.expense.paymentLink });
       onClose(); return;
     }
 
@@ -1012,6 +1020,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
     {action.type === "category-create" ? <label>Nova categoria<input value={newCategory} onChange={event => setNewCategory(event.target.value)} autoFocus placeholder="Ex.: Saúde" /></label> : null}
 
+    {(action.type==="expense-edit"||action.type==="card-value")&&expense?.kind!=="VARIABLE"?<label>Aplicar edição<select required value={editScope} onChange={e=>setEditScope(e.target.value as ExpenseEditScope)}><option value="">Escolha antes de salvar...</option><option value="CURRENT">Alterar somente esta competência</option><option value="CURRENT_AND_FUTURE">Alterar esta e as próximas competências</option></select><small>Meses anteriores, futuros pagos/parciais ou fechados permanecem protegidos.</small></label>:null}
     {action.type === "expense-edit" ? <div className={styles.deleteScope}>
         {action.expense.kind!=="VARIABLE" && action.expense.seriesId?<label>Excluir<select value={deleteScope} onChange={event=>setDeleteScope(event.target.value as typeof deleteScope)}><option value="CURRENT">Somente esta parcela/competência</option><option value="CURRENT_AND_FUTURE">Esta e as próximas</option></select></label>:null}
         {!action.expense.seriesId && action.expense.kind!=="VARIABLE"?<small>Conta antiga sem vínculo de série: exclusão somente desta competência.</small>:null}
