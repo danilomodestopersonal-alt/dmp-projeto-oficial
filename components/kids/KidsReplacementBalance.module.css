@@ -41,3 +41,23 @@
 .detailDates .detailAnticipated{background:#fff6d9;border-color:#ebca70}.detailAnticipated b,.detailAnticipated small,.detailAnticipated em{color:#875c00}
 .detailHeadActions .detailClose{width:auto;min-width:92px;min-height:44px;padding:8px 12px;border-radius:10px;background:#203a29;color:#fff;font-size:.85rem}
 @media(max-width:900px){.operationStats{grid-template-columns:repeat(2,minmax(0,1fr))}.operationStats .primaryCreditCard{grid-template-areas:"icon label value" "icon foot value";grid-template-columns:29px minmax(0,1fr) auto}}
+
+/* Painel 12/10: consulta individual principal; estilos limitados a reposições. */
+.operationPanel,.operationPanel *,.detailDialog,.detailDialog *{box-sizing:border-box}
+.operationStats,.operationCompact .operationStats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.operationStats .primaryCreditCard{grid-column:auto;grid-template-columns:auto 1fr;grid-template-areas:"icon label" "icon value" "foot foot"}
+.studentControlButton{padding:18px;border:2px solid #a8bd75;border-radius:16px;background:#eff6e5;min-height:92px}
+.studentControlButton strong{font-size:1.05rem}.studentControlButton small{font-size:.78rem}.studentControlButton em{font-size:.76rem;font-style:normal;font-weight:800;color:#365631;margin-top:5px}
+.studentHistoryButton{min-height:44px}
+.studentExportActions{display:flex;flex-wrap:wrap;gap:8px;width:100%;padding-top:8px}
+.studentExportActions button{min-height:44px;border:1px solid #ccd9bf;border-radius:10px;background:#fff;padding:10px 12px;font:inherit;font-size:.78rem;color:#244731;cursor:pointer}
+.studentExportActions button:focus-visible{outline:3px solid #688529;outline-offset:2px}
+.detailDialog,.detailList,.detailRow,.detailDates,.detailHead>div{min-width:0}
+.detailList{overflow-x:hidden}.detailDates span,.detailStudent small,.detailHead h3,.detailHead p,.studentControlButton span,.operationStats em{overflow-wrap:anywhere}
+@media(max-width:520px){
+.operationStats,.operationCompact .operationStats{grid-template-columns:minmax(0,1fr)}
+.operationStats .primaryCreditCard{grid-template-columns:auto 1fr;grid-template-areas:"icon label" "icon value" "foot foot"}
+.studentControlButton{padding:14px}.studentControlButton strong{font-size:.95rem}
+.detailBackdrop{padding:8px}.detailHead{padding:14px}.detailSearch{margin:10px 14px 6px}.detailList{padding:8px 14px 14px}
+.detailHeadActions{flex-wrap:wrap;max-width:100%}.studentExportActions button{flex:1 1 110px}
+}

@@ -31,7 +31,7 @@ type ReplacementReportRow={name:string;quantity:number;details:string[]};
 function replacementReportTone(title:string,detail:string){
   const attendanceView=/quem já realizou|faltas nas reposições|presenças e faltas/i.test(title);
   if(attendanceView&&/falta/i.test(detail))return "absent";
-  if(/crédito antecipado:|presença ainda não confirmada/i.test(detail))return "anticipated";
+  if(/crédito antecipado:|presença ainda não confirmada/i.test(detail))return /histórico de reposições por aluno/i.test(title)?"resolved":"anticipated";
   if(/a repor|pendente/i.test(detail)&&!/saldo|crédito[s]? gerado/i.test(detail))return "pending";
   if(/reposta|reposição|5ª aula/i.test(detail))return "resolved";
   return "neutral";
@@ -354,7 +354,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
   const reportAllMetric=allMetric;
 
   const detailMeta:Record<OperationDetail,{eyebrow:string;title:string;description:string}>={
-    generated:{eyebrow:"CONTROLE GERAL",title:"Controle de reposições por aluno",description:"Verde: compensada. Vermelho: ainda a repor. Amarelo: crédito antecipado sem vínculo ou aula futura, já contabilizado. Saldo a repor = canceladas − reposições, desde a base oficial; registros abaixo seguem o período selecionado."},
+    generated:{eyebrow:"CONTROLE GERAL",title:"Histórico de reposições por aluno",description:"Verde: compensada ou crédito já contabilizado. Vermelho: ainda a repor. Histórico completo desde a base oficial, incluindo origens fora do período selecionado. A 5ª aula agendada permanece identificada como antecipada, com presença ainda não confirmada."},
     performed:{eyebrow:"REPOSIÇÕES REALIZADAS",title:"Quem já realizou reposição",description:"🟢 Verde: presença na reposição | 🔴 Vermelho: falta na reposição (crédito consumido). Mostra a data e a aula compensada."},
     pending:{eyebrow:"ALUNOS AGUARDANDO REPOSIÇÃO",title:"Crianças que ainda precisam repor",description:"Exibe apenas crianças com pendência, mantendo em verde o histórico já resolvido e em vermelho o que falta."},
     absent:{eyebrow:"REPOSIÇÕES COM FALTA",title:"Faltas nas reposições realizadas",description:"Ocorrências reais no período: falta na reposição — crédito consumido. Inclui a 5ª aula efetivamente realizada; não inclui faltas regulares."},
@@ -384,7 +384,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
       ...ledgerForPeriod(row).map(item=>ledgerDetail(item,row.id)),
       ...row.creditLedger.filter(item=>!periodIncludes(item.credit.date,period,data)).map(item=>({...ledgerDetail(item,row.id),section:"Origem do saldo fora do período selecionado"})),
       ...row.allAdvanceEvents.map(event=>({date:event.date,className:event.className,label:`Crédito antecipado: ${fmtDate(event.date)} · ${event.stage==="ANTICIPATED"?"5ª aula agendada — crédito antecipado · já contabilizado · presença ainda não confirmada":event.label} · ainda sem cancelamento vinculado`,tone:"anticipated" as const,section:event.stage==="ANTICIPATED"?"5ª aula agendada ainda sem cancelamento vinculado":"Reposições antecipadas ainda sem cancelamento vinculado"})),
-    ].filter((event,index,events)=>events.findIndex(other=>other.date===event.date&&other.className===event.className&&other.label===event.label)===index);
+    ].filter((event,index,events)=>events.findIndex(other=>other.date===event.date&&other.className===event.className&&other.label===event.label)===index).map(event=>({...event,tone:event.tone==="anticipated"?"resolved" as const:event.tone}));
     if(kind==="pending")return ledgerForPeriod(row).filter(item=>item.status==="PENDING").map(item=>ledgerDetail(item,row.id));
     if(kind==="attention")return ledgerForPeriod(row).filter(item=>item.status==="PENDING").map(item=>ledgerDetail(item,row.id));
     if(kind==="performed")return row.replacedEvents.map(event=>{
@@ -416,6 +416,13 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
       `${event.section?event.section+": ":""}${fmtDate(event.date)} · ${event.className||event.label}${event.className?` · ${event.label}`:""}`,
     ),
   }));
+  function exportStudentReport(row:StudentOperationRow,format:"pdf"|"png"){
+    const rows=toReportRows("generated",[row]);
+    const summary=`${row.name} · Saldo atual a repor: ${row.netBalance}. Verde: compensada ou crédito já contabilizado; vermelho: pendente. Aulas futuras permanecem identificadas no histórico.`;
+    const fileName=`Reposicoes_${normalizeSearch(row.name).replace(/[^a-z0-9]+/g,"_")||"aluno"}_${row.id.replace(/[^a-zA-Z0-9_-]/g,"_")}.${format}`;
+    if(format==="pdf")exportReplacementPdf("Histórico de reposições por aluno",`Histórico completo · base ${fmtDate(KIDS_REPLACEMENT_BALANCE_START)}`,summary,rows,fileName);
+    else exportReplacementPng("Histórico de reposições por aluno",`Histórico completo · base ${fmtDate(KIDS_REPLACEMENT_BALANCE_START)}`,summary,rows,fileName);
+  }
   function exportDetailReport(format:"pdf"|"png"){
     if(!detail)return;
     const title=detailMeta[detail].title;
@@ -467,15 +474,13 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
         <div className={styles.coverageBlock}><strong>{metric.creditsCoverage}%</strong><span>dos créditos compensados</span><OperationProgress value={metric.creditsCoverage}/><small>{metric.creditsGenerated} gerados · {metric.creditsPerformed} realizados · {metric.creditsPendingPercent}% ainda pendente</small></div>
       </div>
 
+      <button type="button" className={styles.studentControlButton} onClick={()=>openDetail("generated")}><span><strong>Histórico de reposições por aluno</strong><small>Todos os alunos ativos · busca por nome · saldo e histórico completo</small><em>Consultar alunos e exportar individualmente →</em></span><b aria-hidden="true">→</b></button>
+
       <div className={styles.operationStats}>
         <button type="button" className={styles.primaryCreditCard} onClick={()=>openDetail("pending")}><span className={styles.statIcon}>＋</span><small>Créditos pendentes de reposição</small><strong>{metric.creditsPending}</strong><em>{metric.studentsWaiting} alunos com pendências · Ver créditos →</em></button>
-        <button type="button" onClick={()=>openDetail("performed")}><span className={styles.statIcon}>✓</span><small>Reposições feitas</small><strong>{metric.creditsPerformed}</strong><em>Ver histórico →</em></button>
-        <button type="button" onClick={()=>openDetail("absent")}><span className={styles.statIcon}>!</span><small>Reposições com falta</small><strong>{metric.absentReplacements}</strong><em>Ver ocorrências e buscar criança →</em></button>
+        <button type="button" onClick={()=>openDetail("performed")}><span className={styles.statIcon}>✓</span><small>Reposições feitas</small><strong>{metric.creditsPerformed}</strong><em>{metric.attendanceRate}% de comparecimento · {metric.attendancePresent} presenças · {metric.attendanceAbsent} faltas<br/>Ver histórico →</em></button>
         <button type="button" onClick={()=>openDetail("advance")} className={metric.creditsAdvance?styles.statPositive:""}><span className={styles.statIcon}>↗</span><small>Créditos antecipados</small><strong>{metric.creditsAdvance}</strong><em>Ver saldos positivos →</em></button>
-        <button type="button" onClick={()=>openDetail("attendance")}><span className={styles.statIcon}>●</span><small>Comparecimento</small><strong>{metric.attendanceRate}%</strong><em>{metric.attendancePresent} presenças · {metric.attendanceAbsent} faltas →</em></button>
       </div>
-
-      <button type="button" className={styles.studentControlButton} onClick={()=>openDetail("generated")}><span><strong>Controle de reposições por aluno</strong><small>Todos os alunos ativos · busca por nome · saldo e histórico individual</small></span><b aria-hidden="true">→</b></button>
 
       {!compact?<div className={styles.operationAttention}>
         <button type="button" className={styles.operationAttentionButton} onClick={()=>openDetail("attention")}><small>PRECISAM DE ATENÇÃO</small><strong>{metric.studentsTwoPlus} criança{metric.studentsTwoPlus===1?"":"s"} com 2 ou mais pendências</strong><span>Abrir lista →</span></button>
@@ -503,7 +508,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
               const events=rowDates(row,detail).filter(event=>event.section===section).sort((a,b)=>a.date.localeCompare(b.date));
               const content=events.map((event,index)=><span key={`${event.date}-${event.className||"registro"}-${index}`} className={event.tone==="resolved"?styles.detailResolved:event.tone==="anticipated"?styles.detailAnticipated:event.tone==="pending"?styles.detailPending:event.tone==="absent"?styles.detailAbsent:""}><b>{fmtDate(event.date)}</b><small>{event.className||event.label}</small>{event.className?<em>{event.label}</em>:null}</span>);
               return section?<section className={styles.detailExtraGroup} key={section}><h4>{section}</h4><div className={styles.detailDates}>{content}</div></section>:content;
-            })}{rowDates(row,detail).length===0?<small>Sem eventos no período; saldo oficial preservado.</small>:null}{detail==="generated"&&onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}>Abrir cadastro do aluno →</button>:null}</div>:null}
+            })}{rowDates(row,detail).length===0?<small>Sem eventos no período; saldo oficial preservado.</small>:null}{detail==="generated"?<div className={styles.studentExportActions}><button type="button" onClick={()=>exportStudentReport(row,"pdf")} aria-label={`Exportar PDF de ${row.name}`}>PDF deste aluno</button><button type="button" onClick={()=>exportStudentReport(row,"png")} aria-label={`Exportar imagem de ${row.name}`}>Imagem deste aluno</button></div>:null}{detail==="generated"&&onOpenStudent?<button type="button" className={styles.detailStudentLink} onClick={()=>{setDetail(null);onOpenStudent(row.id);}}>Abrir cadastro do aluno →</button>:null}</div>:null}
             <b className={styles.detailCount}>{rowDisplayValue(row,detail)}</b>
           </article>):<div className={styles.detailEmpty}>Nenhuma criança encontrada neste indicador.</div>}
         </div>
