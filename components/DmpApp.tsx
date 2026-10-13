@@ -2908,7 +2908,8 @@ function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
         const data=normalizeKidsData(raw?.data??raw);
         const source=(data?.events||[]).filter(event=>event.status!=="CANCELLED");
 
-        // Para registros repetidos do mesmo evento/ano, usa o menor intervalo valido.
+        // Um evento de um dia mantém sua identidade, mesmo com nome/ano repetidos.
+        // Intervalos multi-dia preservam a seleção legada do menor intervalo válido.
         const unique=new Map<string,typeof source[number]>();
         const span=(event:typeof source[number])=>{
           const startDate=event.startDate;
@@ -2921,7 +2922,8 @@ function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
         };
 
         source.forEach(event=>{
-          const key=`${normalizeName(event.name)}|${event.year||event.startDate.slice(0,4)}`;
+          const singleDay=!event.endDate||event.endDate===event.startDate;
+          const key=singleDay?`single|${event.id}`:`${normalizeName(event.name)}|${event.year||event.startDate.slice(0,4)}`;
           const previous=unique.get(key);
           if(!previous||span(event)<span(previous))unique.set(key,event);
         });
