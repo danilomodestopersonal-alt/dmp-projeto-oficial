@@ -2762,8 +2762,8 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
                   }}
                 >
                   <span className={`kids-category-dot kids-category-${item.category.toLowerCase()}`}/>
-                  <b>{formatCalendarTime(event)}</b>
-                  <span> · {kidsCategoryName(item.category)}</span>
+                  <b>{desktop?formatCalendarTime(event).replace(":","h"):formatCalendarTime(event)}</b>
+                  <span>{desktop?` ${item.category==="RED"?"Vermelho":item.category==="ORANGE"?"Laranja":item.category==="GREEN"?"Verde":"Amarelo"}`:` · ${kidsCategoryName(item.category)}`}</span>
                 </span>
               )}
             </span>

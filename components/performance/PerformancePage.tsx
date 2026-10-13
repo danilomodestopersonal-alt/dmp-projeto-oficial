@@ -540,10 +540,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     });
   }
 
-  const monthActivities = useMemo(
-    () => data.activities.filter(a => a.date.startsWith(`${currentYear}-${String(currentMonth).padStart(2, "0")}`)),
-    [data.activities, currentMonth, currentYear]
-  );
+  const monthActivities = calendarActivities;
 
   const yearActivities = useMemo(
     () => data.activities.filter(a => a.date.startsWith(`${currentYear}-`)),
@@ -964,7 +961,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
         <div className={styles.hero}>
           <div className={styles.heroCopy}>
             <span className={styles.heroBadge}>DMP PERFORMANCE</span>
-            <h2>{MONTHS[currentMonth - 1]} em movimento.</h2>
+            <h2>{MONTHS[calendarMonth - 1]} em movimento.</h2>
             <p>Seu painel pessoal de consistência, volume e evolução física.</p>
             <div className={styles.heroMonthlyBreakdown}>
               <div className={styles.heroMonthlyList}>
@@ -1099,15 +1096,15 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
 
 
             <div className={`${styles.statsGrid} ${styles.compactSummaryStats}`}>
-              <Metric label="Distância no mês" value={`${fmtNumber(monthTotals.distance, 1)} km`} detail={`${fmtNumber(yearTotals.distance, 1)} km no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="↗" />
-              <Metric label="Tempo no mês" value={fmtHours(monthTotals.minutes)} detail={`${fmtHours(yearTotals.minutes)} no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="◷" />
-              <Metric label="Altimetria no mês" value={`${fmtNumber(monthTotals.elevation)} m`} detail={`${fmtNumber(yearTotals.elevation)} m no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="△" />
-              <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} onClick={()=>setConsultMonth(`${currentYear}-${String(currentMonth).padStart(2,"0")}`)} icon="✓" />
+              <Metric label="Distância no mês" value={`${fmtNumber(monthTotals.distance, 1)} km`} detail={`${fmtNumber(yearTotals.distance, 1)} km no ano`} onClick={()=>setConsultMonth(calendarMonthKey)} icon="↗" />
+              <Metric label="Tempo no mês" value={fmtHours(monthTotals.minutes)} detail={`${fmtHours(yearTotals.minutes)} no ano`} onClick={()=>setConsultMonth(calendarMonthKey)} icon="◷" />
+              <Metric label="Altimetria no mês" value={`${fmtNumber(monthTotals.elevation)} m`} detail={`${fmtNumber(yearTotals.elevation)} m no ano`} onClick={()=>setConsultMonth(calendarMonthKey)} icon="△" />
+              <Metric label="Treinos no mês" value={String(monthTotals.count)} detail={`${yearTotals.count} no ano`} onClick={()=>setConsultMonth(calendarMonthKey)} icon="✓" />
             </div>
 
-            <PerformanceSummaryInsights activities={data.activities} today={`${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(new Date().getDate()).padStart(2,"0")}`} goals={activeGoals} onConfigureGoal={openNewGoal} onEditGoal={openEditGoal} onOpen={setDetailActivity}/>
+            <PerformanceSummaryInsights activities={data.activities} selectedMonth={calendarMonthKey} today={`${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(new Date().getDate()).padStart(2,"0")}`} goals={activeGoals} onConfigureGoal={openNewGoal} onEditGoal={openEditGoal} onOpen={setDetailActivity}/>
 
-            <PerformanceEvolution activities={data.activities} year={currentYear} month={currentMonth} onOpenMonth={setConsultMonth}/>
+            <PerformanceEvolution activities={data.activities} year={calendarYear} month={calendarMonth} onOpenMonth={setConsultMonth}/>
 
             <div className={styles.twoColumns}>
               <section className={styles.panel}>

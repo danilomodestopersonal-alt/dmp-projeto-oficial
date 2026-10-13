@@ -206,3 +206,22 @@
 .central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small>b:first-child,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small>b:first-child{order:2!important;flex:0 0 auto!important;margin:0!important;white-space:nowrap!important;font-size:1rem!important}
 .central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small[data-home-metric="pilates"]{display:none!important}
 }
+
+/* 13/10: acabamento restrito à Home desktop; mobile mantém a cascata aprovada. */
+@media(min-width:901px){
+.central{row-gap:6px}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card){align-self:start!important;padding:10px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card)>div>strong,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card)>div>strong{min-height:0!important;margin:0 0 7px!important;font-size:.9rem!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines){gap:4px!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small{min-height:36px!important;padding:4px 18px 4px 30px!important;font-size:.72rem!important;line-height:1.3!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small>b:first-child,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small>b:first-child{font-size:.95rem!important;line-height:1.2!important}
+.central :global(.month-closing-today-card) :global(.home-metric-distance){display:inline-flex;gap:3px;margin-left:5px;font-size:.65rem;white-space:nowrap}
+.central :global(.today-summary-card)>div>i{margin-top:6px!important;margin-bottom:0!important}
+.central :global(.today-summary-card) :global(.today-kids-inline){display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;width:100%!important;max-width:100%!important;margin-left:0!important;overflow:visible!important;gap:3px 0!important;margin-top:6px!important;padding:0!important;border:0!important;background:transparent!important;font-size:.68rem!important;line-height:1.4!important}
+.central :global(.today-summary-card) :global(.today-kids-inline-row){display:inline-flex!important;flex:0 0 auto!important;align-items:baseline!important;justify-content:flex-start!important;width:auto!important;max-width:100%!important;margin:0!important;text-align:left!important;gap:0!important;min-width:0!important;min-height:0!important;padding:3px 0!important;border:0!important;background:transparent!important;white-space:nowrap;font-size:inherit!important;line-height:inherit!important;cursor:pointer}
+.central :global(.today-summary-card) :global(.today-kids-inline-row)+:global(.today-kids-inline-row)::before{content:'•';padding:0 6px;color:#78857b}
+.central :global(.today-summary-card) :global(.today-kids-inline-row)>:global(.kids-category-dot){display:none!important}
+.central :global(.today-summary-card) :global(.today-kids-inline-row)>b{font-size:inherit!important;font-weight:600!important}
+.central :global([data-home-size-key="highlights"]){margin-bottom:0!important}
+.central :global([data-home-size-key="calendar"]){margin-top:0!important}
+}
