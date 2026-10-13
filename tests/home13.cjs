@@ -16,7 +16,7 @@ const perf=(month='2026-10')=>{const [year,n]=month.split('-').map(Number);retur
 const metrics=tree=>nodes(tree,n=>typeof n.type==='function'&&n.props.label?.endsWith('no mês'));
 const metric=(tree,label)=>metrics(tree).find(n=>n.props.label===label);
 const monthButton=(tree,name)=>nodes(tree,n=>n.type==='button'&&n.props['aria-label']===name)[0];
-const css=read('components/HomeCentral.module.css'),delta=css.slice(baseline.original['components/HomeCentral.module.css'].length),sheet=postcss.parse(css);
+const css=require('./home-visual13-baseline.json').original['components/HomeCentral.module.css'],delta=css.slice(baseline.original['components/HomeCentral.module.css'].length),sheet=postcss.parse(css);
 function declarations(selector,width){const values={};sheet.walkRules(r=>{if(!r.selector.split(',').map(s=>s.trim()).includes(selector))return;for(let p=r.parent;p;p=p.parent)if(p.type==='atrule'&&p.name==='media'){const min=p.params.match(/min-width:\s*(\d+)px/),max=p.params.match(/max-width:\s*(\d+)px/);if(min&&width<+min[1]||max&&width>+max[1])return;}r.walkDecls(d=>values[d.prop]=d.value);});return values;}
 const grid='.central :global(.today-highlight-grid.todoist-home-grid)',row=card=>grid+'>:global(.'+card+') :global(.highlight-lines)>small';
 test('todo CSS adicionado fica em min-width 901px e no centro autorizado',()=>{assert.ok(css.startsWith(baseline.original['components/HomeCentral.module.css']));const ast=postcss.parse(delta);for(const n of ast.nodes)if(n.type!=='comment'){assert.equal(n.type,'atrule');assert.equal(n.params,'(min-width:901px)');n.walkRules(r=>assert.ok(r.selector.split(',').every(s=>s.trim().startsWith('.central'))));}assert.doesNotMatch(delta,/sidebar|spotify|today-notes-card|performance-today-card|mini-month/);});

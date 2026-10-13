@@ -225,3 +225,14 @@
 .central :global([data-home-size-key="highlights"]){margin-bottom:0!important}
 .central :global([data-home-size-key="calendar"]){margin-top:0!important}
 }
+
+/* 13/10 pós-LIVE: somente faixa Kids e margens entre o topo e a Agenda no desktop. */
+@media(min-width:901px){
+.central :global(.today-summary-card) :global(.today-kids-inline){flex-direction:column!important;align-items:flex-start!important;gap:2px!important}
+.central :global(.today-summary-card) :global(.today-kids-inline-row){align-items:center!important;gap:4px!important;padding:3px 6px!important;border:1px solid #e3eae1!important;border-radius:7px;background:#f7faf5!important;box-sizing:border-box!important}
+.central :global(.today-summary-card) :global(.today-kids-inline-row)+:global(.today-kids-inline-row)::before{content:none;display:none}
+.central :global(.today-summary-card) :global(.today-kids-inline-row)>:global(.kids-category-dot){display:inline-block!important;width:7px!important;height:7px!important;flex:0 0 7px!important;border-radius:50%!important}
+.central :global(.today-summary-card) :global(.today-kids-inline-row)>:global(.kids-category-white),.central :global(.today-summary-card) :global(.today-kids-inline-row)>:global(.kids-category-neutral){background:#f7f8f3!important;border:1px solid #89958b!important;box-sizing:border-box!important}
+.central :global([data-home-size-key="highlights"])>:global(.today-highlight-grid.todoist-home-grid){margin-bottom:0!important;padding-bottom:0!important}
+.central :global([data-home-size-key="calendar"])>:global(.calendar-today-panel){margin-top:0!important}
+}
