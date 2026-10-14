@@ -1,0 +1,9 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/workout_card" android:layout_width="match_parent" android:layout_height="32dp" android:layout_marginTop="2dp">
+ <ImageView android:id="@+id/workout_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/widget_card" android:contentDescription="" />
+ <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical">
+  <TextView android:id="@+id/workout_previous" android:layout_width="24dp" android:layout_height="match_parent" android:text="‹" android:textSize="20sp" android:gravity="center" android:textColor="#17674B" android:contentDescription="Treino anterior" />
+  <TextView android:id="@+id/workout_text" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center_vertical" android:paddingStart="4dp" android:textSize="10sp" android:textColor="#183B33" android:maxLines="2" android:ellipsize="end" />
+  <TextView android:id="@+id/workout_position" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center" android:textSize="8sp" android:textColor="#64766F" />
+  <TextView android:id="@+id/workout_next" android:layout_width="24dp" android:layout_height="match_parent" android:text="›" android:textSize="20sp" android:gravity="center" android:textColor="#17674B" android:contentDescription="Próximo treino" />
+ </LinearLayout>
+</FrameLayout>

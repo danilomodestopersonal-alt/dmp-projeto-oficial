@@ -24,9 +24,9 @@ open class TodayWidget: AppWidgetProvider() {
  companion object {
   fun schedule(c:Context){val s=c.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler;val job=ComponentName(c,RefreshJob::class.java);s.schedule(JobInfo.Builder(100,job).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPeriodic(1800000).setPersisted(true).build());s.schedule(JobInfo.Builder(101,job).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(0).build())}
   internal fun link(c:Context,id:Int,slot:String,path:String?,base:String?,home:String?):PendingIntent = WidgetNavigation.open(c,id,slot,requireNotNull(path))
-  internal fun arrow(c:Context,id:Int,date:String,eventId:String,direction:Int):PendingIntent {
-   val identity=Uri.Builder().scheme("dmp-widget").authority("carousel").appendPath(id.toString()).appendPath(date).appendPath(eventId).appendPath(direction.toString()).build()
-   val i=Intent(c,TodayWidget::class.java).setAction("br.com.dmp.widget.CAROUSEL").setData(identity).putExtra("widgetId",id).putExtra("date",date).putExtra("eventId",eventId).putExtra("direction",direction)
+  internal fun arrow(c:Context,id:Int,date:String,eventId:String,direction:Int,kind:String="event"):PendingIntent {
+   val identity=Uri.Builder().scheme("dmp-widget").authority("carousel").appendPath(kind).appendPath(id.toString()).appendPath(date).appendPath(eventId).appendPath(direction.toString()).build()
+   val i=Intent(c,TodayWidget::class.java).setAction("br.com.dmp.widget.CAROUSEL").setData(identity).putExtra("widgetId",id).putExtra("date",date).putExtra("eventId",eventId).putExtra("direction",direction).putExtra("kind",kind)
    return PendingIntent.getBroadcast(c,WidgetNavigation.code(identity.toString()),i,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   }
   private fun move(c:Context,i:Intent){
@@ -35,6 +35,13 @@ open class TodayWidget: AppWidgetProvider() {
    val snapshot=try{SecureStore(c).get("snapshot")?.let{org.json.JSONObject(it)}}catch(_:Exception){null}?:return
    val date=snapshot.optJSONObject("today")?.optString("date")?:return
    if(date!=i.getStringExtra("date")){renderAll(c,false);return}
+   if(i.getStringExtra("kind")=="workout"){
+    val workouts=WidgetCarousel.workouts(snapshot);if(workouts.isEmpty())return
+    val displayed=workouts.indexOfFirst{it.optString("id")==i.getStringExtra("eventId")}
+    val current=if(displayed>=0)displayed else WidgetCarousel.workoutIndex(workouts,WidgetCarousel.workoutSelected(c,id,date))
+    val next=WidgetCarousel.step(current,i.getIntExtra("direction",0),workouts.size)
+    WidgetCarousel.saveWorkout(c,id,date,workouts[next].getString("id"));renderAll(c,false);return
+   }
    val items=WidgetCarousel.items(snapshot,date);if(items.isEmpty())return
    val displayed=items.indexOfFirst{it.optString("id")==i.getStringExtra("eventId")}
    val current=if(displayed>=0)displayed else WidgetCarousel.index(items,WidgetCarousel.selected(c,id,date),snapshot.optJSONObject("today")?.optJSONObject("next")?.optString("id"),WidgetCarousel.now())

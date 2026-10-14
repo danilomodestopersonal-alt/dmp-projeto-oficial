@@ -18,5 +18,9 @@ object WidgetCarousel {
  fun step(index:Int,direction:Int,count:Int)=if(count==0)-1 else (index+direction.coerceIn(-1,1)).coerceIn(0,count-1)
  fun selected(c:Context,id:Int,date:String):String?{val p=c.getSharedPreferences("widget-settings",0);return if(p.getString("$id-carouselDate",null)==date)p.getString("$id-carouselId",null)else null}
  fun save(c:Context,id:Int,date:String,eventId:String){c.getSharedPreferences("widget-settings",0).edit().putString("$id-carouselDate",date).putString("$id-carouselId",eventId).apply()}
+ fun workouts(snapshot:JSONObject?):List<JSONObject>{val a=snapshot?.optJSONObject("today")?.optJSONArray("workouts")?:return emptyList();return (0 until a.length()).mapNotNull{a.optJSONObject(it)}.filter{it.optString("id").isNotBlank()}}
+ fun workoutIndex(items:List<JSONObject>,selected:String?)=if(items.isEmpty())-1 else items.indexOfFirst{it.optString("id")==selected}.coerceAtLeast(0)
+ fun workoutSelected(c:Context,id:Int,date:String):String?{val p=c.getSharedPreferences("widget-settings",0);return if(p.getString("$id-workoutDate",null)==date)p.getString("$id-workoutId",null)else null}
+ fun saveWorkout(c:Context,id:Int,date:String,recordId:String){c.getSharedPreferences("widget-settings",0).edit().putString("$id-workoutDate",date).putString("$id-workoutId",recordId).apply()}
  fun now()=ZonedDateTime.now(ZoneId.of("America/Sao_Paulo")).toLocalTime().toString().take(5)
 }

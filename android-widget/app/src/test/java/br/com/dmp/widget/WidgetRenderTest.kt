@@ -29,8 +29,8 @@ class WidgetRenderTest {
   val events=JSONArray()
   if(!empty){
    today.put("next",JSONObject().put("id","e4").put("time","13:30").put("title","Gra Paula").put("type","Personal").put("destination","/app?widget=event&date=2026-10-14&id=e4"))
-   today.put("workouts",JSONArray().put(JSONObject().put("type","CYCLING").put("title","Pedal").put("destination","/app?widget=performance&date=2026-10-14&id=w1")))
-   today.put("commitments",JSONArray().put(JSONObject().put("time","18:30").put("title","Reunião").put("destination","/app?widget=commitment&date=2026-10-14&id=t1")))
+   today.put("workouts",JSONArray().put(JSONObject().put("id","w1").put("type","CYCLING").put("title","Pedal").put("destination","/app?widget=performance&date=2026-10-14&id=w1")))
+   today.put("commitments",JSONArray().put(JSONObject().put("id","t1").put("time","18:30").put("title","Reunião").put("destination","/app?widget=commitment&date=2026-10-14&id=t1")))
    val names=listOf("Rogério Novelli","Alexandre Deboni","Laranja","Vermelho","Verde","Luciana Grespi Juliana Revelk","Gra Paula","André Masili","Diego","Bruna")
    for((i,name)in names.withIndex()){
     val kids=i in 2..4;val date=if(i<8)"2026-10-14"else "2026-10-15"
@@ -79,9 +79,10 @@ class WidgetRenderTest {
   val context=c.createConfigurationContext(config);val scale=context.resources.displayMetrics.density
   assertEquals(3f,scale,0f)
   val out=File("build/widget-previews");out.mkdirs()
+  val source=fixture();source.getJSONObject("today").getJSONArray("workouts").put(JSONObject().put("id","w2").put("type","PILATES").put("title","Pilates"))
   WidgetSettings.save(context,101,90,20,true,true,true)
   try{for(h in listOf(360,600))for(agenda in listOf(true,false)){
-   val rv=WidgetRenderer.render(context,101,agenda,WidgetLayout(164,h),fixture(),"https://dmp.test","https://dmp.test/app")
+   val rv=WidgetRenderer.render(context,101,agenda,WidgetLayout(164,h),source,"https://dmp.test","https://dmp.test/app")
    val p=android.appwidget.AppWidgetHostView(context);val v=rv.apply(context,p);p.addView(v);val wpx=(164*scale).toInt();val hpx=(h*scale).toInt()
    p.measure(View.MeasureSpec.makeMeasureSpec(wpx,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(hpx,View.MeasureSpec.EXACTLY));p.layout(0,0,wpx,hpx)
    val button=v.findViewById<View>(if(agenda)R.id.agenda else R.id.open);val rect=android.graphics.Rect();button.getDrawingRect(rect);(v as android.view.ViewGroup).offsetDescendantRectToMyCoords(button,rect);assertTrue("density footer $agenda $h ${rect.bottom}",rect.bottom+v.findViewById<View>(R.id.content).paddingBottom<=hpx)
@@ -98,5 +99,7 @@ class WidgetRenderTest {
   assertEquals(WidgetOpenActivity::class.java.name,i.component!!.className)
   assertEquals(WidgetNavigation.path("event","2026-10-14","e0"),i.getStringExtra("path"))
  }
+
+ @Test fun todayHasNoInvisibleHostTailAtAnyResize(){for(h in listOf(260,340,360,440,600,800)){val v=view(false,164,h);assertEquals("host height=$h",h,v.findViewById<View>(R.id.shell).height);assertEquals(h,v.findViewById<View>(R.id.content).height);val b=v.findViewById<View>(R.id.open);val rect=android.graphics.Rect();b.getDrawingRect(rect);(v as android.view.ViewGroup).offsetDescendantRectToMyCoords(b,rect);assertEquals(h,rect.bottom+v.findViewById<View>(R.id.content).paddingBottom);assertTrue(v.findViewById<View>(R.id.next).height>=35)}}
 
 }

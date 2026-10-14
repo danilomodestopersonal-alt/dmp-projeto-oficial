@@ -28,7 +28,7 @@ internal object WidgetRenderer {
  fun render(c:Context,id:Int,agenda:Boolean,size:WidgetLayout,snapshot:JSONObject?,base:String?,home:String?,offline:Boolean=false):RemoteViews{
   val agendaDate=snapshot?.optJSONObject("agenda")?.optString("date")?.takeIf{it.isNotBlank()}?:LocalDate.now(ZoneId.of("America/Sao_Paulo")).toString()
   val rows=if(agenda)AgendaRows.rows(snapshot,agendaDate,WidgetSettings.flag(c,id,"tomorrow",true))else emptyList()
-  val layout=if(agenda)AgendaCollection.layout(size,rows)else{if(size.height<310)R.layout.widget_tiny else if(size.compact)R.layout.widget_compact else R.layout.widget}
+  val layout=if(agenda)AgendaCollection.layout(size,rows)else{if(size.showCalendar&&WidgetSettings.flag(c,id,"calendar",true))R.layout.widget_expanded else if(size.height<310)R.layout.widget_tiny else if(size.compact)R.layout.widget_compact else R.layout.widget}
   val v=RemoteViews(c.packageName,layout);val today=snapshot?.optJSONObject("today")?:snapshot;val data=if(agenda)snapshot?.optJSONObject("agenda")else today
   val date=data?.optString("date")?.takeIf{it.isNotBlank()}?:LocalDate.now(ZoneId.of("America/Sao_Paulo")).toString()
   val opacity=WidgetSettings.opacity(WidgetSettings.value(c,id,"opacity",90));val alpha=255*opacity/100;val cardAlpha=255*(opacity+8).coerceIn(88,100)/100
@@ -72,7 +72,9 @@ internal object WidgetRenderer {
    if(next!=null)v.setOnClickPendingIntent(button,TodayWidget.arrow(c,id,date,next.optString("id"),direction))
   }
   if(next!=null)v.setContentDescription(R.id.next,"Atendimento ${index+1} de ${entries.size}, ${next.optString("start")}, ${next.optString("title")}, ${next.optString("type")}")
-  for(isNotes in listOf(false,true)){
+  v.setInt(R.id.next_title,"setMaxLines",if(size.height>=440)3 else 1)
+  workouts(c,v,id,size,snapshot,date,alpha,base,home)
+  for(isNotes in listOf(true)){
    val target=if(isNotes)R.id.notes else R.id.workouts;v.removeAllViews(target);val visible=!isNotes||WidgetSettings.flag(c,id,"notes",true)
    v.setViewVisibility(target,if(visible)View.VISIBLE else View.GONE);if(!visible)continue
    val list=today?.optJSONArray(if(isNotes)"commitments"else "workouts")?:JSONArray();val label=if(isNotes)"Compromissos"else "Treinos do dia";val prefix=if(isNotes)"Compromissos"else "Treinos"
@@ -86,6 +88,28 @@ internal object WidgetRenderer {
     v.addView(target,small(c,(if(!size.sectionHeadings)"$prefix · "else "• ")+text+extra,(e.optString("id").takeIf{it.isNotBlank()}?.let{WidgetNavigation.path(if(isNotes)"commitment"else "performance",date,it)}),id,"$target-$n",base,home,width,alpha))
    }
   };calendar(c,v,id,size,date,base,home)
+ }
+ private fun workouts(c:Context,v:RemoteViews,id:Int,size:WidgetLayout,snapshot:JSONObject?,date:String,alpha:Int,base:String?,home:String?){
+  v.removeAllViews(R.id.workouts)
+  if(size.sectionHeadings)v.addView(R.id.workouts,section(c,"TREINOS DO DIA"))
+  val items=WidgetCarousel.workouts(snapshot)
+  if(items.isEmpty()){v.addView(R.id.workouts,small(c,"Nenhum treino",WidgetNavigation.path("performance",date),id,"workout-empty",base,home,size.width,alpha));return}
+  val index=WidgetCarousel.workoutIndex(items,WidgetCarousel.workoutSelected(c,id,date));val record=items[index]
+  val type=WidgetLayout.workoutLabel(record.optString("type"));val title=record.optString("title").takeIf{it.isNotBlank()&&it!=type}
+  val card=RemoteViews(c.packageName,R.layout.widget_workout)
+  card.setInt(R.id.workout_bg,"setImageAlpha",alpha)
+  card.setTextViewText(R.id.workout_text,type+(title?.let{" · $it"}?:""))
+  card.setContentDescription(R.id.workout_card,"Treino ${index+1} de ${items.size}, $type ${title.orEmpty()}")
+  card.setOnClickPendingIntent(R.id.workout_card,TodayWidget.link(c,id,"workout-record",WidgetNavigation.path("performance",date,record.optString("id")),base,home))
+  card.setTextViewText(R.id.workout_position,"${index+1}/${items.size}")
+  card.setViewVisibility(R.id.workout_position,if(items.size>1)View.VISIBLE else View.GONE)
+  for((button,direction,possible)in listOf(Triple(R.id.workout_previous,-1,index>0),Triple(R.id.workout_next,1,index<items.lastIndex))){
+   card.setViewVisibility(button,if(items.size>1)View.VISIBLE else View.GONE)
+   card.setBoolean(button,"setEnabled",possible)
+   card.setTextColor(button,if(possible)Color.rgb(23,103,75)else Color.rgb(172,185,177))
+   card.setOnClickPendingIntent(button,TodayWidget.arrow(c,id,date,record.optString("id"),direction,"workout"))
+  }
+  v.addView(R.id.workouts,card)
  }
  private fun calendar(c:Context,v:RemoteViews,id:Int,size:WidgetLayout,date:String,base:String?,home:String?){
   v.removeAllViews(R.id.calendar);val show=WidgetSettings.flag(c,id,"calendar",true)&&size.showCalendar;v.setViewVisibility(R.id.calendar,if(show)View.VISIBLE else View.GONE);if(!show)return

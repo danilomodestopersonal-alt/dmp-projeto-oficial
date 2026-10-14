@@ -1,7 +1,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
-  <RelativeLayout android:id="@+id/shell" android:layout_width="match_parent" android:layout_height="wrap_content">
+  <RelativeLayout android:id="@+id/shell" android:layout_width="match_parent" android:layout_height="match_parent">
     <ImageView android:id="@+id/shell_bg" android:layout_width="match_parent" android:layout_height="0dp" android:scaleType="fitXY" android:contentDescription="" android:layout_alignTop="@id/content" android:layout_alignBottom="@id/content" android:src="@drawable/widget_surface" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="4dp" android:id="@+id/content">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="4dp" android:id="@+id/content">
       <LinearLayout android:layout_width="match_parent" android:layout_height="24dp" android:orientation="horizontal" android:gravity="center_vertical">
         <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/icon" android:contentDescription="DMP" />
         <TextView android:id="@+id/header" android:layout_width="0dp" android:layout_height="wrap_content" android:text="DMP — Hoje" android:textSize="11sp" android:textColor="#183B33" android:includeFontPadding="false" android:layout_weight="1" android:paddingStart="4dp" android:maxLines="1" android:ellipsize="end" android:textStyle="bold" />
@@ -46,9 +46,9 @@
           </FrameLayout>
         </LinearLayout>
       </LinearLayout>
-      <RelativeLayout android:id="@+id/next" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp">
-        <ImageView android:id="@+id/next_bg" android:layout_width="match_parent" android:layout_height="0dp" android:scaleType="fitXY" android:contentDescription="" android:layout_alignTop="@id/next_content" android:layout_alignBottom="@id/next_content" android:src="@drawable/next" />
-        <TextView android:id="@+id/next_category" android:layout_width="3dp" android:layout_height="0dp" android:layout_alignTop="@id/next_content" android:layout_alignBottom="@id/next_content" />
+      <RelativeLayout android:id="@+id/next" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="2dp">
+        <ImageView android:id="@+id/next_bg" android:layout_width="match_parent" android:layout_height="0dp" android:scaleType="fitXY" android:contentDescription="" android:layout_alignParentTop="true" android:layout_alignParentBottom="true" android:src="@drawable/next" />
+        <TextView android:id="@+id/next_category" android:layout_width="3dp" android:layout_height="0dp" android:layout_alignParentTop="true" android:layout_alignParentBottom="true" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="3dp" android:id="@+id/next_content">
           <TextView android:id="@+id/next_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="PRÓXIMO ATENDIMENTO" android:textSize="8sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#55766A" android:maxLines="1" />
           <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
