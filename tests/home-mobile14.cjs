@@ -1,6 +1,6 @@
 process.env.TZ='America/Sao_Paulo';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto'),postcss=require('postcss');
-const root=path.resolve(__dirname,'..'),baseline=require('./home-mobile14-baseline.json'),read=f=>fs.readFileSync(path.join(root,f),'utf8'),app=read('components/DmpApp.tsx'),css=read('components/HomeCentral.module.css'),oldApp=baseline.original['components/DmpApp.tsx'],oldCss=baseline.original['components/HomeCentral.module.css'];
+const root=path.resolve(__dirname,'..'),baseline=require('./home-mobile14-baseline.json'),read=f=>fs.readFileSync(path.join(root,f),'utf8'),app=require('./home-final14-baseline.json').original['components/DmpApp.tsx'],css=require('./home-final14-baseline.json').original['components/HomeCentral.module.css'],oldApp=baseline.original['components/DmpApp.tsx'],oldCss=baseline.original['components/HomeCentral.module.css'];
 let count=0;function test(name,fn){fn();console.log('OK HOME MOBILE14 '+(++count)+' '+name);}
 const funcs=s=>new Map(ts.createSourceFile('source.tsx',s,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX).statements.filter(n=>ts.isFunctionDeclaration(n)&&n.name).map(n=>[n.name.text,n.getText()]));
 const prefix=read('tests/final-home-cards-pix.cjs').split('const initial=')[0].replace(/^const .*require\('\.\.\/\.operational-tests[^\n]*\n/gm,'');
