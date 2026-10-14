@@ -1,0 +1,14 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/row" android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginBottom="4dp">
+  <ImageView android:id="@+id/row_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/widget_card" />
+  <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical">
+    <TextView android:id="@+id/row_stripe" android:layout_width="3dp" android:layout_height="match_parent" />
+    <LinearLayout android:layout_width="39dp" android:layout_height="wrap_content" android:orientation="vertical">
+      <TextView android:id="@+id/row_start" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="11sp" android:textColor="#183B33" android:includeFontPadding="false" android:textStyle="bold" android:gravity="center" />
+      <TextView android:id="@+id/row_end" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:includeFontPadding="false" android:textColor="#75817C" android:gravity="center" android:paddingTop="3dp" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:paddingEnd="5dp">
+      <TextView android:id="@+id/row_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="12sp" android:textColor="#183B33" android:includeFontPadding="false" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+      <TextView android:id="@+id/row_type" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:includeFontPadding="false" android:textColor="#63716C" android:maxLines="1" android:ellipsize="end" android:paddingTop="3dp" />
+    </LinearLayout>
+  </LinearLayout>
+</FrameLayout>

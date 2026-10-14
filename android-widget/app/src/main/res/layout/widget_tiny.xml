@@ -1,0 +1,70 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
+  <RelativeLayout android:id="@+id/shell" android:layout_width="match_parent" android:layout_height="wrap_content">
+    <ImageView android:id="@+id/shell_bg" android:layout_width="match_parent" android:layout_height="0dp" android:scaleType="fitXY" android:contentDescription="" android:layout_alignTop="@id/content" android:layout_alignBottom="@id/content" android:src="@drawable/widget_surface" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="4dp" android:id="@+id/content">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="24dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/icon" android:contentDescription="DMP" />
+        <TextView android:id="@+id/header" android:layout_width="0dp" android:layout_height="wrap_content" android:text="DMP — Hoje" android:textSize="11sp" android:textColor="#183B33" android:includeFontPadding="false" android:layout_weight="1" android:paddingStart="4dp" android:maxLines="1" android:ellipsize="end" android:textStyle="bold" />
+        <TextView android:id="@+id/refresh" android:layout_width="22dp" android:layout_height="24dp" android:text="↻" android:textSize="19sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" android:contentDescription="Atualizar" />
+      </LinearLayout>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="18dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/date" android:layout_width="0dp" android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:includeFontPadding="false" android:layout_weight="1" android:maxLines="1" android:textColor="#5D706A" />
+        <TextView android:id="@+id/settings" android:layout_width="22dp" android:layout_height="18dp" android:text="⚙" android:textSize="14sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" android:contentDescription="Configurar widget" />
+      </LinearLayout>
+      <TextView android:id="@+id/updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Aguardando atualização" android:textSize="8sp" android:includeFontPadding="false" android:textColor="#64766F" android:paddingBottom="4dp" android:maxLines="1" />
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/metrics">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+          <FrameLayout android:id="@+id/programmed" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+            <ImageView android:id="@+id/programmed_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/programmed" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
+              <TextView android:id="@+id/programmed_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#286891" />
+              <TextView android:id="@+id/programmed_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Programados" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:textColor="#286891" />
+            </LinearLayout>
+          </FrameLayout>
+          <FrameLayout android:id="@+id/attended" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+            <ImageView android:id="@+id/attended_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/attended" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
+              <TextView android:id="@+id/attended_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#27754E" />
+              <TextView android:id="@+id/attended_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Atendidos" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:textColor="#27754E" />
+            </LinearLayout>
+          </FrameLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+          <FrameLayout android:id="@+id/absent" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+            <ImageView android:id="@+id/absent_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/absent" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
+              <TextView android:id="@+id/absent_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#AF454A" />
+              <TextView android:id="@+id/absent_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ausências" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:textColor="#AF454A" />
+            </LinearLayout>
+          </FrameLayout>
+          <FrameLayout android:id="@+id/remaining" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+            <ImageView android:id="@+id/remaining_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/remaining" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
+              <TextView android:id="@+id/remaining_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#A45C24" />
+              <TextView android:id="@+id/remaining_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Faltam" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:textColor="#A45C24" />
+            </LinearLayout>
+          </FrameLayout>
+        </LinearLayout>
+      </LinearLayout>
+      <RelativeLayout android:id="@+id/next" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp">
+        <ImageView android:id="@+id/next_bg" android:layout_width="match_parent" android:layout_height="0dp" android:scaleType="fitXY" android:contentDescription="" android:layout_alignTop="@id/next_content" android:layout_alignBottom="@id/next_content" android:src="@drawable/next" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="3dp" android:id="@+id/next_content">
+          <TextView android:id="@+id/next_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="PRÓXIMO ATENDIMENTO" android:textSize="8sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#55766A" android:maxLines="1" />
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/next_time" android:layout_width="0dp" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:textColor="#183B33" android:includeFontPadding="false" android:layout_weight="1" android:textStyle="bold" />
+            <TextView android:id="@+id/next_arrow" android:layout_width="16dp" android:layout_height="wrap_content" android:text="›" android:textSize="20sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" />
+          </LinearLayout>
+          <TextView android:id="@+id/next_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Conecte o DMP" android:textSize="12sp" android:textColor="#183B33" android:includeFontPadding="false" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+          <TextView android:id="@+id/next_type" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:includeFontPadding="false" android:textColor="#62746D" android:maxLines="1" android:ellipsize="end" />
+        </LinearLayout>
+      </RelativeLayout>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="2dp" android:id="@+id/workouts">
+</LinearLayout>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="2dp" android:id="@+id/notes">
+</LinearLayout>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="2dp" android:id="@+id/calendar">
+</LinearLayout>
+      <TextView android:id="@+id/open" android:layout_width="match_parent" android:layout_height="28dp" android:text="Abrir DMP  ›" android:textSize="11sp" android:includeFontPadding="false" android:background="@drawable/widget_button" android:textColor="#FFFFFF" android:gravity="center" android:textStyle="bold" android:layout_marginTop="0dp" />
+    </LinearLayout>
+  </RelativeLayout>
+</FrameLayout>

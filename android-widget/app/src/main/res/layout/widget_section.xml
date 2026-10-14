@@ -1,0 +1,1 @@
+<TextView xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/section" android:layout_width="match_parent" android:layout_height="18dp" android:text="HOJE" android:textSize="9sp"  android:includeFontPadding="false" android:textStyle="bold" android:textColor="#587267" android:gravity="center_vertical"/>
