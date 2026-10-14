@@ -293,3 +293,8 @@
 .central :global(.today-summary-card) :global(.today-kids-inline){justify-content:safe center!important;gap:2px!important}
 .central :global(.today-summary-card) :global(.today-kids-inline)::before{content:'Kids:';flex:0 0 auto;font-size:.6rem;line-height:1.25;color:#65716b;white-space:nowrap}
 }
+
+/* Refinamento Kids desktop: somente separação horizontal entre os itens. */
+@media(min-width:901px){
+.central :global(.today-summary-card) :global(.today-kids-inline){column-gap:4px!important}
+}
