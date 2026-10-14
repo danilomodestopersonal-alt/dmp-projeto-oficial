@@ -1,0 +1,12 @@
+import {NextRequest,NextResponse} from "next/server";
+import {isAuthorized} from "@/lib/auth";
+import {pool} from "@/lib/db";
+import {setup,sameOrigin,origin,encryptGoogle,createPair,claimPair} from "@/lib/widget/devices";
+export const runtime="nodejs";
+const reply=(v:unknown,status=200)=>NextResponse.json(v,{status,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
+export async function POST(r:NextRequest){try{const raw=await r.text();if(raw.length>2048)return reply({error:"Pedido inválido"},400);const b=JSON.parse(raw);if(b.action==="approve"&&(!sameOrigin(r)||!await isAuthorized(r)))return reply({error:"Acesso negado"},403);if(!["create","claim","approve"].includes(b.action))return reply({error:"Pedido inválido"},400);if(b.action!=="create"&&!/^[a-f0-9-]{36}$/.test(b.id||""))return reply({error:"Pedido inválido"},400);await setup();
+if(b.action==="create"){if(!/^[a-f0-9]{64}$/.test(b.challenge||""))return reply({error:"Pedido inválido"},400);const name=String(b.name||"Android DMP").replace(/[\r\n<>]/g,"").slice(0,50);const id=await createPair(b.challenge,name,r.headers.get("x-forwarded-for")?.split(",")[0]?.trim()||"unknown");return id?reply({id,approvalUrl:origin(r)+"/widget-android?pair="+id}):reply({error:"Aguarde antes de tentar novamente"},429);}
+if(b.action==="approve"){const refresh=r.cookies.get("dmp_google_refresh")?.value;if(!refresh)return reply({error:"Conecte o Google na Home do DMP nesta mesma sessão do navegador e retorne aqui."},409);const result=await pool.query("UPDATE dmp_widget_pairs SET approved_at=NOW(),google_cipher=$2,home_url=$3 WHERE id=$1 AND expires_at>NOW() AND approved_at IS NULL RETURNING id",[b.id,encryptGoogle(refresh),origin(r)+"/app?home=1"]);return result.rows[0]?reply({ok:true}):reply({error:"Solicitação expirada ou já autorizada"},409);}
+const result=await claimPair(b.id,b.verifier);return reply(result,result.status);
+}catch{return reply({error:"Não foi possível conectar. Tente novamente."},503);}}
+export async function GET(r:NextRequest){if(!await isAuthorized(r))return reply({error:"Entre no DMP"},401);try{const id=r.nextUrl.searchParams.get("id");if(!/^[a-f0-9-]{36}$/.test(id||""))return reply({error:"Pedido inválido"},400);await setup();const q=await pool.query("SELECT name,expires_at,approved_at FROM dmp_widget_pairs WHERE id=$1 AND expires_at>NOW()",[id]);return q.rows[0]?reply(q.rows[0]):reply({error:"Solicitação expirada. Conecte novamente pelo aplicativo."},410);}catch{return reply({error:"Indisponível"},503);}}
