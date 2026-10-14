@@ -14,14 +14,14 @@
       <TextView android:id="@+id/updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Aguardando atualização" android:textSize="8sp" android:includeFontPadding="false" android:textColor="#64766F" android:paddingBottom="4dp" android:maxLines="1" />
       <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/metrics">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
-          <FrameLayout android:id="@+id/programmed" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+          <FrameLayout android:id="@+id/programmed" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="36dp" android:layout_margin="2dp">
             <ImageView android:id="@+id/programmed_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/programmed" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
               <TextView android:id="@+id/programmed_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#286891" />
               <TextView android:id="@+id/programmed_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Programados" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:textColor="#286891" />
             </LinearLayout>
           </FrameLayout>
-          <FrameLayout android:id="@+id/attended" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+          <FrameLayout android:id="@+id/attended" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="36dp" android:layout_margin="2dp">
             <ImageView android:id="@+id/attended_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/attended" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
               <TextView android:id="@+id/attended_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#27754E" />
@@ -30,14 +30,14 @@
           </FrameLayout>
         </LinearLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
-          <FrameLayout android:id="@+id/absent" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+          <FrameLayout android:id="@+id/absent" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="36dp" android:layout_margin="2dp">
             <ImageView android:id="@+id/absent_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/absent" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
               <TextView android:id="@+id/absent_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#AF454A" />
               <TextView android:id="@+id/absent_label" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Ausências" android:textSize="8sp" android:includeFontPadding="false" android:maxLines="1" android:textColor="#AF454A" />
             </LinearLayout>
           </FrameLayout>
-          <FrameLayout android:id="@+id/remaining" android:layout_width="0dp" android:layout_weight="1" android:layout_height="36dp" android:layout_margin="2dp">
+          <FrameLayout android:id="@+id/remaining" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="36dp" android:layout_margin="2dp">
             <ImageView android:id="@+id/remaining_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="" android:src="@drawable/remaining" />
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="6dp" android:paddingTop="2dp" android:paddingBottom="2dp">
               <TextView android:id="@+id/remaining_number" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="18sp" android:includeFontPadding="false" android:textStyle="bold" android:textColor="#A45C24" />

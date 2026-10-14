@@ -11,9 +11,9 @@ data class AgendaRow(val key:String,val day:String,val event:JSONObject?=null){
 object AgendaRows {
  fun events(snapshot:JSONObject?,date:String,tomorrow:Boolean=true):List<JSONObject>{
   val array=snapshot?.optJSONObject("agenda")?.optJSONArray("items")?:return emptyList()
-  val next=LocalDate.parse(date).plusDays(1).toString()
+  val next=LocalDate.parse(date).plusDays(6).toString()
   return (0 until array.length()).mapNotNull{array.optJSONObject(it)}.filter{
-   it.optString("id").isNotBlank()&&(it.optString("date")==date||(tomorrow&&it.optString("date")==next))
+   it.optString("id").isNotBlank()&&(it.optString("date")==date||(tomorrow&&it.optString("date")>date&&it.optString("date")<=next))
   }.sortedWith(compareBy<JSONObject>{it.optString("date")}.thenBy{if(it.optBoolean("allDay"))"00:00"else it.optString("start")}.thenBy{it.optString("id")})
  }
  fun rows(snapshot:JSONObject?,date:String,tomorrow:Boolean=true):List<AgendaRow>{
@@ -21,8 +21,8 @@ object AgendaRows {
   for(e in events(snapshot,date,tomorrow)){
    val day=e.getString("date")
    if(day!=previous){rows.add(AgendaRow("heading:$day",day));previous=day}
-   rows.add(AgendaRow("event:$day:${e.getString("id")}",day,e))
+   rows.add(AgendaRow("event:$day:${e.optString("source")}:${e.getString("id")}",day,e))
   };return rows
  }
- fun heading(day:String,date:String)=(if(day==date)"HOJE"else "AMANHÃ")+" · "+LocalDate.parse(day).format(DateTimeFormatter.ofPattern("EEE, dd MMM",Locale.forLanguageTag("pt-BR"))).uppercase(Locale.forLanguageTag("pt-BR")).replace(".","")
+ fun heading(day:String,date:String)=(if(day==date)"HOJE · "else if(day==LocalDate.parse(date).plusDays(1).toString())"AMANHÃ · "else "")+LocalDate.parse(day).format(DateTimeFormatter.ofPattern("EEE, dd MMM",Locale.forLanguageTag("pt-BR"))).uppercase(Locale.forLanguageTag("pt-BR")).replace(".","")
 }

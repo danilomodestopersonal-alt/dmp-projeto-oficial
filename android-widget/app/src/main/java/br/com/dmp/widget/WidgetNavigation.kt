@@ -20,11 +20,11 @@ object WidgetNavigation {
  fun valid(path:String?):Boolean=try{
   if(path.isNullOrBlank()||path.length>2048)false else {
    val u=Uri.parse(path);val kind=u.getQueryParameter("widget");val date=u.getQueryParameter("date")?:""
-   u.scheme==null&&u.authority==null&&u.fragment==null&&u.path in setOf("/app","/app/widget")&&kind in kinds&&Regex("\\d{4}-\\d{2}-\\d{2}").matches(date)&&LocalDate.parse(date).toString()==date&&u.queryParameterNames.all{it in setOf("widget","date","id","time","category","lessonId")}
+   u.scheme==null&&u.authority==null&&u.fragment==null&&u.path in setOf("/app","/app/widget")&&kind in kinds&&Regex("\\d{4}-\\d{2}-\\d{2}").matches(date)&&LocalDate.parse(date).toString()==date&&(!u.queryParameterNames.contains("range")||(kind=="agenda"&&u.getQueryParameter("range")=="week"))&&u.queryParameterNames.all{it in setOf("widget","date","id","time","category","lessonId","range")}
   }
  }catch(_:Exception){false}
  fun record(e:org.json.JSONObject):String {
-  val kind=if(e.optString("type").contains("Kids",true))"kids"else "event"
+  val kind=if(e.optString("source")=="todoist")"commitment"else if(e.optString("type").contains("Kids",true))"kids"else "event"
   val generated=path(kind,e.getString("date"),e.getString("id"));val supplied=e.optString("destination")
   if(valid(supplied)){
    val u=Uri.parse(supplied)
