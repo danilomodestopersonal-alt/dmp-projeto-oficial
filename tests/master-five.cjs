@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),crypto=require('node:crypto');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..'),styles=new Proxy({},{get:(_,key)=>key});
 const FixedDate=class extends Date{constructor(...args){super(...(args.length?args:['2026-10-03T12:00:00Z']));}static now(){return new Date('2026-10-03T12:00:00Z').getTime();}};
 let state=[],cursor=0,override={};const hooks={...React,useState(initial){const i=cursor++;if(!(i in state))state[i]=i in override?override[i]:typeof initial==='function'?initial():initial;return[state[i],next=>{state[i]=typeof next==='function'?next(state[i]):next;}];},useEffect(){},useMemo(fn){return fn();}};

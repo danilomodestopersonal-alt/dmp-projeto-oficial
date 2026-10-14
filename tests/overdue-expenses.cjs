@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {expenseOptionsForPayment,expensePaymentAllowed}=require('../.operational-tests/lib/mercado-pago/expense-options');
 const {reconcileExpenses,reverseExpenseReconciliation}=require('../.operational-tests/lib/mercado-pago/expense-reconciliation');

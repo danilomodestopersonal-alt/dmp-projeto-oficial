@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..'),baseline=require('./finance12-baseline.json');
 const {reconcileExpenses,reverseExpenseReconciliation}=require('../.operational-tests/lib/mercado-pago/expense-reconciliation');
 const {editExpenseSeries}=require('../.operational-tests/lib/financeiro/expense-series');

@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),postcss=require('postcss');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),crypto=require('node:crypto'),postcss=require('postcss');
 const root=path.resolve(__dirname,'..'),baseline=require('./home-lines-baseline.json'),css=require('./home13-baseline.json').original['components/HomeCentral.module.css'],sheet=postcss.parse(css);
 function declarations(selector,width){const values={};sheet.walkRules(rule=>{if(!rule.selector.split(',').map(s=>s.trim()).includes(selector))return;for(let p=rule.parent;p;p=p.parent)if(p.type==='atrule'&&p.name==='media'){const min=p.params.match(/min-width:\s*(\d+)px/),max=p.params.match(/max-width:\s*(\d+)px/);if(min&&width<+min[1]||max&&width>+max[1])return;}rule.walkDecls(d=>values[d.prop]=d.value);});return values;}
 const ts=require('typescript');

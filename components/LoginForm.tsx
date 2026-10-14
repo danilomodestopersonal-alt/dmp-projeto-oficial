@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import {widgetReturn} from "@/lib/widget/links";
 import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
@@ -29,7 +30,7 @@ export default function LoginForm() {
         return;
       }
 
-      router.push("/app");
+      router.push(widgetReturn(new URLSearchParams(window.location.search).get("next")));
       router.refresh();
     } catch {
       setError("Falha de conexão.");

@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript');
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {kidsStudentHistory}=require('../.operational-tests/lib/kids/student-history');
 const {computeKidsStudentReplacementBalance}=require('../.operational-tests/lib/kids/replacement-balance');

@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
 const {financeSummary}=require('../.operational-tests/lib/financeiro/calculos');
 const {financeReportCsv}=require('../.operational-tests/lib/financeiro/relatorios');
 const {reconcileExpenses}=require('../.operational-tests/lib/mercado-pago/expense-reconciliation');

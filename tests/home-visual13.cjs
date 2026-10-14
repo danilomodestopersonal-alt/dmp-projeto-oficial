@@ -1,5 +1,5 @@
 process.env.TZ='America/Sao_Paulo';
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),postcss=require('postcss'),crypto=require('node:crypto');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),postcss=require('postcss'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..'),baseline=require('./home-visual13-baseline.json'),file='components/HomeCentral.module.css',css=require('./home-pendencias13-baseline.json').original[file],original=baseline.original[file],delta=css.slice(original.length),globals=postcss.parse(fs.readFileSync(path.join(root,'app/globals.css'),'utf8')),sheet=postcss.parse(css),oldSheet=postcss.parse(original);
 const source=fs.readFileSync(path.join(root,'tests/home13.cjs'),'utf8').split("test('todo CSS")[0],h={exports:{}};
 new Function('__dirname','require','module',source+'\nmodule.exports={home,homeProps,nodes,text,originalHome};')(__dirname,require,h);

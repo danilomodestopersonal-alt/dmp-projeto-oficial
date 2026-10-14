@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),ts=require('typescript'),React=require('react'),postcss=require('postcss');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),crypto=require('node:crypto'),ts=require('typescript'),React=require('react'),postcss=require('postcss');
 const root=path.resolve(__dirname,'..'),read=f=>f==='components/HomeCentral.module.css'?require('./update8-baseline.json').original[f]:fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n'),sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 let count=0;function test(name,fn){fn();console.log('OK POS-LIVE '+(++count)+' '+name);}
 const finalBaseline=require('./final-combined-baseline.json');

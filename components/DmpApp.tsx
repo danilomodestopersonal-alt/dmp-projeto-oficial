@@ -1,6 +1,8 @@
 // DMP_HOME_TREINO_CLICAVEL_V2
 "use client";
 import homeCentral from "./HomeCentral.module.css";
+import WidgetEventEditor from "./WidgetEventEditor";
+import {widgetTarget} from "@/lib/widget/links";
 import {createPortal} from "react-dom";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -165,6 +167,8 @@ const [cloudWritable, setCloudWritable] = useState(false);
   const [spotifyProgressMs,setSpotifyProgressMs]=useState(0);
   const [selectedPerformanceActivityId,setSelectedPerformanceActivityId]=useState<string|null>(null);
   const deepLinkHandled = useRef(false);
+  const widgetNavigationHandled=useRef(false);
+  const [widgetAgendaEventId,setWidgetAgendaEventId]=useState<string|null>(null);
   const sessionReturnView = useRef<View>("student");
   const browserHistoryReady = useRef(false);
   const browserBackRestoring = useRef(false);
@@ -177,7 +181,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
         const payload = await response.clone().json().catch(() => null);
         if (payload?.message === "Sessão inválida. Entre novamente no DMP.") {
           redirecting = true;
-          window.location.replace("/login");
+          const login=new URL("/login",window.location.origin);if(widgetTarget(window.location.search))login.searchParams.set("next",window.location.pathname+window.location.search);window.location.replace(login.pathname+login.search);
         }
       }
       return response;
@@ -191,7 +195,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
   useEffect(()=>{
     let active=true;
     const params=new URLSearchParams(window.location.search);
-    const saved=restoredNavigation(window.history.state?.dmpFinancePending?{...window.history.state,view:"finance"}:window.history.state,params.get("home")==="1");
+    const saved=restoredNavigation(window.history.state?.dmpFinancePending?{...window.history.state,view:"finance"}:window.history.state,params.get("home")==="1"||Boolean(widgetTarget(params.toString())));
     if(params.get("home")==="1")window.history.replaceState(null,"","/app");
     async function restore(){
       if(saved){
@@ -1463,6 +1467,23 @@ fetch("/api/google/status")
     setView("kids");
   }
 
+  // Widget occurrence context is one-shot; leaving Agenda never reopens it later.
+  useEffect(()=>{if(view!=="agenda"&&widgetAgendaEventId)setWidgetAgendaEventId(null);},[view,widgetAgendaEventId]);
+
+  // Only widget URLs enter this bridge. Existing Home callbacks and calculations are untouched.
+  useEffect(()=>{
+    if(!navigationReady||!studentsLoaded||widgetNavigationHandled.current)return;
+    const target=widgetTarget(window.location.search);if(!target)return;const consume=()=>{widgetNavigationHandled.current=true;window.history.replaceState(window.history.state,"","/app");};
+    if(target.kind==="home"){consume();setView("today");return;}
+    if(target.kind==="student"){const student=students.find(s=>s.id===target.id);consume();if(student)openStudent(student.id);else alert("Aluno não encontrado. O registro pode ter sido removido.");return;}
+    if(target.kind==="performance"){consume();setSelectedPerformanceActivityId(target.id||null);setView("performance");return;}
+    if(target.kind==="commitment"){const note=notes.find(n=>n.id===target.id);if(!note)return;consume();setView("today");startEditingNote(note);return;}
+    setCalendarAnchor(target.date);setCalendarRange("day");setView("agenda");
+    if(target.kind==="new"){consume();setShowGoogleEventForm(true);return;}
+    if(target.kind==="agenda"){consume();return;}
+    if(target.kind==="event"||target.kind==="kids"){setWidgetAgendaEventId(target.id);consume();}
+  },[navigationReady,studentsLoaded,students,notes]);
+
   async function unlockFinance(event?:FormEvent,pinValue=financePin,trustDevice=false) {
     event?.preventDefault();
     if(financeSubmitting.current||pinValue.length!==4)return;
@@ -1881,7 +1902,7 @@ fetch("/api/google/status")
   </section></>;
 })() : null}
 
-          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
+          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda widgetEventId={widgetAgendaEventId} onWidgetAbsence={registerAbsence} status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} onTrustRevoked={() => { financeAttempt.current++;setFinanceTrust(false);sessionStorage.removeItem(FINANCE_UNLOCK_KEY);setView("today");setFinancePin("");setShowFinancePin(true); }} /> : null}
           {view === "reports" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}
@@ -2046,8 +2067,11 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
   </section>;
 }
 
-function CalendarAgenda({status,events,loading,sync,students,range,anchor,onRange,onAnchor,onOpenStudent,onStartStudent,onOpenKids,onStatusChange,onRefresh,onNewEvent}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];range:AgendaRange;anchor:string;onRange:(value:AgendaRange)=>void;onAnchor:(value:string)=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onOpenKids:(event:CalendarEvent)=>void;onStatusChange:(value:{configured:boolean;connected:boolean})=>void;onRefresh:()=>void;onNewEvent:()=>void}) {
+function CalendarAgenda({widgetEventId,onWidgetAbsence,status,events,loading,sync,students,range,anchor,onRange,onAnchor,onOpenStudent,onStartStudent,onOpenKids,onStatusChange,onRefresh,onNewEvent}:{widgetEventId?:string|null;onWidgetAbsence?:(student:Student,event:CalendarEvent)=>Promise<void>;status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];range:AgendaRange;anchor:string;onRange:(value:AgendaRange)=>void;onAnchor:(value:string)=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onOpenKids:(event:CalendarEvent)=>void;onStatusChange:(value:{configured:boolean;connected:boolean})=>void;onRefresh:()=>void;onNewEvent:()=>void}) {
   const [addingEvent,setAddingEvent]=useState<CalendarEvent|null>(null);
+  const [widgetEditingEvent,setWidgetEditingEvent]=useState<CalendarEvent|null>(null);
+  const widgetEventOpened=useRef<string|null>(null);
+  useEffect(()=>{if(!widgetEventId||widgetEventOpened.current===widgetEventId||loading)return;const event=events.find(e=>e.id===widgetEventId);if(!event)return;widgetEventOpened.current=widgetEventId;if(kidsCalendarRequest(event))onOpenKids(event);else if(!event.allDay)setWidgetEditingEvent(event);else setAddingEvent(event);},[widgetEventId,events,loading,onOpenKids]);
   async function disconnect(){await fetch("/api/google/disconnect",{method:"POST"});onStatusChange({...status,connected:false});}
   async function removeEvent(id:string){if(!confirm("Excluir este compromisso do Google Calendar?"))return;const r=await fetch(`/api/google/events?id=${encodeURIComponent(id)}`,{method:"DELETE"});if(r.ok)onRefresh();else alert("Não foi possível excluir o compromisso.");}
   const visible=events.filter(event=>agendaRangeIncludes(event,anchor,range)).sort((a,b)=>a.start.localeCompare(b.start));
@@ -2058,6 +2082,7 @@ function CalendarAgenda({status,events,loading,sync,students,range,anchor,onRang
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
     {status.connected?<section className="panel agenda-period-panel"><div className="panel-head"><div><h2>{agendaRangeTitle(range)}</h2><p className="muted">{agendaPeriodLabel(anchor,range)}</p></div><span className="status-chip ok">{visible.length} evento{visible.length===1?"":"s"}</span></div>{loading?<div className="calendar-empty">Carregando agenda...</div>:<AgendaRangeContent range={range} anchor={anchor} events={visible} students={students} onOpenEvent={openEvent} onOpenStudent={onOpenStudent} onStartStudent={onStartStudent} onOpenKids={onOpenKids} onAddStudent={setAddingEvent} onRemoveEvent={removeEvent} onSelectDate={date=>{onAnchor(date);onRange("day");}} onSelectMonth={date=>{onAnchor(date);onRange("month");}}/>}</section>:null}
     <section className="panel agenda-connect agenda-connect-bottom"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Atualiza ao abrir/voltar ao DMP</span><span>✓ Revisa o dia a cada 5 min em uso</span><span>✓ Domingo: pré-carrega 7 dias</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Criar/excluir compromisso pelo DMP</span></div>{status.connected?<div className="agenda-sync-summary"><strong>Sincronização automática ativa</strong><span>Hoje{sync.dailyAt?` atualizado às ${formatSyncTime(sync.dailyAt)}`:" aguardando primeira atualização"}.</span><span>{sync.weeklyAt?`Última revisão semanal: ${formatSyncDateTime(sync.weeklyAt)} · ${sync.weeklyCount} compromissos.`:"A revisão dos próximos 7 dias acontece automaticamente no primeiro uso de domingo."}</span></div>:null}</div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
+    {widgetEditingEvent?<WidgetEventEditor event={widgetEditingEvent} students={getCalendarEventStudents(widgetEditingEvent,students)} onClose={()=>setWidgetEditingEvent(null)} onSaved={()=>{setWidgetEditingEvent(null);onRefresh();}} onStudents={()=>{setAddingEvent(widgetEditingEvent);setWidgetEditingEvent(null);}} onStudent={id=>{setWidgetEditingEvent(null);onOpenStudent(id);}} onPresence={id=>{setWidgetEditingEvent(null);onStartStudent(id,"attendance");}} onAbsence={student=>onWidgetAbsence?onWidgetAbsence(student,widgetEditingEvent):Promise.resolve()}/>:null}
     {addingEvent?<AddStudentsToCalendarEventModal event={addingEvent} students={students} onClose={()=>setAddingEvent(null)} onSaved={()=>{setAddingEvent(null);onRefresh();}}/>:null}
   </>;
 }

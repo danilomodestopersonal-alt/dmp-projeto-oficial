@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),postcss=require('postcss');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),crypto=require('node:crypto'),postcss=require('postcss');
 const prefix=fs.readFileSync(path.join(__dirname,'master-five.cjs'),'utf8').split("test('controle geral")[0];
 const harness={exports:{}};new Function('__dirname','require','module',prefix+'\nmodule.exports={root,data,lesson,metric,kidsUI,render,rerender,nodes,text,general,load};')(__dirname,require,harness);
 const {root,data,lesson,metric,kidsUI,render,rerender,nodes,text,general,load}=harness.exports;

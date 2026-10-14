@@ -1,5 +1,5 @@
 process.env.TZ='America/Sao_Paulo';
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),postcss=require('postcss'),ts=require('typescript');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),crypto=require('node:crypto'),postcss=require('postcss'),ts=require('typescript');
 const root=path.resolve(__dirname,'..'),baseline=require('./home13-baseline.json');
 const read=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n');
 let count=0;function test(name,fn){fn();console.log('OK HOME13 '+(++count)+' '+name);}

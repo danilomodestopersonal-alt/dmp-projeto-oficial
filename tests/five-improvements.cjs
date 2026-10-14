@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
 const {restoredNavigation,moveDraftExercise,draftExercisesForReuse}=require('../.operational-tests/lib/navigation');
 const {kidsStudentHistory}=require('../.operational-tests/lib/kids/student-history');
 const app=fs.readFileSync(path.join(__dirname,'../components/DmpApp.tsx'),'utf8');

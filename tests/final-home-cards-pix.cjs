@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),ts=require('typescript'),postcss=require('postcss');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),crypto=require('node:crypto'),ts=require('typescript'),postcss=require('postcss');
 const {manualPixPayer,reportPixPayer,pixTitle,pixForDestination}=require('../.operational-tests/lib/mercado-pago/pix-payer');
 const {normalizeFinanceData}=require('../.operational-tests/lib/financeiro/storage');
 const update8=require('./update8-baseline.json');

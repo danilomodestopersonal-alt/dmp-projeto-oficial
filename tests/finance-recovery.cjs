@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto');
 const {NextRequest}=require('next/server');
 const root=path.resolve(__dirname,'..');
 const source=fs.readFileSync(path.join(root,'app/api/finance/pin/route.ts'),'utf8');

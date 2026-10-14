@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto'),postcss=require('postcss');
+const assert=require('node:assert/strict'),fs={...require('node:fs'),readFileSync:require('./widget-v2-legacy-read.cjs')},path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto'),postcss=require('postcss');
 const root=path.resolve(__dirname,'..'),read=p=>(p==='components/HomeCentral.module.css'?require('./home13-baseline.json').original[p]:fs.readFileSync(path.join(root,p),'utf8')).replace(/\r\n/g,'\n'),baseline=require('./update8-baseline.json');
 const pix=require('../.operational-tests/lib/mercado-pago/pix-payer');
 function compile(code,mocks={}){const m={exports:{}};new Function('module','exports','require',ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText)(m,m.exports,n=>mocks[n]||require(n));return m.exports;}
