@@ -1,6 +1,6 @@
 process.env.TZ='America/Sao_Paulo';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto'),postcss=require('postcss');
-const root=path.resolve(__dirname,'..'),baseline=require('./home-pendencias13-baseline.json'),read=file=>fs.readFileSync(path.join(root,file),'utf8'),app=read('components/DmpApp.tsx'),css=read('components/HomeCentral.module.css'),oldCss=baseline.original['components/HomeCentral.module.css'];
+const root=path.resolve(__dirname,'..'),baseline=require('./home-pendencias13-baseline.json'),read=file=>fs.readFileSync(path.join(root,file),'utf8'),app=require('./home-mobile14-baseline.json').original['components/DmpApp.tsx'],css=require('./home-mobile14-baseline.json').original['components/HomeCentral.module.css'],oldCss=baseline.original['components/HomeCentral.module.css'];
 let count=0;async function test(name,fn){await fn();console.log('OK HOME PENDENCIAS13 '+(++count)+' '+name);}
 function funcs(source){return new Map(ts.createSourceFile('app.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX).statements.filter(n=>ts.isFunctionDeclaration(n)&&n.name).map(n=>[n.name.text,n.getText()]));}
 const prefix=read('tests/master-five.cjs').split("test('controle geral")[0],seedModule={exports:{}};new Function('__dirname','require','module',prefix+'\nmodule.exports={load};')(__dirname,require,seedModule);const seed=seedModule.exports.load(path.join(root,'lib/kids/seed.ts'));

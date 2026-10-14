@@ -6,7 +6,7 @@ let count=0;function test(name,fn){fn();console.log('OK HOME13 '+(++count)+' '+n
 const oldHarness=read('tests/final-home-cards-pix.cjs').split('const initial=')[0].replace(/^const .*require\('\.\.\/\.operational-tests[^\n]*\n/gm,''),hm={exports:{}};
 new Function('__dirname','require','module',oldHarness+'\nmodule.exports={homeHarness,homeProps,nodes,text};')(__dirname,require,hm);
 const {homeHarness,homeProps,nodes,text}=hm.exports;
-const app=read('components/DmpApp.tsx'),home=homeHarness(app),originalHome=homeHarness(baseline.original['components/DmpApp.tsx']);
+const app=require('./home-mobile14-baseline.json').original['components/DmpApp.tsx'],home=homeHarness(app),originalHome=homeHarness(baseline.original['components/DmpApp.tsx']);
 const prefix=read('tests/master-five.cjs').split("test('controle geral")[0].replaceAll('2026-10-03T12:00:00Z','2026-10-13T12:00:00Z'),m={exports:{}};
 new Function('__dirname','require','module',prefix+'\nmodule.exports={load,render,rerender,nodes};')(__dirname,require,m);
 const {load,render,rerender}=m.exports,Performance=load(path.join(root,'components/performance/PerformancePage.tsx')).default,Summary=load(path.join(root,'components/performance/PerformanceSummaryInsights.tsx')).default;

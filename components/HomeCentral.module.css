@@ -250,3 +250,18 @@
 .central :global(#todoist-notes-panel) :global(.todoist-panel-head) h2{margin-top:2px!important;margin-bottom:6px!important}
 .central :global(#todoist-notes-panel) :global(.todoist-panel-head) p{margin-top:0!important;margin-bottom:4px!important}
 }
+
+/* Home 14/10: somente a letra do cabeçalho; datas e eventos permanecem intactos. */
+.central :global(.mini-month-week)>b:last-child{color:#d84e48!important}
+
+/* Ordem e largura da Home mobile. Desktop homologado permanece intacto. */
+@media(max-width:900px){
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card){order:1!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.performance-today-card){order:2!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card){order:3!important}
+.central :global(#home-desktop-commitments){display:block!important;min-width:0;width:100%}
+.central :global(#home-desktop-commitments)>:global(.today-notes-card){height:auto!important;max-height:none!important;overflow:visible!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card)>div,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card)>div{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;align-self:stretch!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines),.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines){width:100%!important;max-width:100%!important;min-width:0!important;justify-items:stretch!important;align-items:stretch!important;grid-template-columns:minmax(0,1fr)!important}
+.central :global(.today-highlight-grid.todoist-home-grid)>:global(.today-summary-card) :global(.highlight-lines)>small,.central :global(.today-highlight-grid.todoist-home-grid)>:global(.month-closing-today-card) :global(.highlight-lines)>small{width:100%!important;max-width:100%!important;min-width:0!important;justify-self:stretch!important;box-sizing:border-box!important;min-height:48px!important;height:auto!important;padding:9px 26px 9px 44px!important;grid-template-columns:minmax(0,1fr) max-content!important}
+}

@@ -2540,10 +2540,11 @@ function TodayHighlights({events,monthEvents,monthKidsCount,monthKidsRows,notes,
   const [showMonthClosing,setShowMonthClosing]=useState(false);
   const [desktop,setDesktop]=useState(false);
   const [selectedMetric,setSelectedMetric]=useState<string|null>(null);
+  const [commitmentsReady,setCommitmentsReady]=useState(false);
   useEffect(()=>{
     const media=window.matchMedia("(min-width:901px)");
     const update=()=>{setDesktop(media.matches);setSelectedMetric(null);};
-    update();media.addEventListener("change",update);return()=>media.removeEventListener("change",update);
+    setCommitmentsReady(true);update();media.addEventListener("change",update);return()=>media.removeEventListener("change",update);
   },[]);
   const openMetric=(key:string)=>{setShowSummary(false);setShowMonthClosing(false);setSelectedMetric(key);};
   const metricAction=(key:string)=>({role:"button" as const,tabIndex:0,"data-home-metric":key,"aria-label":`Abrir ${{programmed:"alunos programados",attended:"atendidos",absent:"ausências",remaining:"ainda faltam",sessions:"atendimentos",assessments:"avaliações",kids:"aulas Kids",cycling:"ciclismo",strength:"musculação",pilates:"pilates"}[key as "programmed"]}`,onClick:()=>openMetric(key),onKeyDown:(event:React.KeyboardEvent)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openMetric(key);}}});
@@ -2733,7 +2734,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
       <MiniMonthCalendar onSelect={onAgenda}/>
 
-      {desktop?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():commitmentsCard}
+      {desktop?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():commitmentsReady?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():null}
 
       <section
         className="today-highlight-card today-summary-card"
