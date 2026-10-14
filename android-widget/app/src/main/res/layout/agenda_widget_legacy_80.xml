@@ -1,0 +1,22 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
+  <RelativeLayout android:id="@+id/shell" android:layout_width="match_parent" android:layout_height="wrap_content">
+    <ImageView android:id="@+id/shell_bg" android:layout_width="match_parent" android:layout_height="0dp" android:scaleType="fitXY" android:contentDescription="" android:layout_alignTop="@id/content" android:layout_alignBottom="@id/content" android:src="@drawable/widget_surface" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp" android:id="@+id/content">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="28dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/icon" android:contentDescription="DMP" />
+        <TextView android:id="@+id/header" android:layout_width="0dp" android:layout_height="wrap_content" android:text="DMP Agenda" android:textSize="11sp" android:textColor="#183B33" android:includeFontPadding="false" android:layout_weight="1" android:paddingStart="4dp" android:maxLines="1" android:ellipsize="end" android:textStyle="bold" />
+        <TextView android:id="@+id/refresh" android:layout_width="22dp" android:layout_height="24dp" android:text="↻" android:textSize="19sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" android:contentDescription="Atualizar" />
+      </LinearLayout>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="24dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/date" android:layout_width="0dp" android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:includeFontPadding="false" android:layout_weight="1" android:maxLines="1" android:textColor="#5D706A" />
+        <TextView android:id="@+id/settings" android:layout_width="22dp" android:layout_height="20dp" android:text="⚙" android:textSize="14sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" android:contentDescription="Configurar widget" />
+        <TextView android:id="@+id/add" android:layout_width="24dp" android:layout_height="24dp" android:text="+" android:textSize="23sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" android:contentDescription="Adicionar compromisso" android:background="@drawable/widget_add" />
+      </LinearLayout>
+      <TextView android:id="@+id/updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Aguardando atualização" android:textSize="8sp" android:includeFontPadding="false" android:textColor="#64766F" android:paddingBottom="4dp" android:maxLines="1" />
+      <ListView android:layout_width="match_parent" android:layout_height="80dp" android:id="@+id/items" android:divider="@null" android:scrollbars="vertical" android:cacheColorHint="@android:color/transparent" android:nestedScrollingEnabled="false">
+</ListView>
+      <TextView android:id="@+id/more" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="10sp" android:includeFontPadding="false" android:paddingTop="4dp" android:textColor="#386453" android:maxLines="1" />
+      <TextView android:id="@+id/agenda" android:layout_width="match_parent" android:layout_height="30dp" android:text="Abrir agenda  ›" android:textSize="11sp" android:includeFontPadding="false" android:background="@drawable/widget_button" android:textColor="#FFFFFF" android:gravity="center" android:textStyle="bold" android:layout_marginTop="6dp" />
+    </LinearLayout>
+  </RelativeLayout>
+</FrameLayout>

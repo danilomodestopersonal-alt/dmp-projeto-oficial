@@ -1467,6 +1467,9 @@ fetch("/api/google/status")
     setView("kids");
   }
 
+  // Leaving Performance consumes the selected record from a widget entry as well.
+  useEffect(()=>{if(view!=="performance"&&selectedPerformanceActivityId)setSelectedPerformanceActivityId(null);},[view,selectedPerformanceActivityId]);
+
   // Widget occurrence context is one-shot; leaving Agenda never reopens it later.
   useEffect(()=>{if(view!=="agenda"&&widgetAgendaEventId)setWidgetAgendaEventId(null);},[view,widgetAgendaEventId]);
 
@@ -1477,6 +1480,7 @@ fetch("/api/google/status")
     if(target.kind==="home"){consume();setView("today");return;}
     if(target.kind==="student"){const student=students.find(s=>s.id===target.id);consume();if(student)openStudent(student.id);else alert("Aluno não encontrado. O registro pode ter sido removido.");return;}
     if(target.kind==="performance"){consume();setSelectedPerformanceActivityId(target.id||null);setView("performance");return;}
+    if(target.kind==="kids"&&target.kids){consume();setKidsStudentRequest(null);setKidsLessonRequest(target.kids);setKidsEntryKey(current=>current+1);setView("kids");return;}
     if(target.kind==="commitment"){const note=notes.find(n=>n.id===target.id);if(!note)return;consume();setView("today");startEditingNote(note);return;}
     setCalendarAnchor(target.date);setCalendarRange("day");setView("agenda");
     if(target.kind==="new"){consume();setShowGoogleEventForm(true);return;}

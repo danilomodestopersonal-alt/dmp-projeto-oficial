@@ -1,0 +1,49 @@
+package br.com.dmp.widget
+
+import android.app.PendingIntent
+import android.content.Context
+import android.view.View
+import android.widget.FrameLayout
+import android.widget.TextView
+import org.json.JSONObject
+import org.json.JSONArray
+import org.junit.Test
+import org.junit.Assert.*
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk=[35],qualifiers="mdpi")
+class WidgetInteractionTest {
+ private val c:Context get()=RuntimeEnvironment.getApplication()
+ private fun event(id:String,time:String,type:String="Personal",date:String="2026-10-14")=JSONObject().put("id",id).put("date",date).put("start",time).put("end",java.time.LocalTime.parse(time).plusHours(1).toString()).put("type",type).put("title",id).put("color","#BC671C").put("destination",WidgetNavigation.path(if(type.contains("Kids"))"kids"else "event",date,id))
+ private fun snapshot():JSONObject=JSONObject().put("today",JSONObject().put("date","2026-10-14").put("next",JSONObject().put("id","kids")).put("programmed",3).put("attended",1).put("absent",0).put("remaining",2)).put("agenda",JSONObject().put("date","2026-10-14").put("items",JSONArray().put(event("late","18:30")).put(event("tomorrow","07:30",date="2026-10-15")).put(event("kids","15:00","Tênis Kids")).put(event("early","13:30")).put(event("note","16:30","Compromisso"))))
+ @Test fun chronologicalMixDoesNotGroupByType(){val rows=AgendaRows.rows(snapshot(),"2026-10-14");assertEquals(listOf("early","kids","note","late","tomorrow"),rows.mapNotNull{it.event?.getString("id")});assertEquals(listOf("2026-10-14","2026-10-15"),rows.filter{it.event==null}.map{it.day})}
+ @Test fun tomorrowOptionAndStableIds(){val a=AgendaRows.rows(snapshot(),"2026-10-14",false);assertEquals(4,a.count{it.event!=null});val b=AgendaRows.rows(snapshot(),"2026-10-14");assertEquals(a.map{it.stableId},b.take(a.size).map{it.stableId});assertEquals(b.size,b.map{it.stableId}.distinct().size)}
+ @Test fun carouselIncludesOnlyTodaysAppointments(){assertEquals(listOf("early","kids","late"),WidgetCarousel.items(snapshot(),"2026-10-14").map{it.getString("id")})}
+ @Test fun carouselStartsAtOfficialNextAndPreservesManualSelection(){val items=WidgetCarousel.items(snapshot(),"2026-10-14");assertEquals(1,WidgetCarousel.index(items,null,"kids","14:00"));assertEquals(0,WidgetCarousel.index(items,"early","kids","14:00"));assertEquals(2,WidgetCarousel.index(items,"removed",null,"19:00"))}
+ @Test fun arrowsClampAtFirstAndLastWithoutLoop(){assertEquals(0,WidgetCarousel.step(0,-1,3));assertEquals(2,WidgetCarousel.step(2,1,3));assertEquals(1,WidgetCarousel.step(0,1,3));assertEquals(-1,WidgetCarousel.step(-1,1,0))}
+ @Test fun selectionIsIndependentAndExpiresOnDateChange(){WidgetCarousel.save(c,11,"2026-10-14","early");WidgetCarousel.save(c,12,"2026-10-14","late");assertEquals("early",WidgetCarousel.selected(c,11,"2026-10-14"));assertEquals("late",WidgetCarousel.selected(c,12,"2026-10-14"));assertNull(WidgetCarousel.selected(c,11,"2026-10-15"));WidgetSettings.remove(c,11);assertNull(WidgetCarousel.selected(c,11,"2026-10-14"))}
+ @Test fun individualIntentsHaveUniqueIdentityAndRequestCodes(){val urls=mutableSetOf<String>();val codes=mutableSetOf<Int>();for(widget in listOf(11,12))for(kind in WidgetNavigation.kinds)for(record in listOf("FB","Ea")){val path=WidgetNavigation.path(kind,"2026-10-14",record);val pi=WidgetNavigation.open(c,widget,kind,path);val shadow=Shadows.shadowOf(pi);assertTrue(urls.add(shadow.savedIntent.dataString!!));assertTrue(codes.add(shadow.requestCode));assertEquals(WidgetOpenActivity::class.java.name,shadow.savedIntent.component!!.className);assertTrue(pi.isImmutable);assertEquals(path,shadow.savedIntent.getStringExtra("path"))}}
+ @Test fun collectionTemplateIsExplicitAndAllowsOnlyFillInRouting(){val pi=WidgetNavigation.collection(c,11);val i=Shadows.shadowOf(pi).savedIntent;assertFalse(pi.isImmutable);assertEquals(WidgetOpenActivity::class.java.name,i.component!!.className);assertNotEquals(i.dataString,Shadows.shadowOf(WidgetNavigation.collection(c,12)).savedIntent.dataString)}
+ @Test fun invalidRoutesNeverResolveToHome(){for(path in listOf("https://evil.test","//evil.test/app","/api/finance","/app?widget=home&date=2026-02-30","/app?widget=agenda&date=2026-10-14&token=dmpw_secret"))assertNull(WidgetNavigation.resolve("https://dmp.test",path));assertNull(WidgetNavigation.resolve(null,WidgetNavigation.path("home","2026-10-14")))}
+ @Test fun recordRoutingIgnoresIncorrectGenericDestination(){val e=event("lesson","15:00","Tênis Kids").put("destination","/app?widget=home&date=2026-10-14");assertEquals(WidgetNavigation.path("kids","2026-10-14","lesson"),WidgetNavigation.record(e))}
+ @Test fun serverKidsContextIsPreserved(){val e=event("dmp-kids:official","15:00","Tênis Kids");val path=WidgetNavigation.path("kids","2026-10-14","dmp-kids:official")+"&time=15%3A00&category=ORANGE&lessonId=official";e.put("destination",path);assertEquals(path,WidgetNavigation.record(e))}
+ @Test fun factoryExposesAllRowsAndReloadsWithoutChangingStableIdentity(){var source=snapshot();val f=AgendaFactory(c,101){source};f.onCreate();assertEquals(7,f.count);val before=f.getItemId(1);assertNotNull(f.getViewAt(1));source=JSONObject(source.toString());f.onDataSetChanged();assertEquals(before,f.getItemId(1));assertTrue(f.hasStableIds());f.onDestroy();assertEquals(0,f.count)}
+ @Test fun viewportIncreasesWithHeightButNeverLimitsTheDataset(){val rows=AgendaRows.rows(snapshot(),"2026-10-14");assertTrue(AgendaCollection.viewport(WidgetLayout(164,600),rows)>AgendaCollection.viewport(WidgetLayout(164,260),rows));WidgetSettings.save(c,101,90,1,true,true,true);assertEquals(7,AgendaRows.rows(snapshot(),"2026-10-14").size);WidgetSettings.remove(c,101)}
+ @Test fun summaryCardsOpenTheirOwnFilters(){val view=WidgetRenderer.render(c,101,false,WidgetLayout(164,360),snapshot(),"https://dmp.test","https://dmp.test/app").apply(c,FrameLayout(c));for((id,kind)in listOf(R.id.programmed to "programmed",R.id.attended to "attended",R.id.absent to "absent",R.id.remaining to "remaining")){assertTrue(view.findViewById<View>(id).performClick());val i=Shadows.shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity;assertEquals(WidgetNavigation.path(kind,"2026-10-14"),i.getStringExtra("path"))}}
+ @Test fun displayedCarouselRecordAndClickStayAligned(){WidgetCarousel.save(c,101,"2026-10-14","early");try{val view=WidgetRenderer.render(c,101,false,WidgetLayout(164,360),snapshot(),"https://dmp.test","https://dmp.test/app").apply(c,FrameLayout(c));assertEquals("early",view.findViewById<TextView>(R.id.next_title).text.toString());assertFalse(view.findViewById<View>(R.id.next_previous).isEnabled);assertTrue(view.findViewById<View>(R.id.next_arrow).isEnabled);view.findViewById<View>(R.id.next).performClick();assertEquals(WidgetNavigation.path("event","2026-10-14","early"),Shadows.shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra("path"))}finally{WidgetSettings.remove(c,101)}}
+ @Test fun arrowIntentsHaveIndependentIdentityAndBoundRecord(){val identities=mutableSetOf<String>();val codes=mutableSetOf<Int>();for(widget in listOf(11,12))for(id in listOf("FB","Ea"))for(direction in listOf(-1,1)){val pi=TodayWidget.arrow(c,widget,"2026-10-14",id,direction);val shadow=Shadows.shadowOf(pi);assertTrue(pi.isImmutable);assertTrue(identities.add(shadow.savedIntent.dataString!!));assertTrue(codes.add(shadow.requestCode));assertEquals(id,shadow.savedIntent.getStringExtra("eventId"));assertEquals(direction,shadow.savedIntent.getIntExtra("direction",0))}}
+ @Test fun workoutsAndCommitmentsOpenTheirSpecificIds(){
+  val snapshot=snapshot();val today=snapshot.getJSONObject("today")
+  today.put("workouts",JSONArray().put(JSONObject().put("id","w1").put("type","Ciclismo").put("title","Pedal")))
+  today.put("commitments",JSONArray().put(JSONObject().put("id","t1").put("time","18:30").put("title","Reunião")))
+  val v=WidgetRenderer.render(c,101,false,WidgetLayout(164,600),snapshot,"https://dmp.test","https://dmp.test/app").apply(c,FrameLayout(c))
+  for((container,kind,id)in listOf(Triple(R.id.workouts,"performance","w1"),Triple(R.id.notes,"commitment","t1"))){v.findViewById<View>(container).findViewById<View>(R.id.small_card).performClick();assertEquals(WidgetNavigation.path(kind,"2026-10-14",id),Shadows.shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra("path"))}
+ }
+ @Test fun agendaHeaderDateAndAddKeepTheDisplayedDate(){val host=android.appwidget.AppWidgetHostView(c);val v=WidgetRenderer.render(c,101,true,WidgetLayout(164,360),snapshot(),"https://dmp.test","https://dmp.test/app").apply(c,host);for((id,kind)in listOf(R.id.header to "agenda",R.id.date to "agenda",R.id.add to "new",R.id.agenda to "agenda")){v.findViewById<View>(id).performClick();assertEquals(WidgetNavigation.path(kind,"2026-10-14"),Shadows.shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity.getStringExtra("path"))}}
+
+}

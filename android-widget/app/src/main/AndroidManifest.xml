@@ -7,6 +7,8 @@
   <receiver android:name=".TodayWidget" android:exported="true" android:permission="android.permission.BIND_APPWIDGET"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info"/></receiver>
   <activity android:name=".WidgetSettingsActivity" android:exported="true"/>
   <receiver android:name=".AgendaWidget" android:label="DMP Agenda" android:exported="true" android:permission="android.permission.BIND_APPWIDGET"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/agenda_info"/></receiver>
+  <activity android:name=".WidgetOpenActivity" android:exported="false" android:theme="@android:style/Theme.NoDisplay"/>
+  <service android:name=".AgendaWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>
   <service android:name=".RefreshJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true"/>
  </application>
 </manifest>

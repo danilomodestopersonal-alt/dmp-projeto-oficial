@@ -13,8 +13,8 @@
         <TextView android:id="@+id/add" android:layout_width="24dp" android:layout_height="24dp" android:text="+" android:textSize="23sp" android:textColor="#183B33" android:includeFontPadding="false" android:gravity="center" android:contentDescription="Adicionar compromisso" android:background="@drawable/widget_add" />
       </LinearLayout>
       <TextView android:id="@+id/updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Aguardando atualização" android:textSize="8sp" android:includeFontPadding="false" android:textColor="#64766F" android:paddingBottom="4dp" android:maxLines="1" />
-      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/items">
-</LinearLayout>
+      <ListView android:layout_width="match_parent" android:layout_height="200dp" android:id="@+id/items" android:divider="@null" android:scrollbars="vertical" android:cacheColorHint="@android:color/transparent" android:nestedScrollingEnabled="false">
+</ListView>
       <TextView android:id="@+id/more" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="10sp" android:includeFontPadding="false" android:paddingTop="4dp" android:textColor="#386453" android:maxLines="1" />
       <TextView android:id="@+id/agenda" android:layout_width="match_parent" android:layout_height="30dp" android:text="Abrir agenda  ›" android:textSize="11sp" android:includeFontPadding="false" android:background="@drawable/widget_button" android:textColor="#FFFFFF" android:gravity="center" android:textStyle="bold" android:layout_marginTop="6dp" />
     </LinearLayout>
