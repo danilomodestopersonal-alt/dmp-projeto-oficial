@@ -1,3 +1,4 @@
+import { reconcileChamadaReplacements } from "@/lib/kids/chamada-replacement";
 import { AbsenceError, reconcileAbsenceRights } from "@/lib/kids/individual-absence";
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
@@ -107,7 +108,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (current.rows.length) body = reconcileAbsenceRights(current.rows[0].payload as KidsData, body);
+    if (current.rows.length) {
+      body = reconcileChamadaReplacements(current.rows[0].payload as KidsData, body);
+      body = reconcileAbsenceRights(current.rows[0].payload as KidsData, body);
+    }
 
     const result = await client.query(
       `

@@ -103,6 +103,7 @@ export type KidsAbsenceAudit = {
 };
 
 export type KidsData = {
+  replacementRosterAudit?:Array<{lessonId:string;date:string;added:string[];removed:string[];before:string[];after:string[];recordedAt:string}>;
   absenceAudit?:KidsAbsenceAudit[];
   version:1;
   semesterStart:string;

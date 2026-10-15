@@ -1,4 +1,5 @@
 "use client";
+import { addChamadaReplacement, removeChamadaReplacement, chamadaSaveMatches } from "@/lib/kids/chamada-replacement";
 import { kidsStudentHistory } from "../../lib/kids/student-history";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -240,7 +241,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setLoading(false);
     }
   }
-  async function persist(next: KidsData, message = "Alterações salvas.") {
+  async function persist(next: KidsData, message = "Alterações salvas.", confirmation?:KidsLesson) {
     const stamped = { ...next, updatedAt: new Date().toISOString() };
     setData(stamped);
     setSaving(true);
@@ -286,8 +287,17 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setNotice(message);
       return true;
     } catch {
+      if(confirmation){
+        try{
+          const check=await fetch("/api/kids",{cache:"no-store"});
+          const confirmed=await check.json();
+          if(check.ok&&confirmed.data&&confirmed.updatedAt&&chamadaSaveMatches(confirmation,confirmed.data.lessons?.find((item:KidsLesson)=>item.id===confirmation.id))){
+            window.sessionStorage.setItem("dmp_kids_cloud_updated_at",String(confirmed.updatedAt));setData(confirmed.data);setNotice(message);return true;
+          }
+        }catch{}
+      }
       setData(data);
-      setNotice("Erro ao salvar. Tente novamente.");
+      setNotice(confirmation?"A confirmação da gravação não foi obtida. Atualize a página e confira a chamada antes de repetir.":"Erro ao salvar. Tente novamente.");
       return false;
     } finally {
       setSaving(false);
@@ -531,6 +541,7 @@ const relatedGroup = lessonGroup(next);
     const saved=await persist(
       nextData,
       cancellationStarted?"Aula cancelada no DMP.":"Aula salva com sucesso.",
+      next.kind!=="REPLACEMENT"&&JSON.stringify(current?.replacementStudentIds||[])!==JSON.stringify(next.replacementStudentIds||[])?next:undefined,
     );
     if(!saved)return;
     if(next.status==="CANCELLED"&&relatedGroup){
@@ -1614,18 +1625,23 @@ function LessonEditor({
   replacements:KidsReplacement[];
   allStudents:KidsStudent[];
   onClose: () => void;
-  onSave: (next: KidsLesson) => void;
+  onSave: (next: KidsLesson) => void | Promise<void>;
 }) {
   const [draft, setDraft] = useState({
     ...lesson,
     attendance: { ...lesson.attendance },
   });
   const [replacementStudent,setReplacementStudent]=useState("");
+  const [showChamadaSearch,setShowChamadaSearch]=useState(false);
+  const [chamadaSearch,setChamadaSearch]=useState("");
+  const [editorSaving,setEditorSaving]=useState(false);
+  const saveInFlight=useRef(false);
   const [rosterCorrectionMode,setRosterCorrectionMode]=useState(false);
   const replacementLesson=draft.kind==="REPLACEMENT";
   const hasReplacementRoster=replacementLesson||Boolean(draft.replacementStudentIds?.length);
   const rosterLocked=hasReplacementRoster&&(draft.status==="COMPLETED"||Boolean(draft.replacementRosterLocked));
-  const rosterEditable=hasReplacementRoster&&(!rosterLocked||rosterCorrectionMode);
+  const regularChamadaEditable=!replacementLesson&&["SCHEDULED","COMPLETED"].includes(draft.status);
+  const rosterEditable=(hasReplacementRoster||regularChamadaEditable)&&(!rosterLocked||rosterCorrectionMode);
   const regularStudents = (replacementLesson ? [] : group.students)
     .filter(
       (item) =>
@@ -1675,6 +1691,7 @@ function LessonEditor({
       ? `Remover ${student?.name||"esta criança"} desta reposição já realizada?\n\nUse esta correção somente se a criança foi incluída por engano. Uma falta deve continuar marcada como falta e não devolve o crédito.`
       : `Remover ${student?.name||"esta criança"} da lista desta reposição?`;
     if(!window.confirm(message))return;
+    if(!replacementLesson){try{setDraft(removeChamadaReplacement(draft,studentId));}catch(error){window.alert(error instanceof Error?error.message:"Correção não permitida.");}return;}
     setDraft(current=>{
       const attendance={...current.attendance};
       delete attendance[studentId];
@@ -1842,8 +1859,22 @@ function LessonEditor({
                 <h3>Chamada</h3>
                 {hasReplacementRoster?<small>{rosterIds.length} participantes em reposição · {presentCount} presentes · {absentCount} faltas</small>:null}
               </div>
+              {regularChamadaEditable?<button type="button" disabled={editorSaving} onClick={()=>setShowChamadaSearch(value=>!value)}>+ Adicionar reposição</button>:null}
               <button onClick={allPresent}>Todos presentes</button>
             </div>
+            {regularChamadaEditable&&showChamadaSearch?<div className={styles.cancelBox}>
+              <strong>Adicionar reposição nesta aula</strong>
+              <p>{group.name} · {formatDate(draft.date)} · {group.startTime}. A turma fixa não será alterada. Confirme a inclusão em Salvar aula.</p>
+              <p>O DMP permite reposição antecipada. O consumo segue a realização da aula; uma falta na reposição também consome.</p>
+              <input aria-label="Buscar aluno para reposição" placeholder="Digite o nome do aluno" value={chamadaSearch} disabled={editorSaving} onChange={event=>setChamadaSearch(event.target.value)}/>
+              {chamadaSearch.trim().length>=2?<div className={styles.inlineActions}>
+                {allStudents.filter(student=>student.active&&(!student.startDate||student.startDate<=draft.date)&&!students.some(item=>item.id===student.id)&&normalizeName(student.name).includes(normalizeName(chamadaSearch))).map(student=><button type="button" key={student.id} disabled={editorSaving} onClick={()=>{
+                  if(!window.confirm(`Adicionar ${student.name} como REPOSIÇÃO em ${group.name}, ${formatDate(draft.date)} às ${group.startTime}?\n\n${draft.status==="COMPLETED"?"A aula continuará realizada e a reposição será contabilizada ao salvar.":"A inclusão vale somente para esta aula."}`))return;
+                  setDraft(current=>current.replacementStudentIds?.includes(student.id)?current:addChamadaReplacement(current,student,regularStudents.map(item=>item.id)));setChamadaSearch("");setShowChamadaSearch(false);
+                }}>{student.name} · Adicionar</button>)}
+                {!allStudents.some(student=>student.active&&(!student.startDate||student.startDate<=draft.date)&&!students.some(item=>item.id===student.id)&&normalizeName(student.name).includes(normalizeName(chamadaSearch)))?<p>Nenhum aluno disponível com esse nome.</p>:null}
+              </div>:null}
+            </div>:null}
             {hasReplacementRoster?<div className={styles.rosterIntegrityNotice}>
               <strong>{rosterLocked?"🔒 Lista protegida":"Lista de participantes"}</strong>
               <span>{rosterLocked?"A reposição já foi realizada. Uma falta continua consumindo o crédito. Se alguém foi incluído por engano, use Corrigir participantes.":"A chamada altera somente presença ou falta. Participantes podem ser corrigidos na edição abaixo."}</span>
@@ -2053,17 +2084,15 @@ function LessonEditor({
           </>
         )}
         <div className={styles.modalActions}>
-          <button onClick={onClose}>Cancelar</button>
+          <button disabled={editorSaving} onClick={onClose}>Cancelar</button>
           <button
             className={styles.primary}
-            disabled={!cancellationReasonValid||(hasReplacementRoster&&draft.status==="COMPLETED"&&!replacementRosterIsValid(draft))}
-            onClick={() =>
-              void onSave({
-                ...draft,
-                cancelReasonOther:draft.cancelReason==="OTHER"?draft.cancelReasonOther?.trim():undefined,
-                updatedAt: new Date().toISOString(),
-              })
-            }
+            disabled={editorSaving||!cancellationReasonValid||(hasReplacementRoster&&draft.status==="COMPLETED"&&!replacementRosterIsValid(draft))}
+            onClick={()=>void (async()=>{
+              if(saveInFlight.current)return;saveInFlight.current=true;setEditorSaving(true);
+              try{await onSave({...draft,cancelReasonOther:draft.cancelReason==="OTHER"?draft.cancelReasonOther?.trim():undefined,updatedAt:new Date().toISOString()});}
+              finally{saveInFlight.current=false;setEditorSaving(false);}
+            })()}
           >
             Salvar aula
           </button>
