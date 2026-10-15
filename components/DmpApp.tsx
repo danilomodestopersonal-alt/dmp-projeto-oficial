@@ -6199,3 +6199,5 @@ function displayNumber(value:number|null|undefined,suffix:string){return value==
 function tabLabel(tab:StudentTab){return({summary:"Dashboard",timeline:"Linha do tempo",workouts:"Treinos",history:"Histórico",assessments:"Avaliações",finance:"Financeiro",files:"Arquivos"})[tab];}
 
 // DMP_HOME_COMPACT_SCROLL_20260917
+
+export {FreeSessionScreen,PlannedSession};

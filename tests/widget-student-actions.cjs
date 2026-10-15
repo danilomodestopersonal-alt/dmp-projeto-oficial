@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript');
+const root=path.resolve(__dirname,'..'),cache=new Map();let n=0;
+function load(file,overrides={}){if(cache.has(file)&&!Object.keys(overrides).length)return cache.get(file);const m={exports:{}};const req=name=>name in overrides?overrides[name]:name.startsWith('@/')?load(name.slice(2)+'.ts',overrides):name.startsWith('.')?load(path.posix.join(path.posix.dirname(file),name)+'.ts',overrides):require(name);new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(req,m,m.exports);if(!Object.keys(overrides).length)cache.set(file,m.exports);return m.exports;}
+const logic=load('lib/widget/student-action.ts'),links=load('lib/widget/links.ts');
+const initial=()=>['Luciana Grespi','Juliana Revelk'].map((name,i)=>({id:'s'+i,name,status:'ACTIVE',sessions:[],workouts:[],assessments:[]}));
+const event={id:'occ-1',summary:'Luciana Grespi Juliana Revelk',start:'2026-10-14T08:30:00-03:00',end:'2026-10-14T09:30:00-03:00'};
+const target=(action='presence',studentId='s0')=>({kind:'student-action',id:event.id,date:'2026-10-14',time:'08:30',studentId,action});
+const test=async(name,fn)=>{await fn();console.log('OK STUDENT ACTION '+(++n)+' '+name);};
+module.exports=(async()=>{
+for(const action of ['register','presence','absence'])await test('link '+action,()=>{const t=target(action);assert.deepEqual(links.widgetTarget('?'+new URLSearchParams({widget:t.kind,date:t.date,id:t.id,studentId:t.studentId,action:t.action,time:t.time})),t);});
+for(const change of [{studentId:''},{id:''},{date:'2026-99-99'},{date:'2026-02-30'},{action:'all'},{time:'25:00'}])await test('link invalido '+JSON.stringify(change),()=>assert.throws(()=>logic.actionTarget({...target(),...change})));
+for(const action of ['presence','absence'])await test('isola aluno '+action,()=>{const s=initial(),before=JSON.stringify(s),r=logic.prepareStudentAction(s,[event],target(action),'stable');assert.equal(JSON.stringify(s),before);assert.equal(r.students[0].sessions.length,1);assert.equal(r.session.calendarEvent.id,event.id);assert.equal(r.students[1],s[1]);});
+await test('registro revisado com data exata',()=>{const p={date:'2026-10-14',completedExercises:[{id:'e',name:'Remada',sets:'3',reps:'12',load:'20'}]};assert.equal(logic.prepareStudentAction(initial(),[event],target('register'),'stable',p).session.source,'FREE');assert.throws(()=>logic.prepareStudentAction(initial(),[event],target('register'),'stable',{...p,date:'2026-10-15'}));});
+await test('repeticao e conflito',()=>{const r=logic.prepareStudentAction(initial(),[event],target(),'stable');assert.equal(logic.prepareStudentAction(r.students,[event],target(),'stable').already,true);assert.throws(()=>logic.prepareStudentAction(r.students,[event],target('absence'),'stable'));});
+await test('registro legado protegido',()=>{const s=initial();s[0].sessions=[{id:'old',date:'2026-10-14',source:'ATTENDANCE'}];assert.throws(()=>logic.prepareStudentAction(s,[event],target(),'stable'));});
+for(const changed of [{...event,id:'outro'},{...event,start:'2026-10-15T08:30:00-03:00'},{...event,start:'2026-10-14T09:00:00-03:00'},{...event,summary:'Juliana Revelk'}])await test('rejeita aula alterada '+JSON.stringify(changed),()=>assert.throws(()=>logic.prepareStudentAction(initial(),[changed],target(),'stable')));
+let authorized=true,calendarOk=true,state=initial(),writes=0,chain=Promise.resolve();
+class Request{constructor(url,{headers={}}={}){this.url=String(url);this.nextUrl=new URL(url);this.headers=new Headers(headers);}async json(){return this.body;}}
+const response=(body,status=200)=>({ok:status>=200&&status<300,status,body,json:async()=>body,cookies:{getAll:()=>[],set:()=>{}}});
+const pool={async connect(){let unlock;return {async query(sql,args){if(sql==='BEGIN'){const previous=chain;chain=new Promise(r=>unlock=r);await previous;return {};}
+if(sql.startsWith('SELECT'))return {rows:[{payload:structuredClone(state)}]};if(sql.startsWith('UPDATE')){writes++;state=JSON.parse(args[1]);return {};}
+if(sql==='COMMIT'||sql==='ROLLBACK'){unlock?.();unlock=null;return {};}throw Error(sql);},release(){unlock?.();}};}};
+const api=load('app/api/widget/student-action/route.ts',{'@/lib/widget/student-action':logic,'next/server':{NextRequest:Request,NextResponse:{json:(b,o)=>response(b,o?.status||200)}},'@/lib/auth':{isAuthorized:async()=>authorized},'@/lib/db':{pool},'@/app/api/google/calendar/route':{GET:async()=>calendarOk?response({events:[event]}):response({message:'offline'},503)}});
+function req(t=target(),origin='https://dmp.test'){const r=new Request('https://dmp.test/api/widget/student-action',{headers:{origin}});r.body={target:t};return r;}
+await test('GET sem escrita',async()=>{assert.equal((await api.GET()).body.confirmationRequired,true);assert.equal(writes,0);});
+await test('sessao obrigatoria',async()=>{authorized=false;assert.equal((await api.POST(req())).status,401);authorized=true;assert.equal(writes,0);});
+await test('origem estranha bloqueada',async()=>assert.equal((await api.POST(req(target(),'https://evil.test'))).status,403));
+await test('sem rede sem sucesso',async()=>{calendarOk=false;assert.equal((await api.POST(req())).status,503);calendarOk=true;assert.equal(writes,0);});
+await test('toques concorrentes idempotentes',async()=>{const results=await Promise.all([api.POST(req()),api.POST(req())]);assert.deepEqual(results.map(r=>r.status),[200,200]);assert.equal(writes,1);assert.equal(state[0].sessions.length,1);assert.equal(results.filter(r=>r.body.already).length,1);assert.equal(state[1].sessions.length,0);assert.equal(results[0].body.occurrenceComplete,false);assert.equal(results[0].body.nextEventId,null);});
+await test('acao contraria retorna conflito',async()=>{assert.equal((await api.POST(req(target('absence')))).status,409);assert.equal(writes,1);});
+await test('colega recebe somente sua acao',async()=>{const r=await api.POST(req(target('absence','s1')));assert.equal(r.status,200);assert.equal(r.body.occurrenceComplete,true);assert.equal(writes,2);assert.equal(state[0].sessions[0].source,'ATTENDANCE');assert.equal(state[1].sessions[0].source,'ABSENCE');});
+await test('origem publica funciona atras do proxy Render',async()=>{const before=process.env.APP_URL;try{process.env.APP_URL='https://dmp.test';const r=req();r.nextUrl=new URL('http://0.0.0.0:10000/api/widget/student-action');assert.equal((await api.POST(r)).status,200);assert.equal(writes,2);}finally{if(before===undefined)delete process.env.APP_URL;else process.env.APP_URL=before;}});
+console.log(`STUDENT ACTION: ${n} testes passaram.`);
+})().catch(e=>{console.error(e);process.exitCode=1;});
