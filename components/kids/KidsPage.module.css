@@ -1260,9 +1260,9 @@
 .lessonBody{padding:20px 24px;overflow:auto;overscroll-behavior:contain;min-height:0;flex:1}
 .lessonBody [hidden]{display:none!important}
 .lessonBody .attendance{gap:8px;margin-top:12px}
-.lessonBody .attendance>button{padding:12px;min-height:66px;border-radius:14px;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left}
-.lessonBody .attendance>button>span{width:28px;height:28px;font-size:18px}
-.lessonBody .attendance>button small{white-space:normal;text-align:right;font-size:12px}
+.lessonBody .attendance .lessonAttendanceToggle{padding:12px;min-height:66px;border-radius:14px;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left}
+.lessonBody .attendance .lessonAttendanceToggle>span{width:28px;height:28px;font-size:18px}
+.lessonBody .attendance .lessonAttendanceToggle small{white-space:normal;text-align:right;font-size:12px}
 .lessonStudentName{display:flex;align-items:center;gap:8px;min-width:0;font-size:15px}
 .lessonStudentName>span{overflow-wrap:anywhere}
 .lessonBalance{display:inline-flex!important;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:50%;font:inherit;font-size:12px;font-weight:700;line-height:1;font-style:normal;background:#fff;border:1px solid #cbd5d0;color:#44594e;box-sizing:border-box}
@@ -1286,8 +1286,8 @@
  .lessonTabs button{font-size:11px;padding:10px 2px}
  .lessonBody{padding:14px;scroll-padding-bottom:24px}
  .lessonBody .attendance{grid-template-columns:1fr}
- .lessonBody .attendance>button{grid-template-columns:25px minmax(0,1fr);gap:8px}
- .lessonBody .attendance>button small{grid-column:2;text-align:left;margin-left:38px}
+ .lessonBody .attendance .lessonAttendanceToggle{grid-template-columns:25px minmax(0,1fr);gap:8px}
+ .lessonBody .attendance .lessonAttendanceToggle small{grid-column:2;text-align:left;margin-left:38px}
  .lessonModal>.modalActions{padding:10px 14px max(10px,env(safe-area-inset-bottom))}
  .lessonModal>.modalActions .primary{flex:1}
  .lessonExitPrompt{padding:12px 14px}
@@ -1299,3 +1299,14 @@
 .lessonModal button,.lessonModal input,.lessonModal select,.lessonModal textarea{font-family:inherit}
 .lessonBody .attendanceHead{flex-wrap:wrap;gap:8px}
 .lessonBody .attendanceHead>div{flex:1;min-width:100px}
+
+.lessonAttendanceRow{position:relative;min-width:0}
+.lessonAttendanceToggle{width:100%}
+.lessonAttendanceToggle .lessonStudentName{padding-left:38px}
+.lessonBody .lessonBalanceLink{position:absolute;left:50px;top:50%;transform:translateY(-50%);width:34px;height:34px;min-height:34px;padding:0;cursor:pointer;z-index:1}
+.lessonBalanceLink:focus-visible{outline:3px solid #194c3c;outline-offset:3px}
+@media(max-width:640px){.lessonBody .lessonBalanceLink{left:46px;top:27px}}
+
+.lessonBody .lessonBalanceLink.balancepending{background:#ffe6e6;border-color:#e59a9a;color:#a51c28}
+.lessonBody .lessonBalanceLink.balanceadvance{background:#dff3e6;border-color:#8bc4a2;color:#176b3d}
+.lessonBody .lessonBalanceLink.balanceneutral{background:#fff;border-color:#cbd5d0;color:#566960}

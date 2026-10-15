@@ -1656,6 +1656,10 @@ function LessonEditor({
     return()=>{window.removeEventListener("resize",resize);viewport?.removeEventListener("resize",resize);viewport?.removeEventListener("scroll",resize);};
   },[]);
   const [activeTab,setActiveTab]=useState("CHAMADA");
+  const [balanceStudent,setBalanceStudent]=useState<string|null>(null);
+  const balanceTrigger=useRef<HTMLButtonElement|null>(null);
+  const skipBalancePop=useRef(false);
+  function closeBalance(){skipBalancePop.current=Boolean(window.history.state?.dmpReplacementModal);setBalanceStudent(null);setTimeout(()=>balanceTrigger.current?.focus(),0);}
   const [exitPrompt,setExitPrompt]=useState(false);
   const [classChange,setClassChange]=useState<KidsClassChange|null>(null);
   const initialLesson=useRef(JSON.stringify({...lesson,attendance:{...lesson.attendance}}));
@@ -1762,18 +1766,18 @@ function LessonEditor({
   const modalHistory=useRef(typeof window!=="undefined"?window.history?.state:null);
   useEffect(()=>{
     const unload=(event:BeforeUnloadEvent)=>{if(unsaved){event.preventDefault();event.returnValue="";}};
-    const back=(event:PopStateEvent)=>{if(unsaved){event.stopImmediatePropagation();window.history.pushState(modalHistory.current,"",window.location.href);setExitPrompt(true);}};
-    const key=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();requestClose();}if(event.key==="Tab"&&dialogRef.current){const controls=[...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href]')].filter(element=>element.getClientRects().length>0&&element.tabIndex!==-1);const first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}};
+    const back=(event:PopStateEvent)=>{if(skipBalancePop.current){skipBalancePop.current=false;event.stopImmediatePropagation();return;}if(balanceStudent)return;if(unsaved){event.stopImmediatePropagation();window.history.pushState(modalHistory.current,"",window.location.href);setExitPrompt(true);}};
+    const key=(event:KeyboardEvent)=>{if(balanceStudent)return;if(event.key==="Escape"){event.preventDefault();requestClose();}if(event.key==="Tab"&&dialogRef.current){const controls=[...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href]')].filter(element=>element.getClientRects().length>0&&element.tabIndex!==-1);const first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}};
     window.addEventListener("beforeunload",unload);window.addEventListener("popstate",back,true);window.addEventListener("keydown",key);
     return ()=>{window.removeEventListener("beforeunload",unload);window.removeEventListener("popstate",back,true);window.removeEventListener("keydown",key);};
-  },[unsaved,editorSaving]);
+  },[unsaved,editorSaving,balanceStudent]);
   const cancellationReasonValid =
     draft.status !== "CANCELLED" ||
     draft.cancelReason === "RAIN" ||
     (draft.cancelReason === "OTHER" && Boolean(draft.cancelReasonOther?.trim()));
   return (
     <div className={styles.modalBackdrop} style={visibleViewport?{height:visibleViewport.height,top:visibleViewport.top,bottom:"auto"}:undefined}>
-      <section ref={dialogRef} style={visibleViewport?{height:visibleViewport.height,maxHeight:visibleViewport.height}:undefined} className={`${styles.modal} ${styles.lessonModal}`} role="dialog" aria-modal="true" aria-label="Editar aula Kids">
+      <section inert={Boolean(balanceStudent)} ref={dialogRef} style={visibleViewport?{height:visibleViewport.height,maxHeight:visibleViewport.height}:undefined} className={`${styles.modal} ${styles.lessonModal}`} role="dialog" aria-modal="true" aria-label="Editar aula Kids">
         <div className={styles.modalHead}>
           <div>
             <CategoryDot category={group.category} />
@@ -1949,17 +1953,19 @@ function LessonEditor({
                   "PRESENT") as KidsAttendanceStatus;
                 const replacementParticipant=rosterIds.includes(student.id);
                 return (
-                  <button
-                    key={student.id}
+                  <div key={student.id} className={styles.lessonAttendanceRow}><button
+                    type="button"
                     className={
-                      value === "PRESENT" ? styles.present : styles.absent
+                      `${styles.lessonAttendanceToggle} ${value === "PRESENT" ? styles.present : styles.absent}`
                     }
                     onClick={() => toggle(student.id)}
                   >
                     <span>{value === "PRESENT" ? "✓" : "×"}</span>
-                    <strong className={styles.lessonStudentName}>{(()=>{const balance=data?kidsLessonBalance(data,student.id):undefined;return <i className={`${styles.lessonBalance} ${balance?styles["balance"+balance.tone]:""}`} title={balance?.description||"Saldo não disponível"} aria-label={balance?`Saldo ${balance.label}: ${balance.description}`:"Saldo não disponível"}>{balance?.label??"—"}</i>;})()}<span>{student.name}</span></strong>
+                    <strong className={styles.lessonStudentName}><span>{student.name}</span></strong>
                     <small>{replacementParticipant?`Reposição · ${value === "PRESENT" ? "Presente" : "Falta"}`:value === "PRESENT" ? "Presente" : "Falta"}</small>
                   </button>
+                  {(()=>{const balance=data?kidsLessonBalance(data,student.id):undefined;return <button type="button" disabled={!data||editorSaving} className={`${styles.lessonBalance} ${styles.lessonBalanceLink} ${balance?styles["balance"+balance.tone]:""}`} title={`Abrir reposições de ${student.name}`} aria-label={balance?`Saldo ${balance.label}: ${balance.description}. Abrir reposições de ${student.name}`:`Abrir reposições de ${student.name}`} onClick={event=>{event.stopPropagation();balanceTrigger.current=event.currentTarget;setBalanceStudent(student.id);}}>{balance?.label??"—"}</button>;})()}
+                  </div>
                 );
               })}
             </div>
@@ -2154,6 +2160,7 @@ function LessonEditor({
           </button>
         </div>
       </section>
+      {balanceStudent&&data?<KidsReplacementOperationSummary key={balanceStudent} data={data} studentTarget={balanceStudent} onCloseDetail={closeBalance}/>:null}
     </div>
   );
 }

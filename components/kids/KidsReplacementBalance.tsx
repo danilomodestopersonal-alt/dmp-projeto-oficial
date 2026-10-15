@@ -340,14 +340,17 @@ function OperationProgress({value}:{value:number}){
   </div>;
 }
 
-export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpenStudent}:{data:KidsData|null;compact?:boolean;onOpen?:()=>void;onOpenStudent?:(studentId:string)=>void}) {
+export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpenStudent,studentTarget,onCloseDetail}:{studentTarget?:string;onCloseDetail?:()=>void;data:KidsData|null;compact?:boolean;onOpen?:()=>void;onOpenStudent?:(studentId:string)=>void}) {
   const [period,setPeriod]=useState<OperationPeriod>("semester");
-  const [detail,setDetail]=useState<OperationDetail|null>(null);
+  const [detail,setDetail]=useState<OperationDetail|null>(studentTarget?"generated":null);
   const [detailSearch,setDetailSearch]=useState("");
-  const [expandedStudent,setExpandedStudent]=useState<string|null>(null);
+  const [expandedStudent,setExpandedStudent]=useState<string|null>(studentTarget||null);
+  const detailRef=useMemo(()=>({current:null as HTMLElement|null}),[]);
+  function closeDetail(){setDetail(null);onCloseDetail?.();}
+  useEffect(()=>{if(studentTarget)detailRef.current?.querySelector<HTMLButtonElement>('[aria-label="Fechar detalhamento"]')?.focus();},[studentTarget]);
   const metric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period):null,[data,period]);
-  const allMetric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period):null,[data,period]);
-  useEffect(()=>{if(detail===null)return;return bindReplacementModalBack(()=>setDetail(null));},[detail!==null]);
+  const allMetric=useMemo(()=>data?computeKidsReplacementOperationMetrics(data,period,Boolean(studentTarget)):null,[data,period,studentTarget]);
+  useEffect(()=>{if(detail===null)return;return bindReplacementModalBack(closeDetail);},[detail!==null]);
   if(!data||!metric||!allMetric)return null;
   const reportData=data;
   const reportMetric=metric;
@@ -406,7 +409,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
     }));
   };
   const detailRows=detail?(detail==="generated"?allMetric:metric).rows
-    .filter(row=>(detail==="generated"?true:detail==="attention"?row.pending>=2:rowValue(row,detail)>0&&(detail!=="pending"||row.netBalance>0)&&(detail!=="advance"||row.netBalance<0))&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
+    .filter(row=>(!studentTarget||row.id===studentTarget)&&(detail==="generated"?true:detail==="attention"?row.pending>=2:rowValue(row,detail)>0&&(detail!=="pending"||row.netBalance>0)&&(detail!=="advance"||row.netBalance<0))&&normalizeSearch(row.name).includes(normalizeSearch(detailSearch)))
     .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")):[];
   function openDetail(next:OperationDetail){setDetailSearch("");setExpandedStudent(null);setDetail(next);}
   const toReportRows=(kind:OperationDetail,rows:StudentOperationRow[]):ReplacementReportRow[]=>rows.map(row=>({
@@ -451,7 +454,7 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
   }
 
   return <>
-    <section className={`${styles.operationPanel} ${compact?styles.operationCompact:""}`}>
+    {!studentTarget?<section className={`${styles.operationPanel} ${compact?styles.operationCompact:""}`}>
       <div className={styles.operationHeading}>
         <div>
           <span>REPOSIÇÕES KIDS · CONTROLE INDIVIDUAL</span>
@@ -488,13 +491,13 @@ export function KidsReplacementOperationSummary({data,compact=false,onOpen,onOpe
         <div><small>BASE ATIVA</small><strong>{metric.activeStudents} aluno{metric.activeStudents===1?"":"s"} ativo{metric.activeStudents===1?"":"s"}</strong></div>
       </div>:null}
       <p className={styles.operationNote}><b>Leitura correta:</b> o saldo é individual. Crédito positivo de uma criança não apaga a pendência de outra.</p>
-    </section>
+    </section>:null}
 
-    {detail?<div className={styles.detailBackdrop} onMouseDown={event=>{if(event.currentTarget===event.target)setDetail(null);}}>
-      <section className={styles.detailDialog} role="dialog" aria-modal="true" aria-label={detailMeta[detail].title} onKeyDown={event=>{if(event.key==="Escape")setDetail(null);}}>
+    {detail?<div className={styles.detailBackdrop} onMouseDown={event=>{if(event.currentTarget===event.target)closeDetail();}}>
+      <section ref={detailRef} className={styles.detailDialog} role="dialog" aria-modal="true" aria-label={detailMeta[detail].title} onKeyDown={event=>{if(studentTarget&&event.key==="Tab"){const controls=[...event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled])')].filter(el=>el.getClientRects().length>0);const first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}if(event.key==="Escape"){event.preventDefault();event.stopPropagation();closeDetail();}}}>
         <header className={styles.detailHead}>
           <div><span>{detailMeta[detail].eyebrow}</span><h3>{detailMeta[detail].title}</h3><p>{detailMeta[detail].description}</p></div>
-          <div className={styles.detailHeadActions}><button type="button" onClick={()=>exportDetailReport("pdf")}>PDF</button><button type="button" onClick={()=>exportDetailReport("png")}>Imagem</button><button type="button" className={styles.detailClose} onClick={()=>setDetail(null)} aria-label="Fechar detalhamento">× Fechar</button></div>
+          <div className={styles.detailHeadActions}><button type="button" onClick={()=>exportDetailReport("pdf")}>PDF</button><button type="button" onClick={()=>exportDetailReport("png")}>Imagem</button><button type="button" className={styles.detailClose} onClick={closeDetail} aria-label="Fechar detalhamento">× Fechar</button></div>
         </header>
         <div className={styles.detailSummary}><strong>{detailRows.length}</strong><span>criança{detailRows.length===1?"":"s"} na lista</span><b>{detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0)}</b><span>registro{detailRows.reduce((sum,row)=>sum+(detail==="generated"?rowDates(row,detail).length:rowValue(row,detail)),0)===1?"":"s"}</span></div>
         <label className={styles.detailSearch}><span>⌕</span><input value={detailSearch} onChange={event=>{setDetailSearch(event.target.value);setExpandedStudent(null);}} placeholder="Buscar criança..." autoComplete="off"/></label>
