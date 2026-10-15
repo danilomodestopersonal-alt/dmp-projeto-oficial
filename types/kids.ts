@@ -13,6 +13,7 @@ export type KidsStudent = {
 };
 
 export type KidsClass = {
+  history?:Array<{from:string;value:Omit<KidsClass,"history">}>;
   id:string;
   name:string;
   weekday:number;
@@ -30,6 +31,7 @@ export type KidsLessonImage = { name:string; dataUrl:string; mimeType?:string };
 export type KidsLesson = {
   id:string;
   classId:string;
+  classSnapshot?:KidsClass;
   date:string;
   status:KidsLessonStatus;
   attendance:Record<string,KidsAttendanceStatus>;

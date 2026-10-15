@@ -1248,3 +1248,54 @@
 .studentHistoryMetrics button:focus-visible { outline:3px solid #54792f; outline-offset:2px; }
 
 .capacityOver i{background:#c6403f}.capacityLimit i{background:#e0b23c}.capacityAvailable i{background:#43a779}.capacityNear{background:#fff4d5;color:#896300}
+
+/* Aula Kids: o cabeçalho, as abas e a ação principal não fazem parte da rolagem. */
+.lessonModal{width:min(1120px,calc(100vw - 40px));height:min(900px,94dvh);max-height:94dvh;padding:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.lessonModal .modalHead{flex:none;padding:20px 24px 16px;margin:0;background:#fff}
+.lessonModal .modalHead h2{font-size:clamp(19px,2vw,26px)}
+.lessonModal button{min-height:44px;touch-action:manipulation}
+.lessonTabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:10px 20px;background:#f2f6f4;border-bottom:1px solid #dce6e1;flex:none}
+.lessonTabs button{border:0;background:transparent;border-radius:12px;color:#53695f;font-weight:700;padding:10px 6px;min-width:0}
+.lessonTabs button[aria-selected="true"]{background:#194c3c;color:#fff;box-shadow:0 3px 9px #194c3c22}
+.lessonBody{padding:20px 24px;overflow:auto;overscroll-behavior:contain;min-height:0;flex:1}
+.lessonBody [hidden]{display:none!important}
+.lessonBody .attendance{gap:8px;margin-top:12px}
+.lessonBody .attendance>button{padding:12px;min-height:66px;border-radius:14px;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left}
+.lessonBody .attendance>button>span{width:28px;height:28px;font-size:18px}
+.lessonBody .attendance>button small{white-space:normal;text-align:right;font-size:12px}
+.lessonStudentName{display:flex;align-items:center;gap:8px;min-width:0;font-size:15px}
+.lessonStudentName>span{overflow-wrap:anywhere}
+.lessonBalance{display:inline-flex!important;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:50%;font:inherit;font-size:12px;font-weight:700;line-height:1;font-style:normal;background:#fff;border:1px solid #cbd5d0;color:#44594e;box-sizing:border-box}
+.balancepending{background:#ffe6e6;border-color:#e59a9a;color:#a51c28}
+.balanceadvance{background:#dff3e6;border-color:#8bc4a2;color:#176b3d}
+.balanceneutral{background:#fff;border-color:#cbd5d0;color:#566960}
+.lessonModal>.modalActions{flex:none;margin:0;padding:12px 24px max(12px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid #dde6e0;box-shadow:0 -6px 20px #183b3308}
+.lessonExitPrompt{padding:16px 24px;background:#fff4d9;border-top:1px solid #edce88;flex:none}
+.lessonExitPrompt>div{display:flex;gap:8px;flex-wrap:wrap}
+.permanentClass fieldset{border:0;padding:0;margin:0;min-width:0}
+.permanentClass .cancelBox{margin-bottom:16px}
+.permanentClass p{line-height:1.5}
+.permanentMembers{display:grid;gap:8px;margin-bottom:14px}
+.permanentMembers>div{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #e0e8e3;border-radius:12px;padding:8px 12px}
+@media(max-width:640px){
+ .lessonModal{width:100%;height:100dvh;max-height:100dvh;border-radius:0}
+ .lessonModal .modalHead{padding:14px 14px 12px}
+ .lessonModal .modalHead>div{gap:6px}
+ .lessonModal .modalHead p{font-size:12px}
+ .lessonTabs{padding:8px;gap:3px}
+ .lessonTabs button{font-size:11px;padding:10px 2px}
+ .lessonBody{padding:14px;scroll-padding-bottom:24px}
+ .lessonBody .attendance{grid-template-columns:1fr}
+ .lessonBody .attendance>button{grid-template-columns:25px minmax(0,1fr);gap:8px}
+ .lessonBody .attendance>button small{grid-column:2;text-align:left;margin-left:38px}
+ .lessonModal>.modalActions{padding:10px 14px max(10px,env(safe-area-inset-bottom))}
+ .lessonModal>.modalActions .primary{flex:1}
+ .lessonExitPrompt{padding:12px 14px}
+ .permanentMembers>div{align-items:flex-start;flex-direction:column}
+}
+@media(max-height:520px){.lessonModal{height:100dvh;max-height:100dvh}.lessonModal .modalHead{padding:8px 14px}.lessonTabs{padding:4px 8px}.lessonBody{padding:10px 14px}}
+.lessonFields{border:0;padding:0;margin:0;min-width:0}
+.lessonNotice{margin:0;padding:8px 24px;color:#194c3c;background:#edf5ef;font-size:13px;flex:none}
+.lessonModal button,.lessonModal input,.lessonModal select,.lessonModal textarea{font-family:inherit}
+.lessonBody .attendanceHead{flex-wrap:wrap;gap:8px}
+.lessonBody .attendanceHead>div{flex:1;min-width:100px}

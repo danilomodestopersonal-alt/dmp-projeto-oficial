@@ -1,3 +1,4 @@
+import { kidsLessonClass, kidsClassAt } from "./class-history";
 import type { KidsData, KidsLesson, KidsStudent } from '@/types/kids';
 import { AbsenceError } from './individual-absence';
 import { recordCompletedReplacement, replacementRosterIsValid } from './replacement-integrity';
@@ -28,12 +29,12 @@ export function reconcileChamadaReplacements(current:KidsData,submitted:KidsData
   if(lesson.classId!==old.classId||lesson.date!==old.date||!['SCHEDULED','COMPLETED'].includes(lesson.status)||!['SCHEDULED','COMPLETED'].includes(old.status))throw new AbsenceError('ROSTER_STATUS','A inclusão ou correção exige a mesma aula agendada ou realizada.');
   if(old.status==='COMPLETED'&&lesson.status!==old.status)throw new AbsenceError('ROSTER_STATUS','A correção de participantes não pode reabrir a aula.');
   if(new Set(ids(lesson)).size!==ids(lesson).length||!replacementRosterIsValid(lesson))throw new AbsenceError('ROSTER_INVALID','Confira os participantes e a presença ou falta de cada reposição.');
-  const group=current.classes.find(item=>item.id===old.classId);
+  const group=kidsLessonClass(current,old);
   if(!group)throw new AbsenceError('ROSTER_CLASS','Turma da chamada não encontrada.');
   const regularIds=group.students.filter(s=>s.active&&(!s.startDate||s.startDate<=old.date)).map(s=>s.id);
   const added=ids(lesson).filter(id=>!ids(old).includes(id)),removed=ids(old).filter(id=>!ids(lesson).includes(id));
   for(const id of added){
-   const registered=current.classes.some(g=>g.active&&g.students.some(s=>s.id===id&&s.active&&(!s.startDate||s.startDate<=old.date)));
+   const registered=current.classes.map(g=>kidsClassAt(g,old.date)).some(g=>g.active&&g.students.some(s=>s.id===id&&s.active&&(!s.startDate||s.startDate<=old.date)));
    if(!registered||regularIds.includes(id))throw new AbsenceError('ROSTER_STUDENT','Selecione um aluno Kids do DMP que ainda não esteja na chamada.');
   }
   for(const id of removed)if(old.absenceReplacementRights?.[id])throw new AbsenceError('ROSTER_RIGHT','Há direito de reposição nesta falta. Confira o vínculo antes de corrigir a inclusão.');

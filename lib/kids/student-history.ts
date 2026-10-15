@@ -1,3 +1,4 @@
+import { kidsLessonClass } from "./class-history";
 import type { KidsData, KidsLesson } from "../../types/kids";
 import { computeKidsStudentReplacementBalance, isKidsFifthMonthlyLesson } from "./replacement-balance";
 
@@ -20,7 +21,7 @@ export function kidsStudentHistory(data:KidsData,studentId:string,start=data.sem
   }
   for(const lesson of latest.values()) {
     if(!inPeriod(lesson.date))continue;
-    const group=data.classes.find(g=>g.id===lesson.classId);
+    const group=kidsLessonClass(data,lesson);
     const member=group?.students.find(s=>s.id===studentId);
     const individual=(lesson.replacementStudentIds||[]).includes(studentId);
     const recorded=(data.replacementUsages||[]).find(u=>u.studentId===studentId&&u.lessonId===lesson.id);

@@ -1,9 +1,13 @@
 "use client";
+import { mergeKidsStudentRegistryGroup } from "@/lib/kids/class-history";
 import { addChamadaReplacement, removeChamadaReplacement, chamadaSaveMatches } from "@/lib/kids/chamada-replacement";
+import { kidsClassAt, kidsLessonClass, kidsClassChangeConfirmed, classDefinition, type KidsClassChange } from "@/lib/kids/class-history";
+import { kidsLessonBalance } from "@/lib/kids/lesson-balance";
 import { kidsStudentHistory } from "../../lib/kids/student-history";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
+import PermanentClassForm from "./PermanentClassForm";
 import { KidsReplacementOperationSummary, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
 import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, isKidsFifthMonthlyLesson, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
 import {
@@ -241,7 +245,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setLoading(false);
     }
   }
-  async function persist(next: KidsData, message = "Alterações salvas.", confirmation?:KidsLesson) {
+  async function persist(next: KidsData, message = "Alterações salvas.", confirmation?:KidsLesson, classChange?:KidsClassChange) {
     const stamped = { ...next, updatedAt: new Date().toISOString() };
     setData(stamped);
     setSaving(true);
@@ -262,7 +266,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       const response = await fetch("/api/kids", {
         method: "PUT",
         headers,
-        body: JSON.stringify(stamped),
+        body: JSON.stringify(classChange?{...stamped,_classChange:classChange}:stamped),
       });
 
       const saved = await response.json().catch(() => ({}));
@@ -287,17 +291,17 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
       setNotice(message);
       return true;
     } catch {
-      if(confirmation){
+      if(confirmation||classChange){
         try{
           const check=await fetch("/api/kids",{cache:"no-store"});
           const confirmed=await check.json();
-          if(check.ok&&confirmed.data&&confirmed.updatedAt&&chamadaSaveMatches(confirmation,confirmed.data.lessons?.find((item:KidsLesson)=>item.id===confirmation.id))){
+          if(check.ok&&confirmed.data&&confirmed.updatedAt&&(!confirmation||chamadaSaveMatches(confirmation,confirmed.data.lessons?.find((item:KidsLesson)=>item.id===confirmation.id)))&&(!classChange||kidsClassChangeConfirmed(confirmed.data,classChange))){
             window.sessionStorage.setItem("dmp_kids_cloud_updated_at",String(confirmed.updatedAt));setData(confirmed.data);setNotice(message);return true;
           }
         }catch{}
       }
       setData(data);
-      setNotice(confirmation?"A confirmação da gravação não foi obtida. Atualize a página e confira a chamada antes de repetir.":"Erro ao salvar. Tente novamente.");
+      setNotice(confirmation||classChange?"A confirmação da gravação não foi obtida. Atualize a página e confira a chamada antes de repetir.":"Erro ao salvar. Tente novamente.");
       return false;
     } finally {
       setSaving(false);
@@ -352,7 +356,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     const deletedEventIds=[...new Set([...(data.deletedEventIds||[]),eventId])];
     void persist({...data,events:(data.events||[]).filter(item=>item.id!==eventId),deletedEventIds},"Evento excluído.");
   }
-  const classes = data?.classes || [];
+  const classes = (data?.classes || []).map(group=>kidsClassAt(group,localDate()));
   const lessons = data?.lessons || [];
   const monthLessons = useMemo(
     () =>
@@ -433,7 +437,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     return classes.find((item) => item.id === id)?.startTime || "";
   }
   function lessonTime(lesson:KidsLesson){
-    return lesson.replacementStartTime || classTime(lesson.classId);
+    return lesson.replacementStartTime || lessonGroup(lesson)?.startTime || classTime(lesson.classId);
   }
   function studentProfile(id:string){
     return allStudentProfiles.find((student) => student.id === id);
@@ -442,7 +446,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     return classes.find((item) => item.id === id);
   }
   function lessonGroup(lesson:KidsLesson):KidsClass|undefined{
-    const regular=group(lesson.classId);
+    const regular=data?kidsLessonClass(data,lesson):group(lesson.classId);
     if(regular)return regular;
     if(lesson.kind!=="REPLACEMENT"||!lesson.replacementCategory)return undefined;
     return {
@@ -517,7 +521,7 @@ export default function KidsPage({ onBack, openRequest, openStudentId }: { onBac
     if(!deleted.ok)throw new Error("google_delete_failed");
     return "removed" as const;
   }
-  async function updateLesson(next: KidsLesson) {
+  async function updateLesson(next: KidsLesson, classChange?:KidsClassChange) {
     if (!data) return;
     const current=data.lessons.find(item=>item.id===next.id);
     const hasReplacementRoster=Boolean(next.replacementStudentIds?.length);
@@ -542,6 +546,7 @@ const relatedGroup = lessonGroup(next);
       nextData,
       cancellationStarted?"Aula cancelada no DMP.":"Aula salva com sucesso.",
       next.kind!=="REPLACEMENT"&&JSON.stringify(current?.replacementStudentIds||[])!==JSON.stringify(next.replacementStudentIds||[])?next:undefined,
+      classChange,
     );
     if(!saved)return;
     if(next.status==="CANCELLED"&&relatedGroup){
@@ -602,6 +607,7 @@ const relatedGroup = lessonGroup(next);
   }
   function updateClass(next: KidsClass) {
     if (!data) return;
+    if(data.classes.find(group=>group.id===next.id)?.history?.length){setNotice("Esta turma possui alterações com vigência. Use a aba Turma dentro de uma aula para preservar o histórico.");return;}
     void persist(
       {
         ...data,
@@ -615,6 +621,7 @@ const relatedGroup = lessonGroup(next);
   }
   async function updateStudentClasses(nextClasses: KidsClass[]) {
     if (!data) return;
+    nextClasses=nextClasses.map(edited=>{const raw=data.classes.find(group=>group.id===edited.id);return raw?mergeKidsStudentRegistryGroup(raw,edited,localDate()):edited;});
     const saved=await persist(
       { ...data, classes: nextClasses },
       "Cadastro da criança atualizado.",
@@ -631,11 +638,11 @@ const relatedGroup = lessonGroup(next);
     const clean=input.name.trim();
     if(!clean)return;
     const id=`kid-${crypto.randomUUID()}`;
-    const nextClasses=data.classes.map(group=>group.id===input.classId?{
+    const nextClasses=data.classes.map(group=>group.id===input.classId?mergeKidsStudentRegistryGroup(group,{
       ...group,
-      students:[...group.students,{id,name:clean,active:true,startDate:input.startDate}].sort((a,b)=>localeCompare(a.name,b.name)),
+      students:[...kidsClassAt(group,localDate()).students,{id,name:clean,active:true,startDate:input.startDate}].sort((a,b)=>localeCompare(a.name,b.name)),
       updatedAt:new Date().toISOString(),
-    }:group);
+    },localDate()):group);
     void persist({...data,classes:nextClasses},"Aluno cadastrado na DS.");
     setShowNewStudentForm(false);
     setTab("students");
@@ -1141,6 +1148,10 @@ const relatedGroup = lessonGroup(next);
           lesson={lessons.find((item) => item.id === lessonId)!}
           group={lessonGroup(lessons.find((item) => item.id === lessonId)!)!}
           replacements={data.replacements||[]}
+          data={data}
+          notice={notice}
+          permanentGroup={data.classes.find(group=>group.id===lessons.find(item=>item.id===lessonId)?.classId)}
+          onSaveClass={async change=>{if(!window.confirm(`Salvar alteração PERMANENTE da turma a partir de ${formatDate(change.effectiveFrom)}? Chamadas antigas e a aula aberta serão preservadas.`))return false;return persist(data,"Turma salva para as aulas futuras.",undefined,change);}}
           allStudents={allStudentProfiles}
           onClose={() => setLessonId(null)}
           onSave={updateLesson}
@@ -1619,14 +1630,35 @@ function LessonEditor({
   allStudents,
   onClose,
   onSave,
+  data,
+  notice,
+  permanentGroup,
+  onSaveClass,
 }: {
   lesson: KidsLesson;
   group: KidsClass;
   replacements:KidsReplacement[];
   allStudents:KidsStudent[];
   onClose: () => void;
-  onSave: (next: KidsLesson) => void | Promise<void>;
+  onSave: (next: KidsLesson,change?:KidsClassChange) => void | Promise<void>;
+  data?:KidsData;
+  notice?:string;
+  permanentGroup?:KidsClass;
+  onSaveClass?:(change:KidsClassChange)=>Promise<boolean>;
 }) {
+  const dialogRef=useRef<HTMLElement|null>(null);
+  const [visibleViewport,setVisibleViewport]=useState<{height:number;top:number}|null>(null);
+  useEffect(()=>{
+    const viewport=window.visualViewport;
+    const resize=()=>setVisibleViewport(window.innerWidth<=640?{height:viewport?.height||window.innerHeight,top:viewport?.offsetTop||0}:null);
+    resize();window.addEventListener("resize",resize);viewport?.addEventListener("resize",resize);viewport?.addEventListener("scroll",resize);
+    dialogRef.current?.querySelector<HTMLButtonElement>('[aria-label="Fechar aula"]')?.focus();
+    return()=>{window.removeEventListener("resize",resize);viewport?.removeEventListener("resize",resize);viewport?.removeEventListener("scroll",resize);};
+  },[]);
+  const [activeTab,setActiveTab]=useState("CHAMADA");
+  const [exitPrompt,setExitPrompt]=useState(false);
+  const [classChange,setClassChange]=useState<KidsClassChange|null>(null);
+  const initialLesson=useRef(JSON.stringify({...lesson,attendance:{...lesson.attendance}}));
   const [draft, setDraft] = useState({
     ...lesson,
     attendance: { ...lesson.attendance },
@@ -1658,13 +1690,17 @@ function LessonEditor({
       draft.status !== "HOLIDAY" &&
       Object.keys(draft.attendance).length === 0
     )
-      setDraft((current) => ({
-        ...current,
-        attendance: Object.fromEntries(
-          students.map((item) => [item.id, "PRESENT"]),
-        ),
-      }));
+      setDraft(current=>{const next={...current,attendance:Object.fromEntries(students.map(item=>[item.id,"PRESENT" as const]))};initialLesson.current=JSON.stringify(next);return next;});
   }, []);
+  function requestClose(){if(editorSaving)return;if(JSON.stringify(draft)!==initialLesson.current||classChange)setExitPrompt(true);else onClose();}
+  async function saveDraft(includeClass=false){
+    if(saveInFlight.current)return;
+    if(classChange&&!includeClass){setExitPrompt(true);return;}
+    if(includeClass&&classChange&&!window.confirm(`Salvar também a alteração PERMANENTE da turma a partir de ${formatDate(classChange.effectiveFrom)}?`))return;
+    saveInFlight.current=true;setEditorSaving(true);
+    try{await onSave({...draft,cancelReasonOther:draft.cancelReason==="OTHER"?draft.cancelReasonOther?.trim():undefined,updatedAt:new Date().toISOString()},includeClass?classChange||undefined:undefined);}
+    finally{saveInFlight.current=false;setEditorSaving(false);}
+  }
   function toggle(id: string) {
     setDraft((current) => ({
       ...current,
@@ -1722,13 +1758,22 @@ function LessonEditor({
         value === "CANCELLED" ? current.replacementStatus : "NONE",
     }));
   }
+  const unsaved=JSON.stringify(draft)!==initialLesson.current||Boolean(classChange);
+  const modalHistory=useRef(typeof window!=="undefined"?window.history?.state:null);
+  useEffect(()=>{
+    const unload=(event:BeforeUnloadEvent)=>{if(unsaved){event.preventDefault();event.returnValue="";}};
+    const back=(event:PopStateEvent)=>{if(unsaved){event.stopImmediatePropagation();window.history.pushState(modalHistory.current,"",window.location.href);setExitPrompt(true);}};
+    const key=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();requestClose();}if(event.key==="Tab"&&dialogRef.current){const controls=[...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href]')].filter(element=>element.getClientRects().length>0&&element.tabIndex!==-1);const first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}};
+    window.addEventListener("beforeunload",unload);window.addEventListener("popstate",back,true);window.addEventListener("keydown",key);
+    return ()=>{window.removeEventListener("beforeunload",unload);window.removeEventListener("popstate",back,true);window.removeEventListener("keydown",key);};
+  },[unsaved,editorSaving]);
   const cancellationReasonValid =
     draft.status !== "CANCELLED" ||
     draft.cancelReason === "RAIN" ||
     (draft.cancelReason === "OTHER" && Boolean(draft.cancelReasonOther?.trim()));
   return (
-    <div className={styles.modalBackdrop}>
-      <section className={styles.modal}>
+    <div className={styles.modalBackdrop} style={visibleViewport?{height:visibleViewport.height,top:visibleViewport.top,bottom:"auto"}:undefined}>
+      <section ref={dialogRef} style={visibleViewport?{height:visibleViewport.height,maxHeight:visibleViewport.height}:undefined} className={`${styles.modal} ${styles.lessonModal}`} role="dialog" aria-modal="true" aria-label="Editar aula Kids">
         <div className={styles.modalHead}>
           <div>
             <CategoryDot category={group.category} />
@@ -1738,14 +1783,17 @@ function LessonEditor({
               {categoryLabel[group.category]}
             </p>
           </div>
-          <button onClick={onClose}>×</button>
+          <button type="button" aria-label="Fechar aula" disabled={editorSaving} onClick={requestClose}>×</button>
         </div>
+        <nav className={styles.lessonTabs} aria-label="Seções da aula" role="tablist">{["CHAMADA","PLANEJAMENTO","REGISTROS","TURMA"].map(tab=><button type="button" role="tab" aria-selected={activeTab===tab} aria-controls={`kids-panel-${tab}`} id={`kids-tab-${tab}`} key={tab} tabIndex={activeTab===tab?0:-1} onKeyDown={event=>{const tabs=["CHAMADA","PLANEJAMENTO","REGISTROS","TURMA"];const current=tabs.indexOf(tab);const next=event.key==="ArrowRight"?tabs[(current+1)%4]:event.key==="ArrowLeft"?tabs[(current+3)%4]:event.key==="Home"?tabs[0]:event.key==="End"?tabs[3]:null;if(next){event.preventDefault();setActiveTab(next);document.getElementById(`kids-tab-${next}`)?.focus();}}} onClick={()=>setActiveTab(tab)}>{tab==="TURMA"&&classChange?"Turma •":tab.charAt(0)+tab.slice(1).toLowerCase()}</button>)}</nav>
+        <div className={styles.lessonBody}><fieldset disabled={editorSaving} className={styles.lessonFields}>
         {draft.status === "HOLIDAY" ? (
           <div className={styles.holiday}>
             Feriado — aula cancelada sem direito à reposição.
           </div>
         ) : (
           <>
+            <section id="kids-panel-CHAMADA" role="tabpanel" aria-labelledby="kids-tab-CHAMADA" hidden={activeTab!=="CHAMADA"}>
             <label>
               Situação
               <select
@@ -1909,7 +1957,7 @@ function LessonEditor({
                     onClick={() => toggle(student.id)}
                   >
                     <span>{value === "PRESENT" ? "✓" : "×"}</span>
-                    <strong>{student.name}</strong>
+                    <strong className={styles.lessonStudentName}>{(()=>{const balance=data?kidsLessonBalance(data,student.id):undefined;return <i className={`${styles.lessonBalance} ${balance?styles["balance"+balance.tone]:""}`} title={balance?.description||"Saldo não disponível"} aria-label={balance?`Saldo ${balance.label}: ${balance.description}`:"Saldo não disponível"}>{balance?.label??"—"}</i>;})()}<span>{student.name}</span></strong>
                     <small>{replacementParticipant?`Reposição · ${value === "PRESENT" ? "Presente" : "Falta"}`:value === "PRESENT" ? "Presente" : "Falta"}</small>
                   </button>
                 );
@@ -1922,6 +1970,8 @@ function LessonEditor({
                 {student.name} — Esta falta dá direito à reposição
               </label>
             ))}
+            </section>
+            <section id="kids-panel-PLANEJAMENTO" role="tabpanel" aria-labelledby="kids-tab-PLANEJAMENTO" hidden={activeTab!=="PLANEJAMENTO"}>
             <div className={styles.formGrid}>
               <label>
                 Tema da aula
@@ -2003,6 +2053,9 @@ function LessonEditor({
                   }
                 />
               </label>
+            </div></section>
+            <section id="kids-panel-REGISTROS" role="tabpanel" aria-labelledby="kids-tab-REGISTROS" hidden={activeTab!=="REGISTROS"}>
+            <div className={styles.formGrid}>
               <label>
                 Plano realizado
                 <textarea
@@ -2081,18 +2134,21 @@ function LessonEditor({
                 </label>
               )}
             </div>
+            </section>
           </>
         )}
+        <section id="kids-panel-TURMA" role="tabpanel" aria-labelledby="kids-tab-TURMA" hidden={activeTab!=="TURMA"}>
+          {permanentGroup&&onSaveClass?<PermanentClassForm key={permanentGroup.id} group={permanentGroup} students={allStudents} semesterEnd={data?.semesterEnd||""} disabled={editorSaving} onChange={setClassChange} onSave={async change=>{if(saveInFlight.current)return false;saveInFlight.current=true;setEditorSaving(true);try{return await onSaveClass(change);}finally{saveInFlight.current=false;setEditorSaving(false);}}}/>:<p>A administração permanente está disponível nas aulas de uma turma cadastrada.</p>}
+        </section>
+        </fieldset></div>
+        {exitPrompt?<div className={styles.lessonExitPrompt} role="alertdialog" aria-label="Edições não salvas"><strong>Há alterações não salvas.</strong><p>{classChange?"Salvar inclui a alteração permanente da turma, após confirmação.":"Escolha como deseja sair da aula."}</p><div><button disabled={editorSaving} onClick={()=>void saveDraft(true)}>Salvar e sair</button><button disabled={editorSaving} onClick={onClose}>Descartar e sair</button><button disabled={editorSaving} onClick={()=>setExitPrompt(false)}>Continuar editando</button></div></div>:null}
+        {notice?<p className={styles.lessonNotice} role="status">{notice}</p>:null}
         <div className={styles.modalActions}>
-          <button disabled={editorSaving} onClick={onClose}>Cancelar</button>
+          <button disabled={editorSaving} onClick={requestClose}>Cancelar</button>
           <button
             className={styles.primary}
             disabled={editorSaving||!cancellationReasonValid||(hasReplacementRoster&&draft.status==="COMPLETED"&&!replacementRosterIsValid(draft))}
-            onClick={()=>void (async()=>{
-              if(saveInFlight.current)return;saveInFlight.current=true;setEditorSaving(true);
-              try{await onSave({...draft,cancelReasonOther:draft.cancelReason==="OTHER"?draft.cancelReasonOther?.trim():undefined,updatedAt:new Date().toISOString()});}
-              finally{saveInFlight.current=false;setEditorSaving(false);}
-            })()}
+            onClick={()=>void saveDraft()}
           >
             Salvar aula
           </button>
@@ -3144,7 +3200,7 @@ function localDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 function lessonHasPassed(lesson: KidsLesson, classes: KidsClass[]) {
-  const group = classes.find((item) => item.id === lesson.classId);
+  const group = kidsLessonClass({classes},lesson);
   if (!group) return lesson.date < localDate();
   return new Date(`${lesson.date}T${group.endTime || group.startTime}:00`).getTime() <= Date.now();
 }

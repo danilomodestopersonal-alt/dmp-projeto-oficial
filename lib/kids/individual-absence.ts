@@ -1,9 +1,10 @@
+import { kidsLessonClass } from "./class-history";
 import type { KidsAbsenceAudit, KidsData, KidsLesson } from "../../types/kids";
 import type { KidsReplacementBalanceEvent } from "./replacement-balance";
 
-export class AbsenceError extends Error {
-  constructor(public code:string, message:string, public status=422) { super(message); }
-}
+import { AbsenceError } from "./errors";
+export { AbsenceError } from "./errors";
+
 export function absenceKey(lesson:KidsLesson, studentId:string) {
   return JSON.stringify(["kids-absence-v1",studentId,lesson.classId,lesson.id,lesson.date]);
 }
@@ -16,7 +17,7 @@ export function individualAbsenceDueEvents(data:KidsData,studentId:string,throug
   for (const lesson of data.lessons) {
     if(lesson.date>throughDate || ["CANCELLED","HOLIDAY"].includes(lesson.status) || !absenceState(lesson,studentId).replacementRight) continue;
     events.set(absenceKey(lesson,studentId),{id:absenceKey(lesson,studentId),classId:lesson.classId,
-      className:data.classes.find(group=>group.id===lesson.classId)?.name || lesson.replacementName || "Reposição",
+      className:kidsLessonClass(data,lesson)?.name || lesson.replacementName || "Reposição",
       date:lesson.date,type:"DUE",source:"INDIVIDUAL_ABSENCE",label:"Falta individual com direito à reposição",lessonId:lesson.id});
   }
   return [...events.values()];
@@ -47,7 +48,7 @@ export function reconcileAbsenceRights(current:KidsData,next:KidsData,origin:"DM
     const after=fresh?absenceState(fresh,id):{attendance:"PRESENT" as const,replacementRight:false};
     if(before.replacementRight && !after.replacementRight && reversalProtected(current,id)) throw new AbsenceError("REVERSAL_REVIEW_REQUIRED","Direito protegido: há reposição agendada, realizada ou antecipada. Revise no DMP antes de retirar o direito.");
     if(after.replacementRight) {
-      const group=next.classes.find(item=>item.id===lesson.classId);
+      const group=kidsLessonClass(next,lesson);
       const member=group?.students.find(item=>item.id===id);
       const participant=(lesson.replacementStudentIds||[]).includes(id);
       if(!group || (!member && !participant) || (member?.startDate && member.startDate>lesson.date)) throw new AbsenceError("INVALID_MEMBERSHIP","Aluno incompatível com a aula.");

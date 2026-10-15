@@ -1,3 +1,4 @@
+import { applyKidsClassChange } from "@/lib/kids/class-history";
 import { reconcileChamadaReplacements } from "@/lib/kids/chamada-replacement";
 import { AbsenceError, reconcileAbsenceRights } from "@/lib/kids/individual-absence";
 import { isAuthorized } from "@/lib/auth";
@@ -55,7 +56,8 @@ export async function PUT(request: NextRequest) {
   const client = await pool.connect();
 
   try {
-    let body = (await request.json()) as KidsData;
+    let body = (await request.json()) as KidsData & {_classChange?:import("@/lib/kids/class-history").KidsClassChange};
+    const classChange=body._classChange;delete body._classChange;
 
     if (
       !body ||
@@ -108,6 +110,11 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if(classChange){
+      if(!current.rows.length) throw new AbsenceError("CLASS_BASE","Carregue o cadastro antes de editar a turma.");
+      const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+      body=applyKidsClassChange({...body,classes:current.rows[0].payload.classes},classChange,today);
+    }
     if (current.rows.length) {
       body = reconcileChamadaReplacements(current.rows[0].payload as KidsData, body);
       body = reconcileAbsenceRights(current.rows[0].payload as KidsData, body);

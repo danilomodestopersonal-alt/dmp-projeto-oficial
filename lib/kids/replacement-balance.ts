@@ -1,3 +1,4 @@
+import { kidsLessonClass, kidsClassMemberships } from "./class-history";
 import { individualAbsenceDueEvents } from "./individual-absence";
 import type { KidsClass, KidsData, KidsLesson } from "@/types/kids";
 
@@ -121,12 +122,13 @@ export function computeKidsClassReplacementBalance(
   for (const monthLessons of byMonth.values()) {
     monthLessons.sort((a, b) => a.date.localeCompare(b.date));
     monthLessons.forEach((lesson, index) => {
+      const occurrenceClassName=kidsLessonClass(data,lesson)?.name||className;
       if (index < 4) {
         if (lesson.status === "CANCELLED") {
           events.push({
             id: `${classId}-${lesson.date}-due`,
             classId,
-            className,
+            className:occurrenceClassName,
             date: lesson.date,
             type: "DUE",
             source: "CANCELLED_CONTRACTED",
@@ -141,11 +143,11 @@ export function computeKidsClassReplacementBalance(
       // desde o início do mês e vira realizada ao acontecer. Cancelamento,
       // feriado ou remoção revertem a antecipação automaticamente.
       if (lesson.status === "SCHEDULED" || lesson.status === "COMPLETED") {
-        const realized = lessonHeld(lesson, group);
+        const realized = lessonHeld(lesson, kidsLessonClass(data,lesson)||group);
         events.push({
           id: `${classId}-${lesson.date}-replaced`,
           classId,
-          className,
+          className:occurrenceClassName,
           date: lesson.date,
           type: "REPLACED",
           source: "FIFTH_CLASS",
@@ -186,9 +188,9 @@ function individualReplacementEvents(
     )
     // A vaga utilizada consome a reposição quando a aula acontece.
     // A falta continua registrada na chamada, mas não devolve o crédito.
-    .filter((lesson) => individualLessonHeld(lesson, data.classes.find((group) => group.id === lesson.classId)))
+    .filter((lesson) => individualLessonHeld(lesson, kidsLessonClass(data,lesson)))
     .map((lesson): KidsReplacementBalanceEvent => {
-      const group = data.classes.find((item) => item.id === lesson.classId);
+      const group = kidsLessonClass(data,lesson);
       const absent = lesson.attendance?.[studentId] === "ABSENT";
       return {
         id: `student:${studentId}:${lesson.id}:individual-replaced`,
@@ -325,17 +327,10 @@ export function computeKidsStudentReplacementBalance(
   studentId: string,
   throughDate = localDateKey(),
 ): KidsReplacementBalance {
-  const memberships = data.classes.flatMap((group) =>
-    group.students
-      .filter((student) => student.id === studentId && student.active)
-      .map((student) => ({ group, student })),
-  );
-
-  const activeCollectiveEvents = memberships.flatMap(({ group, student }) => {
-    const start = student.startDate || data.semesterStart || KIDS_REPLACEMENT_BALANCE_START;
-    return computeKidsClassReplacementBalance(data, group.id, throughDate).events.filter(
-      (event) => event.date >= start,
-    );
+  const memberships=data.classes.flatMap(group=>kidsClassMemberships(group,studentId).map(membership=>({group,...membership})));
+  const activeCollectiveEvents=memberships.flatMap(({group,student,from,to})=>{
+    const start=student.startDate||data.semesterStart||KIDS_REPLACEMENT_BALANCE_START;
+    return computeKidsClassReplacementBalance(data,group.id,throughDate).events.filter(event=>event.date>=start&&event.date>=from&&event.date<to);
   });
   const activeDueEvents = activeCollectiveEvents.filter((event) => event.type === "DUE");
   const preservedDueEvents = preservedCancelledCreditEvents(

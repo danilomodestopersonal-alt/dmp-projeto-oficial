@@ -1,10 +1,12 @@
+import { kidsClassAt, kidsLessonClass } from "./class-history";
 import type { KidsCategory, KidsClass, KidsData, KidsEvent, KidsLesson } from "@/types/kids";
 import { formatKidsPlan, getKidsPedagogicalPlan } from "@/lib/kids/pedagogy";
 import { repairKidsReplacementIntegrity } from "@/lib/kids/replacement-integrity";
 
 export const KIDS_SEMESTER_START="2026-08-03";
 export const KIDS_SEMESTER_END="2026-12-19";
-export const KIDS_HOLIDAYS=new Set(["2026-09-07","2026-10-12","2026-11-02","2026-11-15","2026-11-22"]);
+import { KIDS_HOLIDAYS } from "./calendar";
+export { KIDS_HOLIDAYS } from "./calendar";
 
 type SeedClass={name:string;weekday:number;startTime:string;category:KidsCategory;students:string[]};
 const seedClasses:SeedClass[]=[
@@ -62,7 +64,7 @@ export function normalizeKidsData(source:KidsData):KidsData{
   const now=new Date().toISOString();
   const rawClasses=source.classes.map(group=>{
     const category=(group.category as string)==="PURPLE"?"RED":group.category;
-    return {...group,category,name:kidsClassName(category,group.weekday,group.startTime),teacher:group.teacher||"Danilo Modesto",students:group.students.map(student=>({...student}))};
+    return {...group,category,name:group.history?.length?group.name:kidsClassName(category,group.weekday,group.startTime),teacher:group.teacher||"Danilo Modesto",students:group.students.map(student=>({...student}))};
   });
   const aliases=new Map<string,string>();
   const profiles=new Map<string,KidsClass["students"][number]>();
@@ -82,10 +84,10 @@ export function normalizeKidsData(source:KidsData):KidsData{
   });
   const classMap=new Map(classes.map(group=>[group.id,group]));
   const sourceLessons=new Map(source.lessons.map(lesson=>[lesson.id,lesson]));
-  const canonicalLessons=createKidsSeed().lessons.filter(lesson=>classMap.has(lesson.classId));
+  const canonicalLessons=createKidsSeed().lessons.filter(lesson=>classMap.has(lesson.classId)&&!classMap.get(lesson.classId)?.history?.length);
   const mergedLessons=[...source.lessons,...canonicalLessons.filter(lesson=>!sourceLessons.has(lesson.id))];
   const lessons=mergedLessons.map(lesson=>{
-    const group=classMap.get(lesson.classId);const plan=group?getKidsPedagogicalPlan(group.category,lesson.date):undefined;
+    const rawGroup=classMap.get(lesson.classId);const group=lesson.classSnapshot||(rawGroup?kidsClassAt(rawGroup,lesson.date):undefined);const plan=group?getKidsPedagogicalPlan(group.category,lesson.date):undefined;
     const endTime=lesson.replacementEndTime||group?.endTime||group?.startTime||"23:59";
     const passed=lesson.status==="SCHEDULED"&&new Date(`${lesson.date}T${endTime}:00-03:00`).getTime()<=Date.now();
     const attendance:KidsLesson["attendance"]={};
@@ -105,7 +107,7 @@ export function normalizeKidsData(source:KidsData):KidsData{
   });
   for(const lesson of lessons){
     if(lesson.status!=="CANCELLED"||!lesson.replacementEligible)continue;
-    const group=classMap.get(lesson.classId);
+    const group=kidsLessonClass({classes},lesson);
     if(!group)continue;
     for(const student of group.students){
       if(!student.active||(student.startDate&&student.startDate>lesson.date))continue;
