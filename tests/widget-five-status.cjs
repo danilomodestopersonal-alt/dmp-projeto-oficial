@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript');
+const root=path.resolve(__dirname,'..');
+function load(file){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(id=>id.startsWith('@/')?load(id.slice(2)+'.ts'):id.startsWith('.')?load(path.posix.join(path.posix.dirname(file),id)+'.ts'):require(id),m,m.exports);return m.exports;}
+const {occurrenceState}=load('lib/widget/attendance-state.ts'),{widgetAgenda}=load('lib/widget/v2.ts'),date='2026-10-15';let count=0;
+const person=sessions=>({id:'student',name:'Rogério Novelli',status:'ACTIVE',sessions,workouts:[],assessments:[]});
+const record=(source,event)=>({id:'record',date,source,...(event?{calendarEvent:{id:event}}:{})});
+function test(name,fn){fn();console.log('OK FIVE STATUS '+(++count)+' '+name);}
+test('presença da tela oficial sem vínculo confirma o dia sem fabricar aula',()=>{const p=person([record('ATTENDANCE')]),before=JSON.stringify(p),s=occurrenceState(p,'05h30',date);assert.equal(s.state,'unknown');assert.equal(s.reason,'unlinked-record');assert.equal(s.confirmedDayPresence,true);assert.equal(s.sessionId,undefined);assert.equal(s.registered,undefined);assert.equal(JSON.stringify(p),before);});
+test('presença vinculada sem treino continua present e registered false',()=>assert.deepEqual(occurrenceState(person([record('ATTENDANCE','event')]),'event',date),{studentId:'student',state:'present',sessionId:'record',registered:false}));
+test('treino vinculado continua registered true',()=>assert.equal(occurrenceState(person([record('FREE','event')]),'event',date).registered,true));
+test('ausência vinculada continua absent',()=>assert.equal(occurrenceState(person([record('ABSENCE','event')]),'event',date).state,'absent'));
+test('pendente não recebe confirmação diária',()=>{const s=occurrenceState(person([]),'event',date);assert.equal(s.state,'pending');assert.equal(s.confirmedDayPresence,undefined);});
+test('conflitos continuam desconhecidos sem confirmação diária',()=>{const s=occurrenceState(person([record('ABSENCE','event'),record('ATTENDANCE','event')]),'event',date);assert.equal(s.reason,'conflicting-records');assert.equal(s.confirmedDayPresence,undefined);});
+test('legado de treino não vira presença simples nem ganha vínculo',()=>{const s=occurrenceState(person([record('FREE')]),'event',date);assert.equal(s.state,'unknown');assert.equal(s.confirmedDayPresence,undefined);});
+test('ausência no mesmo dia impede check diário em registro contraditório',()=>{for(const source of ['ABSENCE','FREE','IMPORTED']){const s=occurrenceState(person([record('ATTENDANCE'),record(source,'other')]),'event',date);assert.equal(s.confirmedDayPresence,undefined);}});
+test('outro aluno ou outro dia não transfere a confirmação',()=>{assert.equal(occurrenceState(person([record('ATTENDANCE')]),'event','2026-10-16').confirmedDayPresence,undefined);assert.equal(occurrenceState({...person([]),id:'other'},'event',date).confirmedDayPresence,undefined);});
+test('DTO de ida e atualização preserva sinal diário e dados originais',()=>{const students=[person([record('ATTENDANCE')])],events=[{id:'event',summary:'Rogério Novelli',start:date+'T05:30:00-03:00',end:date+'T06:30:00-03:00'}],before=JSON.stringify({students,events});for(let refresh=0;refresh<2;refresh++){const s=widgetAgenda(students,events,null,date)[0].studentStates[0];assert.equal(s.confirmedDayPresence,true);assert.equal(s.state,'unknown');}assert.equal(JSON.stringify({students,events}),before);});
+console.log('FIVE STATUS: '+count+' testes passaram.');

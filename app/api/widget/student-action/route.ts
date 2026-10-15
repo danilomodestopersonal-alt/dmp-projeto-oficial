@@ -4,7 +4,7 @@ import {pool} from "@/lib/db";
 import {isAuthorized} from "@/lib/auth";
 import {sameOrigin} from "@/lib/widget/devices";
 export const runtime="nodejs";
-export async function GET(){return NextResponse.json({version:28,corrections29:true,adendo14:true,individualStudentActions:true,confirmationRequired:true},{headers:{"Cache-Control":"no-store"}});}
+export async function GET(){return NextResponse.json({version:28,corrections29:true,dailyPresenceDisplay:true,adendo14:true,individualStudentActions:true,confirmationRequired:true},{headers:{"Cache-Control":"no-store"}});}
 // Widget buttons navigate to confirmation. Only an authenticated explicit POST can write.
 export async function POST(request:NextRequest){
  if(!(await isAuthorized(request)))return NextResponse.json({message:"Sessão inválida. Entre novamente no DMP."},{status:401});
