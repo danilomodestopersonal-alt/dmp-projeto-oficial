@@ -1,0 +1,41 @@
+{
+  "base": "6414932eba08ec1c18dab6f97c5458359805d172076f9724505bc0222a119c90",
+  "edits": [
+    [
+      "import homeCentral from \"./HomeCentral.module.css\";",
+      "import homeCentral from \"./HomeCentral.module.css\";\nimport homeVisual from \"./home/HomeAppearance.module.css\";\nimport {useHomeAppearance} from \"./home/appearance\";\nimport HomeIcon from \"./home/HomeIcon\";\nimport TaskDialog from \"./home/TaskDialog\";"
+    ],
+    [
+      "export default function DmpApp() {",
+      "export default function DmpApp() {\n  const modernHome=useHomeAppearance();"
+    ],
+    [
+      "<main className=\"dashboard-shell\">",
+      "<main id={view===\"today\"&&modernHome?\"dmp-home-modern\":undefined} className={`dashboard-shell ${view===\"today\"&&modernHome?homeVisual.root:\"\"}`}>"
+    ],
+    [
+      "<Sidebar current={view}",
+      "<Sidebar modern={view===\"today\"&&modernHome} current={view}"
+    ],
+    [
+      "function Sidebar({current,onNavigate",
+      "function Sidebar({modern=false,current,onNavigate"
+    ],
+    [
+      "}:{current:View;onNavigate:",
+      "}:{modern?:boolean;current:View;onNavigate:"
+    ],
+    [
+      ">{item.icon} {item.label}</button>",
+      ">{modern?<HomeIcon name={item.view}/>:item.icon} {item.label}</button>"
+    ],
+    [
+      "<section className=\"note-modal todoist-edit-modal\" onMouseDown={e=>e.stopPropagation()}>",
+      "<TaskDialog modern={modernHome} onClose={closeEditingNote}>"
+    ],
+    [
+      "                    </section>\n                  </div>\n                :null}\n              </section>",
+      "                    </TaskDialog>\n                  </div>\n                :null}\n              </section>"
+    ]
+  ]
+}

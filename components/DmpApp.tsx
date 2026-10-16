@@ -4,6 +4,10 @@ import CalendarRosterEditor from "@/components/calendar/CalendarRosterEditor";
 import {projectRoster} from "@/lib/calendar/roster";
 
 import homeCentral from "./HomeCentral.module.css";
+import homeVisual from "./home/HomeAppearance.module.css";
+import {useHomeAppearance} from "./home/appearance";
+import HomeIcon from "./home/HomeIcon";
+import TaskDialog from "./home/TaskDialog";
 import WidgetWeekAgenda from "./WidgetWeekAgenda";
 import WidgetEventEditor from "./WidgetEventEditor";
 import {widgetTarget} from "@/lib/widget/links";
@@ -95,6 +99,7 @@ function isPhoneDevice() {
 
 
 export default function DmpApp() {
+  const modernHome=useHomeAppearance();
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>(importedStudents2026);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
@@ -1542,8 +1547,8 @@ fetch("/api/google/status")
     const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${session.date} ${student.name} ${session.workoutName} ${session.focus||""} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; const now=today(); const cutoff=historyPeriod==="30"?dateOffset(now,-29):historyPeriod==="90"?dateOffset(now,-89):historyPeriod==="YEAR"?`${now.slice(0,4)}-01-01`:""; const matchPeriod=!cutoff||session.date>=cutoff; return matchText&&matchSource&&matchPeriod; });
 
     return (
-      <main className="dashboard-shell">
-        <Sidebar current={view} onNavigate={navigateMain} logout={logout} students={students} onStudent={openStudent} onKidsStudent={openKidsStudent} onMobileQuick={()=>setShowMobileActions(true)} onMobileVoice={()=>{sessionStorage.setItem("dmp_finance_voice_start","1");navigateMain("finance");}} />
+      <main id={view==="today"&&modernHome?"dmp-home-modern":undefined} className={`dashboard-shell ${view==="today"&&modernHome?homeVisual.root:""}`}>
+        <Sidebar modern={view==="today"&&modernHome} current={view} onNavigate={navigateMain} logout={logout} students={students} onStudent={openStudent} onKidsStudent={openKidsStudent} onMobileQuick={()=>setShowMobileActions(true)} onMobileVoice={()=>{sessionStorage.setItem("dmp_finance_voice_start","1");navigateMain("finance");}} />
         <div className="dashboard-main">
           {view === "today" ? <>
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
@@ -1611,7 +1616,7 @@ fetch("/api/google/status")
 
                 {editingNoteId?
                   <div className="note-modal-backdrop" onMouseDown={closeEditingNote}>
-                    <section className="note-modal todoist-edit-modal" onMouseDown={e=>e.stopPropagation()}>
+                    <TaskDialog modern={modernHome} onClose={closeEditingNote}>
                       <div className="note-modal-head">
                         <span>Editar tarefa do Todoist</span>
                         <button className="text-button" onClick={closeEditingNote} aria-label="Fechar">×</button>
@@ -1627,7 +1632,7 @@ fetch("/api/google/status")
                         <button onClick={closeEditingNote}>Cancelar</button>
                         <button className="primary" disabled={notesBusy||!editingNoteTitle.trim()} onClick={()=>void saveEditedNote()}>{notesBusy?"Salvando...":"Salvar no Todoist"}</button>
                       </div>
-                    </section>
+                    </TaskDialog>
                   </div>
                 :null}
               </section>
@@ -2253,7 +2258,7 @@ function FinancePinModal({trust,onTrustChange,pin,error,busy,onChange,onClose,on
   return <div className="modal-backdrop"><section className="modal"><div className="modal-head"><div><h2>Financeiro protegido</h2><p className="muted">Digite seu PIN para acessar. O Financeiro ficará liberado por 10 minutos.</p></div><button className="text-button" onClick={onClose}>Fechar</button></div><form className="form-grid" autoComplete="off" onSubmit={onSubmit}><label className="full">PIN<input autoFocus className="finance-pin-input" type="text" name="dmp-finance-pin" inputMode="numeric" autoComplete="one-time-code" maxLength={4} disabled={busy} value={pin} onChange={event=>onChange(event.target.value)} placeholder="••••" /></label>{canTrust?<label className="full" style={{display:"flex",alignItems:"center",gap:10}}><input type="checkbox" style={{width:20,height:20}} checked={trust} disabled={busy} onChange={event=>onTrustChange(event.target.checked)} />Confiar neste dispositivo por 30 dias</label>:null}<p className="full muted">No celular pessoal, marque “Confiar neste dispositivo” antes de digitar o PIN para acessar diretamente nos próximos 30 dias. A confiança pode ser revogada no Financeiro.</p>{error?<div className="full restriction-mini">⚠ {error}</div>:null}<button className="primary full" disabled={busy||pin.length!==4}>{busy?"Validando...":"Entrar no Financeiro"}</button></form></section></div>;
 }
 
-function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onMobileQuick,onMobileVoice}:{current:View;onNavigate:(view:View)=>void;logout:()=>void;students:Student[];onStudent:(id:string)=>void;onKidsStudent:(id:string)=>void;onMobileQuick:()=>void;onMobileVoice:()=>void}) {
+function Sidebar({modern=false,current,onNavigate,logout,students,onStudent,onKidsStudent,onMobileQuick,onMobileVoice}:{modern?:boolean;current:View;onNavigate:(view:View)=>void;logout:()=>void;students:Student[];onStudent:(id:string)=>void;onKidsStudent:(id:string)=>void;onMobileQuick:()=>void;onMobileVoice:()=>void}) {
   const [mobile, setMobile] = useState(false);
   const [studentSearch,setStudentSearch]=useState("");
   const [kidsSearchStudents,setKidsSearchStudents]=useState<KidsStudent[]>([]);
@@ -2291,7 +2296,7 @@ function Sidebar({current,onNavigate,logout,students,onStudent,onKidsStudent,onM
       {mobile&&current==="today"?<div className="sidebar-mobile-actions"><button className="mobile-quick-launch" onClick={onMobileQuick} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={onMobileVoice} aria-label="Falar lançamento financeiro">🎤</button></div>:null}
       {!mobile?<button className={`sidebar-kids-special ${current==="kids"?"active":""}`} onClick={()=>onNavigate("kids")}><img src="/logo-ctds.png" alt="CT DS Tennis"/><span><strong>Aulas Kids</strong></span></button>:null}
       <nav className="dashboard-nav">
-        {orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{item.icon} {item.label}</button>)}
+        {orderedItems.filter(item=>mobile||item.view!=="kids").map(item=><button key={item.view} className={`dashboard-nav-item ${current===item.view?"active":""}`} onClick={()=>onNavigate(item.view)}>{modern?<HomeIcon name={item.view}/>:item.icon} {item.label}</button>)}
       </nav>
       {!mobile?<div className="sidebar-student-search"><div className="sidebar-student-search-box"><span>⌕</span><input id="sidebar-student-search" value={studentSearch} onChange={event=>setStudentSearch(event.target.value)} placeholder="Buscar aluno..." autoComplete="off"/></div>{quickStudents.length||quickKids.length?<div className="sidebar-student-search-results">{quickStudents.map(student=><button key={`personal-${student.id}`} onClick={()=>{setStudentSearch("");onStudent(student.id);}}><strong>{student.name}</strong><small>Personal · Abrir Dashboard</small></button>)}{quickKids.map(student=><button key={`kids-${student.id}`} onClick={()=>{setStudentSearch("");onKidsStudent(student.id);}}><strong>{student.name}</strong><small>Kids · Abrir ficha</small></button>)}</div>:studentSearch.trim()?<div className="sidebar-student-search-empty">Nenhum aluno encontrado.</div>:null}</div>:null}
       {!mobile?<span className="sidebar-resize-handle" onPointerDown={event=>beginPanelResize(event,"sidebar")}/>:null}
