@@ -12,6 +12,9 @@ import sharedVisual from "./navigation/SharedAppearance.module.css";
 import homeRefinements from "./home/HomeRefinements.module.css";
 import {useSharedAppearance} from "./navigation/appearance";
 import NavigationStrip from "./navigation/NavigationStrip";
+import ModuleSurface,{useModuleAppearance} from "./visual-modules/ModuleSurface";
+import {moduleFor} from "./visual-modules/defaults";
+import ModuleMetricIcon from "./visual-modules/MetricIcon";
 import WidgetWeekAgenda from "./WidgetWeekAgenda";
 import WidgetEventEditor from "./WidgetEventEditor";
 import {widgetTarget} from "@/lib/widget/links";
@@ -105,6 +108,7 @@ function isPhoneDevice() {
 export default function DmpApp() {
   const modernHome=useHomeAppearance();
   const sharedAppearance=useSharedAppearance();
+  const moduleAppearance=useModuleAppearance();
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>(importedStudents2026);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
@@ -1552,6 +1556,7 @@ fetch("/api/google/status")
     const filteredHistory = allHistory.filter(({student,session}) => { const q=normalizeName(historySearch); const matchText=!q || normalizeName(`${session.date} ${student.name} ${session.workoutName} ${session.focus||""} ${session.notes} ${session.completedExercises.map(ex=>ex.name).join(" ")}`).includes(q); const matchSource=historySource==="ALL" || (session.source||"PLANNED")===historySource; const now=today(); const cutoff=historyPeriod==="30"?dateOffset(now,-29):historyPeriod==="90"?dateOffset(now,-89):historyPeriod==="YEAR"?`${now.slice(0,4)}-01-01`:""; const matchPeriod=!cutoff||session.date>=cutoff; return matchText&&matchSource&&matchPeriod; });
 
     return (
+      <ModuleSurface choices={moduleAppearance} module={moduleFor(view,tab)}>
       <main data-dmp-visual={sharedAppearance&&(view!=="today"||modernHome)?"2":undefined} id={view==="today"&&modernHome?"dmp-home-modern":undefined} className={`dashboard-shell ${view==="today"&&modernHome?homeVisual.root:""} ${sharedAppearance&&(view!=="today"||modernHome)?sharedVisual.shell:""} ${sharedAppearance&&view==="today"&&modernHome?homeRefinements.refined:""}`}>
         <Sidebar refined={sharedAppearance&&(view!=="today"||modernHome)} modern={sharedAppearance&&(view!=="today"||modernHome)||view==="today"&&modernHome} current={view} onNavigate={navigateMain} logout={logout} students={students} onStudent={openStudent} onKidsStudent={openKidsStudent} onMobileQuick={()=>setShowMobileActions(true)} onMobileVoice={()=>{sessionStorage.setItem("dmp_finance_voice_start","1");navigateMain("finance");}} />
         <div className="dashboard-main">
@@ -1941,6 +1946,7 @@ fetch("/api/google/status")
         {showStudentForm ? <StudentForm title="Novo aluno" onClose={() => setShowStudentForm(false)} onSave={createStudent} /> : null}
         {showGoogleEventForm ? <GoogleEventForm students={students} onClose={()=>setShowGoogleEventForm(false)} onSaved={()=>{setShowGoogleEventForm(false);void refreshCalendarAutomatic(true);}} /> : null}
       </main>
+      </ModuleSurface>
     );
   }
 
@@ -1952,6 +1958,7 @@ fetch("/api/google/status")
     const workoutSlots = workoutEntries.map(entry => entry.slot).join(" · ");
 
     return (
+      <ModuleSurface choices={moduleAppearance} module={moduleFor(view,tab)}>
       <main className="app-page">
         <Header title={selectedStudent.name} back={goStudents} />
         <section className="content student-profile-page">
@@ -2040,14 +2047,15 @@ fetch("/api/google/status")
         {showAssessmentForm ? <AssessmentForm onClose={() => setShowAssessmentForm(false)} onSave={saveAssessment} /> : null}
         {workoutToCopy ? <DuplicateWorkoutModal workout={workoutToCopy} students={students} sourceStudentId={selectedStudent.id} onClose={()=>setWorkoutToCopy(null)} onConfirm={copyWorkoutToStudent} /> : null}
       </main>
+      </ModuleSurface>
     );
   }
 
-  if(view==="historical-workout"&&historicalSessionPreview)return <HistoricalWorkoutScreen student={selectedStudent} session={historicalSessionPreview} onBack={()=>{setHistoricalSessionPreview(null);if(new URLSearchParams(window.location.search).get("mode")==="historical-session"&&window.opener){window.close();return;}setTab("history");setView("student");}} onUseToday={editedSession=>{setSessionToReuse({...editedSession,completedExercises:editedSession.completedExercises.map(exercise=>({...exercise}))});setHistoricalSessionPreview(null);setSelectedWorkoutId(null);sessionReturnView.current="student";if(new URLSearchParams(window.location.search).get("mode")==="historical-session")window.history.replaceState(null,"","/app");setView("free-session");}} onSaveAsWorkout={(slot,editedSession,protocol)=>saveHistoricalSessionAsWorkout(editedSession,slot,protocol)} />;
-  if (view === "workout-editor") return <WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} personalTemplates={personalWorkoutTemplates} onTemplatesChange={setPersonalWorkoutTemplates} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} />;
-  if (view === "planned-session") return <PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} />;
-  if (view === "attendance-session") return <AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} />;
-  return <FreeSessionScreen student={selectedStudent} initialSession={sessionToReuse} onBack={() => {setSessionToReuse(null);setView("student");}} onSave={session=>{setSessionToReuse(null);void saveSession(session);}} />;
+  if(view==="historical-workout"&&historicalSessionPreview)return <ModuleSurface choices={moduleAppearance} module="treinos"><HistoricalWorkoutScreen student={selectedStudent} session={historicalSessionPreview} onBack={()=>{setHistoricalSessionPreview(null);if(new URLSearchParams(window.location.search).get("mode")==="historical-session"&&window.opener){window.close();return;}setTab("history");setView("student");}} onUseToday={editedSession=>{setSessionToReuse({...editedSession,completedExercises:editedSession.completedExercises.map(exercise=>({...exercise}))});setHistoricalSessionPreview(null);setSelectedWorkoutId(null);sessionReturnView.current="student";if(new URLSearchParams(window.location.search).get("mode")==="historical-session")window.history.replaceState(null,"","/app");setView("free-session");}} onSaveAsWorkout={(slot,editedSession,protocol)=>saveHistoricalSessionAsWorkout(editedSession,slot,protocol)} /></ModuleSurface>;
+  if (view === "workout-editor") return <ModuleSurface choices={moduleAppearance} module="treinos"><WorkoutEditor student={selectedStudent} workout={selectedWorkoutId ? selectedWorkout : null} slot={workoutEditorSlot} exerciseCatalog={exerciseCatalog} personalTemplates={personalWorkoutTemplates} onTemplatesChange={setPersonalWorkoutTemplates} onBack={() => {setTab("workouts");setView("student");}} onSave={saveWorkout} /></ModuleSurface>;
+  if (view === "planned-session") return <ModuleSurface choices={moduleAppearance} module="treinos"><PlannedSession student={selectedStudent} workout={selectedWorkout} onBack={() => setView("student")} onSave={saveSession} /></ModuleSurface>;
+  if (view === "attendance-session") return <ModuleSurface choices={moduleAppearance} module="treinos"><AttendanceSessionScreen student={selectedStudent} onBack={() => setView("student")} onSave={saveSession} /></ModuleSurface>;
+  return <ModuleSurface choices={moduleAppearance} module="treinos"><FreeSessionScreen student={selectedStudent} initialSession={sessionToReuse} onBack={() => {setSessionToReuse(null);setView("student");}} onSave={session=>{setSessionToReuse(null);void saveSession(session);}} /></ModuleSurface>;
 }
 
 
@@ -2447,7 +2455,7 @@ async function shareStudentSummary(student:Student,allStudents:Student[]){
 }
 
 function StudentCategoryDot({category}:{category?:TennisCategory}) { return category?<span className={`tennis-category-dot ${category.toLowerCase()}`} title={`Categoria ${category.toLowerCase()}`}/>:null; }
-function Stat({icon,label,value,onClick}:{icon:string;label:string;value:number;onClick?:()=>void}) { return onClick?<button type="button" className="stat-card stat-card-button" onClick={onClick}><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></button>:<article className="stat-card"><div className="stat-card-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></article>; }
+function Stat({icon,label,value,onClick}:{icon:string;label:string;value:number;onClick?:()=>void}) { return onClick?<button type="button" className="stat-card stat-card-button" onClick={onClick}><div className="stat-card-icon"><ModuleMetricIcon icon={icon}/></div><div><span>{label}</span><strong>{value}</strong></div></button>:<article className="stat-card"><div className="stat-card-icon"><ModuleMetricIcon icon={icon}/></div><div><span>{label}</span><strong>{value}</strong></div></article>; }
 
 function HomePendingSection({students}:{students:Student[]}){
   const active=students.filter(student=>student.status==="ACTIVE");
