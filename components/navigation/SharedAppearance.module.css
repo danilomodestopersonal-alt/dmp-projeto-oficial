@@ -1,0 +1,25 @@
+/* Camada compartilhada: menu e cabecalho. Nenhum seletor alcanca o corpo dos modulos. */
+.shell:global([data-dmp-visual="2"]){--dmp-nav-green:#194c40;--dmp-nav-graphite:#242d29;--dmp-nav-line:#cbd7cf}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-sidebar){background:var(--dmp-nav-graphite)!important;border-right:0!important;font-family:DMPHomeInter,Inter,Arial,sans-serif!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-sidebar :is(button,input,span,strong)){font-family:inherit!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-logo-card){background:transparent!important;border:0!important;box-shadow:none!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav-item){display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:9px!important;color:#e2e9e4!important;border:0!important;border-radius:9px!important;font-size:14px!important;font-weight:500!important;min-height:40px!important;text-align:left!important;box-sizing:border-box!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav-item svg){flex:0 0 18px!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav-item.active){background:#d4e5aa!important;color:#203b30!important;font-weight:700!important;box-shadow:none!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav-item:hover){background:#3e5146!important;color:white!important}
+.shell:global([data-dmp-visual="2"]) :global(.sidebar-kids-special){border-radius:10px!important;box-shadow:none!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-sidebar :is(button,a,input):focus-visible){outline:3px solid #d4e5aa!important;outline-offset:2px!important}
+.shell:global([data-dmp-visual="2"]) :global(.sidebar-student-search-box){border-radius:9px!important;border-color:#798c80!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-topbar){font-family:DMPHomeInter,Inter,Arial,sans-serif!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-topbar h1){font-family:inherit!important;color:var(--dmp-nav-green)!important;letter-spacing:-.035em!important;line-height:1.15!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-topbar>.hero-actions>:is(button,input,select)),.shell:global([data-dmp-visual="2"]) :global(.dashboard-topbar>.report-head-actions>:is(button,input,select)){font-family:inherit!important;border-radius:9px!important;min-height:40px!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-topbar :is(button,a,input,select):focus-visible){outline:3px solid #718c36!important;outline-offset:3px!important}
+@media(max-width:900px){
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-sidebar){border-radius:0 0 16px 16px!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav){display:flex!important;width:100%!important;max-width:100%!important;min-width:0!important;grid-column:1/-1!important;gap:6px!important;overflow-x:auto!important;overflow-y:hidden!important;justify-content:flex-start!important;padding:5px 4px 7px!important;box-sizing:border-box!important;scroll-padding-inline:4px;scrollbar-width:thin;scrollbar-color:#a6c385 #34463a;overscroll-behavior-x:contain}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav-item){flex:0 0 auto!important;width:max-content!important;min-width:max-content!important;max-width:none!important;white-space:nowrap!important;padding:10px 14px!important;min-height:44px!important;font-size:13px!important;scroll-margin-inline:4px}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-nav[data-more="true"]){background:linear-gradient(to left,#63834f55,transparent 18px) right center/22px 100% no-repeat}
+.shell:global([data-dmp-visual="2"]) :global(.dashboard-topbar){min-width:0!important}
+}
+/* A protecao por PIN precisa ficar acima dos atalhos fixos da Home. */
+.shell:global([data-dmp-visual="2"]) :global(.modal-backdrop:has(.finance-pin-input)){z-index:1300!important}

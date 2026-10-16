@@ -1,0 +1,37 @@
+/* Rodada 2: somente Home modernizada, desktop. Reversao independente da rodada 1. */
+.refined:global(#dmp-home-modern) :global(.mini-month-week>b:last-child){color:#b63235!important}
+.refined:global(#dmp-home-modern) :global(.mini-month-days>button:nth-child(7n):not(.today):not(.event-day):not(.event-selected)){color:#b63235!important;font-weight:700!important}
+@media(min-width:901px){
+.refined:global(#dmp-home-modern) :global(.performance-today-card){display:flex!important;flex-direction:column!important;justify-content:flex-start!important}
+.refined:global(#dmp-home-modern) :global(.performance-today-card>div){display:flex!important;flex-direction:column!important;justify-content:flex-start!important;align-items:stretch!important;gap:14px!important;width:100%!important;height:100%!important;box-sizing:border-box!important}
+.refined:global(#dmp-home-modern) :global(.performance-today-card>div>strong){margin:0!important;flex:0 0 auto!important;text-align:left!important}
+.refined:global(#dmp-home-modern) :global(.performance-today-list){display:flex!important;flex-direction:column!important;gap:10px!important;margin:0!important;flex:1 0 auto!important;justify-content:center!important}
+.refined:global(#dmp-home-modern) :global(.performance-today-row){padding:16px 12px!important;line-height:1.5!important}
+.refined:global(#dmp-home-modern) :global(.calendar-slot-main>small),.refined:global(#dmp-home-modern) :global(.calendar-event-main>small),.refined:global(#dmp-home-modern) :global(.calendar-sync-status),.refined:global(#dmp-home-modern) :global(.today-heading>div>p){color:#465c50!important}
+.refined:global(#dmp-home-modern) :global(.header-weather :is(small,span)),.refined:global(#dmp-home-modern) :global(.header-clock>small){color:#465c50!important;font-size:12px!important}
+.refined:global(#dmp-home-modern) :global(.calendar-preview-row.calendar-multi-row){grid-template-columns:62px minmax(0,1fr) auto!important;gap:8px!important;padding:8px!important}
+.refined:global(#dmp-home-modern) :global(.calendar-slot-students){padding:4px!important;margin-left:0!important}
+.refined:global(#dmp-home-modern) :global(.home-right-rail .desktop-agenda-rail){grid-template-rows:40px minmax(0,1fr)!important}
+.refined:global(#dmp-home-modern) :global(.desktop-agenda-rail>.text-button){min-height:32px!important;margin:3px 10px!important;padding:4px 10px!important;font-size:12px!important}
+.refined:global(#dmp-home-modern) :global(.agenda-rail-scroll>.agenda-rail-group:first-of-type>.agenda-rail-event){box-shadow:0 0 0 2px #74966a!important;background:#f4f8ef!important}
+.refined:global(#dmp-home-modern) :global(.agenda-rail-scroll>.agenda-rail-group:first-of-type>.agenda-rail-event small){font-size:14px!important;font-weight:750!important}
+}
+/* Os atalhos continuam acessiveis quando a coluna central fica estreita. */
+@media(min-width:901px){
+.refined:global(#dmp-home-modern) :global(.today-heading){flex-wrap:wrap!important;min-width:0!important}
+.refined:global(#dmp-home-modern) :global(.today-tools){display:flex!important;flex-wrap:wrap!important;max-width:100%!important;min-width:0!important}
+.refined:global(#dmp-home-modern) :global(.today-tools)>*{width:auto!important;flex:0 1 auto!important}
+}
+@media(min-width:901px) and (max-width:1200px){
+.refined:global(#dmp-home-modern) :global(.today-highlight-grid){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.refined:global(#dmp-home-modern) :global(.today-heading){display:flex!important;flex-wrap:wrap!important;gap:14px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools){flex:1 1 100%!important;gap:8px!important}
+.refined:global(#dmp-home-modern) :global(.todoist-create-box){min-width:0!important;width:100%!important}
+.refined:global(#dmp-home-modern) :global(.todoist-create-box>input),.refined:global(#dmp-home-modern) :global(.todoist-create-box>textarea){width:100%!important;min-width:0!important;box-sizing:border-box!important}
+.refined:global(#dmp-home-modern) :global(.todoist-create-meta){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.refined:global(#dmp-home-modern) :global(.todoist-create-meta>*),.refined:global(#dmp-home-modern) :global(.todoist-create-meta input),.refined:global(#dmp-home-modern) :global(.todoist-create-meta select){min-width:0!important;width:100%!important;box-sizing:border-box!important}
+}
+@media(min-width:901px) and (max-width:1200px){
+.refined:global(#dmp-home-modern) :global(.today-highlight-grid)>*{grid-column:auto!important;grid-row:auto!important;min-width:0!important;width:auto!important}
+.refined:global(#dmp-home-modern) :global(.today-tools)>*{flex:1 1 130px!important;width:auto!important}
+}

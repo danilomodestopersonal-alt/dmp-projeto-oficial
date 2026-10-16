@@ -1,0 +1,45 @@
+{
+  "base": "ab47541c9f4377d90882982e0828776f658d0b1305d6c941df5f63e014e6c428",
+  "edits": [
+    [
+      "import TaskDialog from \"./home/TaskDialog\";",
+      "import TaskDialog from \"./home/TaskDialog\";\nimport sharedVisual from \"./navigation/SharedAppearance.module.css\";\nimport homeRefinements from \"./home/HomeRefinements.module.css\";\nimport {useSharedAppearance} from \"./navigation/appearance\";\nimport NavigationStrip from \"./navigation/NavigationStrip\";"
+    ],
+    [
+      "  const modernHome=useHomeAppearance();",
+      "  const modernHome=useHomeAppearance();\n  const sharedAppearance=useSharedAppearance();"
+    ],
+    [
+      "      <main id={view===",
+      "      <main data-dmp-visual={sharedAppearance&&(view!==\"today\"||modernHome)?\"2\":undefined} id={view==="
+    ],
+    [
+      "className={`dashboard-shell ${view===\"today\"&&modernHome?homeVisual.root:\"\"}`}",
+      "className={`dashboard-shell ${view===\"today\"&&modernHome?homeVisual.root:\"\"} ${sharedAppearance&&(view!==\"today\"||modernHome)?sharedVisual.shell:\"\"} ${sharedAppearance&&view===\"today\"&&modernHome?homeRefinements.refined:\"\"}`}"
+    ],
+    [
+      "<Sidebar modern={view===\"today\"&&modernHome}",
+      "<Sidebar refined={sharedAppearance&&(view!==\"today\"||modernHome)} modern={sharedAppearance&&(view!==\"today\"||modernHome)||view===\"today\"&&modernHome}"
+    ],
+    [
+      "function Sidebar({modern=false,",
+      "function Sidebar({refined=false,modern=false,"
+    ],
+    [
+      "}:{modern?:boolean;current:View;",
+      "}:{refined?:boolean;modern?:boolean;current:View;"
+    ],
+    [
+      "      <nav className=\"dashboard-nav\">",
+      "      <NavigationStrip enabled={refined} current={current}>"
+    ],
+    [
+      "onClick={()=>onNavigate(item.view)}>{modern?",
+      "aria-current={current===item.view?\"page\":undefined} onClick={()=>onNavigate(item.view)}>{modern?"
+    ],
+    [
+      "      </nav>\n      {!mobile?<div className=\"sidebar-student-search\">",
+      "      </NavigationStrip>\n      {!mobile?<div className=\"sidebar-student-search\">"
+    ]
+  ]
+}
