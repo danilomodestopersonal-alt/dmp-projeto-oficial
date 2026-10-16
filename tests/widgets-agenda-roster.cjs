@@ -1,0 +1,24 @@
+const assert=require('node:assert/strict'),fs=require('fs'),path=require('path'),ts=require('typescript');
+const root=path.resolve(__dirname,'..');function load(file,overrides={}){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(n=>n in overrides?overrides[n]:n.startsWith('@/')?load(n.slice(2)+'.ts',overrides):require(n),m,m.exports);return m.exports;}
+const roster=load('lib/calendar/roster.ts'),home=load('lib/widget/home-source.ts');
+const students=['Diego Tavares','Sylvia Cardoso','Alexandre Drago'].map((name,i)=>({id:'s'+i,name,status:'ACTIVE',sessions:[{id:'preserved'}],workouts:[],assessments:[]}));
+const event={id:'occ',summary:'Diego e Sylvia',start:'2099-10-16T05:30:00-03:00',end:'2099-10-16T06:30:00-03:00',recurringEventId:'series'};
+assert.deepEqual(home.matchCalendarEvents([event],students)[0].matchedStudentIds,['s0','s1']);
+const edit={op:'operation-1',at:100,from:event.start,scope:'following',eventId:event.id,ids:['s0'],add:[],remove:['s1']};
+let e={...event,calendarRoster:roster.calendarRoster({}, {dmpRosterRule1:JSON.stringify(edit)})};
+assert.deepEqual(home.matchCalendarEvents([e],students)[0].matchedStudentIds,['s0']);assert(!home.matchCalendarEvents([e],students)[0].summary.includes('Sylvia'));
+assert.deepEqual(home.matchCalendarEvents([{...e,start:'2099-10-09T05:30:00-03:00'}],students)[0].matchedStudentIds,['s0','s1']);
+assert.deepEqual(home.matchCalendarEvents([{...e,start:'2099-10-23T05:30:00-03:00'}],students)[0].matchedStudentIds,['s0']);
+const single={...edit,op:'single-one',scope:'single',at:101,ids:[]};assert.deepEqual(home.matchCalendarEvents([{...e,calendarRoster:roster.calendarRoster({dmpRosterV1:JSON.stringify(single)},{dmpRosterRule1:JSON.stringify(edit)})}],students)[0].matchedStudentIds,[]);
+assert.throws(()=>roster.calendarRoster({dmpRosterV1:'bad'}));
+(async()=>{let auth=true,writes=0,loseWriteResponse=false;const db=JSON.stringify(students);let ev={...event,etag:'"e1"',start:{dateTime:event.start},end:{dateTime:event.end}},parent={id:'series',etag:'"p1"',summary:event.summary,recurrence:['RRULE:FREQ=WEEKLY'],extendedProperties:{private:{unrelated:'kept'}}};
+const response=(body,status=200)=>({ok:status<400,status,json:async()=>body,cookies:{set(){}}});
+const overrides={'@/lib/auth':{isAuthorized:async()=>auth},'@/lib/google-calendar':{googleConfigured:()=>true,getGoogleAccessToken:async()=>({accessToken:'test'}),setGoogleCookies(){}},'@/lib/db':{pool:{query:async(sql)=>{assert(sql.startsWith('SELECT'));return {rows:[{payload:JSON.parse(db)}]};}}},'next/server':{NextResponse:{json:(body,{status=200}={})=>response(body,status)}}};
+global.fetch=async(url,options)=>{const id=decodeURIComponent(url.split('/').at(-1));let item=id==='series'?parent:ev;if(options.method==='PATCH'){assert.equal(options.headers['If-Match'],item.etag);writes++;const patch=JSON.parse(options.body);assert.deepEqual(Object.keys(patch),['extendedProperties']);parent={...parent,...patch,etag:'"p2"'};if(loseWriteResponse){loseWriteResponse=false;throw Error("Response lost after Google persisted metadata");}return response(parent);}return response(structuredClone(item));};
+const route=load('app/api/google/event-students/route.ts',overrides);const body={id:'occ',etag:'"e1"',ids:['s0'],expected:['s0','s1'],scope:'following',operationId:'operation-123'};const req=()=>({json:async()=>body});
+let r=await route.POST(req());assert.equal(r.status,200);assert.equal(writes,1);assert.equal(parent.extendedProperties.private.unrelated,'kept');assert.deepEqual(parent.recurrence,['RRULE:FREQ=WEEKLY']);assert.equal(parent.summary,event.summary);
+r=await route.POST(req());assert.equal(r.status,200);assert.equal(writes,1);
+body.operationId='operation-456';body.expected=['s0'];body.ids=[];loseWriteResponse=true;r=await route.POST(req());assert.equal(r.status,200);assert.equal(writes,2);r=await route.POST(req());assert.equal(r.status,200);assert.equal(writes,2);
+body.operationId='operation-789';body.expected=['s1'];r=await route.POST(req());assert.equal(r.status,409);assert.equal(writes,2);
+auth=false;r=await route.POST(req());assert.equal(r.status,401);assert.equal(JSON.stringify(students),db);console.log('PASS roster: names, single/empty, following/past, idempotency, conflict, auth, no history writes');
+})().catch(e=>{console.error(e);process.exitCode=1;});

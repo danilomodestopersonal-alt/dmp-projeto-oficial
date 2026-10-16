@@ -1,3 +1,4 @@
+import type {CalendarRoster} from "@/lib/calendar/roster";
 export type StudentStatus = "ACTIVE" | "ARCHIVED";
 export type TennisCategory = "RED" | "ORANGE" | "GREEN" | null;
 
@@ -127,6 +128,8 @@ export type Student = {
 };
 
 export type CalendarEvent = {
+  etag?: string;
+  calendarRoster?: CalendarRoster;
   id: string;
   summary: string;
   description?: string;

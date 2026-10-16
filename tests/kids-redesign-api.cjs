@@ -1,3 +1,5 @@
+// Fixture dated 15/10/2026: keep the historical future-change test deterministic.
+const NativeDate=Date;global.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:["2026-10-15T18:00:00.000Z"]));}static now(){return new NativeDate("2026-10-15T18:00:00.000Z").getTime();}};
 process.env.TZ='America/Sao_Paulo';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript');
 const root=path.resolve(__dirname,'..'),resolve=Module._resolveFilename,load=Module._load;

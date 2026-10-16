@@ -1,3 +1,4 @@
+import {projectRoster} from "@/lib/calendar/roster";
 // Funções oficiais copiadas literalmente da Home; teste de paridade impede divergência.
 import type {CalendarEvent,Student} from "@/types/models";
 import type {KidsCategory} from "@/types/kids";
@@ -62,7 +63,7 @@ export function matchCalendarEvents(events:CalendarEvent[],students:Student[]):C
       });
     });
     const ids=matches.map(student=>student.id);
-    return {...event,matchedStudentId:ids[0]||null,matchedStudentIds:ids};
+    return projectRoster(event,ids,students);
   });
 }
 export function getCalendarEventStudents(event:CalendarEvent,students:Student[]):Student[]{

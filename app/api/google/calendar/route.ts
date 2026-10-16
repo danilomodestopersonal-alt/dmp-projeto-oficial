@@ -1,3 +1,4 @@
+import {attachCalendarRosters} from "@/lib/calendar/roster";
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { getGoogleAccessToken, googleConfigured, setGoogleCookies } from "@/lib/google-calendar";
@@ -52,8 +53,9 @@ export async function GET(request: NextRequest) {
       pages += 1;
     } while (pageToken && pages < 20);
 
-    const events = items.map((event:any) => ({
-      id:event.id,
+    const rosterItems=await attachCalendarRosters(items,async id=>{const r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(id),{headers:{authorization:`Bearer ${accessToken}`},cache:"no-store",signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error("Série indisponível");return r.json();});
+    const events = rosterItems.map((event:any) => ({
+      id:event.id,etag:event.etag,calendarRoster:event.calendarRoster,
       summary:event.summary || "Sem título",
       description:event.description || "",
       start:event.start?.dateTime || event.start?.date || "",
