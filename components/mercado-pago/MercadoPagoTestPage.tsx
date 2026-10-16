@@ -280,12 +280,12 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
     patchChoice(move,{personalSplits,ruleChoice:"ONCE"});
   }
 
-  const currentExpenses:ExpenseOption[]=financeData&&(financeBusy||financeData!==loadedFinanceRef.current||financeRefreshKey!==loadedRevisionRef.current)?financeData.expenses.map(e=>{const paid=e.payments.reduce((s,p)=>s+p.amount,0);return {id:e.id,name:e.name,competence:e.competence,dueDay:e.dueDay,expectedAmount:e.expectedAmount,paid,remaining:Math.max(0,e.expectedAmount-paid),closed:financeData.competences[e.competence]?.status==="CLOSED"};}):data?.financeContext.expenses||[];
+  const currentExpenses:ExpenseOption[]=financeData?financeData.expenses.map(e=>{const paid=e.payments.reduce((s,p)=>s+p.amount,0);return {id:e.id,name:e.name,competence:e.competence,dueDay:e.dueDay,expectedAmount:e.expectedAmount,paid,remaining:Math.max(0,e.expectedAmount-paid),closed:financeData.competences[e.competence]?.status==="CLOSED"};}):data?.financeContext.expenses||[];
   function expenseOptions(move:Move):ExpenseOption[]{
     return currentExpenses.map(item=>{
       const previous=editingId===move.id?move.expenseReconciliation?.allocations.find(a=>a.expenseId===item.id)?.payment.amount||0:0;
       const adjustment=editingId===move.id?move.expenseReconciliation?.allocations.find(a=>a.expenseId===item.id)?.adjustment:undefined;
-      return {...item,paid:item.paid-previous,remaining:item.remaining+previous-(adjustment?.treatment==="UPDATE"?adjustment.difference:0)};
+      return {...item,expectedAmount:adjustment?.before??item.expectedAmount,paid:item.paid-previous,remaining:item.remaining+previous-(adjustment?adjustment.after-adjustment.before:0)};
     });
   }
   async function saveExpenseAllocation(move:Move,correct=false){
@@ -295,7 +295,8 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
     if(issue){setError(issue);return;}
     const splits=choice.expenseSplits.map(s=>({targetId:s.targetId,amount:allocationAmount(s.amount),treatment:s.treatment||undefined,expectedRemaining:options.find(e=>e.id===s.targetId)?.remaining}));
     if(!splits.length||splits.some(s=>!Number.isFinite(s.amount)||s.amount<=0)){setError("Selecione as contas e informe valores positivos.");return;}
-    if(!window.confirm(`${correct?"Corrigir":"Confirmar"} a conciliação de ${money.format(move.amount)} com ${splits.length} conta(s)? A operação será registrada no histórico.`))return;
+    const discounts=splits.filter(s=>s.treatment==="DISCOUNT").map(s=>`${options.find(e=>e.id===s.targetId)?.name}: desconto de ${money.format((options.find(e=>e.id===s.targetId)?.remaining||0)-s.amount)}`).join("; ");
+    if(!window.confirm(`${discounts?`Ajuste explícito: ${discounts}. O valor real do PIX permanece ${money.format(move.amount)}.\n`:""}${correct?"Corrigir":"Confirmar"} a conciliação de ${money.format(move.amount)} com ${splits.length} conta(s)? A operação será registrada no histórico.`))return;
     setSavingId(move.id);setError("");setMessage("");
     try{
       const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:correct?"correct-expense-split":"decision-expense-split",fingerprint:move.fingerprint,splits,expectedRevision:move.expenseReconciliation?.revision,remainder:choice.remainder?{target:choice.remainder,category:choice.remainderCategory,description:choice.remainderDescription}:undefined})});
@@ -502,7 +503,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
                     <small style={{color:"#71796d"}}>A soma precisa fechar exatamente o valor do PIX. Esta divisão vale somente para esta movimentação.</small>
                   </div>:null}
                   {choice.target==="EXPENSE"?<div className={styles.fullField}>
-                    {!choice.splitExpenses?<><label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=currentExpenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||"",expenseSplits:item?[{targetId:item.id,amount:String(item.remaining).replace(".",",")}]:[],...(item&&item.competence<move.dateKey.slice(0,7)?{ruleChoice:"ONCE" as const}:{})});}}><option value="">Selecione...</option>{expenseOptionsForPayment(currentExpenses,move.dateKey).map(item=><option key={item.id} value={item.id}>{item.name} · {item.competence} · {money.format(item.remaining)} em aberto</option>)}</select></label>{choice.targetId?allocationEditor(move):null}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:true,expenseSplits:[],ruleChoice:"ONCE"})}>Conciliar com uma ou várias contas</button></>:<>{allocationEditor(move)}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:false,expenseSplits:[]})}>Voltar à seleção simples</button></>}
+                    {!choice.splitExpenses?<><label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=currentExpenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||"",expenseSplits:item?[{targetId:item.id,amount:String(item.remaining).replace(".",",")}]:[],...(item&&item.competence<move.dateKey.slice(0,7)?{ruleChoice:"ONCE" as const}:{})});}}><option value="">Selecione...</option>{expenseOptionsForPayment(currentExpenses,move.dateKey).map(item=><option key={item.id} value={item.id}>{item.name} · {item.competence} · {money.format(item.remaining)} em aberto</option>)}</select></label>{choice.targetId?allocationEditor(move):null}</>:<>{allocationEditor(move)}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:false,expenseSplits:[]})}>Voltar à seleção simples</button></>}
                   </div>:null}
                   {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{pixTitle(move.pix)||move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}

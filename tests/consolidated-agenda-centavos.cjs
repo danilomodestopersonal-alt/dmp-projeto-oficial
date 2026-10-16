@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript');
+const root=path.resolve(__dirname,'..');
+function load(file){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>n.startsWith('.')?load(path.join(path.dirname(file),n)+'.ts'):n.startsWith('@/')?load(n.slice(2)+'.ts'):require(n),m,m.exports);return m.exports;}
+const {reconcileExpenses,reverseExpenseReconciliation}=load('lib/mercado-pago/expense-reconciliation.ts');
+const initial=()=>({version:1,currentCompetence:'2026-10',settings:{},competences:{'2026-10':{status:'OPEN'}},expenses:[{id:'bill',name:'Conta simulada',competence:'2026-10',kind:'FIXED',dueDay:20,expectedAmount:420,payments:[]}],extraExpenses:[],history:[]});
+const move={kind:'OUT',dateKey:'2026-10-16',amount:419.77,fingerprint:'SIMULADO',description:'teste sem banco'};
+let d=initial(),before=JSON.stringify(d);
+const apply=(treatment,amount=419.77,data=d)=>reconcileExpenses(data,{...move,amount},[{targetId:'bill',amount,expectedRemaining:420,treatment}],undefined,'sim-1');
+const partial=apply();assert(partial.ok);assert.equal(partial.receipt.allocations[0].remaining,.23);assert.equal(partial.data.expenses[0].expectedAmount,420);
+const r=apply('DISCOUNT');assert(r.ok);assert.equal(r.receipt.amount,419.77);assert.equal(r.receipt.allocations[0].payment.amount,419.77);assert.equal(r.receipt.allocations[0].remaining,0);assert.equal(r.data.expenses[0].expectedAmount,419.77);assert.equal(r.data.extraExpenses.length,0);assert(r.data.history.some(e=>e.kind==='EXPENSE_UPDATED'&&e.description.includes('DISCOUNT')));assert.equal(r.data.expenseSeriesChanges[0].values.expectedAmount,420);assert.equal(JSON.stringify(d),before);
+const reversed=reverseExpenseReconciliation(r.data,r.receipt);assert(reversed.ok);assert.deepEqual(reversed.data.expenses,d.expenses);assert.deepEqual(reversed.data.expenseSeriesChanges,[]);
+assert(!apply('DISCOUNT',418).ok);assert(!apply('DISCOUNT',420).ok);assert(!apply('DISCOUNT',420.01).ok);
+const closed=initial();closed.competences['2026-10'].status='CLOSED';assert(!apply('DISCOUNT',419.77,closed).ok);
+const stale=initial();stale.expenses[0].expectedAmount=430;assert(!apply('DISCOUNT',419.77,stale).ok);
+assert(!reconcileExpenses(r.data,move,[{targetId:'bill',amount:419.77,treatment:'DISCOUNT'}],undefined,'sim-1').ok);
+const changed=structuredClone(r.data);changed.expenses[0].expectedAmount=421;assert(!reverseExpenseReconciliation(changed,r.receipt).ok);
+const roster=load('lib/calendar/roster.ts');
+const rule={op:'remove-sylvia',at:100,from:'2026-10-16T08:30:00Z',scope:'following',eventId:'occ',ids:['diego'],add:[],remove:['sylvia']};
+const event={id:'occ',start:'2026-10-16T05:30:00-03:00',calendarRoster:{rules:[rule]}};
+assert.deepEqual(roster.rosterIds(event,['diego','sylvia']),['diego']);
+assert.deepEqual(roster.rosterIds({...event,start:'2026-10-09T05:30:00-03:00'},['diego','sylvia']),['diego','sylvia']);
+assert.deepEqual(roster.rosterIds({...event,start:'2026-10-23T05:30:00-03:00'},['diego','sylvia','outro']),['diego','outro']);
+console.log('PASS: centavos explícitos, parcial, valor PIX, auditoria, recorrência, reversão, conflito, duplicação e alcance por instante');

@@ -122,6 +122,7 @@ const [cloudWritable, setCloudWritable] = useState(false);
 
   const [calendarStatus, setCalendarStatus] = useState<{configured:boolean;connected:boolean}>({configured:false,connected:false});
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const calendarLoadSequence=useRef(0);
   const [widgetWeek,setWidgetWeek]=useState(false);
   useEffect(()=>{if(view!=="agenda"&&widgetWeek)setWidgetWeek(false);},[view,widgetWeek]);
   const [calendarRange,setCalendarRange]=useState<AgendaRange>("week");
@@ -876,15 +877,17 @@ fetch("/api/google/status")
     if (!calendarStatus.connected) return;
     const last=readLocalStorage("dmp_calendar_daily_sync");
     if (!force && calendarLoaded && last && Date.now()-new Date(last).getTime()<CALENDAR_AUTO_REFRESH_MS) return;
+    const loadSequence=++calendarLoadSequence.current;
     setCalendarLoading(true);
     try {
-      const monthStart=`${today().slice(0,7)}-01`; const response=await fetch(`/api/google/calendar?date=${monthStart}&days=45`,{cache:"no-store"});
+      const monthStart=`${today().slice(0,7)}-01`; const range=view==="agenda"?agendaRequestRange(calendarAnchor,calendarRange):{date:monthStart,days:45}; const response=await fetch(`/api/google/calendar?date=${range.date}&days=${range.days}`,{cache:"no-store"});
       if (!response.ok) {
         const errorData=await response.json().catch(()=>({}));
         if(response.status===401||errorData?.error==="reauth_required"){setCalendarStatus(current=>({...current,connected:false}));setCalendarLoaded(false);return;}
         throw new Error("calendar_day_failed");
       }
       const data=await response.json();
+      if(loadSequence!==calendarLoadSequence.current)return;
       setCalendarEvents(matchCalendarEvents(data.events||[],students));
       setCalendarLoaded(true);
       const now=new Date().toISOString();
@@ -1338,12 +1341,13 @@ fetch("/api/google/status")
     const request=agendaRequestRange(calendarAnchor,calendarRange);
     if(widgetWeek&&calendarRange==="week")request.days=7;
     let cancelled=false;
+    const loadSequence=++calendarLoadSequence.current;
     setCalendarLoading(true);
     fetch(`/api/google/calendar?date=${request.date}&days=${request.days}`,{cache:"no-store"}).then(response=>{
       if(!response.ok)throw new Error("calendar_range_failed");
       return response.json();
     }).then(data=>{
-      if(!cancelled)setCalendarEvents(matchCalendarEvents(data.events||[],students));
+      if(!cancelled&&loadSequence===calendarLoadSequence.current)setCalendarEvents(matchCalendarEvents(data.events||[],students));
     }).catch(error=>{
       console.error(
         "Agenda: falha ao carregar a faixa selecionada.",
@@ -2982,6 +2986,7 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
 
   return <>
     <aside className="desktop-agenda-rail">
+      <button type="button" className="text-button" onClick={()=>onOpenAgenda(todayKey)}>Abrir agenda</button>
       <span className="rail-resize-handle" onPointerDown={event=>beginPanelResize(event,"rail")}/>
       <div className="agenda-rail-scroll">
         {!hasToday?<div className="agenda-rail-day agenda-rail-day-empty"><span>Hoje</span><strong>{new Date(`${todayKey}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong><button className="agenda-rail-encaixe" onClick={()=>setShowEncaixe(true)}>+ Encaixe</button></div>:null}
@@ -2996,8 +3001,8 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
           return <section className="agenda-rail-group" key={event.id}>
             {changed?<div className="agenda-rail-day"><span>{dayLabel}</span><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong>{date===todayKey?<button className="agenda-rail-encaixe" onClick={()=>setShowEncaixe(true)}>+ Encaixe</button>:null}</div>:null}
             <article className={`agenda-rail-event ${kids?`kids kids-${kids.category.toLowerCase()}`:""}`}>
-              <div className="agenda-rail-time-row"><button onClick={()=>onOpenAgenda(date)}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}</button>{!kids?<button type="button" className="agenda-rail-plus" onClick={()=>setAddingEvent(event)} aria-label="Adicionar aluno" title="Adicionar aluno">+</button>:null}</div>
-              {people.length?<div>{people.map(student=><button key={student.id} onClick={()=>onOpenStudent(student.id)}>{student.name}</button>)}</div>:null}
+              <div className="agenda-rail-time-row"><button onClick={()=>kids||event.allDay?onOpenAgenda(date):setAddingEvent(event)}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}</button>{!kids?<button type="button" className="agenda-rail-plus" onClick={()=>setAddingEvent(event)} aria-label="Adicionar aluno" title="Adicionar aluno">+</button>:null}</div>
+              {people.length?<div>{people.map(student=><button key={student.id} onClick={()=>setAddingEvent(event)}>{student.name}</button>)}</div>:null}
             </article>
           </section>
         }):<p>Nenhum próximo compromisso.</p>}

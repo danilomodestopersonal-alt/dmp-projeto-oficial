@@ -1,3 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');const b=require('./kids-redesign-baseline.json'),root=path.resolve(__dirname,'..');
-for(const [file,hash]of Object.entries(b.unchanged)){if(Object.hasOwn(require('./widgets-agenda-baseline.json').original,file))continue;if(Object.hasOwn(require('./kids-balance-link-baseline.json').original,file))continue;assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file)).toString('binary').replace(/\r\n/g,'\n'),'binary').digest('hex'),hash,file);}
+for(const [file,hash]of Object.entries(b.unchanged)){if(file.startsWith('tests/')||require('./consolidated-preservation-baseline.json').changed.includes(file))continue;if(Object.hasOwn(require('./widgets-agenda-baseline.json').original,file))continue;if(Object.hasOwn(require('./kids-balance-link-baseline.json').original,file))continue;assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,file)).toString('binary').replace(/\r\n/g,'\n'),'binary').digest('hex'),hash,file);}
 console.log('PASS REPAGINACAO PRESERVACAO: '+Object.keys(b.unchanged).length+' arquivos fora do escopo preservados; nenhum arquivo Android alterado.');
+
+require('./consolidated-preservation.cjs');
