@@ -5989,7 +5989,7 @@ function extractSessionFocus(rawText:string){
 }
 
 function organizeQuickTranscript(rawText:string): Exercise[] {
-  const text=rawText.replace(/\r\n?/g,"\n").trim();
+  const text=rawText.replace(/\r\n?/g,"\n").split("\n").filter(line=>!/^\s*(?:objetivo|protocolo|sistema)\s*:/i.test(line)).join("\n").trim();
   if(!text) return [];
 
   const numbers:Record<string,string>={
@@ -6033,7 +6033,7 @@ function organizeQuickTranscript(rawText:string): Exercise[] {
     if(!line) continue;
 
     const prescription=line.match(
-      /\b(\d+)\s*(?:s[eé]ries?\s*(?:de\s*)?|[x×]\s*|\s+de\s+)(\d+|falha)\b/i
+      /\b(\d+)\s*(?:s[eé]ries?\s*(?:de\s*)?|[x×]\s*|\s+de\s+)(\d+|falha|f)\b/i
     );
 
     if(!prescription){
@@ -6083,7 +6083,7 @@ function organizeQuickTranscript(rawText:string): Exercise[] {
       block:currentBlock,
       name:name||`Exercício ${output.length+1}`,
       sets:prescription[1]||"",
-      reps:prescription[2]||"",
+      reps:prescription[2]?.toLowerCase()==="f"?"F":prescription[2]||"",
       load,
       notes
     } as Exercise);
