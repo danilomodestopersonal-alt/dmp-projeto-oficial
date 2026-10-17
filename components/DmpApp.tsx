@@ -1,5 +1,6 @@
 // DMP_HOME_TREINO_CLICAVEL_V2
 "use client";
+import EvolutionReport from "@/components/evolution/EvolutionReport";
 import CalendarRosterEditor from "@/components/calendar/CalendarRosterEditor";
 import {projectRoster} from "@/lib/calendar/roster";
 
@@ -1936,7 +1937,7 @@ fetch("/api/google/status")
 
           {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda widgetWeek={widgetWeek} widgetNotes={notes} onWidgetNote={id=>{const note=notes.find(n=>n.id===id);if(note){setView("today");startEditingNote(note);}}} widgetEventId={widgetAgendaEventId} onWidgetAbsence={registerAbsence} status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} onTrustRevoked={() => { financeAttempt.current++;setFinanceTrust(false);sessionStorage.removeItem(FINANCE_UNLOCK_KEY);setView("today");setFinancePin("");setShowFinancePin(true); }} /> : null}
-          {view === "reports" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}
+          {view === "reports" ? <><EvolutionReport students={students}/><PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /></> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}
           {view === "performance" ? <PerformancePage openActivityId={selectedPerformanceActivityId} /> : null}
           {view === "data" ? <><DataCenter students={students} onReplace={setStudents} /><BackupCenter /></> : null}
@@ -1962,6 +1963,7 @@ fetch("/api/google/status")
       <ModuleSurface choices={moduleAppearance} module={moduleFor(view,tab)}>
       <main className="app-page">
         <Header title={selectedStudent.name} back={goStudents} />
+        <EvolutionReport key={selectedStudent.id} students={[selectedStudent]} initialStudent={selectedStudent.id}/>
         <section className="content student-profile-page">
           <section className="student-profile-command">
             <div className="student-profile-command-main">

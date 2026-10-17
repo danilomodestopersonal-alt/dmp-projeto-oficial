@@ -1,0 +1,18 @@
+{
+  "base": "b86e3d01bce97787a31860d79c052c904301d176",
+  "appHash": "81941b1c359b3305e31eed57c362ca1268213aa3d713ffb7fc403dca3da90529",
+  "edits": [
+    [
+      "import CalendarRosterEditor",
+      "import EvolutionReport from \"@/components/evolution/EvolutionReport\";\nimport CalendarRosterEditor"
+    ],
+    [
+      "{view === \"reports\" ? <PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /> : null}",
+      "{view === \"reports\" ? <><EvolutionReport students={students}/><PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /></> : null}"
+    ],
+    [
+      "<Header title={selectedStudent.name} back={goStudents} />",
+      "<Header title={selectedStudent.name} back={goStudents} />\n        <EvolutionReport key={selectedStudent.id} students={[selectedStudent]} initialStudent={selectedStudent.id}/>"
+    ]
+  ]
+}
