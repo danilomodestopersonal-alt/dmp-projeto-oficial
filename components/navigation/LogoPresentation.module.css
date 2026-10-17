@@ -1,0 +1,50 @@
+/* Opção B: superfície do cartão; o JPEG oficial permanece intacto. */
+:global(#dmp-home-modern) .sidebar:global(.dashboard-logo-card)[class],
+:global(.dashboard-sidebar) .sidebar:global(.dashboard-logo-card)[class] {
+  background: #f7f7f7 !important;
+  border: 1px solid #d5dfd3 !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  padding: 14px !important;
+  min-width: 0;
+}
+:global(.dashboard-sidebar) .sidebar:global(.dashboard-logo-card)[class] a {
+  display: block;
+  border-radius: 4px;
+}
+:global(.dashboard-sidebar) .sidebar:global(.dashboard-logo-card)[class] :global(.dashboard-sidebar-logo) {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  object-fit: contain;
+}
+.header {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 8px;
+  background: #f7f7f7;
+  border: 1px solid #d5dfd3;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+.header :global(.header-logo) {
+  display: block;
+  height: auto;
+  border-radius: 0;
+  max-width: 100%;
+}
+@media (max-width: 900px) {
+  :global(#dmp-home-modern) .sidebar:global(.dashboard-logo-card)[class],
+:global(.dashboard-sidebar) .sidebar:global(.dashboard-logo-card)[class] {
+    width: 163px !important;
+    max-width: 48vw !important;
+    padding: 8px !important;
+    border-radius: 12px !important;
+  }
+  .header :global(.header-logo) { width: 145px; max-width: 38vw; }
+}

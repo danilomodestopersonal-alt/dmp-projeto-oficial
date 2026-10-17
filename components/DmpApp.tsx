@@ -3,6 +3,7 @@
 import CalendarRosterEditor from "@/components/calendar/CalendarRosterEditor";
 import {projectRoster} from "@/lib/calendar/roster";
 
+import logoPresentation from "./navigation/LogoPresentation.module.css";
 import homeCentral from "./HomeCentral.module.css";
 import homeVisual from "./home/HomeAppearance.module.css";
 import {useHomeAppearance} from "./home/appearance";
@@ -2303,7 +2304,7 @@ function Sidebar({refined=false,modern=false,current,onNavigate,logout,students,
   const quickKids=studentSearch.trim()?kidsSearchStudents.filter(student=>normalizeName(`${student.name} ${student.fatherName||""} ${student.motherName||""} ${student.financialResponsible||""} ${student.notes||""}`).includes(normalizedSearch)).slice(0,6):[];
   return (
     <aside className="dashboard-sidebar">
-      <div className="dashboard-logo-card" role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}>
+      <div className={`dashboard-logo-card ${logoPresentation.sidebar}`} role="button" tabIndex={0} title="Voltar para Hoje" onClick={()=>onNavigate("today")} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onNavigate("today");}}}>
         <a href="/app?home=1" aria-label="Ir para a Home do DMP" onClick={event=>{event.preventDefault();onNavigate("today");}}><img src="/logo-danilo.jpg" alt="Danilo Modesto Personal Trainer" className="dashboard-sidebar-logo" /></a>
       </div>
       {mobile&&current==="today"?<div className="sidebar-mobile-actions"><button className="mobile-quick-launch" onClick={onMobileQuick} aria-label="Abrir ações rápidas">＋</button><button className="mobile-voice-launch" onClick={onMobileVoice} aria-label="Falar lançamento financeiro">🎤</button></div>:null}
@@ -3043,7 +3044,7 @@ function MobileQuickActions({onClose,onNavigate}:{onClose:()=>void;onNavigate:(t
   return <div className="mobile-actions-backdrop" onClick={onClose}><section className="mobile-actions-sheet" onClick={event=>event.stopPropagation()}><div><strong>Ações rápidas</strong><button onClick={onClose}>×</button></div><button className="primary" onClick={()=>onNavigate("extra")}>💸 Lançar gasto extra</button><button onClick={()=>onNavigate("receive")}>💰 Registrar recebimento</button><button onClick={()=>onNavigate("students")}>✍ Registrar treino ou presença</button><button onClick={()=>onNavigate("kids")}>🎾 Abrir Aulas Kids</button></section></div>;
 }
 function kidsCategoryName(category:KidsCategory){return category==="RED"?"Bola vermelha":category==="ORANGE"?"Bola laranja":category==="GREEN"?"Bola verde":"Bola amarela";}
-function Header({title,back,titleClassName}:{title:string;back?:()=>void;titleClassName?:string}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<a href="/app?home=1" aria-label="Ir para a Home do DMP"><img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /></a><strong className={titleClassName}>{title}</strong></div></header>; }
+function Header({title,back,titleClassName}:{title:string;back?:()=>void;titleClassName?:string}) { return <header className="topbar"><div className="header-left">{back ? <button className="text-button" onClick={back}>← Voltar</button> : null}<a className={logoPresentation.header} href="/app?home=1" aria-label="Ir para a Home do DMP"><img src="/logo-danilo.jpg" alt="Danilo Modesto" className="header-logo" /></a><strong className={titleClassName}>{title}</strong></div></header>; }
 
 function looksLikeTrainingSchedule(value?:string){
   const text=(value||"").trim().toLowerCase();
