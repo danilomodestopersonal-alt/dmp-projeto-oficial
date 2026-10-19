@@ -956,7 +956,7 @@ fetch("/api/google/status")
 
   useEffect(() => {
     if (!(view === "today" || view === "agenda" || view === "reports" || view === "workouts-overview") || !calendarStatus.connected) return;
-    void refreshCalendarAutomatic(false);
+    void refreshCalendarAutomatic(view==="today");
   }, [view, calendarStatus.connected, calendarLoaded]);
 
   useEffect(() => {
@@ -2067,7 +2067,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
   const completedIds=new Set(todaySessions.filter(item=>item.session.source!=="ABSENCE").map(item=>item.student.id));
   const absentIds=new Set(todaySessions.filter(item=>item.session.source==="ABSENCE").map(item=>item.student.id));
   const displayEvents=[...events];
-  todaySessions.filter(item=>item.session.source==="ABSENCE"&&item.session.calendarEvent).forEach(({student,session})=>{
+  todaySessions.filter(item=>item.session.calendarEvent).forEach(({student,session})=>{
     const stored=session.calendarEvent!;
     const found=displayEvents.findIndex(event=>event.id===stored.id);
     if(found>=0){const current=displayEvents[found];const ids=new Set([...(current.matchedStudentIds||[]),student.id]);displayEvents[found]={...current,matchedStudentIds:[...ids]};}

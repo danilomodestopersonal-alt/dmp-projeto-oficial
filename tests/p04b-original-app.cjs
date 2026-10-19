@@ -1,0 +1,1 @@
+const assert=require('assert/strict');module.exports=s=>{for(const [before,after]of require('./p04b-edits.json')){if(s.includes(after)){assert.equal(s.split(after).length,2);s=s.replace(after,before);}}return s;};

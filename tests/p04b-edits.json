@@ -1,0 +1,10 @@
+[
+  [
+    "todaySessions.filter(item=>item.session.source===\"ABSENCE\"&&item.session.calendarEvent).forEach",
+    "todaySessions.filter(item=>item.session.calendarEvent).forEach"
+  ],
+  [
+    "    void refreshCalendarAutomatic(false);\n  }, [view, calendarStatus.connected, calendarLoaded]);",
+    "    void refreshCalendarAutomatic(view===\"today\");\n  }, [view, calendarStatus.connected, calendarLoaded]);"
+  ]
+]
