@@ -2,6 +2,8 @@
 "use client";
 import EvolutionReport from "@/components/evolution/EvolutionReport";
 import CalendarRosterEditor from "@/components/calendar/CalendarRosterEditor";
+import AbsenceSyncPanel from "@/components/calendar/AbsenceSyncPanel";
+import {useAbsenceRemoval} from "@/components/calendar/useAbsenceRemoval";
 import {projectRoster} from "@/lib/calendar/roster";
 
 import logoPresentation from "./navigation/LogoPresentation.module.css";
@@ -904,7 +906,7 @@ fetch("/api/google/status")
       }
       const data=await response.json();
       if(loadSequence!==calendarLoadSequence.current)return;
-      setCalendarEvents(matchCalendarEvents(data.events||[],students));
+      setCalendarEvents(matchCalendarEvents(data.events||[],students).filter(event=>!(event.calendarRoster?.single?.op.startsWith("absence-")&&event.matchedStudentIds?.length===0&&event.summary==="Aula · sem participantes")));
       setCalendarLoaded(true);
       const now=new Date().toISOString();
       writeLocalStorage("dmp_calendar_daily_sync",now);
@@ -1363,7 +1365,7 @@ fetch("/api/google/status")
       if(!response.ok)throw new Error("calendar_range_failed");
       return response.json();
     }).then(data=>{
-      if(!cancelled&&loadSequence===calendarLoadSequence.current)setCalendarEvents(matchCalendarEvents(data.events||[],students));
+      if(!cancelled&&loadSequence===calendarLoadSequence.current)setCalendarEvents(matchCalendarEvents(data.events||[],students).filter(event=>!(event.calendarRoster?.single?.op.startsWith("absence-")&&event.matchedStudentIds?.length===0&&event.summary==="Aula · sem participantes")));
     }).catch(error=>{
       console.error(
         "Agenda: falha ao carregar a faixa selecionada.",
@@ -1451,28 +1453,14 @@ fetch("/api/google/status")
     setView(target);
   }
 
+  const absenceSync=useAbsenceRemoval(setStudents,async event=>{
+    // Invalidate any GET started before the confirmed mutation.
+    calendarLoadSequence.current++;
+    if(event)setCalendarEvents(current=>current.map(e=>e.id===event.id?event:e).filter(e=>!(e.calendarRoster?.single?.op.startsWith("absence-")&&e.matchedStudentIds?.length===0&&e.summary==="Aula · sem participantes")));
+    await refreshCalendarAutomatic(true);
+  });
   async function registerAbsence(student:Student,event:CalendarEvent){
-    const absence:Session={id:crypto.randomUUID(),date:calendarEventDate(event),workoutName:"Ausência",notes:"Aus\u00eancia informada.",completedExercises:[],source:"ABSENCE",finishedAt:new Date().toISOString(),calendarEvent:{id:event.id,summary:event.summary,description:event.description,start:event.start,end:event.end,allDay:event.allDay,location:event.location}};
-    const alreadyAbsentIds=new Set(students.filter(item=>item.sessions.some(session=>session.source==="ABSENCE"&&session.calendarEvent?.id===event.id)).map(item=>item.id));
-    const remaining=getCalendarEventStudents(event,students).filter(item=>item.id!==student.id&&!alreadyAbsentIds.has(item.id));
-    const nextSummary=remaining.map(item=>calendarStudentDisplayName(item)).join(" ");
-    const firstName=student.name.trim().split(/\s+/)[0]||student.name;
-    const nextDescription=(event.description||"").split(/\r?\n/).filter(line=>!normalizeName(line).includes(normalizeName(student.name))&&!normalizeName(line).includes(normalizeName(firstName))).join("\n");
-
-    // Primeiro confirma a ausência no DMP. Assim a Home e o card do dia
-    // atualizam imediatamente e a sincronização do Google não consegue apagá-la.
-    updateStudentRecord({...student,sessions:[absence,...student.sessions]});
-
-    try{
-      const response=remaining.length
-        ?await fetch("/api/google/events",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:event.id,summary:nextSummary,description:nextDescription,location:event.location||"",start:event.start,end:event.end})})
-        :await fetch(`/api/google/events?id=${encodeURIComponent(event.id)}`,{method:"DELETE"});
-      if(!response.ok)throw new Error("google_calendar_update_failed");
-      setCalendarEvents(current=>remaining.length?current.map(item=>item.id===event.id?{...item,summary:nextSummary,description:nextDescription,matchedStudentIds:remaining.map(value=>value.id)}:item):current.filter(item=>item.id!==event.id));
-    }catch(error){
-      console.error("Ausência salva, mas a Agenda Google não foi atualizada:",error);
-      alert("Ausência salva no DMP. Não foi possível retirar o aluno da Agenda Google agora; a ausência continuará marcada na Home.");
-    }
+    await absenceSync.register(student,event);
   }
   async function registerStudentAbsence(student:Student){
     const event=calendarEvents.find(item=>calendarEventDate(item)===today()&&getCalendarEventStudents(item,students).some(value=>value.id===student.id));
@@ -1566,7 +1554,7 @@ fetch("/api/google/status")
             <header className="dashboard-topbar"><div className="today-heading"><div><p className="dashboard-eyebrow">Sua central do dia</p><h1>{formatWeekday(todayKey)}</h1><p>{formatCalendarDate(todayKey)}</p></div><div className="today-tools"><WeatherWidget onOpen={()=>setView("weather")}/><DigitalClock/><a className="drive-shortcut drive-shortcut-premium" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noreferrer" title="Abrir meu Google Drive"><span className="shortcut-icon drive-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M17.2 6h13.4l11.1 19.2-6.7 11.6H21.6l6.7-11.6L17.2 6Z" fill="#34A853"/><path d="M17.2 6 6.1 25.2l6.7 11.6h22.1l-6.6-11.6H19.4L10.6 10l6.6-4Z" fill="#FBBC04"/><path d="M6.1 25.2h22.2l6.7 11.6H12.8L6.1 25.2Z" fill="#4285F4"/></svg></span><span className="drive-shortcut-copy"><strong>Google Drive</strong><small>Abrir arquivos</small></span></a><a className="drive-shortcut bioimpedance-shortcut" href="https://galileuonline.com.br/#/avaliacao" target="_blank" rel="noreferrer" title="Abrir Bioimpedância no Galileu Online" aria-label="Abrir Bioimpedância"><span className="shortcut-icon bio-icon"><img src="/bioimpedancia-bin.png" alt="Bioimpedância"/></span></a><a className="drive-shortcut whatsapp-shortcut" href="https://web.whatsapp.com/" target="_blank" rel="noreferrer" title="Abrir WhatsApp Web" aria-label="Abrir WhatsApp Web"><span className="shortcut-icon whatsapp-icon" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#25D366"/><path d="M33.8 28.6c-.5-.3-3-1.5-3.5-1.6-.5-.2-.8-.3-1.2.3-.3.5-1.3 1.6-1.6 2-.3.3-.6.4-1.1.1-.5-.3-2.1-.8-4-2.5-1.5-1.3-2.5-3-2.8-3.5-.3-.5 0-.8.2-1 .2-.2.5-.6.8-.9.3-.3.3-.5.5-.9.2-.3.1-.7 0-.9-.1-.3-1.2-2.8-1.6-3.8-.4-1-.9-.9-1.2-.9h-1c-.4 0-.9.1-1.4.7-.5.5-1.8 1.8-1.8 4.4s1.9 5.1 2.2 5.5c.3.3 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.1 3-1.2 3.4-2.4.4-1.2.4-2.2.3-2.4-.1-.2-.5-.3-1-.6Z" fill="#fff"/><path d="M12 38l2.1-7.5A15.7 15.7 0 1 1 20.5 36L12 38Z" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinejoin="round"/></svg></span></a></div></div></header>
             <div className="home-desktop-layout"><section className={`dashboard-content home-main-content ${homeCentral.central}`}>
               <div data-home-size-key="highlights"><TodayHighlights events={homeAgendaEvents} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} monthKidsRows={homeMonthKidsCount===null?undefined:homeMonthKidsRows} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
-              <div data-home-size-key="calendar"><CalendarTodayPanel status={calendarStatus} events={homeAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
+              <div data-home-size-key="calendar"><AbsenceSyncPanel {...absenceSync} students={students} events={calendarEvents} onRetry={absenceSync.retry}/><CalendarTodayPanel status={calendarStatus} events={homeAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onRetryAbsence={absenceSync.retry} onOpenKids={openKidsCalendarEvent}/></div>
               <div id="home-desktop-commitments"/>
               <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
                 <div className="panel-head todoist-panel-head">
@@ -1935,7 +1923,7 @@ fetch("/api/google/status")
   </section></>;
 })() : null}
 
-          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><CalendarAgenda widgetWeek={widgetWeek} widgetNotes={notes} onWidgetNote={id=>{const note=notes.find(n=>n.id===id);if(note){setView("today");startEditingNote(note);}}} widgetEventId={widgetAgendaEventId} onWidgetAbsence={registerAbsence} status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
+          {view === "agenda" ? <><header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Agenda de trabalho</p><h1>Agenda</h1><p>Seus compromissos do Google Calendar dentro do DMP.</p></div></header><section className="dashboard-content"><AbsenceSyncPanel {...absenceSync} students={students} events={calendarEvents} onRetry={absenceSync.retry}/><CalendarAgenda widgetWeek={widgetWeek} widgetNotes={notes} onWidgetNote={id=>{const note=notes.find(n=>n.id===id);if(note){setView("today");startEditingNote(note);}}} widgetEventId={widgetAgendaEventId} onWidgetAbsence={registerAbsence} status={calendarStatus} events={mergedAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} range={calendarRange} anchor={calendarAnchor} onRange={setCalendarRange} onAnchor={setCalendarAnchor} onOpenStudent={openStudent} onStartStudent={startStudentFlow} onOpenKids={openKidsCalendarEvent} onStatusChange={setCalendarStatus} onRefresh={()=>void refreshCalendarAutomatic(true)} onNewEvent={()=>setShowGoogleEventForm(true)} /></section></> : null}
           {view === "finance" ? <FinanceiroPage students={students} onStudentsChange={setStudents} onTrustRevoked={() => { financeAttempt.current++;setFinanceTrust(false);sessionStorage.removeItem(FINANCE_UNLOCK_KEY);setView("today");setFinancePin("");setShowFinancePin(true); }} /> : null}
           {view === "reports" ? <><EvolutionReport students={students}/><PersonalReportsPage students={students} calendarEvents={calendarEvents} onStudent={openStudent} /></> : null}
           {view === "kids" ? <KidsPage key={kidsEntryKey} openRequest={kidsLessonRequest} openStudentId={kidsStudentRequest} onBack={()=>{setKidsLessonRequest(null);setKidsStudentRequest(null);setView("today");}} /> : null}
@@ -2075,7 +2063,7 @@ function completedWorkoutStatusLabel(student:Student,session:Session|null|undefi
   return "Treino finalizado";
 }
 
-function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent,onAbsence,onOpenKids}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string,tab?:StudentTab)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onAbsence:(student:Student,event:CalendarEvent)=>void;onOpenKids:(event:CalendarEvent)=>void}) {
+function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent,onAbsence,onRetryAbsence,onOpenKids}:{status:{configured:boolean;connected:boolean};events:CalendarEvent[];loading:boolean;sync:{dailyAt:string;weeklyAt:string;weeklyCount:number};students:Student[];todaySessions:{student:Student;session:Session}[];onOpenAgenda:()=>void;onOpenStudent:(id:string,tab?:StudentTab)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onAbsence:(student:Student,event:CalendarEvent)=>void;onRetryAbsence?:(student:Student,event:CalendarEvent)=>Promise<void>;onOpenKids:(event:CalendarEvent)=>void}) {
   const completedIds=new Set(todaySessions.filter(item=>item.session.source!=="ABSENCE").map(item=>item.student.id));
   const absentIds=new Set(todaySessions.filter(item=>item.session.source==="ABSENCE").map(item=>item.student.id));
   const displayEvents=[...events];
@@ -2100,7 +2088,7 @@ function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,o
     }}
   ><svg viewBox="0 0 24 24" aria-hidden="true" className="calendar-whatsapp-icon"><path fill="currentColor" d="M12.04 2a9.84 9.84 0 0 0-8.39 14.98L2 22l5.18-1.62A9.96 9.96 0 1 0 12.04 2Zm0 17.93a8.02 8.02 0 0 1-4.09-1.12l-.29-.17-3.07.96 1-2.99-.19-.31a7.91 7.91 0 1 1 6.64 3.63Zm4.4-5.93c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.02-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.47-.39-.41-.54-.42h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.16 1.51.1.46-.07 1.43-.58 1.63-1.15.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg></button>:null}
   <button className="calendar-slot-student-name" onClick={()=>onOpenStudent(student.id)}>{student.name}</button>
-</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{done?<button type="button" className="status-chip ok home-completed-workout" onClick={()=>onOpenStudent(student.id,"history")} title="Abrir treino realizado">✓ {completedWorkoutStatusLabel(student,completedSession)}</button>:absent?<span className="status-chip absent">Ausente</span>:null}<HomeStudentActions settled={done||absent} onHistory={()=>onOpenStudent(student.id,"history")} onRegister={()=>onStartStudent(student.id,"free")} onPresence={()=>onStartStudent(student.id,"attendance")} onAbsence={()=>void onAbsence(student,event)}/></div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : !status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
+</span><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span>{done?<button type="button" className="status-chip ok home-completed-workout" onClick={()=>onOpenStudent(student.id,"history")} title="Abrir treino realizado">✓ {completedWorkoutStatusLabel(student,completedSession)}</button>:absent?<><span className="status-chip absent">Ausente · histórico</span>{onRetryAbsence?<button type="button" className="secondary compact-action" onClick={()=>void onRetryAbsence(student,event)}>Conferir retirada no Google</button>:null}</>:null}<HomeStudentActions settled={done||absent} onHistory={()=>onOpenStudent(student.id,"history")} onRegister={()=>onStartStudent(student.id,"free")} onPresence={()=>onStartStudent(student.id,"attendance")} onAbsence={()=>void onAbsence(student,event)}/></div>})}</div>:null}</div><span className="status-chip">{calendarEventStatus(event)}</span></article>})}</div> : !status.configured ? <div className="calendar-empty"><strong>Integração pronta no aplicativo</strong><span>Falta apenas configurar as credenciais do Google para conectar sua agenda.</span></div> : !status.connected ? <div className="calendar-empty"><strong>Google Agenda ainda não conectado</strong><span>Abra a aba Agenda e toque em “Conectar Google”.</span></div> : loading ? <div className="calendar-empty"><span>Carregando compromissos...</span></div> : <div className="calendar-empty"><strong>Nenhum compromisso hoje</strong><span>Sua agenda Google está conectada.</span></div>}
   </section>;
 }
 
