@@ -1798,6 +1798,35 @@ function LessonEditor({
         ) : (
           <>
             <section id="kids-panel-CHAMADA" role="tabpanel" aria-labelledby="kids-tab-CHAMADA" hidden={activeTab!=="CHAMADA"}>
+            <div className={styles.attendance}>
+              {students.map((student) => {
+                const value = (draft.attendance[student.id] ||
+                  "PRESENT") as KidsAttendanceStatus;
+                const replacementParticipant=rosterIds.includes(student.id);
+                return (
+                  <div key={student.id} className={styles.lessonAttendanceRow}><button
+                    type="button"
+                    className={
+                      `${styles.lessonAttendanceToggle} ${value === "PRESENT" ? styles.present : styles.absent}`
+                    }
+                    onClick={() => toggle(student.id)}
+                  >
+                    <span>{value === "PRESENT" ? "✓" : "×"}</span>
+                    <strong className={styles.lessonStudentName}><span>{student.name}</span></strong>
+                    <small>{replacementParticipant?`Reposição · ${value === "PRESENT" ? "Presente" : "Falta"}`:value === "PRESENT" ? "Presente" : "Falta"}</small>
+                  </button>
+                  {(()=>{const balance=data?kidsLessonBalance(data,student.id):undefined;return <button type="button" disabled={!data||editorSaving} className={`${styles.lessonBalance} ${styles.lessonBalanceLink} ${balance?styles["balance"+balance.tone]:""}`} title={`Abrir reposições de ${student.name}`} aria-label={balance?`Saldo ${balance.label}: ${balance.description}. Abrir reposições de ${student.name}`:`Abrir reposições de ${student.name}`} onClick={event=>{event.stopPropagation();balanceTrigger.current=event.currentTarget;setBalanceStudent(student.id);}}>{balance?.label??"—"}</button>;})()}
+                  </div>
+                );
+              })}
+            </div>
+            {students.filter(student => draft.attendance[student.id] === "ABSENT").map(student => (
+              <label key={`right:${student.id}`} className={styles.cancelBox}>
+                <input type="checkbox" checked={Boolean(draft.absenceReplacementRights?.[student.id])}
+                  onChange={event => setDraft(current => ({...current, absenceReplacementRights:{...current.absenceReplacementRights,[student.id]:event.target.checked}}))}/>
+                {student.name} — Esta falta dá direito à reposição
+              </label>
+            ))}
             <label>
               Situação
               <select
@@ -1947,35 +1976,6 @@ function LessonEditor({
                 <button disabled={!replacementStudent} onClick={()=>{if(!replacementStudent)return;setDraft(current=>{const replacementStudentIds=[...new Set([...(current.replacementStudentIds||[]),replacementStudent])];return {...current,replacementStudentIds,replacementCapacity:replacementStudentIds.length,attendance:{...current.attendance,[replacementStudent]:"PRESENT"}}});setReplacementStudent("");}}>Adicionar</button>
               </div>
             </div>:null}
-            <div className={styles.attendance}>
-              {students.map((student) => {
-                const value = (draft.attendance[student.id] ||
-                  "PRESENT") as KidsAttendanceStatus;
-                const replacementParticipant=rosterIds.includes(student.id);
-                return (
-                  <div key={student.id} className={styles.lessonAttendanceRow}><button
-                    type="button"
-                    className={
-                      `${styles.lessonAttendanceToggle} ${value === "PRESENT" ? styles.present : styles.absent}`
-                    }
-                    onClick={() => toggle(student.id)}
-                  >
-                    <span>{value === "PRESENT" ? "✓" : "×"}</span>
-                    <strong className={styles.lessonStudentName}><span>{student.name}</span></strong>
-                    <small>{replacementParticipant?`Reposição · ${value === "PRESENT" ? "Presente" : "Falta"}`:value === "PRESENT" ? "Presente" : "Falta"}</small>
-                  </button>
-                  {(()=>{const balance=data?kidsLessonBalance(data,student.id):undefined;return <button type="button" disabled={!data||editorSaving} className={`${styles.lessonBalance} ${styles.lessonBalanceLink} ${balance?styles["balance"+balance.tone]:""}`} title={`Abrir reposições de ${student.name}`} aria-label={balance?`Saldo ${balance.label}: ${balance.description}. Abrir reposições de ${student.name}`:`Abrir reposições de ${student.name}`} onClick={event=>{event.stopPropagation();balanceTrigger.current=event.currentTarget;setBalanceStudent(student.id);}}>{balance?.label??"—"}</button>;})()}
-                  </div>
-                );
-              })}
-            </div>
-            {students.filter(student => draft.attendance[student.id] === "ABSENT").map(student => (
-              <label key={`right:${student.id}`} className={styles.cancelBox}>
-                <input type="checkbox" checked={Boolean(draft.absenceReplacementRights?.[student.id])}
-                  onChange={event => setDraft(current => ({...current, absenceReplacementRights:{...current.absenceReplacementRights,[student.id]:event.target.checked}}))}/>
-                {student.name} — Esta falta dá direito à reposição
-              </label>
-            ))}
             </section>
             <section id="kids-panel-PLANEJAMENTO" role="tabpanel" aria-labelledby="kids-tab-PLANEJAMENTO" hidden={activeTab!=="PLANEJAMENTO"}>
             <div className={styles.formGrid}>

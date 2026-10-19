@@ -35,3 +35,30 @@
 .refined:global(#dmp-home-modern) :global(.today-highlight-grid)>*{grid-column:auto!important;grid-row:auto!important;min-width:0!important;width:auto!important}
 .refined:global(#dmp-home-modern) :global(.today-tools)>*{flex:1 1 130px!important;width:auto!important}
 }
+
+/* P03: os cinco atalhos ocupam uma unica linha; escopo somente Home desktop. */
+@media(min-width:901px){
+.refined:global(#dmp-home-modern) :global(.today-heading){display:flex!important;flex-wrap:wrap!important;gap:10px 16px!important;align-items:center!important}
+.refined:global(#dmp-home-modern) :global(.today-heading)>div:first-child{flex:0 0 auto!important}
+.refined:global(#dmp-home-modern) :global(.today-tools){display:grid!important;grid-template-columns:minmax(160px,1.4fr) minmax(108px,1fr) minmax(130px,1fr) 52px 52px!important;gap:6px!important;flex:1 1 526px!important;min-width:0!important;width:auto!important;align-items:stretch!important}
+.refined:global(#dmp-home-modern) :global(.today-tools)>*{min-width:0!important;width:100%!important;box-sizing:border-box!important;margin:0!important;min-height:64px!important;padding:6px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .drive-shortcut:not(.bioimpedance-shortcut):not(.whatsapp-shortcut)){min-width:0!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .shortcut-icon){width:36px!important;height:36px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .shortcut-icon svg){width:36px!important;height:36px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-clock>span){display:none!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-clock strong){font-size:24px!important;white-space:nowrap!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .drive-shortcut-copy strong){font-size:13px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-weather-icon){font-size:26px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-weather){gap:5px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-weather-main){flex-wrap:wrap!important;gap:2px 5px!important}
+.refined:global(#dmp-home-modern) :global(.dashboard-topbar:has(.today-heading)){min-height:0!important;padding-top:12px!important;padding-bottom:12px!important}
+}
+
+@media(min-width:901px){
+.refined:global(#dmp-home-modern) :global(.today-tools .bioimpedance-shortcut img){max-width:36px!important;max-height:36px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .drive-shortcut-premium){gap:4px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .drive-shortcut-premium .shortcut-icon){width:28px!important;height:28px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .drive-shortcut-premium svg){width:28px!important;height:28px!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-weather>div){min-width:0!important}
+.refined:global(#dmp-home-modern) :global(.today-tools .header-weather-meta){flex-wrap:wrap!important;gap:2px 5px!important}
+}
