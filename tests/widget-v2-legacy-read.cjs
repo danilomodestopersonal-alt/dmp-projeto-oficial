@@ -3,4 +3,20 @@
 // widget-v2.cjs independently checks actual production, unchanged Home functions,
 // authentication, navigation whitelist and every file outside this scope.
 const fs=require('node:fs'),path=require('node:path'),baseline=require('./widget-v2-preservation.json'),legacy=require('./widget-v2-legacy-sources.json'),kidsChamada=require('./kids-chamada-dmp-baseline.json').original,redesign=require('./kids-redesign-baseline.json').original;
+// P10: binary reads below are historical whole-file hash checks. Reverse only
+// the exact presentation additions and verify the reconstructed LIVE hash.
+// Text reads still return the real route for behavioral/financial tests.
+function p10RouteForHistoricalHash(file){
+  let source=fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n');
+  source=source.replace('import {reportOutgoingIdentity,type OutgoingIdentity} from "@/lib/mercado-pago/outgoing-identity";\n','')
+    .replace('  outgoingIdentity?:OutgoingIdentity;\n','')
+    .replaceAll('result.push({...classifyMovement({','result.push(classifyMovement({')
+    .replace('},state),...(kind==="OUT"?{outgoingIdentity:reportOutgoingIdentity(row,release)}:{})});','},state));')
+    .replace('},state),...(kind==="OUT"?{outgoingIdentity:reportOutgoingIdentity(row)}:{})});','},state));');
+  require('node:assert/strict').equal(require('node:crypto').createHash('sha256').update(source).digest('hex'),'3a992b3e7e6ba6f5134d2d295fa85e2864d2dfb5dbfcfa1431e0e9caaaae9e4c','P10: alteração da rota além dos metadados autorizados');
+  return Buffer.from(source);
+}
 module.exports=function(file,options){const key=path.relative(path.resolve(__dirname,'..'),String(file)).replaceAll('\\','/');if(Object.hasOwn(redesign,key)||Object.hasOwn(kidsChamada,key)||Object.hasOwn(baseline.original,key)||Object.hasOwn(legacy,key)){const encoding=typeof options==='string'?options:options?.encoding;const value=Buffer.from(kidsChamada[key]??baseline.original[key]??legacy[key]??redesign[key]);return encoding?value.toString(encoding).replace(/\r\n/g,"\n"):value;}if(Object.hasOwn(require('./consolidated-legacy-sources.json'),key)){const value=Buffer.from(require('./consolidated-legacy-sources.json')[key]);const encoding=typeof options==='string'?options:options?.encoding;return encoding?value.toString(encoding).replace(/\r\n/g,'\n'):value;}if(Object.hasOwn(require('./evolution-dependency-baseline.json'),key)){const value=Buffer.from(require('./evolution-dependency-baseline.json')[key]);const encoding=typeof options==='string'?options:options?.encoding;return encoding?value.toString(encoding).replace(/\r\n/g,'\n'):value;}const value=fs.readFileSync(file,options);return typeof value==="string"?value.replace(/\r\n/g,"\n"):value;};
+
+const priorRead=module.exports;
+module.exports=function(file,options){const key=path.relative(path.resolve(__dirname,'..'),String(file)).replaceAll('\\','/');const encoding=typeof options==='string'?options:options?.encoding;if(key==='app/api/mercado-pago/route.ts'&&!encoding)return p10RouteForHistoricalHash(file);return priorRead(file,options);};

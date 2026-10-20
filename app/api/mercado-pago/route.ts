@@ -1,4 +1,5 @@
 import {reportPixPayer,manualPixPayer,pixTitle,pixForDestination,type PixMetadata} from "@/lib/mercado-pago/pix-payer";
+import {reportOutgoingIdentity,type OutgoingIdentity} from "@/lib/mercado-pago/outgoing-identity";
 import { reconcileExpenses, reverseExpenseReconciliation, type ExpenseAllocationInput, type ExpenseRemainder, type ExpenseReconciliation } from "@/lib/mercado-pago/expense-reconciliation";
 import {createHash} from "crypto";
 import {isAuthorized} from "@/lib/auth";
@@ -83,6 +84,7 @@ type MpReport={
   [key:string]:unknown;
 };
 type Movement={
+  outgoingIdentity?:OutgoingIdentity;
   pix?:PixMetadata;
   expenseReconciliation?:ExpenseReconciliation;
   id:string;
@@ -631,9 +633,9 @@ function settlementMovements(rows:AnyRow[],releaseRows:AnyRow[],state:MpState):M
     const identity=movementIdentity(row,release,description,type);
     const genericSettlement=normalizeKey(type)==="settlement"&&!useful&&description==="Liquidação Mercado Pago";
     if(genericSettlement)return;
-    result.push(classifyMovement({
+    result.push({...classifyMovement({
       pix:reportPixPayer(row,kind)|| (release?reportPixPayer(release,kind):undefined),sourceId,date:rawDate||String(index),dateKey,description,detail,operation:type,kind,amount,paymentType,fee,identityKey:identity.key,identityLabel:identity.label,historical,
-    },state));
+    },state),...(kind==="OUT"?{outgoingIdentity:reportOutgoingIdentity(row,release)}:{})});
   });
   return result;
 }
@@ -689,10 +691,10 @@ function releaseMovements(rows:AnyRow[],settlementRows:AnyRow[],settlement:Movem
     const paymentType=clean(row.PAYMENT_METHOD_TYPE||row.PAYMENT_METHOD);
     const reference=compactRef(row.EXTERNAL_REFERENCE||row.ITEM_ID);
     const detail=["Relatório de Liberações",paymentType,reference].filter(Boolean).join(" · ");
-    result.push(classifyMovement({
+    result.push({...classifyMovement({
       pix:reportPixPayer(row,kind),sourceId,date:rawDate||String(index),dateKey,description,detail,operation,kind,amount,paymentType,fee:0,
       identityKey:finalIdentity.key,identityLabel:finalIdentity.label,historical:Boolean(dateKey&&dateKey<CUTOVER_DATE),emergency,
-    },state));
+    },state),...(kind==="OUT"?{outgoingIdentity:reportOutgoingIdentity(row)}:{})});
   });
   return result;
 }

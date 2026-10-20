@@ -1,6 +1,7 @@
 "use client";
 import {pixTitle,type PixMetadata} from "../../lib/mercado-pago/pix-payer";
 import { expenseOptionsForPayment } from "../../lib/mercado-pago/expense-options";
+import { outgoingIdentityHint, type OutgoingIdentity } from "../../lib/mercado-pago/outgoing-identity";
 import { ExpenseAllocationEditor, allocationAmount, allocationError, type ExpenseOption, type ExpenseSplit, type RemainderChoice } from "./ExpenseAllocationEditor";
 import type { ExpenseReconciliation } from "../../lib/mercado-pago/expense-reconciliation";
 
@@ -12,6 +13,7 @@ type Filter="ALL"|"REVIEW"|"PROCESSED"|"IN_DAY"|"OUT_DAY"|"IN_MONTH"|"OUT_MONTH"
 type Target="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleChoice="ONCE"|"SUGGEST"|"AUTO";
 type Move={
+  outgoingIdentity?:OutgoingIdentity;
   pix?:PixMetadata;
   expenseReconciliation?:ExpenseReconciliation;
   id:string;fingerprint:string;sourceId?:string;date:string;dateKey:string;description:string;detail:string;operation?:string;kind:"IN"|"OUT";amount:number;
@@ -254,15 +256,17 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
     const target=move.suggestedTarget||(move.kind==="IN"?"PERSONAL":"EXTRA");
     let targetId="";
     let targetName=move.suggestedTargetName||"";
+    let ruleChoice:RuleChoice=move.ruleMode||"ONCE";
     if(target==="PERSONAL"&&targetName){
       const found=data?.financeContext.personal.find(item=>item.studentName.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
       if(found)targetId=found.id;
     }
     if(target==="EXPENSE"&&targetName){
-      const found=currentExpenses.find(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
-      if(found)targetId=found.id;
+      const matches=expenseOptionsForPayment(currentExpenses,move.dateKey).filter(item=>item.name.toLocaleLowerCase("pt-BR")===targetName.toLocaleLowerCase("pt-BR"));
+      const found=matches.length===1?matches[0]:undefined;
+      if(found){targetId=found.id;if(found.competence<move.dateKey.slice(0,7))ruleChoice="ONCE";}
     }
-    return {payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.status==="REVIEW"?"":move.expenseName||move.description,targetId,targetName,ruleChoice:move.ruleMode||"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:target==="EXPENSE"&&targetId?[{targetId,amount:String(currentExpenses.find(e=>e.id===targetId)?.remaining||0).replace(".",",")}]:[],remainder:"",remainderCategory:"",remainderDescription:""};
+    return {payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.status==="REVIEW"?"":move.expenseName||move.description,targetId,targetName,ruleChoice,splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:target==="EXPENSE"&&targetId?[{targetId,amount:String(currentExpenses.find(e=>e.id===targetId)?.remaining||0).replace(".",",")}]:[],remainder:"",remainderCategory:"",remainderDescription:""};
   }
   function choiceFor(move:Move){return choices[move.fingerprint]||defaultChoice(move);}
   function patchChoice(move:Move,patch:Partial<Choice>){setChoices(current=>({...current,[move.fingerprint]:{...choiceFor(move),...patch}}));}
@@ -424,7 +428,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
       if(filter==="OUT_MONTH"&&(x.kind!=="OUT"||x.technical||x.historical||!x.dateKey.startsWith(monthKey)))return false;
       if(filter==="TECHNICAL"&&!x.technical)return false;
       if(filter==="HISTORICAL"&&!x.historical)return false;
-      return !n||`${pixTitle(x.pix)||x.description} ${x.detail} ${x.category} ${x.reason}`.toLocaleLowerCase("pt-BR").includes(n);
+      return !n||`${pixTitle(x.pix)||x.description} ${x.outgoingIdentity?.label||""} ${x.detail} ${x.category} ${x.reason}`.toLocaleLowerCase("pt-BR").includes(n);
     });
   },[moves,filter,q]);
 
@@ -469,8 +473,9 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
           return <article className={`${styles.move} ${move.status==="REVIEW"||move.status==="AUTO_READY"?styles.review:""} ${move.technical?styles.technicalMove:""} ${move.historical?styles.historicalMove:""}`} key={move.id}>
             <div className={`${styles.icon} ${move.technical||move.historical?styles.iconTechnical:move.kind==="IN"?styles.iconIn:styles.iconOut}`}>{move.historical?"◷":move.technical?"⚙":move.kind==="IN"?"↓":"↑"}</div>
             <div className={styles.info}>
-              <div><strong>{pixTitle(move.pix)||move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
+              <div><strong>{pixTitle(move.pix)||move.outgoingIdentity?.label||move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
               <small>{date(move.date)}{move.detail?` · ${move.detail}`:""}</small>
+              {move.kind==="OUT"&&!move.technical?<small>{outgoingIdentityHint(move.outgoingIdentity)}</small>:null}
               {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedWrap}>
                 <div className={styles.resolvedLine}><b>{targetLabel(move.suggestedTarget,move.kind)}</b><span>{resolvedDestinationLabel(move)?` · ${resolvedDestinationLabel(move)}`:""} · {move.reason}</span>{move.suggestedTarget==="EXTRA"?<button type="button" onClick={()=>{setEditingId(current=>current===move.id?"":move.id);setError("");}}>✎ {editingId===move.id?"Fechar":"Editar"}</button>:null}</div>
                 {move.expenseReconciliation?<div style={{display:"grid",gap:8,padding:10,border:"1px solid #dfe4d8",borderRadius:10}}>
