@@ -1,0 +1,116 @@
+[
+  {
+    "file": "types/models.ts",
+    "before": "export type CalendarEvent = {",
+    "after": "export type CalendarEvent = {\n  cancelled?: boolean;",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": " const event=await read(op.event.id);",
+    "after": " const event=await read(op.event.id);\n if(!students.some(s=>s.id===op.studentId&&s.sessions.some(a=>a.source===\"ABSENCE\"&&a.calendarEvent?.id===op.event.id)))throw new AbsenceConflict(\"Ausência não confirmada no DMP.\");\n if(event.status===\"cancelled\")return {...op.event,cancelled:true,matchedStudentId:null,matchedStudentIds:[]};",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": "if(ownVersion&&marker.removed.includes(op.key)&&!current.includes(op.studentId))return projected;",
+    "after": "if(ownVersion&&marker.removed.includes(op.key)&&!current.includes(op.studentId)&&current.length>0)return projected;",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": "if(!current.includes(op.studentId))return projected;",
+    "after": "if(!current.includes(op.studentId)&&!(ownVersion&&current.length===0&&marker.removed.includes(op.key)))return projected;",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": "const summary=ids.length?rosterSummary(event.summary||\"\",current,ids,students):rosterSummary(event.summary||\"\",current,[],students)+\" · sem participantes\";",
+    "after": "const summary=ids.length?rosterSummary(event.summary||\"\",current,ids,students):event.summary||\"Aula\";",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": "const next={...event,summary,extendedProperties:",
+    "after": "const next={...event,...(!ids.length?{status:\"cancelled\"}:{}),summary,extendedProperties:",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": "const body={summary,extendedProperties:{private:privateFields}};",
+    "after": "const body={...(!ids.length?{status:\"cancelled\"}:{}),summary,extendedProperties:{private:privateFields}};",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": "if(check.extendedProperties?.private?.[ABSENCE_MARKER]!==privateFields[ABSENCE_MARKER])throw error;",
+    "after": "if(!(ids.length===0&&check.status===\"cancelled\")&&check.extendedProperties?.private?.[ABSENCE_MARKER]!==privateFields[ABSENCE_MARKER])throw error;",
+    "item": "P04"
+  },
+  {
+    "file": "lib/calendar/absence-removal.ts",
+    "before": " const check=await read(event.id);\n if(check.extendedProperties",
+    "after": " const check=await read(event.id);\n if(ids.length===0&&check.status===\"cancelled\")return {...mapped,cancelled:true,matchedStudentId:null,matchedStudentIds:[]};\n if(check.extendedProperties",
+    "item": "P04"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": ".filter(e=>!(e.calendarRoster?.single?.op.startsWith(\"absence-\")&&e.matchedStudentIds?.length===0&&e.summary===\"Aula · sem participantes\")));",
+    "after": ".filter(e=>!e.cancelled&&!(e.calendarRoster?.single?.op.startsWith(\"absence-\")&&e.matchedStudentIds?.length===0&&e.summary===\"Aula · sem participantes\")));",
+    "item": "P04"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": "function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void}) {",
+    "after": "function PlannedSession({student,workout,onBack,onSave,initialDate}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void;initialDate?:string}) {",
+    "item": "P07"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": "function FreeSessionScreen({student,initialSession,onBack,onSave}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void}) {",
+    "after": "function FreeSessionScreen({student,initialSession,onBack,onSave,initialDate}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void;initialDate?:string}) {",
+    "item": "P07"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": "function PlannedSession({student,workout,onBack,onSave,initialDate}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void;initialDate?:string}) {\n  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||\"\"})));\n  const [completed,setCompleted]=useState<Record<string,boolean>>(() => Object.fromEntries((workout?.exercises||[]).map(ex=>[ex.id,false])));\n  const [notes,setNotes]=useState(\"\");\n  const [sessionDate,setSessionDate]=useState(today());",
+    "after": "function PlannedSession({student,workout,onBack,onSave,initialDate}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void;initialDate?:string}) {\n  const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||\"\"})));\n  const [completed,setCompleted]=useState<Record<string,boolean>>(() => Object.fromEntries((workout?.exercises||[]).map(ex=>[ex.id,false])));\n  const [notes,setNotes]=useState(\"\");\n  const [sessionDate,setSessionDate]=useState(initialDate||today());",
+    "item": "P07"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": "function FreeSessionScreen({student,initialSession,onBack,onSave,initialDate}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void;initialDate?:string}) {\n  const [transcript,setTranscript]=useState(()=>initialSession?.completedExercises.map(exercise=>{\n    const block=exercise.block?.trim()?`${exercise.block}: `:\"\";\n    const prescription=exercise.sets||exercise.reps?` · ${exercise.sets||\"\"}x${exercise.reps||\"\"}`:\"\";\n    const load=exercise.load?` · ${exercise.load}`:\"\";\n    const observation=exercise.notes?` · ${exercise.notes}`:\"\";\n    return `${block}${exercise.name}${prescription}${load}${observation}`;\n  }).join(\"\\n\")||\"\");\n  const [focus,setFocus]=useState(initialSession?.focus?.trim()||initialSession?.workoutName||\"Treino realizado\");\n  const [notes,setNotes]=useState(initialSession?.notes||\"\");\n  const [sessionDate,setSessionDate]=useState(today());",
+    "after": "function FreeSessionScreen({student,initialSession,onBack,onSave,initialDate}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void;initialDate?:string}) {\n  const [transcript,setTranscript]=useState(()=>initialSession?.completedExercises.map(exercise=>{\n    const block=exercise.block?.trim()?`${exercise.block}: `:\"\";\n    const prescription=exercise.sets||exercise.reps?` · ${exercise.sets||\"\"}x${exercise.reps||\"\"}`:\"\";\n    const load=exercise.load?` · ${exercise.load}`:\"\";\n    const observation=exercise.notes?` · ${exercise.notes}`:\"\";\n    return `${block}${exercise.name}${prescription}${load}${observation}`;\n  }).join(\"\\n\")||\"\");\n  const [focus,setFocus]=useState(initialSession?.focus?.trim()||initialSession?.workoutName||\"Treino realizado\");\n  const [notes,setNotes]=useState(initialSession?.notes||\"\");\n  const [sessionDate,setSessionDate]=useState(initialDate||today());",
+    "item": "P07"
+  },
+  {
+    "file": "lib/widget/student-action.ts",
+    "before": "const planned=target.action===\"register\"&&payload?.source===\"PLANNED\";",
+    "after": "const detailed=target.action===\"register\"||(target.action===\"presence\"&&!!payload?.completedExercises?.length);\n const planned=detailed&&payload?.source===\"PLANNED\";",
+    "item": "P07"
+  },
+  {
+    "file": "lib/widget/student-action.ts",
+    "before": "target.action===\"register\"?\"FREE\":target.action===\"presence\"",
+    "after": "detailed?\"FREE\":target.action===\"presence\"",
+    "item": "P07"
+  },
+  {
+    "file": "lib/widget/student-action.ts",
+    "before": "if(target.action===\"register\"&&(!payload",
+    "after": "if(detailed&&(!payload",
+    "item": "P07"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": "import {useAbsenceRemoval}",
+    "after": "import LastPresence from \"@/components/home/LastPresence\";\nimport {useAbsenceRemoval}",
+    "item": "P08"
+  },
+  {
+    "file": "components/DmpApp.tsx",
+    "before": "<button className=\"calendar-slot-student-name\" onClick={()=>onOpenStudent(student.id)}>{student.name}</button>\n</span>",
+    "after": "<button className=\"calendar-slot-student-name\" onClick={()=>onOpenStudent(student.id)}>{student.name}</button><LastPresence sessions={student.sessions}/>\n</span>",
+    "item": "P08"
+  }
+]

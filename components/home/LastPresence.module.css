@@ -1,0 +1,5 @@
+:global(.calendar-slot-student):has(.indicator){position:relative}
+.indicator{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:16px;line-height:16px;font-size:11px;font-weight:500;color:#51675a;pointer-events:none;white-space:nowrap}
+.indicator>span{position:absolute;right:0;top:0;visibility:hidden}
+.indicator[data-mode="2"]>[data-full],.indicator[data-mode="1"]>[data-short]{visibility:visible;pointer-events:auto}
+@media(max-width:999px){.indicator{display:none}}
