@@ -18,6 +18,8 @@ export async function POST(request:NextRequest){
  const p=await request.json().catch(()=>null);
  if(!p||!["register","retry"].includes(p.action)||typeof p.studentId!=="string"||p.studentId.length>256||!p.event||typeof p.event.id!=="string"||!p.event.id||p.event.id.length>1024||!Number.isFinite(Date.parse(p.event.start))||!Number.isFinite(Date.parse(p.event.end))||typeof p.event.summary!=="string"||p.event.summary.length>2000||p.event.allDay||p.event.id.startsWith("dmp-"))return NextResponse.json({message:"Ocorrência inválida."},{status:400});
  const event:CalendarEvent={id:p.event.id,summary:p.event.summary,start:p.event.start,end:p.event.end,etag:typeof p.event.etag==="string"?p.event.etag:undefined,description:String(p.event.description||"").slice(0,8000),location:String(p.event.location||"").slice(0,2000)};
+ const repairEmpty=p.repairEmpty===true;
+ if(repairEmpty&&(p.action!=="retry"||!event.etag))return NextResponse.json({message:"Atualize a ocorrência antes de corrigir a aula vazia."},{status:400});
  const key=absenceKey(p.studentId,event.id);let session:Session|undefined;let operation:AbsenceOperation|undefined;let refreshed:any;
  const client=await pool.connect();let locked=false;let committed=false;
  try{
@@ -39,6 +41,9 @@ export async function POST(request:NextRequest){
   await client.query("INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(id) DO NOTHING",[STORE,"{}"]);
   const state=await client.query("SELECT payload FROM dmp_data WHERE id=$1 FOR UPDATE",[STORE]);const ops:Record<string,AbsenceOperation>=parse(state.rows[0].payload)||{};
   operation=ops[key]||{key,studentId:p.studentId,event,state:"pending",message:"Ausência salva. Retirada no Google pendente.",updatedAt:new Date().toISOString()};
+  // A confirmed legacy removal may still have left a live empty occurrence.
+  // Only this explicit repair reopens it; ordinary retries remain idempotent.
+  if(repairEmpty)operation={...operation,event,repairEmpty:true,state:"pending",message:"Conferindo a ocorrência vazia no Google."};
   // Review is explicit and only replaces the snapshot, never the saved absence.
   if(p.action==="retry"&&p.reviewed===true&&operation.state==="conflict")operation={...operation,event,state:"pending",message:"Nova conferência solicitada."};
   ops[key]=operation;
@@ -50,7 +55,7 @@ export async function POST(request:NextRequest){
     if(!googleConfigured())throw Error("Google não configurado. A ausência está salva.");
     const auth=await getGoogleAccessToken(request);refreshed=auth.refreshed;if(!auth.accessToken)throw Error("Reconecte a Agenda Google e tente novamente. A ausência está salva.");
     remoteEvent=await removeAbsentParticipant(operation,students,auth.accessToken);
-    operation={...operation,state:"confirmed",message:"Ausência salva e retirada confirmada no Google.",updatedAt:new Date().toISOString()};
+    operation={...operation,state:"confirmed",message:remoteEvent.cancelled?"Ausência preservada e ocorrência vazia cancelada no Google.":"Ausência salva e retirada confirmada no Google.",updatedAt:new Date().toISOString()};
    }catch(error){operation={...operation,state:error instanceof AbsenceConflict?"conflict":"pending",message:error instanceof Error?error.message:"Retirada não confirmada. Tente novamente.",updatedAt:new Date().toISOString()};}
    // JSON field update avoids overwriting another occurrence's operation.
    await client.query("UPDATE dmp_data SET payload=jsonb_set(payload::jsonb,ARRAY[$2]::text[],$3::jsonb,true),updated_at=NOW() WHERE id=$1",[STORE,key,JSON.stringify(operation)]);

@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState,type Dispatch,type SetStateAction} from "react";
 import type {CalendarEvent,Student} from "@/types/models";
 import type {AbsenceOperation} from "@/lib/calendar/absence-removal";
+import {emptyAbsenceOccurrence} from "@/lib/calendar/absence-pending";
 export function useAbsenceRemoval(setStudents:Dispatch<SetStateAction<Student[]>>,onCalendarChange:(event?:CalendarEvent)=>Promise<void>){
  const [operations,setOperations]=useState<AbsenceOperation[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const revision=useRef(0);const queue=useRef(Promise.resolve());const active=useRef(new Set<string>());
@@ -9,7 +10,7 @@ export function useAbsenceRemoval(setStudents:Dispatch<SetStateAction<Student[]>
  async function run(student:Student,event:CalendarEvent,action:"register"|"retry",reviewed=false){
   const identity=JSON.stringify([student.id,event.id]);if(active.current.has(identity))return;active.current.add(identity);revision.current++;setBusy(true);
   const execute=async()=>{setError("");try{
-   const r=await fetch("/api/google/absence",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({studentId:student.id,event,action,reviewed}),signal:AbortSignal.timeout(90000)});
+   const r=await fetch("/api/google/absence",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({studentId:student.id,event,action,reviewed,repairEmpty:action==="retry"&&emptyAbsenceOccurrence(event)}),signal:AbortSignal.timeout(90000)});
    const data=await r.json();if(!r.ok||!data.saved||!data.session)throw Error(data.message||"Não foi possível confirmar a ausência. Consulte o histórico antes de repetir.");
    setStudents(current=>current.map(s=>s.id!==student.id||s.sessions.some(a=>a.id===data.session.id)?s:{...s,sessions:[data.session,...s.sessions]}));
    setOperations(current=>[...current.filter(o=>o.key!==data.operation.key),...(data.operation.state==="confirmed"?[]:[data.operation])]);

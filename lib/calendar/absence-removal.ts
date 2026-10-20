@@ -1,10 +1,10 @@
 import {createHash} from "node:crypto";
-import {calendarRoster,ROSTER_KEY,rosterSummary,type RosterEdit} from "./roster";
+import {calendarRoster,ROSTER_KEY,rosterIds,rosterSummary,type RosterEdit} from "./roster";
 import {matchCalendarEvents,kidsCalendarRequest} from "../widget/home-source";
 import type {CalendarEvent,Student} from "../../types/models";
 
 export const ABSENCE_MARKER="dmpAbsenceRemovalV1";
-export type AbsenceOperation={key:string;studentId:string;event:CalendarEvent;state:"pending"|"confirmed"|"conflict";message:string;updatedAt:string};
+export type AbsenceOperation={key:string;studentId:string;event:CalendarEvent;state:"pending"|"confirmed"|"conflict";message:string;updatedAt:string;repairEmpty?:boolean};
 export const absenceKey=(studentId:string,eventId:string)=>createHash("sha256").update(JSON.stringify([studentId,eventId])).digest("hex");
 export class AbsenceConflict extends Error {}
 // Only fields relevant to ownership, participants and occurrence identity. No credentials.
@@ -22,12 +22,20 @@ export async function removeAbsentParticipant(op:AbsenceOperation,students:Stude
  const projected=matchCalendarEvents([mapped],students)[0];const current=projected.matchedStudentIds||[];
  let marker:any;try{marker=JSON.parse(event.extendedProperties?.private?.[ABSENCE_MARKER]||"null");}catch{throw new AbsenceConflict("Metadados da ocorrência inválidos. Revise manualmente.");}
  const ownVersion=marker?.signature===fingerprint(event)&&Array.isArray(marker.removed);
+ // Legacy releases confirmed participant removal but left an empty live instance.
+ // Repair is explicit, versioned and requires the original DMP removal signature.
+ if(op.repairEmpty){
+  const single=mapped.calendarRoster?.single;
+  if(event.etag!==op.event.etag)throw new AbsenceConflict("A ocorrência mudou desde a conferência. Atualize a Agenda antes de corrigir.");
+  if(!ownVersion||!marker.removed.includes(op.key)||!single||single.scope!=="single"||single.eventId!==event.id||!single.op.startsWith("absence-")||single.ids.length!==0||rosterIds(mapped,current).length!==0||current.length!==0)throw new AbsenceConflict("Não foi confirmada uma ocorrência vazia deixada por ausência. Nenhum evento foi cancelado.");
+ }
  // A lost response is safe to retry, but never remove somebody who was re-added later.
  if(ownVersion&&marker.removed.includes(op.key)&&!current.includes(op.studentId)&&current.length>0)return projected;
  if(event.etag!==op.event.etag&&!(ownVersion&&marker.rootEtag===op.event.etag))throw new AbsenceConflict("A aula mudou desde a solicitação. Atualize e revise os participantes na Agenda antes de tentar novamente.");
  if(!current.includes(op.studentId)&&!(ownVersion&&current.length===0&&marker.removed.includes(op.key)))return projected;
  if(!students.some(s=>s.id===op.studentId&&s.sessions.some(a=>a.source==="ABSENCE"&&a.calendarEvent?.id===op.event.id)))throw new AbsenceConflict("Ausência não confirmada no DMP. Nenhum participante foi retirado.");
  const ids=current.filter(id=>id!==op.studentId);const roster=mapped.calendarRoster!;
+ if(rosterIds(mapped,current).some(id=>!current.includes(id)))throw new AbsenceConflict("Há participantes não reconhecidos nesta ocorrência. Revise a Agenda; nenhum participante foi retirado.");
  const edit:RosterEdit={op:"absence-"+op.key.slice(0,48),at:Math.max(Date.now(),(roster.single?.at||0)+1,...roster.rules.map(r=>r.at+1)),from:mapped.originalStartTime||mapped.start,scope:"single",eventId:event.id,ids,add:[],remove:[op.studentId]};
  const privateFields={...event.extendedProperties?.private,[ROSTER_KEY]:JSON.stringify(edit)};
  const summary=ids.length?rosterSummary(event.summary||"",current,ids,students):event.summary||"Aula";
