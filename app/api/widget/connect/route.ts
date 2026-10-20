@@ -22,7 +22,8 @@ function page(message:string,status:number,id="",approved=false){
  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conexão dos widgets DMP</title><style>body{margin:0;background:#eef3f6;color:#16232d;font:18px/1.5 system-ui,sans-serif}main{max-width:520px;margin:32px auto;padding:24px}h1{font-size:30px;line-height:1.2}.notice{background:#fff;border:2px solid ${approved?"#28764d":"#b42318"};border-radius:12px;padding:18px}button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:16px 20px;background:#0d638f;color:#fff;margin:16px 0;cursor:pointer}a{color:#154c76}small{display:block;margin-top:10px}</style></head><body><main><h1>${approved?"Celular autorizado":"Autorização não concluída"}</h1><div class="notice" role="${approved?"status":"alert"}">${escape(message)}${approved?"":`<small>HTTP ${status}</small>`}</div><p>${escape(next)}</p>${retry}<p><a href="/api/google/auth" target="_blank" rel="noreferrer">Renovar autorização Google</a></p><p><a href="/app?home=1" target="_blank" rel="noreferrer">Entrar no DMP</a></p><p><a href="/widget-android">Ver dispositivos conectados</a></p></main></body></html>`;
  return new NextResponse(html,{status,headers:{
   "Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store, private","Vary":"Cookie",
-  "Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY",
+  // no-referrer makes a native form POST send Origin: null, blocking retries.
+  "Referrer-Policy":"same-origin","X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY",
   "Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
  }});
 }
