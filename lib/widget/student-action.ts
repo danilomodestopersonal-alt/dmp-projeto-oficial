@@ -18,13 +18,14 @@ export function selectedOccurrence(students:Student[],events:CalendarEvent[],tar
 export function existingOccurrence(student:Student,target:StudentActionTarget){return (student.sessions||[]).find(s=>s.date===target.date&&(!s.calendarEvent||s.calendarEvent.id===target.id));}
 export function prepareStudentAction(students:Student[],events:CalendarEvent[],target:StudentActionTarget,sessionId:string,payload?:Partial<Session>){
  const {student,event}=selectedOccurrence(students,events,target);
- const planned=target.action==="register"&&payload?.source==="PLANNED";
+ const detailed=target.action==="register"||(target.action==="presence"&&!!payload?.completedExercises?.length);
+ const planned=detailed&&payload?.source==="PLANNED";
  const workout=planned?student.workouts?.find(w=>w.id===payload?.workoutId&&w.active!==false&&!w.archivedAt):null;
  if(planned&&!workout)throw new StudentActionError(409,"Ficha indisponível. Confira o treino deste aluno novamente.");
- const source=planned?"PLANNED":target.action==="register"?"FREE":target.action==="presence"?"ATTENDANCE":"ABSENCE";
+ const source=planned?"PLANNED":detailed?"FREE":target.action==="presence"?"ATTENDANCE":"ABSENCE";
  const existing=existingOccurrence(student,target);
  if(existing){if(existing.id===sessionId&&existing.source===source&&(!planned||existing.workoutId===workout?.id))return {students,session:existing,already:true};throw new StudentActionError(409,"Este aluno já tem registro para esta ocorrência. Consulte o histórico para corrigir.");}
- if(target.action==="register"&&(!payload||payload.date!==target.date||!Array.isArray(payload.completedExercises)||!payload.completedExercises.length||payload.completedExercises.length>100||payload.completedExercises.some(e=>!e||typeof e.name!=="string"||!e.name.trim())))throw new StudentActionError(400,"Revise os exercícios e a data antes de salvar.");
+ if(detailed&&(!payload||payload.date!==target.date||!Array.isArray(payload.completedExercises)||!payload.completedExercises.length||payload.completedExercises.length>100||payload.completedExercises.some(e=>!e||typeof e.name!=="string"||!e.name.trim())))throw new StudentActionError(400,"Revise os exercícios e a data antes de salvar.");
  const exercises=(source==="FREE"||source==="PLANNED")?payload!.completedExercises!.map(e=>({id:String(e.id||""),name:String(e.name).slice(0,300),block:String(e.block||"").slice(0,100),sets:String(e.sets||"").slice(0,100),reps:String(e.reps||"").slice(0,100),load:String(e.load||"").slice(0,100),notes:String(e.notes||"").slice(0,2000)})):[];
  const session:Session={id:sessionId,date:target.date,source,...(workout?{workoutId:workout.id}:{}),workoutName:workout?workout.name:source==="FREE"?"Treino realizado":source==="ATTENDANCE"?"Presença":"Ausência",focus:source==="FREE"?String(payload?.focus||"").slice(0,300):"",notes:String(payload?.notes||"").slice(0,5000),completedExercises:exercises,finishedAt:new Date().toISOString(),calendarEvent:{id:event.id,summary:event.summary,description:event.description,start:event.start,end:event.end,allDay:event.allDay,location:event.location}};
  return {students:students.map(s=>s.id===student.id?{...s,sessions:[session,...(s.sessions||[])]}:s),session,already:false};

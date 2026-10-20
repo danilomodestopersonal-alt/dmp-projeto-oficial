@@ -4887,11 +4887,11 @@ function WorkoutEditor({student,workout,slot,exerciseCatalog,personalTemplates,o
   </section></main>;
 }
 
-function PlannedSession({student,workout,onBack,onSave}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void}) {
+function PlannedSession({student,workout,onBack,onSave,initialDate}:{student:Student;workout:Workout|null;onBack:()=>void;onSave:(session:Session,applyToCycle?:boolean)=>void;initialDate?:string}) {
   const [exercises,setExercises]=useState<Exercise[]>((workout?.exercises||[]).map(ex=>({...ex,notes:ex.notes||""})));
   const [completed,setCompleted]=useState<Record<string,boolean>>(() => Object.fromEntries((workout?.exercises||[]).map(ex=>[ex.id,false])));
   const [notes,setNotes]=useState("");
-  const [sessionDate,setSessionDate]=useState(today());
+  const [sessionDate,setSessionDate]=useState(initialDate||today());
   const [lessonMode,setLessonMode]=useState(false);
   const [applyToCycle,setApplyToCycle]=useState(false);
   const [currentIndex,setCurrentIndex]=useState(0);
@@ -5204,7 +5204,7 @@ return <main className="app-page lesson-mode-page"><Header title={`${student.nam
   </section></main>;
 }
 
-function FreeSessionScreen({student,initialSession,onBack,onSave}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void}) {
+function FreeSessionScreen({student,initialSession,onBack,onSave,initialDate}:{student:Student;initialSession?:Session|null;onBack:()=>void;onSave:(session:Session)=>void;initialDate?:string}) {
   const [transcript,setTranscript]=useState(()=>initialSession?.completedExercises.map(exercise=>{
     const block=exercise.block?.trim()?`${exercise.block}: `:"";
     const prescription=exercise.sets||exercise.reps?` · ${exercise.sets||""}x${exercise.reps||""}`:"";
@@ -5214,7 +5214,7 @@ function FreeSessionScreen({student,initialSession,onBack,onSave}:{student:Stude
   }).join("\n")||"");
   const [focus,setFocus]=useState(initialSession?.focus?.trim()||initialSession?.workoutName||"Treino realizado");
   const [notes,setNotes]=useState(initialSession?.notes||"");
-  const [sessionDate,setSessionDate]=useState(today());
+  const [sessionDate,setSessionDate]=useState(initialDate||today());
   const [exercises,setExercises]=useState<Exercise[]>(()=>initialSession?.completedExercises.map(exercise=>({...exercise,id:crypto.randomUUID()}))||[]);
   const [listening,setListening]=useState(false);
   const [transcriptFromVoice,setTranscriptFromVoice]=useState(false);
