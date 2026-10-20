@@ -1456,7 +1456,7 @@ fetch("/api/google/status")
   const absenceSync=useAbsenceRemoval(setStudents,async event=>{
     // Invalidate any GET started before the confirmed mutation.
     calendarLoadSequence.current++;
-    if(event)setCalendarEvents(current=>current.map(e=>e.id===event.id?event:e).filter(e=>!(e.calendarRoster?.single?.op.startsWith("absence-")&&e.matchedStudentIds?.length===0&&e.summary==="Aula · sem participantes")));
+    if(event)setCalendarEvents(current=>current.map(e=>e.id===event.id?event:e).filter(e=>!e.cancelled&&!(e.calendarRoster?.single?.op.startsWith("absence-")&&e.matchedStudentIds?.length===0&&e.summary==="Aula · sem participantes")));
     await refreshCalendarAutomatic(true);
   });
   async function registerAbsence(student:Student,event:CalendarEvent){

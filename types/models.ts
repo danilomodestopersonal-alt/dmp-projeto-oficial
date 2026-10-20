@@ -128,6 +128,7 @@ export type Student = {
 };
 
 export type CalendarEvent = {
+  cancelled?: boolean;
   etag?: string;
   calendarRoster?: CalendarRoster;
   id: string;

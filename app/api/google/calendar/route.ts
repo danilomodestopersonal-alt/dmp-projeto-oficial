@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       pages += 1;
     } while (pageToken && pages < 20);
 
-    const rosterItems=await attachCalendarRosters(items,async id=>{const r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(id),{headers:{authorization:`Bearer ${accessToken}`},cache:"no-store",signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error("Série indisponível");return r.json();});
+    const rosterItems=await attachCalendarRosters(items.filter(event=>event.status!=="cancelled"),async id=>{const r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(id),{headers:{authorization:`Bearer ${accessToken}`},cache:"no-store",signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error("Série indisponível");return r.json();});
     const events = rosterItems.map((event:any) => ({
       id:event.id,etag:event.etag,calendarRoster:event.calendarRoster,
       summary:event.summary || "Sem título",
