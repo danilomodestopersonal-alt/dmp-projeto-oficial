@@ -1,5 +1,6 @@
 // DMP_HOME_TREINO_CLICAVEL_V2
 "use client";
+import WidgetOccurrenceHistory from "./WidgetOccurrenceHistory";
 import EvolutionReport from "@/components/evolution/EvolutionReport";
 import CalendarRosterEditor from "@/components/calendar/CalendarRosterEditor";
 import AbsenceSyncPanel from "@/components/calendar/AbsenceSyncPanel";
@@ -2104,6 +2105,7 @@ function CalendarAgenda({widgetWeek,widgetNotes,onWidgetNote,widgetEventId,onWid
   const navigate=(direction:-1|1)=>onAnchor(shiftAgendaAnchor(anchor,range,direction));
   const openEvent=(event:CalendarEvent)=>{const kids=kidsCalendarRequest(event);if(kids){onOpenKids(event);return;}if(range==="week"){setAddingEvent(event);return;}const matched=getCalendarEventStudents(event,students);if(matched.length===1){onOpenStudent(matched[0].id);return;}if(event.htmlLink)window.open(event.htmlLink,"_blank","noopener,noreferrer");};
   return <>
+    {widgetEventId&&!loading&&!events.some(e=>e.id===widgetEventId)?<WidgetOccurrenceHistory eventId={widgetEventId} date={anchor} students={students} onOpenStudent={onOpenStudent}/>:null}
     {widgetWeek&&status.connected?<WidgetWeekAgenda anchor={anchor} events={events} students={students} notes={widgetNotes||[]} onAnchor={onAnchor} onEvent={event=>{if(kidsCalendarRequest(event))onOpenKids(event);else if(event.allDay)setAddingEvent(event);else setWidgetEditingEvent(event);}} onNote={id=>onWidgetNote?.(id)} loading={loading}/>:<>
     <section className="agenda-view-toolbar"><div>{(["day","week","month","year","list"] as AgendaRange[]).map(value=><button key={value} className={range===value?"filter-active":"secondary"} onClick={()=>onRange(value)}>{agendaRangeLabel(value)}</button>)}</div><div className="agenda-period-nav"><button className="secondary" onClick={()=>navigate(-1)} aria-label="Período anterior">‹</button><strong>{agendaPeriodLabel(anchor,range)}</strong><button className="secondary" onClick={()=>navigate(1)} aria-label="Próximo período">›</button></div><input type="date" value={anchor} onChange={event=>onAnchor(event.target.value)}/><button className="primary" onClick={onNewEvent}>+ Novo compromisso</button></section>
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
