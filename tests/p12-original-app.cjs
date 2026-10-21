@@ -1,0 +1,3 @@
+// Historical hash gates only. Actual UI tests load current production code.
+const assert=require('node:assert/strict'),crypto=require('node:crypto');
+module.exports=function(text){let s=text.replace(/\r\n/g,'\n');if(!s.includes('import HomeKidsLessonCard'))return s;for(const e of require('./p12-home-kids-edits.json').slice().reverse()){assert.equal(s.split(e.after).length,2,'P12: trecho autorizado divergente');s=s.replace(e.after,e.before);}assert.equal(crypto.createHash('sha256').update(s).digest('hex'),'7279a76a0b2bb10ec29c8ee589fbdb1e31755653b5e48b5f4a33d1ce9224fda2','P12: alteracao fora dos cards Kids');return s;};

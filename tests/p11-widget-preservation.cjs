@@ -2,7 +2,8 @@
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),assert=require('node:assert/strict'),ts=require('typescript');
 const root=path.resolve(__dirname,'..'),base='73d6bbe4e747b3f4068c1f6640e385e7787bad61';
 const production=['components/DmpApp.tsx','components/WidgetOccurrenceHistory.tsx','lib/widget/occurrence-history.ts','lib/widget/v2.ts','lib/widget/load-v2.ts'];
-const allowed=new Set([...production,'tests/p11-widget-absences.cjs','tests/p11-widget-preservation.cjs','tests/p11-original-app.cjs','tests/round20261020-original.cjs','tests/p04-empty-occurrence.cjs','tests/widget-visual.cjs','tests/widget-corrections29.cjs']);
+const p12=require('./p12-home-kids-preservation.cjs');
+const allowed=new Set([...p12.allowed,...production,'tests/p11-widget-absences.cjs','tests/p11-widget-preservation.cjs','tests/p11-original-app.cjs','tests/round20261020-original.cjs','tests/p04-empty-occurrence.cjs','tests/widget-visual.cjs','tests/widget-corrections29.cjs']);
 const git=args=>cp.execFileSync('git',args,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n');
 const files=git(['ls-tree','-r','--name-only',base]).toString().trim().split('\n');let preserved=0;
 for(const f of files){if(allowed.has(f))continue;assert.deepEqual(norm(fs.readFileSync(path.join(root,f))),norm(git(['show',base+':'+f])),f);preserved++;}
@@ -13,4 +14,4 @@ const prior=statements(git(['show',base+':lib/widget/v2.ts']).toString()),curren
 for(const f of ['lib/widget/occurrence-history.ts','components/WidgetOccurrenceHistory.tsx'])assert.doesNotMatch(read(f),/\b(fetch|INSERT|UPDATE|DELETE|PATCH|POST|registerAbsence|refreshAccessToken)\b|@\/lib\/db/,'Projecao historica deve ser somente leitura: '+f);
 const loader=read('lib/widget/load-v2.ts');assert.doesNotMatch(loader,/\b(INSERT|UPDATE|DELETE|PATCH|POST|fetch)\b/);assert.equal(loader.match(/pool\.query\(/g).length,2);assert.equal(loader.match(/SELECT id,payload FROM dmp_data WHERE id=ANY\(\$1::text\[\]\)/g).length,2);
 for(const f of ['lib/widget/google-source.ts','lib/widget/today.ts','lib/widget/home-source.ts','app/api/google/absence/route.ts','lib/calendar/absence-removal.ts','app/api/widget/today/route.ts','app/api/widget/agenda/route.ts','lib/widget/devices.ts','app/api/mercado-pago/route.ts','components/mercado-pago/MercadoPagoTestPage.tsx'])assert.equal(read(f),norm(git(['show',base+':'+f])).toString(),f);
-console.log('PASS P11 ESCOPO: 5 arquivos de produção; '+preserved+' arquivos existentes preservados. APK, Google, banco, Home/indicadores, Kids, Financeiro/PIN e MP mantidos. DmpApp difere apenas na consulta do histórico por link do widget.');
+console.log('PASS P11 ESCOPO HISTORICO (P12 verificado separadamente): 5 arquivos de produção; '+preserved+' arquivos existentes preservados. Regras P11, APK, Google, banco, indicadores, Financeiro/PIN e MP mantidos. As sete adições Kids P12 são retiradas de forma exata antes da comparação histórica do DmpApp.');

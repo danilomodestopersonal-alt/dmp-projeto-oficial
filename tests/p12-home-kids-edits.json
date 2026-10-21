@@ -1,0 +1,30 @@
+[
+  {
+    "before": "import KidsPage, {type KidsLessonOpenRequest} from \"@/components/kids/KidsPage\";",
+    "after": "import KidsPage, {type KidsLessonOpenRequest} from \"@/components/kids/KidsPage\";\nimport HomeKidsLessonCard from \"@/components/home/HomeKidsLessonCard\";"
+  },
+  {
+    "before": "  const [homeKidsCalendarEvents,setHomeKidsCalendarEvents]=useState<CalendarEvent[]>([]);",
+    "after": "  const [homeKidsCalendarEvents,setHomeKidsCalendarEvents]=useState<CalendarEvent[]>([]);\n  const [homeKidsCardData,setHomeKidsCardData]=useState<KidsData|null>(null);"
+  },
+  {
+    "before": "        const raw=payload.data as KidsData|null;\n        if(!raw){",
+    "after": "        const raw=payload.data as KidsData|null;\n        setHomeKidsCardData(raw||null);\n        if(!raw){"
+  },
+  {
+    "before": "if(!cancelled){setHomeMonthKidsCount(null);setHomeMonthKidsRows([]);setHomeKidsCalendarEvents([]);}",
+    "after": "if(!cancelled){setHomeMonthKidsCount(null);setHomeMonthKidsRows([]);setHomeKidsCalendarEvents([]);setHomeKidsCardData(null);}"
+  },
+  {
+    "before": "<CalendarTodayPanel status={calendarStatus} events={homeAgendaEvents}",
+    "after": "<CalendarTodayPanel kidsData={homeKidsCardData} status={calendarStatus} events={homeAgendaEvents}"
+  },
+  {
+    "before": "function CalendarTodayPanel({status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent,onAbsence,onOpenKids}:{status:",
+    "after": "function CalendarTodayPanel({kidsData,status,events,loading,sync,students,todaySessions,onOpenAgenda,onOpenStudent,onStartStudent,onAbsence,onOpenKids}:{kidsData:KidsData|null;status:"
+  },
+  {
+    "before": "const kids=kidsCalendarRequest(event);const localKids=event.id.startsWith(\"dmp-kids:\");",
+    "after": "const kids=kidsCalendarRequest(event);if(Boolean(kids))return <HomeKidsLessonCard key={event.id} event={event} request={kids!} data={kidsData} onOpen={onOpenKids}/>;const localKids=event.id.startsWith(\"dmp-kids:\");"
+  }
+]
