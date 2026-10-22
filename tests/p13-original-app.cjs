@@ -1,0 +1,3 @@
+// Strip only exact P13 Home props before historical source gates.
+const assert=require('node:assert/strict'),crypto=require('node:crypto');
+module.exports=function(text){let s=text.replace(/\r\n/g,'\n');if(!s.includes('onKidsData={setHomeKidsCardData}'))return s;for(const e of require('./p13-home-edits.json').slice().reverse()){assert.equal(s.split(e.after).length,2,'P13: trecho autorizado divergente');s=s.replace(e.after,e.before);}assert.equal(crypto.createHash('sha256').update(s).digest('hex'),'f203b374552b47f1e3cc81b6c56440c387c93a9f42ea9ac877bf90aa395e74d6','P13: alteracao fora da Home Kids');return s;};

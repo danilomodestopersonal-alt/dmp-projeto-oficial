@@ -22,6 +22,6 @@
 .presence{width:30px;height:30px;justify-self:center}.presence.present{background:#237445;border-color:#237445;color:#fff}
 .card .absence{width:44px;height:44px;padding:0;font-family:inherit;cursor:pointer}.card .absence.absent{background:#b94242;border-color:#b94242;color:#fff}.card .absence:disabled{cursor:default;opacity:.55}
 .card button:focus-visible{outline:3px solid #195d88;outline-offset:3px}.card button:hover:not(:disabled){filter:brightness(.95)}
-.empty,.notice,.hint{margin:5px 0;font-size:.78rem;line-height:1.5;color:#586256}.notice{font-weight:600}.hint{margin:8px 0 0;font-size:.72rem}
+.empty,.notice{margin:5px 0;font-size:.78rem;line-height:1.5;color:#586256}.notice{font-weight:600}.error{margin:8px 0 0;font-size:.78rem;line-height:1.4;color:#9c2525}.card .absence.absent:disabled{opacity:1}
 @media(max-width:680px){.card{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px}.info{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;align-items:center}.category{grid-column:1/-1}.time{font-size:1.35rem}.time small{font-size:.8rem}.meta{justify-content:flex-end;gap:4px 7px}.teacher,.description{grid-column:1/-1}.card .open{grid-column:1/-1;justify-self:start;min-height:42px;margin-top:3px}.roster{border-top:1px solid var(--kids-line);padding-top:6px}.student{min-height:54px}.identity strong{font-size:.88rem}}
 @media(max-width:360px){.info{grid-template-columns:minmax(0,1fr)}.meta{justify-content:flex-start}.card{padding:10px}.student{gap:4px;grid-template-columns:minmax(0,1fr) 30px 44px}}

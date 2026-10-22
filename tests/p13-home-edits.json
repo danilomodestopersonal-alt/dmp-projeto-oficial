@@ -1,0 +1,18 @@
+[
+  {
+    "before": "kidsData={homeKidsCardData} status={calendarStatus}",
+    "after": "kidsData={homeKidsCardData} onKidsData={setHomeKidsCardData} status={calendarStatus}"
+  },
+  {
+    "before": "function CalendarTodayPanel({kidsData,status,",
+    "after": "function CalendarTodayPanel({kidsData,onKidsData,status,"
+  },
+  {
+    "before": "}:{kidsData:KidsData|null;status:",
+    "after": "}:{kidsData:KidsData|null;onKidsData:(data:KidsData)=>void;status:"
+  },
+  {
+    "before": "data={kidsData} onOpen={onOpenKids}",
+    "after": "data={kidsData} onData={onKidsData} onOpen={onOpenKids}"
+  }
+]

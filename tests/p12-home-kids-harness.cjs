@@ -4,6 +4,7 @@ function load(file,cache=new Map()){
  if(cache.has(file))return cache.get(file);const m={exports:{}};
  const code=ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  new Function('require','module','exports',code)(id=>{
+  if(id==='react')return {...React,useRef:value=>({current:value}),useState:value=>[value,()=>{}]};
   if(id.endsWith('.css'))return {default:new Proxy({},{get:(_,k)=>'p12_'+String(k)})};
   if(id.startsWith('@/')||id.startsWith('.')){const f=id.startsWith('@/')?id.slice(2):path.posix.join(path.posix.dirname(file),id);return load(fs.existsSync(path.join(root,f+'.tsx'))?f+'.tsx':f+'.ts',cache);}
   return require(id);
@@ -28,7 +29,7 @@ function fixture(){
  return {data,group,lesson,event,request:{date,time,category:'ORANGE'}};
 }
 const personal=()=>({id:'personal',summary:'Aluna Personal',start:date+'T10:00:00-03:00',end:date+'T11:00:00-03:00',matchedStudentIds:['p1']});
-function panelProps(){const f=fixture();return{kidsData:f.data,status:{configured:true,connected:true},events:[personal(),f.event],loading:false,sync:{dailyAt:'x',weeklyAt:'',weeklyCount:0},students:[{id:'p1',name:'Aluna Personal',status:'ACTIVE',workouts:[],assessments:[],sessions:[],phone:'19999990000'}],todaySessions:[],onOpenAgenda(){},onOpenStudent(){},onStartStudent(){},onAbsence(){},onOpenKids(){}};}
+function panelProps(){const f=fixture();return{kidsData:f.data,onKidsData(){},status:{configured:true,connected:true},events:[personal(),f.event],loading:false,sync:{dailyAt:'x',weeklyAt:'',weeklyCount:0},students:[{id:'p1',name:'Aluna Personal',status:'ACTIVE',workouts:[],assessments:[],sessions:[],phone:'19999990000'}],todaySessions:[],onOpenAgenda(){},onOpenStudent(){},onStartStudent(){},onAbsence(){},onOpenKids(){}};}
 function expand(node){if(node==null||typeof node==='boolean')return null;if(Array.isArray(node))return node.map(expand);if(typeof node!=='object')return node;if(typeof node.type==='function')return expand(node.type(node.props));if(node.type===React.Fragment)return expand(node.props.children);return{type:node.type,props:{...node.props,children:expand(node.props.children)}};}
 function nodes(tree,predicate){const result=[];function visit(n){if(Array.isArray(n))return n.forEach(visit);if(n&&typeof n==='object'){if(predicate(n))result.push(n);visit(n.props?.children);}}visit(tree);return result;}
 module.exports={root,load,React,moduleSource,baseSource,panel,fixture,personal,panelProps,expand,nodes};
