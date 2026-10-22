@@ -88,15 +88,13 @@ export function normalizeKidsData(source:KidsData):KidsData{
   const mergedLessons=[...source.lessons,...canonicalLessons.filter(lesson=>!sourceLessons.has(lesson.id))];
   const lessons=mergedLessons.map(lesson=>{
     const rawGroup=classMap.get(lesson.classId);const group=lesson.classSnapshot||(rawGroup?kidsClassAt(rawGroup,lesson.date):undefined);const plan=group?getKidsPedagogicalPlan(group.category,lesson.date):undefined;
-    const endTime=lesson.replacementEndTime||group?.endTime||group?.startTime||"23:59";
-    const passed=lesson.status==="SCHEDULED"&&new Date(`${lesson.date}T${endTime}:00-03:00`).getTime()<=Date.now();
+    // Time-based completion belongs to the audited server job, never browser normalization.
     const attendance:KidsLesson["attendance"]={};
     for(const [studentId,status] of Object.entries(lesson.attendance||{})){
       const id=aliases.get(studentId)||studentId;
       attendance[id]=attendance[id]==="ABSENT"||status==="ABSENT"?"ABSENT":"PRESENT";
     }
-    if(passed&&group)for(const student of group.students)if(student.active&&(!student.startDate||student.startDate<=lesson.date)&&attendance[student.id]!=="ABSENT")attendance[student.id]="PRESENT";
-    return {...lesson,kind:lesson.kind||"REGULAR",replacementStudentIds:(lesson.replacementStudentIds||[]).map(id=>aliases.get(id)||id),status:passed?"COMPLETED":lesson.status,attendance,theme:lesson.theme||plan?.theme||"",pedagogicalFocus:lesson.pedagogicalFocus||plan?.focus||"",objective:lesson.objective||plan?.objective||"",stations:lesson.stations?.length?lesson.stations:plan?.stations||[],teacherTip:lesson.teacherTip||plan?.tip||"",plannedPlan:lesson.plannedPlan|| (plan?formatKidsPlan(plan):"")};
+    return {...lesson,kind:lesson.kind||"REGULAR",replacementStudentIds:(lesson.replacementStudentIds||[]).map(id=>aliases.get(id)||id),status:lesson.status,attendance,theme:lesson.theme||plan?.theme||"",pedagogicalFocus:lesson.pedagogicalFocus||plan?.focus||"",objective:lesson.objective||plan?.objective||"",stations:lesson.stations?.length?lesson.stations:plan?.stations||[],teacherTip:lesson.teacherTip||plan?.tip||"",plannedPlan:lesson.plannedPlan|| (plan?formatKidsPlan(plan):"")};
   });
   const lessonMap=new Map(lessons.map(lesson=>[lesson.id,lesson]));
   const replacements=[...(source.replacements||[])].map(item=>{

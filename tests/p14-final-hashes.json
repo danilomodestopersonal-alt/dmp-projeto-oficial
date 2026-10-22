@@ -1,0 +1,14 @@
+{
+  "app/api/kids/route.ts": "cbe6bceb9e0ab69c650a01787b975d9187370dbf19dfa81765a86ad79a8d6bea",
+  "app/api/kids/automatic-attendance/route.ts": "89c8751322a02c1d691895586a1368b161836951f200679f9ced764c84f70e13",
+  "components/DmpApp.tsx": "25650532eb1e1fc092ef034dbd1da5f57449606ba4f8e7c1f20eb6956a9bf47e",
+  "components/calendar/CalendarRosterEditor.tsx": "f658bec27636953fc6722daa3df594b8ca5eaeab8d75fff21236d7080cd4a531",
+  "lib/kids/seed.ts": "cf829e2974970809765957e0fed60f0d9951fc1efb7a5b1863760bf526e1c17e",
+  "lib/kids/automatic-attendance.ts": "77f7d20b6aad8b95b74443726c048696d454f1d59b92b6e868b00e02bb3564f0",
+  "lib/kids/automatic-attendance-server.ts": "99547c9a6dc4c25f26a7ced5aefe8ca5fd4ae73b9790c20a114ce4e5359f46e5",
+  "lib/kids/automatic-attendance-worker.ts": "fc201f165ee55bb6069dfecabc728997e3d6c0346cd43277d6047811379dae1a",
+  "types/kids.ts": "2a9296358e4f741a6e8f7402c4e3a699b6c815a319690f6bea626738d5486112",
+  "package.json": "5e2f2507419621ed4c1b2498db15a54204ab3fc1b27c97a1a1054da002e6ff1e",
+  "start-dmp.cjs": "d60c4daf92f8e0d2d3329569dbc6a6f0df9c3d1ff6663ab25c8afbcda08181b7",
+  "instrumentation.ts": "b48aa7b58284ff590560bcd7b2f9da9452671a2baf17de1d48b4aee1bc32099c"
+}

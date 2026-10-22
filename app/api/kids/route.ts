@@ -11,7 +11,7 @@ const DATA_ID = "kids_v1";
 const VERSION_HEADER = "x-dmp-expected-updated-at";
 
 function iso(value: unknown) {
-  return value ? new Date(String(value)).toISOString() : null;
+  return value ? new Date(value instanceof Date ? value.getTime() : String(value)).toISOString() : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -115,7 +115,10 @@ export async function PUT(request: NextRequest) {
       const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       body=applyKidsClassChange({...body,classes:current.rows[0].payload.classes},classChange,today);
     }
+    if (!current.rows.length) delete body.automaticAttendanceAudit;
     if (current.rows.length) {
+      // Automatic audit is also server-owned; old clients cannot erase or forge it.
+      if(current.rows[0].payload.automaticAttendanceAudit)body.automaticAttendanceAudit=current.rows[0].payload.automaticAttendanceAudit;else delete body.automaticAttendanceAudit;
       // Home audit is server-owned, including when an older Kids tab saves.
       if(current.rows[0].payload.homeAttendanceAudit)body.homeAttendanceAudit=current.rows[0].payload.homeAttendanceAudit;else delete body.homeAttendanceAudit;
       body = reconcileChamadaReplacements(current.rows[0].payload as KidsData, body);

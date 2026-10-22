@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node start-dmp.cjs",
     "typecheck": "tsc --noEmit",
     "test:operational": "node tests/run-operational.cjs",
     "test:ds-absence": "node tests/run-ds-absence.cjs"
