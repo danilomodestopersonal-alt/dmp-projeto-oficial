@@ -128,6 +128,7 @@ export type Student = {
 };
 
 export type CalendarEvent = {
+  kidsLesson?:{date:string;time:string;category:import("@/types/kids").KidsCategory;lessonId:string};
   cancelled?: boolean;
   etag?: string;
   calendarRoster?: CalendarRoster;

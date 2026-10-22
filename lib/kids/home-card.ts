@@ -2,8 +2,8 @@ import type {KidsCategory, KidsData, KidsLesson, KidsStudent} from "@/types/kids
 import {kidsLessonClass} from "./class-history";
 
 type Request={date:string;time:string;category:KidsCategory;lessonId?:string};
-export type HomeKidsStudent={id:string;name:string;inactive:boolean;state:"present"|"absent"|"pending";canOpenAttendance:boolean};
-export type HomeKidsCardData={lessonId?:string;name?:string;teacher?:string;endTime?:string;status?:string;students:HomeKidsStudent[];notice?:string};
+export type HomeKidsStudent={id:string;name:string;inactive:boolean;presumed:boolean;state:"present"|"absent"|"pending";canOpenAttendance:boolean};
+export type HomeKidsCardData={lessonId?:string;name?:string;teacher?:string;capacity?:number;endTime?:string;status?:string;students:HomeKidsStudent[];notice?:string};
 const statuses={SCHEDULED:"Agendada",COMPLETED:"Realizada",CANCELLED:"Cancelada",HOLIDAY:"Feriado"};
 
 // Read the saved payload. normalizeKidsData can infer attendance from elapsed time,
@@ -43,8 +43,9 @@ export function homeKidsCard(data:KidsData|null,request:Request):HomeKidsCardDat
   }
   const students=[...byId.values()].filter(student=>Boolean(student.id&&student.name.trim())).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(student=>({
     id:student.id,name:student.name,inactive:!student.active,
-    state:!open?"pending" as const:attendance[student.id]==="ABSENT"?"absent" as const:lesson.status==="COMPLETED"&&attendance[student.id]==="PRESENT"?"present" as const:"pending" as const,
+    presumed:open&&student.active&&group?.active!==false&&!attendance[student.id],
+    state:!open?"pending" as const:attendance[student.id]==="ABSENT"?"absent" as const:attendance[student.id]==="PRESENT"?"present" as const:"pending" as const,
     canOpenAttendance:open&&student.active&&group?.active!==false&&!incomplete,
   }));
-  return {lessonId:lesson.id,name:lesson.replacementName||group?.name,teacher:group?.teacher?.trim()||undefined,endTime:lesson.replacementEndTime||group?.endTime,status:statuses[lesson.status],students,notice:incomplete?"Há alunos sem identificação suficiente. Confira a lista completa na chamada.":group?.active===false?"Turma inativa. Consulte a chamada para conferir o histórico.":undefined};
+  return {capacity:lesson.kind==="REPLACEMENT"?lesson.replacementCapacity:group?(group.category==="RED"||group.category==="ORANGE"?6:4):undefined,lessonId:lesson.id,name:lesson.replacementName||group?.name,teacher:group?.teacher?.trim()||undefined,endTime:lesson.replacementEndTime||group?.endTime,status:statuses[lesson.status],students,notice:incomplete?"Há alunos sem identificação suficiente. Confira a lista completa na chamada.":group?.active===false?"Turma inativa. Consulte a chamada para conferir o histórico.":undefined};
 }

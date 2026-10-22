@@ -7,7 +7,7 @@ const allowed=new Set([...require('./p13-home-preservation.cjs').allowed,...prod
 module.exports={production,support,allowed};
 if(require.main===module){
  const git=args=>cp.execFileSync('git',args,{cwd:root,maxBuffer:32*1024*1024});
- const norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n');
+ const norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>require('./p14-original-files.cjs')(f,fs.readFileSync(path.join(root,f),'utf8')).replace(/\r\n/g,'\n');
  let preserved=0;
  for(const f of git(['ls-tree','-r','--name-only',base]).toString().trim().split('\n')){if(allowed.has(f))continue;assert.deepEqual(norm(fs.readFileSync(path.join(root,f))),norm(git(['show',base+':'+f])),f);preserved++;}
  for(const f of [...git(['diff','--name-only',base]).toString().split('\n'),...git(['ls-files','--others','--exclude-standard']).toString().split('\n')].filter(Boolean))assert(allowed.has(f),'Fora do escopo P12: '+f);

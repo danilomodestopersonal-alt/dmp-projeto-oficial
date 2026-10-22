@@ -15,7 +15,7 @@ const baseSource=cp.execFileSync('git',['show','c7433782b323d91cefaefb032fd3f358
 function panel(source){
  const ast=ts.createSourceFile('app.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  const fn=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='CalendarTodayPanel').getText(ast);
- const deps={...load('lib/widget/home-source.ts'),HomeKidsLessonCard:load('components/home/HomeKidsLessonCard.tsx').default,HomeStudentActions:load('components/HomeStudentActions.tsx').default,LastPresence:()=>React.createElement('span',null,'Última presença'),formatCalendarTime:e=>e.start.slice(11,16),formatSyncTime:()=> '10:00',formatDate:x=>x,calendarEventStatus:()=> 'Agendado',getStudentWorkoutEntries:s=>s.workouts||[],completedWorkoutStatusLabel:()=> 'Treino realizado'};
+ const deps={...load('lib/widget/home-source.ts'),kidsCalendarRequest:e=>e.kidsLesson||load('lib/widget/home-source.ts').kidsCalendarRequest(e),HomeKidsLessonCard:load('components/home/HomeKidsLessonCard.tsx').default,HomeStudentActions:load('components/HomeStudentActions.tsx').default,LastPresence:()=>React.createElement('span',null,'Última presença'),formatCalendarTime:e=>e.start.slice(11,16),formatSyncTime:()=> '10:00',formatDate:x=>x,calendarEventStatus:()=> 'Agendado',getStudentWorkoutEntries:s=>s.workouts||[],completedWorkoutStatusLabel:()=> 'Treino realizado'};
  const code=ts.transpileModule(fn+'\nexport default CalendarTodayPanel;',{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const m={exports:{}};new Function('require','module','exports',...Object.keys(deps),code)(require,m,m.exports,...Object.values(deps));return m.exports.default;
 }

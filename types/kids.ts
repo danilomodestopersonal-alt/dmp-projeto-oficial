@@ -105,6 +105,7 @@ export type KidsAbsenceAudit = {
 };
 
 export type KidsData = {
+  homeAttendanceAudit?:import("@/lib/kids/home-attendance").HomeAttendanceAudit[];
   replacementRosterAudit?:Array<{lessonId:string;date:string;added:string[];removed:string[];before:string[];after:string[];recordedAt:string}>;
   absenceAudit?:KidsAbsenceAudit[];
   version:1;

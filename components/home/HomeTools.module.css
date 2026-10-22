@@ -1,0 +1,6 @@
+/* Desktop content alignment only: dimensions and mobile rules remain inherited. */
+@media(min-width:901px){
+  .tools :global(.header-weather),
+  .tools :global(.header-clock){justify-content:center;align-items:center}
+  .tools :global(.drive-shortcut-premium){grid-template-columns:max-content max-content!important;justify-content:center;align-content:center!important;align-items:center!important}
+}

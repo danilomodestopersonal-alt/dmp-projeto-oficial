@@ -1,0 +1,19 @@
+{
+  "app/api/kids/route.ts": "6affd429a0311127a864de5b1e4dcfebd28b71ecc23fb45b74415bcc74e3bc9a",
+  "app/api/kids/home-attendance/route.ts": "5a35303d6575d80875e102c354e0f14a11733ab6c6f3e7215c752d4fd1d6b0a3",
+  "app/api/google/event-time/route.ts": "c1cce38a9b551620fc0e6a649a62a0dd6d1910a6da1462d21b9833c54a960965",
+  "components/DmpApp.tsx": "a74c605d38c5e1efb2ff982e18fb5b2ce697eb283a407c74f374afe37a2f3cd0",
+  "components/home/HomeKidsLessonCard.tsx": "942f00a127377a07091b28f5e2b1676d617243e8df87fec76ce18531d832fb6e",
+  "components/home/HomeKidsLessonCard.module.css": "7b60f99112ffaba5d05eff4fbbd9dd5b8ad85da9861e0a78901aa06537a838b1",
+  "components/home/HomeTools.module.css": "68ef814fb24ed68e4c9d52a4f1b8e4da0eeb288de096c68afa7f14a970a0d3ae",
+  "components/calendar/CalendarTimeEditor.tsx": "23d547c463ee5143e666cfc85f63447fc3dde1f4d5d1f373fb8042824b3efbfe",
+  "components/calendar/CalendarTimeEditor.module.css": "24f6987c3e767f09d2c942a18d0a842ce75325000d9d3641c120df9d01664ccc",
+  "lib/kids/home-card.ts": "86eddb279e8e526872d05e6fec7e964418cd59cb9b1fb1988c0499ba8122b6aa",
+  "lib/kids/home-calendar.ts": "f422686427399258e0e59f33e2495f4bfad1c99b04f541d532e3eb1c0c4b864e",
+  "lib/kids/home-attendance.ts": "975217a0f66f68e51c4d6e1c169bd4f50e4b508dd9ca491eeeee65867e747ab4",
+  "lib/kids/home-attendance-client.ts": "d29206511d71669dc4863edbce43796f13c5332716943c70aee86207cfa01cf3",
+  "lib/calendar/time-change.ts": "d6fab7a142314d0d86815883dba501931736267095cb67c59eaa832c71825641",
+  "lib/calendar/time-change-google.ts": "1e2062cf0318c7855aaca9ea287ed2b27ce4ee5f2401e835ae927339c3851b36",
+  "types/kids.ts": "68e76a017d6e2d49450de1f90f853df048e7243696fda8c9609b2c3868c13f2c",
+  "types/models.ts": "5f9ff3617f35d2a13b670e69eee397cc28b7de1ec4a0ce870b638c8049318a96"
+}

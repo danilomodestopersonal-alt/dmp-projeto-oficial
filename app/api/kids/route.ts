@@ -116,6 +116,8 @@ export async function PUT(request: NextRequest) {
       body=applyKidsClassChange({...body,classes:current.rows[0].payload.classes},classChange,today);
     }
     if (current.rows.length) {
+      // Home audit is server-owned, including when an older Kids tab saves.
+      if(current.rows[0].payload.homeAttendanceAudit)body.homeAttendanceAudit=current.rows[0].payload.homeAttendanceAudit;else delete body.homeAttendanceAudit;
       body = reconcileChamadaReplacements(current.rows[0].payload as KidsData, body);
       body = reconcileAbsenceRights(current.rows[0].payload as KidsData, body);
     }
