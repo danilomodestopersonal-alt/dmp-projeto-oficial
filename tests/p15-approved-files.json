@@ -1,0 +1,141 @@
+{
+  "base": "f242a4a80e0ba0e450c1976457c0605ccf6ed334",
+  "files": {
+    "app/api/data/route.ts": {
+      "before": "fda9e0ec7b73d43bb06349ac8981229373a006faacd1364a07c6b20d5003d4df",
+      "after": "7112d5ddc72314b690f8b41a3e237fd882bf808e9232dc004dccd89ba599ca7a"
+    },
+    "app/api/finance/route.ts": {
+      "before": "5a549ccc7f90b81c2614a71f823e4cbd8a978af2ae5c78fc0cd6b9d8ab4019ec",
+      "after": "b4087f11426e218baeeeefdf3d2b491050a42dcaca62159f4152e23349d9ce8f"
+    },
+    "app/api/mercado-pago/route.ts": {
+      "before": "e6c8096216f2aa3b1b8c8e87ca5f95731688dd66894ffe1cbef0342759d64f2b",
+      "after": "eedef32a1b4e4d726046a4f03a7a5fcda13c5a4c762b2dbbac6a8a50d2ce884e"
+    },
+    "app/api/students/attendance-correction/route.ts": {
+      "before": null,
+      "after": "b447342458710e29727a9e4042219cd3b16795f4c973512ed0e96e7f0c014f14"
+    },
+    "app/globals.css": {
+      "before": "180452edf4ed3026f1a48128791b8bfe278e6b5e6d5a3d45ee2fa159a47559ce",
+      "after": "773afabda5f1559c6ee9eb20632d42894d2a49dc39d6a6db64fabfe79fcdf3e3"
+    },
+    "components/DmpApp.tsx": {
+      "before": "25650532eb1e1fc092ef034dbd1da5f57449606ba4f8e7c1f20eb6956a9bf47e",
+      "after": "20ba1e10fa4c8167a45bc4a5620c2bc49f0dc76f31a6cfa6345ed77825f6c3b2"
+    },
+    "components/calendar/AttendanceCorrection.tsx": {
+      "before": null,
+      "after": "960ddcde0ee3f2aac517a4e8371aaec142e361b4d0ad7b55cb1ceac86d8a1375"
+    },
+    "components/financeiro/FinanceSummaryView.tsx": {
+      "before": "0f3c1e5b665438bb5c0259338d7dd5c5ff48feff6a85230c13c77780a37da941",
+      "after": "358882890be1a4d8b409552aa1dfacc520529b862dec344ac606c8fe18f51c75"
+    },
+    "components/financeiro/OtherReceiptsSummary.tsx": {
+      "before": null,
+      "after": "ad117fa49c71653fc2fc12f054e88d9904d462e8f2849ced97d330890b2a5043"
+    },
+    "components/home/HomeIcon.tsx": {
+      "before": "f1ed3fdb2ce61bb59a63dca17906c52e884344d9837759c50fac921a21d34fbb",
+      "after": "56cd798262f6d33fd4bd0af617e8420ed75f450dcc995b0f3bf52aee1b013c0a"
+    },
+    "components/mercado-pago/MercadoPagoTestPage.tsx": {
+      "before": "9e6142064443d863d7f866782aac9dcbe9ca92f02342a196a8bc47a12f61e49b",
+      "after": "27337508f2bf9e367df7a01e12d4ca2c01e859cb53024c1b30a452bf9424f5e2"
+    },
+    "lib/calendar/attendance-correction.ts": {
+      "before": null,
+      "after": "185e1081573cdf48e171661ccaa7de5b209d6964a5b6db9cf34e92d9c0a6aaba"
+    },
+    "lib/calendar/corrected-session-guard.ts": {
+      "before": null,
+      "after": "39008a84d41c2f11390b1d818c126880e8f9165b026a4511bab030ab93735fc3"
+    },
+    "lib/financeiro/calculos.ts": {
+      "before": "5c497dca964a23f56a24789340cabab830a31ede9664a47d3e21de7314d6a71e",
+      "after": "0df4bec0a9d2864888df7b40e5945246447ca58b8dd2d80b051cc4798049b929"
+    },
+    "lib/financeiro/other-receipts.ts": {
+      "before": null,
+      "after": "cd82a12095c819eecc429f877123d42f6dfbfe90fad326168894306393425e71"
+    },
+    "lib/financeiro/relatorios.ts": {
+      "before": "93fbf80a3cb3640cbe2c0e96a13258d0c2c918ff96f8baf30e649b847f6f8255",
+      "after": "50af11373903dbe022fff20c0c428e06a6b82a820b9ddfd955c6b46a646aaad2"
+    },
+    "lib/widget/agenda-attendance.ts": {
+      "before": null,
+      "after": "2a5fc8644edb582fd98c588388fd8e73ed8e44f4e7a2b6955416570c8fe11cb1"
+    },
+    "lib/widget/occurrence-history.ts": {
+      "before": "915663568e62128baab921392411c7a1547340b1a47a2e73b849f91f9fe79d57",
+      "after": "2254c11a449f1913169e92e4330ed458a71d11dc0dfaee351d9582301d8b2b19"
+    },
+    "tests/p11-widget-absences.cjs": {
+      "before": "6d22564c7f3bae0054ce7e99bb1215e4f2e8efb5c41b68266d54b963f857fc25",
+      "after": "fa6385c5ec85a29a0bff4f2b1a6876133e2fc81e4069d414d5a077d9d475c9e0"
+    },
+    "tests/p11-widget-preservation.cjs": {
+      "before": "6d3088bcdae6a5ce6a3c8342854eb8df9f56b7cf18179115bb66e5f2d1f431ea",
+      "after": "6abf420989f0801d4bf2b870d191cbf521850d7e4518e312412660238caf98b2"
+    },
+    "tests/p14-final-original.cjs": {
+      "before": "191b195c425c742b21514218bebd5c825456808b4928fe3b7c492e6061aafd29",
+      "after": "0e2155ce98f0055d51d09a824908ee1bc598547e696dd52bfea645808247dfed"
+    },
+    "tests/p14-final-preservation.cjs": {
+      "before": "c6673ec783bd909991e3bfa4d6cc89844a1b02146d3e0c738abd10f864ea78ce",
+      "after": "1505f2cdd7f58daa8db9525ed099a68638e120258b241c275a82a8e150596074"
+    },
+    "tests/p15-attendance-correction.cjs": {
+      "before": null,
+      "after": "29a9c368a3bddf89fd32cc05a30c70427eb3efbfb6f75cf801f467582f5bda7f"
+    },
+    "tests/p15-harness.cjs": {
+      "before": null,
+      "after": "f06e30b7d2806e3db76dce9d298066922773bf20f8bd4b04a9bd30f433fdef4d"
+    },
+    "tests/p15-interface.cjs": {
+      "before": null,
+      "after": "f4de81e1cf6bbace59d1cae52ef965c7c76019e5d87ae393a5c2f2f21f368e80"
+    },
+    "tests/p15-original-files.cjs": {
+      "before": null,
+      "after": "bb351d0194551e7fc8ad767460e9b1ca75fbc939573cdeaa6ee0fd191afc80d1"
+    },
+    "tests/p15-other-receipts.cjs": {
+      "before": null,
+      "after": "33ec6f1de7aaa1497c72fa8b122ddbb8ae11c0d85ab626b3c8781ad757682763"
+    },
+    "tests/p15-preservation.cjs": {
+      "before": null,
+      "after": "00e3649bc03bcc67e32df2046b6db97eaf6a91e2f6233508d1cd4c1b6b1ee843"
+    },
+    "tests/p15-widget-attendance.cjs": {
+      "before": null,
+      "after": "bf22bfe0e9ef4068fcce7ec2f4eeb1e9c755ff8c3b033297f5e64503f37da2e0"
+    },
+    "tests/widget-corrections29.cjs": {
+      "before": "db072c38eb8bb2e052e1f69dd871e2b40497eae51be938712f1003de8c23e52a",
+      "after": "26ad56049b7cb23f1fab5132e9bac349273b059dd0ca8706b304e42b41317d3a"
+    },
+    "tests/widget-next.cjs": {
+      "before": "20e4f9e81268d82fd812ca48bac15fe41001325c79827b6c29747271d2914735",
+      "after": "15695fea6f80f0dbff53530bf8c51c7f02842ac3866edd792f4ff205b9df9c3b"
+    },
+    "tests/widget-v2-legacy-read.cjs": {
+      "before": "962f5b3943a0e76479452da029d838d283240f6ec4bbadf2f7d01660ee295747",
+      "after": "064db66ec1917b7cc816b2ac4dd74c0f56deff5d6ebe36e5f2e7a5066407c4b9"
+    },
+    "types/financeiro.ts": {
+      "before": "66aee785b541d5110230e6d0dc02b07c2eeacb46d306f99d3370669bdd910769",
+      "after": "394c876c125f8f453a95f5f9185cdf920dc729cc133a49b168ea792c93a27f9c"
+    },
+    "types/models.ts": {
+      "before": "5f9ff3617f35d2a13b670e69eee397cc28b7de1ec4a0ce870b638c8049318a96",
+      "after": "c857fe4cd702ed037319ee187a183c5ea475ce6c0bfc04d4d3a527fecdfea452"
+    }
+  }
+}

@@ -10,7 +10,7 @@ import styles from "./MercadoPagoTestPage.module.css";
 
 type Status="AUTO_READY"|"REVIEW"|"PROCESSED"|"IGNORED"|"TECHNICAL"|"HISTORICAL";
 type Filter="ALL"|"REVIEW"|"PROCESSED"|"IN_DAY"|"OUT_DAY"|"IN_MONTH"|"OUT_MONTH"|"TECHNICAL"|"HISTORICAL";
-type Target="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
+type Target="EXTRA"|"PERSONAL"|"DS"|"OTHER_RECEIPT"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleChoice="ONCE"|"SUGGEST"|"AUTO";
 type Move={
   outgoingIdentity?:OutgoingIdentity;
@@ -35,7 +35,7 @@ type ApiData={
   financeContext:FinanceContext;financeConnected:boolean;
 };
 type PersonalSplit={targetId:string;targetName:string;amount:string};
-type Choice={payerName:string;splitExpenses:boolean;expenseSplits:ExpenseSplit[];remainder:RemainderChoice;remainderCategory:string;remainderDescription:string;target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice;splitPersonal:boolean;personalSplits:PersonalSplit[]};
+type Choice={receiptDescription:string;payerName:string;splitExpenses:boolean;expenseSplits:ExpenseSplit[];remainder:RemainderChoice;remainderCategory:string;remainderDescription:string;target:Target;category:string;expenseName:string;targetId:string;targetName:string;ruleChoice:RuleChoice;splitPersonal:boolean;personalSplits:PersonalSplit[]};
 
 type Props={financeData?:import("../../types/financeiro").FinanceData;financeBusy?:boolean;financeRefreshKey?:number;onFinanceChanged?:()=>void|Promise<void>;onBalanceChanged?:(value:number|null)=>void};
 
@@ -85,7 +85,7 @@ function statusLabel(move:Move){
 }
 function targetLabel(target:Target,kind:"IN"|"OUT"){
   const labels:Record<Target,string>={
-    EXTRA:"Gasto extra",PERSONAL:"Recebimento Personal",DS:"Recebimento DS",EXPENSE:"Conta do plano",
+    OTHER_RECEIPT:"Outros recebimentos",EXTRA:"Gasto extra",PERSONAL:"Recebimento Personal",DS:"Recebimento DS",EXPENSE:"Conta do plano",
     TRANSFER:kind==="IN"?"Transferência própria":"Transferência / repasse",IGNORE:"Ignorar",
   };
   return labels[target];
@@ -99,6 +99,7 @@ function ruleTarget(rule:LearnedRule){
 function resolvedDestinationLabel(move:Move){
   if(move.kind==="OUT"&&move.suggestedTarget==="EXTRA"&&move.category)return `Categoria: ${move.category}`;
   if(move.kind==="IN"&&move.suggestedTarget==="PERSONAL"&&move.suggestedTargetName)return `${move.suggestedTargetName.includes(" + ")?"Alunos":"Aluno"}: ${move.suggestedTargetName}`;
+  if(move.suggestedTarget==="OTHER_RECEIPT")return `Motivo: ${move.suggestedTargetName||""}`;
   if(move.kind==="IN"&&move.suggestedTargetName)return `Pessoa: ${move.suggestedTargetName}`;
   if(move.suggestedTarget==="EXPENSE"&&move.suggestedTargetName)return `Conta: ${move.suggestedTargetName}`;
   return "";
@@ -266,11 +267,11 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
       const found=matches.length===1?matches[0]:undefined;
       if(found){targetId=found.id;if(found.competence<move.dateKey.slice(0,7))ruleChoice="ONCE";}
     }
-    return {payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.status==="REVIEW"?"":move.expenseName||move.description,targetId,targetName,ruleChoice,splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:target==="EXPENSE"&&targetId?[{targetId,amount:String(currentExpenses.find(e=>e.id===targetId)?.remaining||0).replace(".",",")}]:[],remainder:"",remainderCategory:"",remainderDescription:""};
+    return {receiptDescription:target==="OTHER_RECEIPT"?targetName:"",payerName:move.pix?.payerName||"",target,category:move.category||"Outros",expenseName:move.status==="REVIEW"?"":move.expenseName||move.description,targetId,targetName,ruleChoice,splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:target==="EXPENSE"&&targetId?[{targetId,amount:String(currentExpenses.find(e=>e.id===targetId)?.remaining||0).replace(".",",")}]:[],remainder:"",remainderCategory:"",remainderDescription:""};
   }
   function choiceFor(move:Move){return choices[move.fingerprint]||defaultChoice(move);}
   function patchChoice(move:Move,patch:Partial<Choice>){setChoices(current=>({...current,[move.fingerprint]:{...choiceFor(move),...patch}}));}
-  function changeTarget(move:Move,target:Target){patchChoice(move,{target,targetId:"",targetName:"",expenseName:"",ruleChoice:"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:[],remainder:"",remainderCategory:"",remainderDescription:""});}
+  function changeTarget(move:Move,target:Target){patchChoice(move,{target,receiptDescription:"",targetId:"",targetName:"",expenseName:"",ruleChoice:"ONCE",splitPersonal:false,personalSplits:[],splitExpenses:false,expenseSplits:[],remainder:"",remainderCategory:"",remainderDescription:""});}
   function personalSplitTotal(choice:Choice){return choice.personalSplits.reduce((sum,item)=>sum+(Number(String(item.amount).replace(",","."))||0),0);}
   function startPersonalSplit(move:Move){
     const choice=choiceFor(move);
@@ -340,6 +341,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
       finally{setSavingId("");}
       return;
     }
+    if(choice.target==="OTHER_RECEIPT"&&(!choice.receiptDescription.trim()||choice.receiptDescription.trim().length>300)){setError("Informe o motivo do recebimento, com até 300 caracteres.");return;}
     if(choice.target==="PERSONAL"&&!choice.targetId){setError("Escolha o aluno do Personal para este recebimento.");return;}
     if(choice.target==="EXPENSE"&&!choice.targetId){setError("Escolha a conta do plano para este pagamento.");return;}
     if(choice.target==="EXTRA"&&!choice.category){setError("Escolha a categoria do gasto extra.");return;}
@@ -354,7 +356,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
       if(choice.target==="PERSONAL")targetName=data?.financeContext.personal.find(item=>item.id===choice.targetId)?.studentName||"";
       if(choice.target==="EXPENSE")targetName=currentExpenses.find(item=>item.id===choice.targetId)?.name||"";
       const response=await fetch("/api/mercado-pago",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        action:"decision",fingerprint:move.fingerprint,payerName:move.pix?choice.payerName:undefined,target:choice.target,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.ruleChoice,expectedExpenseRemaining:choice.target==="EXPENSE"?expenseOptions(move).find(e=>e.id===choice.targetId)?.remaining:undefined,
+        action:"decision",fingerprint:move.fingerprint,payerName:move.pix?choice.payerName:undefined,target:choice.target,receiptDescription:choice.target==="OTHER_RECEIPT"?choice.receiptDescription:undefined,category:choice.category,expenseName:choice.expenseName,targetId:choice.targetId,targetName,ruleChoice:choice.target==="OTHER_RECEIPT"?"ONCE":choice.ruleChoice,expectedExpenseRemaining:choice.target==="EXPENSE"?expenseOptions(move).find(e=>e.id===choice.targetId)?.remaining:undefined,
       })});
       const payload=await response.json();
       if(!response.ok||!payload?.ok)throw new Error(payload?.error||"Não foi possível conciliar esta movimentação.");
@@ -494,7 +496,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
               </div>:<div className={styles.reconcileBox}>
                 <div className={styles.reconcileGrid}>
                   {move.pix?<label className={styles.fullField}><span>Pagador / identificação</span><input maxLength={200} value={choice.payerName} onChange={e=>patchChoice(move,{payerName:e.target.value})} placeholder="Pagador não identificado"/><small>{move.pix.payerOrigin==="mercado_pago"?"Identificação fornecida pelo Mercado Pago. Alterações serão registradas como manuais.":"Opcional. A identificação informada é manual e não cria uma regra automática."}</small></label>:null}
-                  <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
+                  <label><span>Tratar como</span><select value={choice.target} onChange={e=>changeTarget(move,e.target.value as Target)}>{move.kind==="OUT"?<><option value="EXTRA">Gasto extra</option><option value="EXPENSE">Conta do plano</option><option value="TRANSFER">Transferência / repasse</option><option value="IGNORE">Ignorar</option></>:<><option value="PERSONAL">Recebimento Personal</option><option value="DS">Recebimento DS</option><option value="OTHER_RECEIPT">Outros recebimentos</option><option value="TRANSFER">Transferência própria</option><option value="IGNORE">Ignorar</option></>}</select></label>
                   {choice.target==="EXTRA"?<label><span>Categoria</span><select value={choice.category} onChange={e=>patchChoice(move,{category:e.target.value})}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>:null}
                   {choice.target==="EXTRA"?<label><span>Descrição do gasto</span><input autoComplete="off" value={choice.expenseName} onChange={e=>patchChoice(move,{expenseName:e.target.value})} placeholder="Ex.: Cachorro-quente"/></label>:null}
                   {choice.target==="PERSONAL"&&!choice.splitPersonal?<label><span>Aluno Personal</span><select value={choice.targetId} onChange={e=>{const item=data?.financeContext.personal.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.studentName||""});}}><option value="">Selecione...</option>{data?.financeContext.personal.map(item=><option key={item.id} value={item.id}>{item.studentName} · {competenceLabel(item.competence)} · {money.format(item.remaining)} em aberto</option>)}</select><button type="button" className="secondary" onClick={()=>startPersonalSplit(move)}>Dividir entre alunos</button></label>:null}
@@ -511,9 +513,10 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
                   {choice.target==="EXPENSE"?<div className={styles.fullField}>
                     {!choice.splitExpenses?<><label><span>Conta do plano</span><select value={choice.targetId} onChange={e=>{const item=currentExpenses.find(x=>x.id===e.target.value);patchChoice(move,{targetId:e.target.value,targetName:item?.name||"",expenseSplits:item?[{targetId:item.id,amount:String(item.remaining).replace(".",",")}]:[],...(item&&item.competence<move.dateKey.slice(0,7)?{ruleChoice:"ONCE" as const}:{})});}}><option value="">Selecione...</option>{expenseOptionsForPayment(currentExpenses,move.dateKey).map(item=><option key={item.id} value={item.id}>{item.name} · {item.competence} · {money.format(item.remaining)} em aberto</option>)}</select></label>{choice.targetId?allocationEditor(move):null}</>:<>{allocationEditor(move)}<button type="button" className="secondary" onClick={()=>patchChoice(move,{splitExpenses:false,expenseSplits:[]})}>Voltar à seleção simples</button></>}
                   </div>:null}
+                  {choice.target==="OTHER_RECEIPT"?<label className={styles.fullField}><span>Motivo do recebimento</span><input required maxLength={300} value={choice.receiptDescription} onChange={e=>patchChoice(move,{receiptDescription:e.target.value,ruleChoice:"ONCE"})} placeholder="Ex.: Venda de equipamento"/></label>:null}
                   {choice.target==="DS"?<div className={styles.dsHint}><span>Recebimento DS</span><strong>{pixTitle(move.pix)||move.description} · {money.format(move.amount)}</strong><small>Registra pagador, valor e data. Não vincula a aluno Kids.</small></div>:null}
                   {(choice.target==="TRANSFER"||choice.target==="IGNORE")?<div className={styles.dsHint}><span>Sem efeito financeiro</span><strong>{choice.target==="TRANSFER"?"Transferência / repasse":"Ignorar esta movimentação"}</strong><small>Não cria receita, gasto extra ou baixa de conta.</small></div>:null}
-                  <div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn||choice.splitPersonal||choice.splitExpenses||(choice.target==="EXPENSE"&&(choice.expenseSplits.length!==1||Math.round(allocationAmount(choice.expenseSplits[0]?.amount||"")*100)!==Math.round(move.amount*100)||choice.expenseSplits.some(s=>s.treatment)))||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))?"A conciliação de contas atrasadas ou distribuídas vale somente para esta movimentação.":choice.splitPersonal?"Divisões entre vários alunos são sempre tratadas somente nesta movimentação.":move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>
+                  {choice.target!=="OTHER_RECEIPT"?<div className={`${styles.learningChoice} ${choice.target==="EXTRA"?"":styles.fullField}`}><label><span>Nas próximas vezes com “{move.learningLabel||move.description}”</span><select value={choice.ruleChoice} disabled={!move.canLearn||choice.splitPersonal||choice.splitExpenses||(choice.target==="EXPENSE"&&(choice.expenseSplits.length!==1||Math.round(allocationAmount(choice.expenseSplits[0]?.amount||"")*100)!==Math.round(move.amount*100)||choice.expenseSplits.some(s=>s.treatment)))||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))} onChange={e=>patchChoice(move,{ruleChoice:e.target.value as RuleChoice})}><option value="ONCE">Só esta movimentação</option><option value="SUGGEST">Sugerir e pedir confirmação</option><option value="AUTO" disabled={!move.canAuto}>Automatizar sem perguntar{move.canAuto?"":" (exige identificação)"}</option></select></label><small>{choice.splitExpenses||(choice.target==="EXPENSE"&&Boolean(data?.financeContext.expenses.some(item=>item.id===choice.targetId&&item.competence<move.dateKey.slice(0,7))))?"A conciliação de contas atrasadas ou distribuídas vale somente para esta movimentação.":choice.splitPersonal?"Divisões entre vários alunos são sempre tratadas somente nesta movimentação.":move.canAuto?"Usa esta pessoa, estabelecimento ou conta.":move.canLearn?"Sem destino identificado: pode memorizar como sugestão, sempre pedindo sua confirmação.":"Sem identificação repetível; vale somente agora."}</small></div>:null}
                 </div>
                 <div className={styles.suggestionNote}>{move.confidence}% · {move.reason}</div>
               </div>}

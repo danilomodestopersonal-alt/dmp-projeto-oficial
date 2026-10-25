@@ -85,7 +85,9 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   // Não alteram despesas pagas, resultado ou contas a pagar.
   const totalExpensesPaid = expensesPaid;
   const projectedRevenue = roundMoney(personalExpected + dsSettlement);
-  const realizedRevenue = roundMoney(personalReceived + dsReceived);
+  const otherReceipts = (data.otherReceipts || []).filter(item=>item.date.slice(0,7)===competence);
+  const otherReceived = sum(otherReceipts.map(item=>item.amount));
+  const realizedRevenue = roundMoney(personalReceived + dsReceived + otherReceived);
   const realizedResult = roundMoney(realizedRevenue - totalExpensesPaid);
   const personalOpen = sum(personal.map(item => remaining(item.expectedAmount, item.payments)));
   const receivable = roundMoney(personalOpen + Math.max(0, dsBalance));
@@ -109,6 +111,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
     dsOpeningBalance,
     personalExpected,
     personalReceived,
+    otherReceipts,
+    otherReceived,
     personalOpen,
     kidsGross,
     kidsNet,

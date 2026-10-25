@@ -74,6 +74,7 @@ export function financeReportCsv(data: FinanceData, competence = data.currentCom
   lines.push(csvRow(["Resumo", "Valor"]));
   lines.push(csvRow(["Receitas previstas", summary.projectedRevenue.toFixed(2)]));
   lines.push(csvRow(["Receitas recebidas", summary.realizedRevenue.toFixed(2)]));
+  if(summary.otherReceipts?.length)lines.push(csvRow(["Outros recebimentos", summary.otherReceived.toFixed(2)]));
   lines.push(csvRow(["Despesas previstas", summary.expensesExpected.toFixed(2)]));
   lines.push(csvRow(["Despesas pagas", summary.totalExpensesPaid.toFixed(2)]));
   lines.push(csvRow(["Saldo projetado", summary.projectedResult.toFixed(2)]));
@@ -107,6 +108,12 @@ export function financeReportCsv(data: FinanceData, competence = data.currentCom
   summary.kids.forEach(item => lines.push(csvRow([item.studentName, item.amount.toFixed(2), item.installmentCurrent, item.installmentTotal])));
   lines.push("");
 
+  if(summary.otherReceipts?.length){
+    lines.push(csvRow(["OUTROS RECEBIMENTOS"]));
+    lines.push(csvRow(["Data", "Motivo", "Valor"]));
+    summary.otherReceipts.forEach(item=>lines.push(csvRow([item.date,item.description,item.amount.toFixed(2)])));
+    lines.push("");
+  }
   lines.push(csvRow(["DESPESAS"]));
   lines.push(csvRow(["Conta", "Tipo", "Vencimento", "Previsto", "Pago", "Parcela atual", "Parcelas", "Status"]));
   summary.expenses.forEach(item => lines.push(csvRow([

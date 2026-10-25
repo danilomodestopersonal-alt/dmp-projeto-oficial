@@ -35,6 +35,7 @@ export type Workout = {
 export type SessionSource = "PLANNED" | "FREE" | "ATTENDANCE" | "ABSENCE" | "IMPORTED";
 
 export type Session = {
+  attendanceCorrections?: Array<{id:string;at:string;from:"ABSENCE";to:"ATTENDANCE";previousRevision:string;eventId?:string;googleEtag?:string;previousWorkoutName:string}>;
   id: string;
   date: string;
   workoutName: string;

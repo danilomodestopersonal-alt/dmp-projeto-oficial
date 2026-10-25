@@ -1,13 +1,14 @@
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import {otherReceiptsPreserved} from "@/lib/financeiro/other-receipts";
 
 export const runtime = "nodejs";
 const DATA_ID = "finance_v1";
 const VERSION_HEADER = "x-dmp-expected-updated-at";
 
 function iso(value: unknown) {
-  return value ? new Date(String(value)).toISOString() : null;
+  return value ? new Date(value instanceof Date ? value.getTime() : String(value)).toISOString() : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -70,11 +71,15 @@ export async function PUT(request: NextRequest) {
     await client.query("BEGIN");
 
     const current = await client.query(
-      "SELECT updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
+      "SELECT payload, updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
       [DATA_ID]
     );
 
     if (current.rows.length > 0) {
+      if (!otherReceiptsPreserved(current.rows[0].payload, body)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ok:false,error:"Os outros recebimentos mudaram. Atualize o Financeiro antes de salvar."},{status:409});
+      }
       const currentUpdatedAt = iso(current.rows[0].updated_at);
 
       if (!expected || expected !== currentUpdatedAt) {

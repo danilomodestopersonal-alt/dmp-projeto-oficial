@@ -11,6 +11,8 @@ export type FinancePayment = {
   note?: string;
 };
 
+export type OtherReceipt = FinancePayment & {competence:string;description:string;fingerprint:string};
+
 export type PersonalInvoice = {
   id: string;
   competence: string;
@@ -109,6 +111,7 @@ export type FinanceHistoryKind =
   | "PERSONAL_UPDATED"
   | "PERSONAL_DELETED"
   | "PERSONAL_PAYMENT_ADDED"
+  | "OTHER_RECEIPT_ADDED"
   | "PERSONAL_PAYMENT_DELETED"
   | "DS_KID_CREATED"
   | "DS_KID_UPDATED"
@@ -171,6 +174,7 @@ export type FinanceData = {
   expenseSeriesChanges?: ExpenseSeriesChange[];
   expenseSeriesStops?: Record<string,string>;
   extraExpenses: ExtraExpense[];
+  otherReceipts?: OtherReceipt[];
   carriedPendencies?: FinanceCarryoverEntry[];
   categories: string[];
   history?: FinanceHistoryEntry[];

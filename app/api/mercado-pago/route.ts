@@ -2,6 +2,7 @@ import {reportPixPayer,manualPixPayer,pixTitle,pixForDestination,type PixMetadat
 import {reportOutgoingIdentity,type OutgoingIdentity} from "@/lib/mercado-pago/outgoing-identity";
 import { reconcileExpenses, reverseExpenseReconciliation, type ExpenseAllocationInput, type ExpenseRemainder, type ExpenseReconciliation } from "@/lib/mercado-pago/expense-reconciliation";
 import {createHash} from "crypto";
+import {addOtherReceipt,receiptDescription} from "@/lib/financeiro/other-receipts";
 import {isAuthorized} from "@/lib/auth";
 import {NextRequest,NextResponse} from "next/server";
 import {pool} from "@/lib/db";
@@ -28,7 +29,7 @@ type ReportKind="settlement"|"release";
 type AnyRow=Record<string,string>;
 type MoveKind="IN"|"OUT";
 type MoveStatus="AUTO_READY"|"REVIEW"|"PROCESSED"|"IGNORED"|"TECHNICAL"|"HISTORICAL";
-type TargetType="EXTRA"|"PERSONAL"|"DS"|"EXPENSE"|"TRANSFER"|"IGNORE";
+type TargetType="EXTRA"|"PERSONAL"|"DS"|"OTHER_RECEIPT"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleMode="SUGGEST"|"AUTO";
 type RuleChoice="ONCE"|RuleMode;
 type PersonalSplitInput={targetId:string;amount:number};
@@ -1021,10 +1022,10 @@ function resolveExpense(data:FinanceData,competence:string,targetId?:string,targ
   return matches.length===1?matches[0]:undefined;
 }
 function validateTarget(kind:MoveKind,target:TargetType){
-  if(kind==="IN")return ["PERSONAL","DS","TRANSFER","IGNORE"].includes(target);
+  if(kind==="IN")return ["PERSONAL","DS","OTHER_RECEIPT","TRANSFER","IGNORE"].includes(target);
   return ["EXTRA","EXPENSE","TRANSFER","IGNORE"].includes(target);
 }
-function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options:{expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string}){
+function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options:{receiptDescription?:string;expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string}){
   const competence=(move.dateKey||CUTOVER_DATE).slice(0,7);
   if(!data.competences?.[competence])return {ok:false as const,error:`A competência ${competence} não existe no Financeiro.`};
   if(data.competences[competence]?.status==="CLOSED")return {ok:false as const,error:`A competência ${competence} está fechada no Financeiro.`};
@@ -1045,6 +1046,13 @@ function applyToFinance(data:FinanceData,move:Movement,target:TargetType,options
       history:[...(data.history||[]),financeHistory(`mp-${unique}`,competence,"EXTRA_CREATED",`Mercado Pago · gasto extra ${expenseName} criado.`,move.amount,id)],
     };
     return {ok:true as const,data:next,changed:true,entityId:id,targetName:expenseName,expenseName};
+  }
+  if(target==="OTHER_RECEIPT"){
+    if(move.kind!=="IN")return {ok:false as const,error:"Outros recebimentos exige uma entrada."};
+    try{
+      const result=addOtherReceipt(data,{id:`mp-other-${hashId(move.fingerprint)}`,fingerprint:move.fingerprint,competence,date:move.dateKey,amount:move.amount,description:receiptDescription(options.receiptDescription),note,...(move.pix?{mercadoPago:pixForDestination(move.pix,target)}:{})});
+      return {ok:true as const,data:result.data,changed:result.changed,entityId:result.id,targetName:result.description};
+    }catch(error){return {ok:false as const,error:error instanceof Error?error.message:"Recebimento inválido."};}
   }
   if(target==="DS"){
     if(move.kind!=="IN")return {ok:false as const,error:"Recebimento DS só pode ser usado em uma entrada."};
@@ -1097,7 +1105,8 @@ function ruleFromChoice(move:Movement,target:TargetType,mode:RuleMode,options:{c
   const key=ruleKey(move.learningKey,move.kind);
   return {key,label:move.learningLabel||move.description,kind:move.kind,target,category:options.category||undefined,targetName:options.targetName||undefined,expenseName:options.expenseName||undefined,mode,approvals:(current?.approvals||0)+1,createdAt:current?.createdAt||now,updatedAt:now};
 }
-async function persistDecision(move:Movement,target:TargetType,options:{expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string;ruleChoice:RuleChoice;automatic:boolean}){
+async function persistDecision(move:Movement,target:TargetType,options:{receiptDescription?:string;expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string;ruleChoice:RuleChoice;automatic:boolean}){
+  if(target==="OTHER_RECEIPT"&&(options.automatic||options.ruleChoice!=="ONCE"))return {ok:false,error:"Outros recebimentos exige confirmação individual e motivo."};
   const client=await pool.connect();
   try{
     await client.query("BEGIN");
@@ -1111,7 +1120,7 @@ async function persistDecision(move:Movement,target:TargetType,options:{expected
     const financeResult=await client.query("SELECT payload FROM dmp_data WHERE id = $1 FOR UPDATE",[FINANCE_ID]);
     const finance=financeResult.rows[0]?.payload as FinanceData|undefined;
     if(!finance||finance.version!==1){await client.query("ROLLBACK");return {ok:false,error:"Financeiro oficial não está disponível para conciliação."};}
-    const applied=applyToFinance(finance,move,target,{category:options.category,targetId:options.targetId,targetName:options.targetName,expenseName:options.expenseName});
+    const applied=applyToFinance(finance,move,target,{receiptDescription:options.receiptDescription,category:options.category,targetId:options.targetId,targetName:options.targetName,expenseName:options.expenseName});
     if(!applied.ok){await client.query("ROLLBACK");return {ok:false,error:applied.error};}
     if(applied.changed){
       await client.query(`
@@ -1396,13 +1405,17 @@ export async function POST(request:NextRequest){
       const targetId=String(body?.targetId||"").trim();
       const targetName=String(body?.targetName||"").trim();
       const ruleChoice=String(body?.ruleChoice||"ONCE").toUpperCase() as RuleChoice;
-      if(!fingerprint||!["EXTRA","PERSONAL","DS","EXPENSE","TRANSFER","IGNORE"].includes(target)||!["ONCE","SUGGEST","AUTO"].includes(ruleChoice))return NextResponse.json({ok:false,error:"Decisão inválida."},{status:400});
+      if(!fingerprint||!["EXTRA","PERSONAL","DS","OTHER_RECEIPT","EXPENSE","TRANSFER","IGNORE"].includes(target)||!["ONCE","SUGGEST","AUTO"].includes(ruleChoice))return NextResponse.json({ok:false,error:"Decisão inválida."},{status:400});
       const snapshot=await buildOverview();
       const move=snapshot.movements.find(item=>item.fingerprint===fingerprint);
       if(!move)return NextResponse.json({ok:false,error:"Movimentação não encontrada no relatório atual. Atualize a leitura e tente novamente."},{status:404});
       if(move.historical)return NextResponse.json({ok:false,error:"Movimentações anteriores ao corte de 18/09/2026 ficam apenas no histórico."},{status:400});
       if(move.technical)return NextResponse.json({ok:false,error:"Este movimento é técnico e não precisa ser lançado no Financeiro."},{status:400});
       if(!validateTarget(move.kind,target))return NextResponse.json({ok:false,error:"Esse tratamento não combina com o tipo da movimentação."},{status:400});
+      if(target==="OTHER_RECEIPT"){
+        if(ruleChoice!=="ONCE")return NextResponse.json({ok:false,error:"Outros recebimentos vale somente para esta movimentação."},{status:400});
+        try{receiptDescription(body.receiptDescription);}catch(error){return NextResponse.json({ok:false,error:error instanceof Error?error.message:"Informe o motivo."},{status:400});}
+      }
       if(target==="EXTRA"&&!category)return NextResponse.json({ok:false,error:"Escolha a categoria do gasto extra."},{status:400});
       if(target==="PERSONAL"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha o aluno do Personal."},{status:400});
       if(target==="EXPENSE"&&!targetId&&!targetName)return NextResponse.json({ok:false,error:"Escolha a conta do plano."},{status:400});
@@ -1417,7 +1430,7 @@ export async function POST(request:NextRequest){
       const selectedExpense=target==="EXPENSE"&&targetId?(snapshot.response.financeContext as FinanceContext).expenses.find(item=>item.id===targetId):undefined;
       if(selectedExpense&&selectedExpense.competence<move.dateKey.slice(0,7))return NextResponse.json({ok:false,error:"Concilie a conta atrasada somente nesta movimentação, sem memorizar a obrigação antiga."},{status:400});
       try{move.pix=manualPixPayer(move.pix,body.payerName);}catch{return NextResponse.json({ok:false,error:"Informe uma identificação de pagador válida, com até 200 caracteres."},{status:400});}
-      const result=await persistDecision(move,target,{category,targetId,targetName,expenseName,ruleChoice,automatic:false,expectedExpenseRemaining:target==="EXPENSE"&&body.expectedExpenseRemaining!==undefined?Number(body.expectedExpenseRemaining):undefined});
+      const result=await persistDecision(move,target,{receiptDescription:target==="OTHER_RECEIPT"?body.receiptDescription:undefined,category,targetId,targetName,expenseName,ruleChoice,automatic:false,expectedExpenseRemaining:target==="EXPENSE"&&body.expectedExpenseRemaining!==undefined?Number(body.expectedExpenseRemaining):undefined});
       if(!result.ok)return NextResponse.json({ok:false,error:result.error},{status:400});
       return NextResponse.json(result);
     }

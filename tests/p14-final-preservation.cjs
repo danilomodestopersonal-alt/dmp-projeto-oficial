@@ -2,9 +2,9 @@
 const fs=require('fs'),path=require('path'),cp=require('child_process'),assert=require('assert/strict'),crypto=require('crypto'),ts=require('typescript');
 const root=path.resolve(__dirname,'..'),base="b5fc6898fa7a5e6f0d68f51e453838c3e7638bfd";
 const production=["app/api/kids/route.ts", "app/api/kids/automatic-attendance/route.ts", "components/DmpApp.tsx", "components/calendar/CalendarRosterEditor.tsx", "lib/kids/seed.ts", "lib/kids/automatic-attendance.ts", "lib/kids/automatic-attendance-server.ts", "lib/kids/automatic-attendance-worker.ts", "types/kids.ts", "package.json", "start-dmp.cjs", "instrumentation.ts"],support=["tests/p14-final-version.cjs", "tests/p14-final-automatic.cjs", "tests/p14-final-worker.cjs", "tests/p14-final-startup.cjs", "tests/p14-final-preservation.cjs", "tests/p14-final-original.cjs", "tests/p14-final-edits.json", "tests/p14-final-hashes.json", "tests/p14-preservation.cjs", "tests/p14-original-files.cjs"];
-const allowed=new Set([...production,...support]);module.exports={production,support,allowed};
+const allowed=new Set([...require('./p15-preservation.cjs').allowed,...production,...support]);module.exports={production,support,allowed};
 if(require.main===module){
-const git=a=>cp.execFileSync('git',a,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n');let preserved=0;
+const git=a=>cp.execFileSync('git',a,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>require('./p15-original-files.cjs')(f,fs.readFileSync(path.join(root,f),'utf8')).replace(/\r\n/g,'\n');let preserved=0;
 for(const file of git(['ls-tree','-r','--name-only',base]).toString().trim().split('\n'))if(!allowed.has(file)){assert.deepEqual(norm(fs.readFileSync(path.join(root,file))),norm(git(['show',base+':'+file])),file);preserved++;}
 for(const file of [...git(['diff','--name-only',base]).toString().split('\n'),...git(['ls-files','--others','--exclude-standard']).toString().split('\n')].filter(Boolean))assert(allowed.has(file),'Fora do escopo final: '+file);
 for(const [file,hash]of Object.entries(require('./p14-final-hashes.json')))assert.equal(crypto.createHash('sha256').update(read(file)).digest('hex'),hash,file);

@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),base='73d6bbe4e747b3f4068c1f6640e385e778
 const production=['components/DmpApp.tsx','components/WidgetOccurrenceHistory.tsx','lib/widget/occurrence-history.ts','lib/widget/v2.ts','lib/widget/load-v2.ts'];
 const p12=require('./p12-home-kids-preservation.cjs');
 const allowed=new Set([...p12.allowed,...production,'tests/p11-widget-absences.cjs','tests/p11-widget-preservation.cjs','tests/p11-original-app.cjs','tests/round20261020-original.cjs','tests/p04-empty-occurrence.cjs','tests/widget-visual.cjs','tests/widget-corrections29.cjs']);
-const git=args=>cp.execFileSync('git',args,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>fs.readFileSync(path.join(root,f),'utf8').replace(/\r\n/g,'\n');
+const git=args=>cp.execFileSync('git',args,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),read=f=>require('./p15-original-files.cjs')(f,fs.readFileSync(path.join(root,f),'utf8')).replace(/\r\n/g,'\n');
 const files=git(['ls-tree','-r','--name-only',base]).toString().trim().split('\n');let preserved=0;
 for(const f of files){if(allowed.has(f))continue;assert.deepEqual(norm(fs.readFileSync(path.join(root,f))),norm(git(['show',base+':'+f])),f);preserved++;}
 for(const f of [...git(['diff','--name-only',base]).toString().split('\n'),...git(['ls-files','--others','--exclude-standard']).toString().split('\n')].filter(Boolean))assert(allowed.has(f),'Fora do escopo P11: '+f);

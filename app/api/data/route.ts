@@ -1,6 +1,7 @@
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import {correctedSessionsPreserved} from "@/lib/calendar/corrected-session-guard";
 
 export const runtime = "nodejs";
 
@@ -95,6 +96,10 @@ export async function PUT(request: NextRequest) {
     );
 
     if (current.rows.length > 0) {
+      if (!correctedSessionsPreserved(current.rows[0].payload, body)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ok:false,error:"O histórico contém uma correção de presença mais recente. Atualize os dados antes de salvar."},{status:409});
+      }
       const currentIds = getSessionIds(current.rows[0].payload);
       const incomingIds = getSessionIds(body);
 

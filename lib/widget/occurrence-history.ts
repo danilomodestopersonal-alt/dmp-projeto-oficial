@@ -1,7 +1,7 @@
 import type {CalendarEvent,Session,Student} from "@/types/models";
 import {getCalendarEventStudents,kidsCalendarRequest} from "./home-source";
 import {occurrenceState} from "./attendance-state";
-import {lastConfirmedPresence} from "@/lib/home/last-presence";
+import {agendaAttendance} from "./agenda-attendance";
 
 export type AttendanceDiagnostic={date:string;code:string;eventId?:string;studentId?:string};
 export type WidgetOccurrence={event:CalendarEvent;students:Student[];states:ReturnType<typeof occurrenceState>[];historyOnly:boolean};
@@ -53,7 +53,12 @@ export function widgetOccurrenceHistory(students:Student[],matched:CalendarEvent
   const event:CalendarEvent=liveToday?live:{id,summary:"Aula",start:first!.start,end:first!.end,description:"",location:"",matchedStudentIds:ss.map(s=>s.id),matchedStudentId:ss[0]?.id||null};
   const states=ss.map(s=>{
    let state=blocked&&records.some(r=>r.student.id===s.id)?{studentId:s.id,state:"unknown" as const,reason:"occurrence-conflict"}:occurrenceState(s,id,date);
-   if(state.state==="present"&&records.some(r=>r.student.id===s.id&&lastConfirmedPresence([r.session],date)!==date))state={studentId:s.id,state:"unknown",reason:"unconfirmed-presence"};
+   if(!blocked){
+    const candidates=[...events.values()].filter(e=>!e.cancelled&&!e.allDay&&instant(e.start)&&localDay(e.start)===date&&!kidsCalendarRequest(e)&&getCalendarEventStudents(e,students).some(p=>p.id===s.id));
+    state=agendaAttendance(s,id,date,candidates.length===1&&candidates[0].id===id);
+    const linked=records.filter(r=>r.student.id===s.id);
+    if(linked.some(r=>r.session.source==="ABSENCE")&&linked.some(r=>r.session.source!=="ABSENCE"))diagnose("conflicting-records",id,s.id);
+   }
    if(state.state==="unknown")diagnose(state.reason||"unknown-state",id,s.id);
    return state;
   });
@@ -65,5 +70,5 @@ export function widgetOccurrenceHistory(students:Student[],matched:CalendarEvent
 /** Emoji X is understood by the existing Android 0.3.8 title renderer; raw student names stay unchanged. */
 export function widgetOccurrenceTitle(item:WidgetOccurrence){
  if(!item.students.length||!item.states.some(s=>s.state!=="pending"))return item.event.summary;
- return item.students.map((s,i)=>`${item.states[i]?.state==="absent"?"❌ ":item.states[i]?.state==="present"?"✅ ":item.states[i]?.state==="unknown"?"❔ ":""}${s.name}${item.states[i]?.state==="pending"?" (pendente)":""}`).join(" · ");
+ return item.students.map((s,i)=>`${item.states[i]?.state==="absent"?"❌ ":item.states[i]?.state==="present"?"✅ ":""}${s.name}${item.states[i]?.state==="pending"?" (pendente)":""}`).join(" · ");
 }

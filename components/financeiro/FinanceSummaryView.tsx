@@ -1,4 +1,5 @@
 "use client";
+import OtherReceiptsSummary from "./OtherReceiptsSummary";
 import type {financeSummary} from "@/lib/financeiro/calculos";
 import styles from "./FinanceiroPage.module.css";
 const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
@@ -27,6 +28,7 @@ export function FinanceSummaryView({summary:s,mercadoPagoBalance:mp,onOpen,onFil
      <section className={`${styles.summaryOverviewCard} ${styles.summaryGreen}`}><header><span className={styles.summaryIcon}><Icon name="income"/></span><h2>Receitas</h2></header><div className={styles.summaryOverviewRows}>{[["Previstas",s.projectedRevenue,"ALL"],["Recebidas",s.realizedRevenue,"PAID"],["A receber",s.receivable,"OPEN"]].map(([label,value,filter])=><button key={label} onClick={()=>onFilter(filter as "ALL"|"PAID"|"OPEN","personal")}><span>{label}</span><strong>{money.format(value as number)}</strong><span aria-hidden="true">›</span></button>)}</div></section>
      <section className={`${styles.summaryOverviewCard} ${styles.summaryRed}`}><header><span className={styles.summaryIcon}><Icon name="expense"/></span><h2>Despesas</h2></header><div className={styles.summaryOverviewRows}>{expenses.map((item,i)=><button key={item.label} onClick={()=>i===3?onOpen("extras"):onFilter((["ALL","PAID","OPEN"] as const)[i],"expenses")}><span>{item.label}</span><strong>{money.format(item.value)}</strong><span aria-hidden="true">›</span></button>)}</div></section>
    </div>
+   <OtherReceiptsSummary receipts={s.otherReceipts} total={s.otherReceived}/>
    <Group title="Personal" description="Suas receitas de alunos de personal." icon="personal" onOpen={()=>onOpen("personal")} items={[{label:"Previsto",value:s.personalExpected,icon:"dollar",tone:"summaryGreen"},{label:"Recebido",value:s.personalReceived,icon:"check",tone:"summaryBlue"},{label:"A receber",value:s.personalOpen,icon:"clock",tone:"summaryOrange"}]}/>
    <Group title="DS Tênis" description="Receitas por categoria." icon="tennis" onOpen={()=>onOpen("ds")} items={[{label:"Kids líquido",value:s.kidsNet,icon:"kids",tone:"summaryGreen"},{label:"Ranking",value:s.ranking,icon:"trophy",tone:"summaryBlue"},{label:"Eventos",value:s.events,icon:"calendar",tone:"summaryPurple"},{label:"Recebido",value:s.dsReceived,icon:"check",tone:"summaryBlue"},{label:s.dsBalance>=0?"A receber":"A devolver",value:Math.abs(s.dsBalance),icon:"clock",tone:"summaryOrange"}]}/>
    <Group title="Despesas" description="Suas contas de despesas fixas e variáveis." icon="expense" onOpen={()=>onOpen("expenses")} items={expenses}/>
