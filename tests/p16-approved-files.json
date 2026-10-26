@@ -1,0 +1,73 @@
+{
+  "base": "a0ac91bac99547726dd4bb31b6da58363ebc5029",
+  "files": {
+    "app/api/google/event-students/route.ts": {
+      "before": "2f2dd55553cbaf56062075ea0203b328f65c74a248b90f25d529fb8702cd5d4f",
+      "after": "73f7df8f35dc44e2bf2d83b31f53afec76f33d1e4f2138dd3731629faea2135a"
+    },
+    "app/api/google/personal-maintenance/route.ts": {
+      "before": null,
+      "after": "090b5c10b1fac449c737a92100250869cf82f622cd6eef13540e8fb89d22e246"
+    },
+    "app/globals.css": {
+      "before": "773afabda5f1559c6ee9eb20632d42894d2a49dc39d6a6db64fabfe79fcdf3e3",
+      "after": "705416da5469c2f87dace1c8a4cf272d782ad8c752906c00e65d1d469625d159"
+    },
+    "components/DmpApp.tsx": {
+      "before": "20ba1e10fa4c8167a45bc4a5620c2bc49f0dc76f31a6cfa6345ed77825f6c3b2",
+      "after": "1275876e8da46d93c132e966fed3a777b9281db546fc553dc1329c4fa7fba0bf"
+    },
+    "components/calendar/CalendarRosterEditor.tsx": {
+      "before": "f658bec27636953fc6722daa3df594b8ca5eaeab8d75fff21236d7080cd4a531",
+      "after": "39dd991c113b2f9a132e0a9bcb230418be4661152d50da6bc8e6030129134b65"
+    },
+    "components/calendar/PersonalAgendaTools.module.css": {
+      "before": null,
+      "after": "5c7f0cfff59d429238abbee1d72259546364ab09f7338faac8b074a3ede2b7d0"
+    },
+    "components/calendar/PersonalAgendaTools.tsx": {
+      "before": null,
+      "after": "bcbebc6b6fe97e47906f7b2b3e267e7c2d36104855fbbcb31e20245ccc596422"
+    },
+    "lib/calendar/personal-holidays.ts": {
+      "before": null,
+      "after": "7c5b4985e9888181283034d3aa165e4b2ba5019fb1be229707118c99c29daa43"
+    },
+    "lib/calendar/personal-maintenance.ts": {
+      "before": null,
+      "after": "a8e47823261667a200882bbefad0a606b0005523268765c11ba0642c55f0f0c6"
+    },
+    "tests/p15-interface.cjs": {
+      "before": "f4de81e1cf6bbace59d1cae52ef965c7c76019e5d87ae393a5c2f2f21f368e80",
+      "after": "8b8f4b106c97a1f1524b27f0575f53e20d75f16d19c4bf67b26d4fd4178ac994"
+    },
+    "tests/p15-original-files.cjs": {
+      "before": "bb351d0194551e7fc8ad767460e9b1ca75fbc939573cdeaa6ee0fd191afc80d1",
+      "after": "ece8226e9984e75bcdd9ca0605c9071d46e2e088498c27935024740873b1ee5f"
+    },
+    "tests/p15-preservation.cjs": {
+      "before": "00e3649bc03bcc67e32df2046b6db97eaf6a91e2f6233508d1cd4c1b6b1ee843",
+      "after": "8e6d11aac4c10f050abef22f099f0d0973eea578c79c8160f65f78d4ceceb214"
+    },
+    "tests/p16-api.cjs": {
+      "before": null,
+      "after": "9a2adaedd9bf0ec56b11274bdf2f0efc94f056b4e55ac7ab1723ab18f4bc1bb5"
+    },
+    "tests/p16-maintenance.cjs": {
+      "before": null,
+      "after": "ab816bd5e386387851ffa94896e01ec70b5372581f5b09165fe7732b78718886"
+    },
+    "tests/p16-original-files.cjs": {
+      "before": null,
+      "after": "f29403f1fa7ed9b21aba9fed519ca36fdeb52574706b639405642cb15453dc42"
+    },
+    "tests/p16-preservation.cjs": {
+      "before": null,
+      "after": "4db834f3568145be7991a390c0bcb8efce3b8b7648ad4d00bece888a1c632880"
+    },
+    "tests/widget-v2-legacy-read.cjs": {
+      "before": "064db66ec1917b7cc816b2ac4dd74c0f56deff5d6ebe36e5f2e7a5066407c4b9",
+      "after": "4cc32ddbaa0d4c0d9daa1583a5a5078e4acfe786f32c637cc1c58d191926ce28"
+    }
+  }
+}

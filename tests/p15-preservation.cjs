@@ -1,9 +1,9 @@
 'use strict';
 const fs=require('fs'),path=require('path'),cp=require('child_process'),crypto=require('crypto'),assert=require('assert/strict'),ts=require('typescript');
 const root=path.resolve(__dirname,'..'),manifest=require('./p15-approved-files.json');
-const allowed=new Set([...Object.keys(manifest.files),'tests/p15-approved-files.json']);module.exports={allowed};
+const allowed=new Set([...Object.keys(manifest.files),'tests/p15-approved-files.json',...Object.keys(require('./p16-approved-files.json').files),'tests/p16-approved-files.json']);module.exports={allowed};
 if(require.main===module){
-const git=a=>cp.execFileSync('git',a,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),sha=b=>crypto.createHash('sha256').update(b).digest('hex'),read=f=>norm(fs.readFileSync(path.join(root,f))),old=f=>norm(git(['show',manifest.base+':'+f]));let preserved=0;
+const git=a=>cp.execFileSync('git',a,{cwd:root,maxBuffer:32*1024*1024}),norm=b=>b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n')),sha=b=>crypto.createHash('sha256').update(b).digest('hex'),read=f=>{const b=norm(fs.readFileSync(path.join(root,f)));return b.includes(0)?b:Buffer.from(require('./p16-original-files.cjs')(f,b.toString()));},old=f=>norm(git(['show',manifest.base+':'+f]));let preserved=0;
 for(const file of git(['ls-tree','-r','--name-only',manifest.base]).toString().trim().split('\n')){if(!allowed.has(file)){assert.deepEqual(read(file),old(file),file);preserved++;}else if(manifest.files[file]?.before)assert.equal(sha(old(file)),manifest.files[file].before,'Base '+file);}
 for(const file of [...git(['diff','--name-only',manifest.base]).toString().split('\n'),...git(['ls-files','--others','--exclude-standard']).toString().split('\n')].filter(Boolean))assert(allowed.has(file),'Fora do escopo P15: '+file);
 for(const [file,h]of Object.entries(manifest.files))assert.equal(sha(read(file)),h.after,'Fonte não revisada: '+file);

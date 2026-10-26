@@ -1,0 +1,7 @@
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}.toolbar button{min-height:42px}
+.backdrop{position:fixed;inset:0;z-index:1200;background:#122b2699;display:flex;align-items:center;justify-content:center;padding:16px}
+.dialog{background:#fff;color:#203b33;border-radius:18px;padding:22px;width:680px;max-width:100%;max-height:90dvh;overflow:auto;box-shadow:0 12px 60px #0004}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px}.head h2{font-size:1.25rem;margin:0}.dialog p{line-height:1.5}.dialog button{min-height:44px}.dialog input[type=checkbox]{width:20px;height:20px}.dialog input,.dialog select{max-width:100%;padding:9px}
+.row{border-top:1px solid #d9e4dd;padding:12px 0;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.row label{display:flex;align-items:center;gap:8px}.row div{min-width:0}.row strong,.row small{display:block;overflow-wrap:anywhere}.row small{margin-top:3px;color:#52625b}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}.error{color:#a72e36}.success{color:#21613e}.muted{color:#52625b}.sources{font-size:.85rem}.sources a{color:#176381}
+@media(max-width:600px){.dialog{padding:16px}.backdrop{padding:8px}.actions button{flex:1 1 auto}}

@@ -13,6 +13,7 @@ export async function POST(request:NextRequest){
  try{
  const p=await request.json();const valid=(a:unknown):a is string[]=>Array.isArray(a)&&a.length<=80&&a.every(v=>typeof v==="string"&&v.length>0&&v.length<=256)&&new Set(a).size===a.length;
  if(typeof p.id!=="string"||p.id.length>1024||!p.id||typeof p.etag!=="string"||!p.etag||typeof p.operationId!=="string"||! /^[a-zA-Z0-9-]{8,80}$/.test(p.operationId)||!valid(p.ids)||!valid(p.expected)||!["single","following"].includes(p.scope))return NextResponse.json({message:"Pedido inválido."},{status:400});
+ if(p.ids.length===0)return NextResponse.json({message:"Para retirar o último aluno, confira e confirme o cancelamento da ocorrência na versão atual da Agenda."},{status:409});
  const {accessToken,refreshed}=await getGoogleAccessToken(request);if(!accessToken)return NextResponse.json({message:"Reconecte o Google."},{status:401});
  const url=(id:string)=>"https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(id);
  const read=async(id:string)=>{const r=await fetch(url(id),{headers:{authorization:"Bearer "+accessToken},cache:"no-store",signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error("Não foi possível conferir a agenda Google.");const e=await r.json();if(e.id!==id)throw Error("Evento divergente.");return e;};

@@ -8116,3 +8116,9 @@ input:focus,textarea:focus{
 .historical-edit-controls label {flex:1 1 140px;min-width:0;}
 .historical-edit-controls input {width:100%;box-sizing:border-box;}
 .header-left a:focus-visible,.dashboard-sidebar a:focus-visible {outline:3px solid #729929;outline-offset:3px;}
+
+/* P16: align only the desktop daily activity list below its title. */
+@media(min-width:901px){
+  .today-highlight-grid.todoist-home-grid > .performance-today-card .performance-today-list,
+  #dmp-home-modern .home-main-content .performance-today-card .performance-today-list{justify-content:flex-start!important;align-content:start!important}
+}
