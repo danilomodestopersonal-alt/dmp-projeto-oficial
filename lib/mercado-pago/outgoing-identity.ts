@@ -1,7 +1,7 @@
 // Presentation only: never use these fields as a reconciliation or learning key.
 export type OutgoingIdentity={label:string;kind:"name"|"description";source:"METADATA"|"STORE_NAME"|"POS_NAME"|"SALE_DETAIL"|"DESCRIPTION"};
 type Row=Record<string,string>;
-const generic=new Set(["settlement","settlements","payout","payouts","payment","release","movement","movimentacao mercado pago","pix transferencia enviada","pagamento transferencia via pix","liquidacao mercado pago","produto sem descricao","transferencia para banco","reserve for payment","asset management gain","asset management loss","available balance","initial available balance","total","subtotal","null","undefined"]);
+const generic=new Set(["settlement","settlements","payout","payouts","payment","release","movement","movimentacao mercado pago","pix transferencia enviada","pagamento transferencia via pix","liquidacao mercado pago","produto sem descricao","transferencia para banco","reserve for payment","reserve for payout","reserve for refund","reserve for chargeback","reserve for dispute","refund","chargeback","dispute","fee","tax","withdrawal","asset management gain","asset management loss","available balance","initial available balance","total","subtotal","null","undefined"]);
 function key(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
 function label(value:unknown,operation=""){
   if(typeof value!=="string")return "";
@@ -58,7 +58,12 @@ function sameOutgoing(primary:Row,secondary:Row){
 export function reportOutgoingIdentity(primary:Row,secondary?:Row):OutgoingIdentity|undefined{
   return fromRow(primary)||(secondary&&sameOutgoing(primary,secondary)?fromRow(secondary):undefined);
 }
+export function outgoingIdentityTitle(identity:OutgoingIdentity|undefined){
+  // Also reject technical labels in an already-loaded response. Never infer a
+  // recipient from a learned rule, a manual expense description or an API status.
+  return label(identity?.label)||"Destinatário não identificado";
+}
 export function outgoingIdentityHint(identity:OutgoingIdentity|undefined){
-  if(!identity)return "Destinatário/estabelecimento não informado neste relatório do Mercado Pago.";
+  if(!identity||!label(identity.label))return "Destinatário/estabelecimento não informado neste relatório do Mercado Pago.";
   return identity.kind==="name"?"Identificação fornecida pelo Mercado Pago.":"Descrição fornecida pelo Mercado Pago.";
 }

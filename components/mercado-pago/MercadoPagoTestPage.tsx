@@ -1,7 +1,7 @@
 "use client";
 import {pixTitle,type PixMetadata} from "../../lib/mercado-pago/pix-payer";
 import { expenseOptionsForPayment } from "../../lib/mercado-pago/expense-options";
-import { outgoingIdentityHint, type OutgoingIdentity } from "../../lib/mercado-pago/outgoing-identity";
+import { outgoingIdentityHint, outgoingIdentityTitle, type OutgoingIdentity } from "../../lib/mercado-pago/outgoing-identity";
 import { ExpenseAllocationEditor, allocationAmount, allocationError, type ExpenseOption, type ExpenseSplit, type RemainderChoice } from "./ExpenseAllocationEditor";
 import type { ExpenseReconciliation } from "../../lib/mercado-pago/expense-reconciliation";
 
@@ -475,7 +475,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
           return <article className={`${styles.move} ${move.status==="REVIEW"||move.status==="AUTO_READY"?styles.review:""} ${move.technical?styles.technicalMove:""} ${move.historical?styles.historicalMove:""}`} key={move.id}>
             <div className={`${styles.icon} ${move.technical||move.historical?styles.iconTechnical:move.kind==="IN"?styles.iconIn:styles.iconOut}`}>{move.historical?"◷":move.technical?"⚙":move.kind==="IN"?"↓":"↑"}</div>
             <div className={styles.info}>
-              <div><strong>{pixTitle(move.pix)||move.outgoingIdentity?.label||move.description}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
+              <div><strong>{pixTitle(move.pix)||(move.kind==="OUT"&&!move.technical?outgoingIdentityTitle(move.outgoingIdentity):move.description)}</strong><span className={`${styles.badge} ${styles[move.status]}`}>{statusLabel(move)}</span></div>
               <small>{date(move.date)}{move.detail?` · ${move.detail}`:""}</small>
               {move.kind==="OUT"&&!move.technical?<small>{outgoingIdentityHint(move.outgoingIdentity)}</small>:null}
               {move.historical?<div className={styles.technicalReason}><b>Somente histórico</b><span>{move.reason}</span></div>:move.technical?<div className={styles.technicalReason}><b>Sem ação</b><span>{move.reason}</span></div>:resolved?<div className={styles.resolvedWrap}>
