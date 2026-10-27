@@ -1,0 +1,29 @@
+{
+  "base": "5cb09e583013713ca8737c4a369dda1f7b63f19a",
+  "files": {
+    "app/globals.css": {
+      "before": "705416da5469c2f87dace1c8a4cf272d782ad8c752906c00e65d1d469625d159",
+      "after": "093cbe9121d2ab4577a92093365a754c43e6b27185d824d79eb1f61cce659e71"
+    },
+    "components/DmpApp.tsx": {
+      "before": "1275876e8da46d93c132e966fed3a777b9281db546fc553dc1329c4fa7fba0bf",
+      "after": "d0b660790656e65235c4f1025d86dadfd57de895113ec132763edfd6c81add00"
+    },
+    "components/calendar/PersonalAgendaTools.tsx": {
+      "before": "bcbebc6b6fe97e47906f7b2b3e267e7c2d36104855fbbcb31e20245ccc596422",
+      "after": "0617d91319ad5b33ebb2a76f9c475c562822f2c8d015e04d44a67abf56b591f1"
+    },
+    "lib/calendar/personal-maintenance.ts": {
+      "before": "a8e47823261667a200882bbefad0a606b0005523268765c11ba0642c55f0f0c6",
+      "after": "30ef7d178d99794a5ec11317cca1d11d9b9375c625cbb77049f1f9a832502705"
+    },
+    "lib/widget/v2.ts": {
+      "before": "b6204366081482588f4aaada30da2eff8c1e59887ded113cff0c4fda02a8ce27",
+      "after": "0c2238fc882a055f32fb97f1a7984df290a57460f843702f150fa159d5102262"
+    },
+    "lib/widget/google-source.ts": {
+      "before": "153b58e75853fc3fed8e081f44dbe37f298eb9948649886f8af55e96e9c2f59b",
+      "after": "2c47c8973d7ec70aacf0142e7856d779863b242c8b10d953baeb18969cb881bd"
+    }
+  }
+}

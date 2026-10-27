@@ -2312,9 +2312,9 @@ function Sidebar({refined=false,modern=false,current,onNavigate,logout,students,
       .catch(()=>{if(!cancelled)setKidsSearchStudents([]);});
     return()=>{cancelled=true;};
   },[mobile]);
-  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"students",icon:"👥",label:"Alunos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"reports",icon:"📊",label:"Relatórios"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"},{view:"settings",icon:"⚙️",label:"Configurações"}];
+  const items:{view:View;icon:string;label:string}[]=[{view:"today",icon:"🏠",label:"Hoje"},{view:"finance",icon:"💰",label:"Financeiro"},{view:"performance",icon:"\u{1F4C8}",label:"Performance"},{view:"students",icon:"👥",label:"Alunos"},{view:"assessments-overview",icon:"📏",label:"Avaliações"},{view:"workouts-overview",icon:"🏋️",label:"Treinos"},{view:"agenda",icon:"📅",label:"Agenda"},{view:"reports",icon:"📊",label:"Relatórios"},{view:"kids",icon:"🎾",label:"Aulas Kids"},{view:"data",icon:"💾",label:"Dados"},{view:"settings",icon:"⚙️",label:"Configurações"}];
   const mobileOrder:View[]=["today","kids","finance","performance","agenda","reports","students","workouts-overview","assessments-overview","data","settings"];
-  const orderedItems = mobile ? mobileOrder.map(view=>[...items,{view:"agenda" as View,icon:"📅",label:"Agenda"}].find(item=>item.view===view)!).filter(Boolean) : items;
+  const orderedItems = mobile ? mobileOrder.map(view=>items.find(item=>item.view===view)!).filter(Boolean) : items;
   const normalizedSearch=normalizeName(studentSearch);
   const quickStudents=studentSearch.trim()?students.filter(student=>student.status==="ACTIVE"&&normalizeName(student.name).includes(normalizedSearch)).slice(0,6):[];
   const quickKids=studentSearch.trim()?kidsSearchStudents.filter(student=>normalizeName(`${student.name} ${student.fatherName||""} ${student.motherName||""} ${student.financialResponsible||""} ${student.notes||""}`).includes(normalizedSearch)).slice(0,6):[];
@@ -2779,7 +2779,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
 
 
       <button
-        className="today-highlight-card performance-today-card"
+        className={`today-highlight-card performance-today-card ${performanceActivities.length?"":"performance-today-empty"}`}
         onClick={onPerformance}
       >
         <div>
@@ -2960,7 +2960,7 @@ function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
       <strong>{cursor.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</strong>
       <button onClick={()=>{setSelectedDate(null);setCursor(new Date(year,month+1,1));}}>›</button>
     </div>
-    <button className="mini-month-today" onClick={()=>{setSelectedDate(null);setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje · abrir agenda</button>
+    <div className="mini-month-actions"><button className="mini-month-today" onClick={()=>{setSelectedDate(null);setCursor(new Date(now.getFullYear(),now.getMonth(),1));onSelect(today());}}>Hoje</button><button type="button" className="mini-month-agenda" onClick={()=>onSelect(selectedDate||today())}>Agenda</button></div>
     <div className="mini-month-week"><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b><b>D</b></div>
     <div className="mini-month-days">
       {Array.from({length:first},(_,index)=><i key={`e-${index}`}/>)}
@@ -3021,7 +3021,6 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
 
   return <>
     <aside className="desktop-agenda-rail">
-      <button type="button" className="text-button" onClick={()=>onOpenAgenda(todayKey)}>Abrir agenda</button>
       <span className="rail-resize-handle" onPointerDown={event=>beginPanelResize(event,"rail")}/>
       <div className="agenda-rail-scroll">
         {!hasToday?<div className="agenda-rail-day agenda-rail-day-empty"><span>Hoje</span><strong>{new Date(`${todayKey}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong><button className="agenda-rail-encaixe" onClick={()=>setShowEncaixe(true)}>+ Encaixe</button></div>:null}

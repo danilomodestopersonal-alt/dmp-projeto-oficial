@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('assert/strict'),H=require('./p15-harness.cjs'),M=H.loader()('lib/widget/v2.ts');
+const date='2026-10-27',now=new Date(date+'T10:00:00-03:00');
+const event=(id,h,patch={})=>({id,summary:'Compromisso '+id,start:`${date}T${h}:00:00-03:00`,end:`${date}T${h}:30:00-03:00`,...patch});
+const input=[event('one','09'),event('two','12'),event('three','18')];
+const before=structuredClone(input),out=M.widgetV2([],input,null,[],[],now);
+assert.equal(out.commitments.length,3);assert.deepEqual(out.commitments.map(e=>e.time),['09:00','12:00','18:00']);
+assert(out.commitments.every(e=>e.source==='google'&&e.destination.includes('widget=event')));assert.deepEqual(input,before);
+const student={id:'s1',name:'Ana Silva',status:'ACTIVE',sessions:[],workouts:[],assessments:[]};
+const mixed=[...input,event('personal','10',{summary:'Ana Silva'}),event('kids','11',{summary:'Tênis Kids · Bola Laranja'}),event('cancelled','13',{cancelled:true}),event('tomorrow','14',{start:'2026-10-28T14:00:00-03:00'}),event('yesterday','15',{start:'2026-10-26T15:00:00-03:00'}),event('all','16',{allDay:true,start:date,end:'2026-10-28'})];
+const result=M.widgetV2([student],mixed,null,[],[{id:'one',title:'DMP/Todoist',dueTime:'08:00'}],now);
+assert.equal(result.commitments.length,5);assert(!result.commitments.some(e=>['personal','kids','cancelled','tomorrow','yesterday'].includes(e.id)));
+assert.equal(result.commitments.filter(e=>e.id==='one').length,2,'IDs from different sources must not collide');
+assert(result.commitments.find(e=>e.source==='todoist').destination.includes('widget=commitment'));assert.equal(result.commitments.find(e=>e.id==='all').time,null);
+assert.equal(M.widgetV2([],Array.from({length:125},(_,i)=>event('e'+i,'09')),null,[],[],now).commitments.length,125);
+const boundary=M.widgetV2([],[event('utc','00',{start:'2026-10-28T01:00:00Z',end:'2026-10-28T01:30:00Z'})],null,[],[],now);assert.equal(boundary.commitments[0].time,'22:00');
+assert.deepEqual(M.widgetV2([],[],null,[],[],now).commitments,[]);
+console.log('PASS P17 WIDGET: 3 compromissos Google, fontes distintas, dia São Paulo, sem aulas/cancelados, 125 itens sem corte e entradas imutáveis.');
+
+const mirror=event('mirror','08',{summary:'DMP/Todoist',widgetTodoistTaskId:'task'}),manual=event('manual','08',{summary:'DMP/Todoist'});
+const dedup=M.widgetV2([],[mirror,manual],null,[],[{id:'task',title:'DMP/Todoist',dueTime:'08:00'}],now);assert.deepEqual(dedup.commitments.map(e=>e.id).sort(),['manual','task']);assert.equal(M.widgetV2([],[mirror],null,[],[],now).commitments.length,1);
+console.log('PASS P17 FONTES: espelho Todoist deduplicado por identificador explícito; compromisso manual homônimo preservado; fallback Google sem Todoist.');

@@ -8,7 +8,7 @@ import {personalHolidays,type HolidayConfig} from "./personal-holidays";
 
 type Event=Record<string,any>;
 export type MaintenanceApi=ReturnType<typeof calendarTimeApi>;
-export type MaintenanceCommand={kind:"roster"|"repair"|"holiday";id?:string;etag?:string;expected?:string[];scope?:"single"|"following";date?:string;keep?:string[]};
+export type MaintenanceCommand={kind:"roster"|"repair"|"repair-batch"|"holiday";selection?:{id:string;etag:string}[];id?:string;etag?:string;expected?:string[];scope?:"single"|"following";date?:string;keep?:string[]};
 export type MaintenanceStep={before:Event;body:Event;parent?:Event;exceptions?:Event[];label:string;start:string};
 export type MaintenancePlan={command:MaintenanceCommand;steps:MaintenanceStep[];kept:string[];excluded:string[];description:string};
 export type MaintenanceJournal={operationId:string;digest:string;plan:MaintenancePlan;createdAt:string;attempted?:Record<string,boolean>;completed:Record<string,{etag:string;at:string;exceptions?:string}>;done?:boolean;restored?:boolean;restoreStarted?:boolean;restoredSteps?:Record<string,string>};
@@ -21,7 +21,12 @@ const day=86400000;
 const stamp=(v:number|string)=>new Date(v).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/, "Z");
 const parseStamp=(s:string)=>Date.parse(s.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,"$1-$2-$3T$4:$5:$6Z"));
 export function normalizedCommand(input:any):MaintenanceCommand{
- if(!input||!["roster","repair","holiday"].includes(input.kind))throw new MaintenanceError("Pedido inválido.",400);
+ if(!input||!["roster","repair","repair-batch","holiday"].includes(input.kind))throw new MaintenanceError("Pedido inválido.",400);
+ if(input.kind==="repair-batch"){
+  if(!Array.isArray(input.selection)||!input.selection.length||input.selection.length>80||new Set(input.selection.map((e:any)=>e?.id)).size!==input.selection.length)throw new MaintenanceError("Selecione de 1 a 80 ocorrências diferentes.",400);
+  const selection=input.selection.map((e:any)=>{const single=normalizedCommand({kind:"repair",id:e?.id,etag:e?.etag,scope:"single",expected:[]});return {id:single.id!,etag:single.etag!};}).sort((a:any,b:any)=>a.id.localeCompare(b.id));
+  return {kind:"repair-batch",selection};
+ }
  if(input.kind==="holiday"){
   if(typeof input.date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(input.date)||!Array.isArray(input.keep)||input.keep.length>100||input.keep.some((id:unknown)=>typeof id!=="string"||!id||id.length>1024)||new Set(input.keep).size!==input.keep.length)throw new MaintenanceError("Escolha o feriado e confira as aulas.",400);
   return {kind:"holiday",date:input.date,keep:[...input.keep].sort()};
@@ -113,7 +118,16 @@ async function followingStep(command:MaintenanceCommand,event:Event,parent:Event
 }
 export async function buildMaintenancePlan(command:MaintenanceCommand,students:Student[],api:MaintenanceApi,config:HolidayConfig,now=new Date().toISOString()):Promise<MaintenancePlan>{
  const plan:MaintenancePlan={command,steps:[],kept:[],excluded:[],description:""};
- if(command.kind==="holiday"){
+ if(command.kind==="repair-batch"){
+  const checked=normalizedCommand(command);
+  for(const selected of checked.selection!){
+   const single=await buildMaintenancePlan({kind:"repair",...selected,scope:"single",expected:[]},students,api,config,now);
+   if(single.steps.some(step=>hasHistory(step.before,students)))fail("Uma aula selecionada possui histórico. Atualize a revisão; nenhum cancelamento foi iniciado.");
+   plan.steps.push(...single.steps);
+  }
+  plan.steps.sort((a,b)=>a.start.localeCompare(b.start)||a.before.id.localeCompare(b.before.id));
+  plan.description=`Cancelar ${plan.steps.length} ocorrência(s) sem alunos, somente nas datas e horários abaixo.`;
+ }else if(command.kind==="holiday"){
   const holiday=personalHolidays(Number(command.date!.slice(0,4)),config).find(h=>h.date===command.date);
   if(!holiday||command.date!<timeDate(now))fail("Escolha um feriado habilitado de hoje ou futuro.");
   const begin=command.date+"T00:00:00-03:00",end=new Date(Date.parse(begin)+day).toISOString();

@@ -8122,3 +8122,16 @@ input:focus,textarea:focus{
   .today-highlight-grid.todoist-home-grid > .performance-today-card .performance-today-list,
   #dmp-home-modern .home-main-content .performance-today-card .performance-today-list{justify-content:flex-start!important;align-content:start!important}
 }
+
+/* P17: compact calendar actions and desktop empty workout alignment. */
+.mini-month-actions {display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;}
+.mini-month-actions .mini-month-today,.mini-month-actions .mini-month-agenda {width:auto;flex:0 0 auto;margin:0;padding:3px 8px;font:inherit;font-size:.78rem;border:0;background:transparent;color:inherit;cursor:pointer;}
+.mini-month-actions button:focus-visible {outline:2px solid #387951;outline-offset:2px;}
+@media(min-width:901px){
+ #dmp-home-modern .home-main-content .performance-today-empty,
+ .today-highlight-grid.todoist-home-grid > .performance-today-empty {align-items:flex-start!important;justify-content:flex-start!important;}
+ #dmp-home-modern .home-main-content .performance-today-empty > div,
+ .today-highlight-grid.todoist-home-grid > .performance-today-empty > div {display:flex;flex-direction:column;justify-content:flex-start!important;align-items:stretch;gap:8px;height:100%;}
+ #dmp-home-modern .home-main-content .performance-today-empty .highlight-lines,
+ .today-highlight-grid.todoist-home-grid > .performance-today-empty .highlight-lines {flex:0 0 auto;justify-content:flex-start!important;align-content:start!important;margin-top:0!important;}
+}
