@@ -73,7 +73,7 @@
 .root:global(#dmp-home-modern) :global(.today-highlight-grid){gap:12px!important;align-items:stretch!important}
 .root:global(#dmp-home-modern) :global(.today-highlight-grid>:is(.mini-month,.today-highlight-card)){align-self:stretch!important;height:auto!important;min-height:0!important}
 .root:global(#dmp-home-modern) :global(.mini-month-days>button),.root:global(#dmp-home-modern) :global(.mini-month-days>i){height:27px!important}
-.root:global(#dmp-home-modern) :global(.home-right-rail .desktop-agenda-rail){grid-template-rows:52px minmax(0,1fr)!important;align-content:start!important}
+.root:global(#dmp-home-modern) :global(.home-right-rail .desktop-agenda-rail){grid-template-rows:minmax(0,1fr)!important;align-content:start!important}
 .root:global(#dmp-home-modern) :global(.desktop-agenda-rail>.text-button){min-height:44px!important;align-self:center!important;margin:4px 12px!important;border:1px solid #cddbd1!important;border-radius:8px!important;background:white!important;color:var(--home-green)!important;font-size:13px!important}
 }
 @media(max-width:900px){

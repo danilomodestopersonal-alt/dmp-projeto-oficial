@@ -11,7 +11,7 @@
 .refined:global(#dmp-home-modern) :global(.header-weather :is(small,span)),.refined:global(#dmp-home-modern) :global(.header-clock>small){color:#465c50!important;font-size:12px!important}
 .refined:global(#dmp-home-modern) :global(.calendar-preview-row.calendar-multi-row){grid-template-columns:62px minmax(0,1fr) auto!important;gap:8px!important;padding:8px!important}
 .refined:global(#dmp-home-modern) :global(.calendar-slot-students){padding:4px!important;margin-left:0!important}
-.refined:global(#dmp-home-modern) :global(.home-right-rail .desktop-agenda-rail){grid-template-rows:40px minmax(0,1fr)!important}
+.refined:global(#dmp-home-modern) :global(.home-right-rail .desktop-agenda-rail){grid-template-rows:minmax(0,1fr)!important}
 .refined:global(#dmp-home-modern) :global(.desktop-agenda-rail>.text-button){min-height:32px!important;margin:3px 10px!important;padding:4px 10px!important;font-size:12px!important}
 .refined:global(#dmp-home-modern) :global(.agenda-rail-scroll>.agenda-rail-group:first-of-type>.agenda-rail-event){box-shadow:0 0 0 2px #74966a!important;background:#f4f8ef!important}
 .refined:global(#dmp-home-modern) :global(.agenda-rail-scroll>.agenda-rail-group:first-of-type>.agenda-rail-event small){font-size:14px!important;font-weight:750!important}
