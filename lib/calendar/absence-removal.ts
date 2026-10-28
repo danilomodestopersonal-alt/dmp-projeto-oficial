@@ -9,6 +9,17 @@ export const absenceKey=(studentId:string,eventId:string)=>createHash("sha256").
 export class AbsenceConflict extends Error {}
 // Only fields relevant to ownership, participants and occurrence identity. No credentials.
 function fingerprint(e:any){const privateFields={...e.extendedProperties?.private};delete privateFields[ABSENCE_MARKER];return createHash("sha256").update(JSON.stringify([e.summary||"",e.description||"",e.location||"",e.start,e.end,e.recurringEventId||"",e.originalStartTime||null,e.recurrence||[],e.attendees||[],Object.entries(privateFields).sort(([a],[b])=>a.localeCompare(b))])).digest("hex");}
+/** A cancellation is restorable only with the exact DMP empty-roster receipt.
+ * Missing/tombstone metadata or any change in the recorded fields fails closed.
+ * This deliberately does not infer ownership from a local absence alone. */
+export function cancelledByAbsence(event:any,studentId:string):boolean{
+ try{
+  if(event.status!=="cancelled"||!event.id||!event.etag)return false;
+  const fields=event.extendedProperties?.private||{},marker=JSON.parse(fields[ABSENCE_MARKER]||"null"),single=calendarRoster(fields).single;
+  if(!marker||typeof marker.rootEtag!=="string"||!marker.rootEtag||marker.signature!==fingerprint(event)||!Array.isArray(marker.removed)||!marker.removed.includes(absenceKey(studentId,event.id)))return false;
+  return !!single&&single.scope==="single"&&single.eventId===event.id&&single.ids.length===0&&single.add.length===0&&single.remove.length===1&&single.op==="absence-"+absenceKey(single.remove[0],event.id).slice(0,48)&&marker.removed.includes(absenceKey(single.remove[0],event.id));
+ }catch{return false;}
+}
 export async function removeAbsentParticipant(op:AbsenceOperation,students:Student[],token:string,request:typeof fetch=fetch):Promise<CalendarEvent>{
  const url=(id:string)=>"https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(id);
  const read=async(id:string)=>{const r=await request(url(id),{headers:{authorization:`Bearer ${token}`},cache:"no-store",signal:AbortSignal.timeout(15000)});if(r.status===404||r.status===410)throw new AbsenceConflict("A ocorrência não está disponível no Google. Confira manualmente; a ausência foi preservada.");if(!r.ok)throw Error(`Google não pôde ser consultado (HTTP ${r.status}). Tente novamente.`);const e=await r.json();if(e.id!==id)throw new AbsenceConflict("Identidade da ocorrência divergente.");return e;};
