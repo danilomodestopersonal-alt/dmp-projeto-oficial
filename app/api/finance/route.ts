@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import {otherReceiptsPreserved} from "@/lib/financeiro/other-receipts";
 
+import {cancellationsPreserved} from "@/lib/financeiro/invoice-cancellation";
+
 export const runtime = "nodejs";
 const DATA_ID = "finance_v1";
 const VERSION_HEADER = "x-dmp-expected-updated-at";
@@ -76,6 +78,10 @@ export async function PUT(request: NextRequest) {
     );
 
     if (current.rows.length > 0) {
+      if (!cancellationsPreserved(current.rows[0].payload, body)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({error:"Cancelamentos protegidos. Atualize e use a ação específica da cobrança."},{status:409});
+      }
       if (!otherReceiptsPreserved(current.rows[0].payload, body)) {
         await client.query("ROLLBACK");
         return NextResponse.json({ok:false,error:"Os outros recebimentos mudaram. Atualize o Financeiro antes de salvar."},{status:409});

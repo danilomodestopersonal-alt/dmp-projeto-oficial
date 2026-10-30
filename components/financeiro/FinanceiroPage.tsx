@@ -4,6 +4,7 @@ import {PixPayerProvider,PixPayerEditButton} from "./PixPayerEditor";
 import {pixDisplayLabel} from "@/lib/mercado-pago/pix-payer";
 import { FinanceSummaryView } from "./FinanceSummaryView";
 import { FinanceDeviceTrust } from "./FinanceDeviceTrust";
+import {InvoiceCancellation} from "./InvoiceCancellation";
 import { PersonalManageButton, PersonalReceipts, PaymentHistory } from "./PersonalReceipts";
 
 import { DsOpeningBalanceRow, DsOpeningBalanceEditButton } from "./DsOpeningBalance";
@@ -664,6 +665,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         {tab === "personal" ? (
           <section className="panel">
             <div className="panel-head"><div><h2>Personal · {competenceLabel(competence)}</h2><p className="muted">{money.format(summary.personalReceived)} recebidos de {money.format(summary.personalExpected)} previstos.{personalAudit?" · "+personalAudit.linked+" vinculados ao cadastro"+(personalAudit.ambiguous?" · "+personalAudit.ambiguous+" pendência(s) para conferência":"")+(personalAudit.unmatchedInvoices?" · "+personalAudit.unmatchedInvoices+" lançamento(s) sem aluno correspondente":""):""}</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "personal-create" })}>+ Mensalidade manual</button></div>
+            <InvoiceCancellation data={data} disabled={!loaded||!cloudWritable||syncing||!payerMetadataReady||payerSaving} onSaving={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Recarregue para conferir o resultado.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setUndoDeletion(null);setFinanceCloudRevision(value=>value+1);}}/>
             <FilterBar value={listFilter} onChange={setListFilter} />
             <div className={styles.list}>
               {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).sort(compareDueDay).map(invoice => {

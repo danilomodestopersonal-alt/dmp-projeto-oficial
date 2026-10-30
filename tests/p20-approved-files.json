@@ -1,0 +1,25 @@
+{
+  "base": "3bb974e39b22a6f2855c1253722195ad550929d8",
+  "files": {
+    "app/api/finance/route.ts": {
+      "before": "b4087f11426e218baeeeefdf3d2b491050a42dcaca62159f4152e23349d9ce8f",
+      "after": "0b780b5c2865ec78a0ee84dce1bfa922f7ca9944f2e53e9858b0ba1d52634dd3"
+    },
+    "components/financeiro/FinanceiroPage.tsx": {
+      "before": "85a927a29de350ad554cb28aa117bde1f9a0cf2c5793526562646cf2dc60837b",
+      "after": "019f3e87decd4958d9d3c62be63a071904c9175af1db3281232e63fb5200af90"
+    },
+    "lib/financeiro/operacoes.ts": {
+      "before": "d7080a5a64b4061ef26286f4a890ac32776ab9b7ce8ceee912237a65b428b0bd",
+      "after": "35c8dfbb3bae88e5def05a326e51ab4aab440a627909090228446e5708dfcf81"
+    },
+    "lib/financeiro/personal-sync.ts": {
+      "before": "b51a2bcc5471fb851feeb095918b7930dc4ec3e2518c9614c5fdd4255365f70c",
+      "after": "0c5ea7471d2876ebd2f32072f0df9ebe4ea85d3c5da5d4f06e560ecc3778321c"
+    },
+    "types/financeiro.ts": {
+      "before": "394c876c125f8f453a95f5f9185cdf920dc729cc133a49b168ea792c93a27f9c",
+      "after": "1c80e5537aa85a0afb91b26a02beaca2ae303d336b2195cc1f42023edbd7495e"
+    }
+  }
+}

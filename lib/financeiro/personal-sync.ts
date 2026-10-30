@@ -555,6 +555,8 @@ export function reconcilePersonalFinance(
   // nunca são reescritas quando o valor mensal muda no cadastro.
   for (const student of nextStudents) {
     if (student.financialActive !== true) continue;
+    // A cancelled obligation is a tombstone for this student/month, even after reactivation.
+    if (nextInvoices.some(row => row.competence === managedCompetence && row.studentId === student.id && row.cancellation?.active)) continue;
     if (student.status !== "ACTIVE") continue;
     if (!Number.isFinite(student.monthlyAmount)) continue;
     if (!Number.isFinite(student.financeDueDay)) continue;

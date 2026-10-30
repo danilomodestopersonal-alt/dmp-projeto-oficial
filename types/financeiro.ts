@@ -13,7 +13,13 @@ export type FinancePayment = {
 
 export type OtherReceipt = FinancePayment & {competence:string;description:string;fingerprint:string};
 
+export type InvoiceCancellationAudit = {
+  operationId: string; invoiceId: string; action: "CANCEL" | "RESTORE";
+  reason: string; occurredAt: string; operator: string; amount: number; competence: string;
+};
+
 export type PersonalInvoice = {
+  cancellation?: { active: boolean; previousAutoRenew?: boolean };
   id: string;
   competence: string;
   studentId?: string | null;
@@ -164,6 +170,7 @@ export type FinanceData = {
   dsPercent: number;
   rankingByCompetence: Record<string, number>;
   eventsByCompetence?: Record<string, number>;
+  invoiceCancellationAudit?: InvoiceCancellationAudit[];
   personalInvoices: PersonalInvoice[];
   dsKids: DsKidEntry[];
   dsReceipts: Record<string, DsReceipt[]>;

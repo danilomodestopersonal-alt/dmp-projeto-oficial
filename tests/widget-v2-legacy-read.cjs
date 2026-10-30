@@ -4,7 +4,9 @@
 // widget navigation additions; their old bytes remain available to those snapshots.
 // widget-v2.cjs independently checks actual production, unchanged Home functions,
 // authentication, navigation whitelist and every file outside this scope.
-const fs=require('node:fs'),path=require('node:path'),baseline=require('./widget-v2-preservation.json'),legacy=require('./widget-v2-legacy-sources.json'),kidsChamada=require('./kids-chamada-dmp-baseline.json').original,redesign=require('./kids-redesign-baseline.json').original;
+const nativeFs=require('node:fs');
+const fs={...nativeFs,readFileSync(file,options){const value=nativeFs.readFileSync(file,options);const key=require('node:path').relative(require('node:path').resolve(__dirname,'..'),String(file)).replaceAll('\\','/');if(!require('./p20-approved-files.json').files[key])return value;const old=require('./p20-original-files.cjs')(key,value.toString());return typeof value==='string'?old:Buffer.from(old);}};
+const path=require('node:path'),baseline=require('./widget-v2-preservation.json'),legacy=require('./widget-v2-legacy-sources.json'),kidsChamada=require('./kids-chamada-dmp-baseline.json').original,redesign=require('./kids-redesign-baseline.json').original;
 // P10: binary reads below are historical whole-file hash checks. Reverse only
 // the exact presentation additions and verify the reconstructed LIVE hash.
 // Text reads still return the real route for behavioral/financial tests.

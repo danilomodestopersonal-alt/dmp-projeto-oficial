@@ -133,6 +133,7 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
 
   const personalInvoices: PersonalInvoice[] = sourcePersonal.map(item => ({
     ...item,
+    cancellation: undefined,
     id: id("personal"),
     competence: target,
     payments: [],
@@ -211,6 +212,9 @@ function isMutatingCommand(command: FinanceCommand) {
 
 export function applyFinanceCommand(data: FinanceData, command: FinanceCommand): FinanceData {
   const competence = commandCompetence(data, command);
+  const targetId = "invoiceId" in command ? command.invoiceId : "id" in command ? command.id : null;
+  const target = data.personalInvoices.find(item=>item.id===targetId);
+  if (target?.cancellation?.active || (command.type==="PERSONAL_DELETE" && target?.cancellation)) return data;
   if (isMutatingCommand(command) && command.type !== "CLOSE_COMPETENCE" && !isCompetenceEditable(data, competence)) return data;
 
   switch (command.type) {
