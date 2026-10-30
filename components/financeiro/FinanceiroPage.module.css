@@ -255,3 +255,17 @@
 
 /* Somente representação redundante; lista compacta e ações preservadas. */
 @media(max-width:900px){.mobileDuplicateExpenses{display:none!important}}
+
+/* P21: responsive DS settlement only, desktop unchanged. */
+@media(max-width:600px){
+ .dsSettlementPanel{min-width:0;max-width:100%}
+ .dsSettlementPanel>section{min-width:0;max-width:100%}
+ .dsSettlementPanel .calcRow{align-items:baseline;flex-wrap:wrap;column-gap:12px;row-gap:4px;min-width:0}
+ .dsSettlementPanel .calcRow>span{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+ .dsSettlementPanel .calcRow>strong{flex:0 0 auto;margin-left:auto;white-space:nowrap;max-width:100%}
+ .dsSettlementPanel .inlineActions{flex-wrap:wrap;justify-content:flex-start}
+ .dsSettlementPanel .receipt{flex-wrap:wrap;gap:8px;min-width:0}
+ .dsSettlementPanel .receipt>span{min-width:0;overflow-wrap:anywhere}
+ .dsSettlementPanel .receiptActions{flex-wrap:wrap;max-width:100%}
+ .dsSettlementPanel .fullButton{white-space:normal;overflow-wrap:anywhere;min-width:0}
+}

@@ -1,0 +1,17 @@
+{
+  "base": "d94c57bf61c79a61007606a7aa42b3216eb463ee",
+  "files": {
+    "components/financeiro/FinanceiroPage.tsx": {
+      "before": "019f3e87decd4958d9d3c62be63a071904c9175af1db3281232e63fb5200af90",
+      "after": "b1af7b951ead73ed2f4652d1d066e6ccaeb04a36a83f26a5859261d97e94046a"
+    },
+    "components/financeiro/FinanceiroPage.module.css": {
+      "before": "d1d5904469bd642b7eee34c08b4431c46c27d8844bbb00fb4858ef40e5b30706",
+      "after": "2c7bc222ee399ffcd970fe771d59d19b0f690155587927e7c0680ab2d341ddbe"
+    },
+    "lib/financeiro/future-preview.ts": {
+      "before": null,
+      "after": "211eac06ab5f469dec791f27834be0921769d5b24d37b27db679a07c13b9fe17"
+    }
+  }
+}

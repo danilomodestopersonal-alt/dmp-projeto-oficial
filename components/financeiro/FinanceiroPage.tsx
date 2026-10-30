@@ -1,4 +1,5 @@
 "use client";
+import {futureFinanceView} from "@/lib/financeiro/future-preview";
 import {editExpenseSeries,type ExpenseEditScope} from "@/lib/financeiro/expense-series";
 import {PixPayerProvider,PixPayerEditButton} from "./PixPayerEditor";
 import {pixDisplayLabel} from "@/lib/mercado-pago/pix-payer";
@@ -141,7 +142,12 @@ function ensureCalendarCompetence(base: FinanceData): FinanceData {
 }
 
 export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevoked}:{students?:Student[];onStudentsChange?:(next:Student[])=>void;onTrustRevoked?:()=>void}) {
-  const [data, setData] = useState<FinanceData>(financeSeedAugust2026);
+  const [storedData, setData] = useState<FinanceData>(financeSeedAugust2026);
+  const [selectedCompetence, setSelectedCompetence] = useState<string | null>(null);
+  const competence = selectedCompetence || storedData.currentCompetence;
+  const futureReadOnly = competence > today().slice(0, 7);
+  const futureView = useMemo(() => futureFinanceView(storedData, competence, today().slice(0, 7), students), [storedData, competence, students]);
+  const data = futureView.data;
   const [loaded, setLoaded] = useState(false);
   const [cloudWritable, setCloudWritable] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -160,7 +166,6 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   const [personalAudit, setPersonalAudit] = useState<PersonalFinanceAudit | null>(null);
   const [kidsStudentOptions, setKidsStudentOptions] = useState<Array<{id:string;name:string}>>([]);
   const [mercadoPagoBalance, setMercadoPagoBalance] = useState<number | null>(null);
-  const competence = data.currentCompetence;
   useEffect(()=>{
     if(!loaded||financeNavRestored.current)return;
     financeNavRestored.current=true;
@@ -168,7 +173,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
     if(saved){
       if(["summary","mercado-pago","personal","ds","expenses","extras","closing","reports"].includes(saved.tab))setTab(saved.tab);
       if(["ALL","PAID","OPEN","OVERDUE"].includes(saved.filter))setListFilter(saved.filter);
-      if(typeof saved.competence==="string"&&data.competences[saved.competence])setData(current=>({...current,currentCompetence:saved.competence}));
+      if(typeof saved.competence==="string"&&/^\d{4}-(0[1-9]|1[0-2])$/.test(saved.competence))setSelectedCompetence(saved.competence);
     }
     setFinanceNavReady(true);
   },[loaded,data]);
@@ -178,8 +183,13 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   },[financeNavReady,tab,listFilter,competence]);
   const summary = useMemo(() => financeSummary(data, competence), [data, competence]);
   const pendencies = useMemo(() => financialPendencies(data, competence), [data, competence]);
-  const editable = isCompetenceEditable(data, competence);
-  const competences = useMemo(() => Object.keys(data.competences).sort().reverse(), [data.competences]);
+  const editable = !futureReadOnly && isCompetenceEditable(data, competence);
+  const competences = useMemo(() => {
+    const values = new Set([...Object.keys(storedData.competences), competence]);
+    let month = today().slice(0, 7);
+    for (let i = 0; i < 24; i++) { values.add(month); month = nextCompetence(month); }
+    return [...values].sort().reverse();
+  }, [storedData.competences, competence]);
   async function refreshFinanceAfterMercadoPago() {
     try {
       const cloud = await fetchFinanceCloud(financeSeedAugust2026);
@@ -376,13 +386,13 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
 
   useEffect(() => {
     if (!loaded) return;
-    saveFinanceData(data);
+    saveFinanceData(storedData);
     if (!cloudWritable || payerSaving) return;
     setPayerMetadataReady(false);
     setSyncing(true); // Bloqueia edição de metadados também enquanto uma gravação está agendada.
     const timer = window.setTimeout(() => {
       setSyncing(true);
-      void saveFinanceCloud(data)
+      void saveFinanceCloud(storedData)
         .then(() => {setFinanceCloudRevision(current => current + 1);setPayerMetadataReady(true);})
         .catch(error => {
           console.error("Financeiro: erro ao salvar na nuvem.", error);
@@ -394,19 +404,28 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         .finally(() => setSyncing(false));
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [data, loaded, cloudWritable, payerSaving]);
+  }, [storedData, loaded, cloudWritable, payerSaving]);
 
   function dispatch(command: FinanceCommand) {
+    if (command.type === "SWITCH_COMPETENCE") {
+      setSelectedCompetence(command.competence);
+      setAction(null);
+      setUndoDeletion(null);
+      return;
+    }
+    if (futureReadOnly) return;
+    if (command.type === "CREATE_NEXT_COMPETENCE") setSelectedCompetence(nextCompetence(command.fromCompetence));
+    if (command.type === "CLOSE_COMPETENCE" && command.createNext) setSelectedCompetence(nextCompetence(command.competence));
     if(command.type==="EXPENSE_UPDATE"){setSyncing(true);setPayerMetadataReady(false);}
     if(command.type.endsWith("_DELETE"))setUndoDeletion(data);
-    setData(current => applyFinanceCommand(current, command));
+    setData(current => applyFinanceCommand({...current,currentCompetence:competence}, command));
   }
 
-  function undoLastDeletion(){if(!undoDeletion)return;setData(undoDeletion);setUndoDeletion(null);}
+  function undoLastDeletion(){if(futureReadOnly||!undoDeletion)return;setData(undoDeletion);setUndoDeletion(null);}
 
   function requireEditable() {
     if (editable) return true;
-    window.alert("Esta competência está fechada. Reabra o mês na aba Fechamento para alterar dados.");
+    window.alert(futureReadOnly ? "Competências futuras são somente leitura." : "Esta competência está fechada. Reabra o mês na aba Fechamento para alterar dados.");
     return false;
   }
 
@@ -570,12 +589,12 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   }
 
   function downloadReport() {
-    const csv = financeReportCsv(data, competence);
+    const csv = (futureView.projected ? "PRÉVIA EM MEMÓRIA — NÃO É LANÇAMENTO CONFIRMADO\n" : "") + financeReportCsv(data, competence);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `DMP_Financeiro_${competence}.csv`;
+    link.download = `DMP_Financeiro_${competence}${futureView.projected ? "_PREVIA" : ""}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -583,13 +602,13 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   }
 
   return (
-    <PixPayerProvider revision={financeCloudRevision} disabled={!loaded||!cloudWritable||syncing||!payerMetadataReady} onSavingChange={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Não foi possível recarregar o Financeiro.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setFinanceCloudRevision(value=>value+1);}}>
+    <PixPayerProvider revision={financeCloudRevision} disabled={futureReadOnly||!loaded||!cloudWritable||syncing||!payerMetadataReady} onSavingChange={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Não foi possível recarregar o Financeiro.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setFinanceCloudRevision(value=>value+1);}}>
     <>
-      <header className={`dashboard-topbar ${styles.topbar} ${tab === "summary" ? styles.approvedTopbar : ""}`}>
+      <header className={`dashboard-topbar ${styles.topbar} ${tab === "summary" && !futureView.unavailable ? styles.approvedTopbar : ""}`}>
         <div>
           <p className="dashboard-eyebrow">Gestão financeira</p>
           <h1>Financeiro</h1>
-          <p>{competenceLabel(competence)} · <strong>{competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
+          <p>{competenceLabel(competence)} · <strong>{futureReadOnly ? "Consulta futura" : competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
         <div className={styles.topActions}>
           <label className={styles.competencePicker}>
@@ -597,6 +616,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
             <select value={competence} onChange={event => dispatch({ type: "SWITCH_COMPETENCE", competence: event.target.value })}>
               {competences.map(item => <option key={item} value={item}>{competenceLabel(item)}</option>)}
             </select>
+            <input type="month" aria-label="Consultar outro mês" value={competence} onChange={event => {if (/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) dispatch({type:"SWITCH_COMPETENCE",competence:event.target.value});}}/>
           </label>
         </div>
       </header>
@@ -613,7 +633,8 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           ))}
         </nav>
 
-        {!editable ? <section className={styles.closedBanner}><strong>🔒 {competenceLabel(competence)} está fechada.</strong><span>Os dados estão em modo somente leitura. Para corrigir algo, use Reabrir na aba Fechamento.</span></section> : null}
+        {futureReadOnly ? <section className={styles.closedBanner}><strong>Consulta futura · somente leitura</strong><span>{futureView.projected ? "Prévia das recorrências e parcelas pelas regras atuais. Nenhum lançamento foi gravado. Ranking, eventos e valores variáveis ainda não informados não são previstos." : "Valores já registrados, separados entre previstos e recebidos. Nenhum lançamento é criado ao consultar."}</span>{!storedData.competences[competence] ? <span>{futureView.unavailable ? "Ainda não gerado: não há base suficiente para calcular esta competência." : "Esta competência ainda não foi aberta. Os valores previstos são estimativas, não recebimentos confirmados."}</span> : null}</section> : null}
+        {!editable && !futureReadOnly ? <section className={styles.closedBanner}><strong>🔒 {competenceLabel(competence)} está fechada.</strong><span>Os dados estão em modo somente leitura. Para corrigir algo, use Reabrir na aba Fechamento.</span></section> : null}
 
         {voiceText ? (
           <section className={`panel ${styles.voicePreview} ${voicePreview?.kind==="extra"?styles.voiceExtraPreview:""}`}>
@@ -631,7 +652,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           </section>
         ) : null}
 
-        {tab === "summary" ? (
+        {tab === "summary" && !futureView.unavailable ? (
           <>
             <FinanceSummaryView summary={summary} mercadoPagoBalance={mercadoPagoBalance} onOpen={setTab} onFilter={(next,target)=>{setListFilter(next);setTab(target);}} />
 
@@ -662,10 +683,10 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         </div>
         ) : null}
 
-        {tab === "personal" ? (
+        {tab === "personal" && !futureView.unavailable ? (
           <section className="panel">
             <div className="panel-head"><div><h2>Personal · {competenceLabel(competence)}</h2><p className="muted">{money.format(summary.personalReceived)} recebidos de {money.format(summary.personalExpected)} previstos.{personalAudit?" · "+personalAudit.linked+" vinculados ao cadastro"+(personalAudit.ambiguous?" · "+personalAudit.ambiguous+" pendência(s) para conferência":"")+(personalAudit.unmatchedInvoices?" · "+personalAudit.unmatchedInvoices+" lançamento(s) sem aluno correspondente":""):""}</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "personal-create" })}>+ Mensalidade manual</button></div>
-            <InvoiceCancellation data={data} disabled={!loaded||!cloudWritable||syncing||!payerMetadataReady||payerSaving} onSaving={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Recarregue para conferir o resultado.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setUndoDeletion(null);setFinanceCloudRevision(value=>value+1);}}/>
+            <InvoiceCancellation data={data} disabled={futureReadOnly||!loaded||!cloudWritable||syncing||!payerMetadataReady||payerSaving} onSaving={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Recarregue para conferir o resultado.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setUndoDeletion(null);setFinanceCloudRevision(value=>value+1);}}/>
             <FilterBar value={listFilter} onChange={setListFilter} />
             <div className={styles.list}>
               {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).sort(compareDueDay).map(invoice => {
@@ -676,8 +697,8 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           </section>
         ) : null}
 
-        {tab === "ds" ? (
-          <div className="finance-ds-single">
+        {tab === "ds" && !futureView.unavailable ? (
+          <div className={`finance-ds-single ${styles.dsSettlementPanel}`}>
             <section className="panel">
               <div className="panel-head"><div><h2>Acerto DS Tênis</h2><p className="muted">Saldo recalculado automaticamente.</p></div><div className={styles.inlineActions}><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "ranking" })}>Editar ranking</button><button className="secondary" disabled={!editable} onClick={() => openAction({ type: "events" })}>Editar eventos</button></div></div>
               {competence === "2026-08" && summary.ranking === 6500 ? <div className={styles.importNote}><strong>Conferência da planilha</strong><span>O Resumo DS informa Ranking de R$ 6.500,00. Outro quadro da planilha mostra R$ 7.000,00. O DMP está usando R$ 6.500,00; altere aqui se necessário.</span></div> : null}
@@ -698,9 +719,9 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           </div>
         ) : null}
 
-        {tab === "expenses" ? <ExpenseList title="Despesas" items={summary.expenses} filter={listFilter} setFilter={setListFilter} editable={editable} onCreate={() => openAction({ type: "expense-create" })} onPay={expense => openAction({ type: "expense-payment", expense })} onEdit={expense => openAction({ type: "expense-edit", expense })} /> : null}
+        {tab === "expenses" && !futureView.unavailable ? <ExpenseList title="Despesas" items={summary.expenses} filter={listFilter} setFilter={setListFilter} editable={editable} onCreate={() => openAction({ type: "expense-create" })} onPay={expense => openAction({ type: "expense-payment", expense })} onEdit={expense => openAction({ type: "expense-edit", expense })} /> : null}
 
-        {tab === "extras" ? (
+        {tab === "extras" && !futureView.unavailable ? (
           <div className={styles.twoColWide}>
             <section className="panel">
               <div className="panel-head"><div><h2>Gastos extras</h2><p className="muted">{summary.extras.length} lançamentos · {money.format(summary.extrasTotal)} realizados.</p></div></div>
@@ -773,11 +794,11 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           </div>
         ) : null}
 
-        {tab === "mercado-pago" ? <MercadoPagoTestPage financeData={data} financeBusy={syncing||!cloudWritable||!payerMetadataReady} financeRefreshKey={financeCloudRevision} onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
+        {tab === "mercado-pago" ? <MercadoPagoTestPage financeData={storedData} financeBusy={futureReadOnly||syncing||!cloudWritable||!payerMetadataReady} financeRefreshKey={financeCloudRevision} onFinanceChanged={refreshFinanceAfterMercadoPago} onBalanceChanged={setMercadoPagoBalance} /> : null}
 
-        {tab === "closing" ? <ClosingTab data={data} competence={competence} summary={summary} pendencies={pendencies} editable={editable} onClose={closeCompetence} onReopen={reopenCompetence} onCreateNext={createNextCompetence} onSwitch={value => dispatch({ type: "SWITCH_COMPETENCE", competence: value })} /> : null}
+        {tab === "closing" && !futureReadOnly ? <ClosingTab data={data} competence={competence} summary={summary} pendencies={pendencies} editable={editable} onClose={closeCompetence} onReopen={reopenCompetence} onCreateNext={createNextCompetence} onSwitch={value => dispatch({ type: "SWITCH_COMPETENCE", competence: value })} /> : null}
 
-        {tab === "reports" ? <ReportsTab data={data} competence={competence} onDownload={downloadReport} /> : null}
+        {tab === "reports" && !futureView.unavailable ? <ReportsTab data={data} competence={competence} onDownload={downloadReport} /> : null}
       </section>
 
       {action ? <FinanceActionModal action={action} data={data} competence={competence} kidsStudentOptions={kidsStudentOptions} onClose={() => setAction(null)} dispatch={dispatch} /> : null}
