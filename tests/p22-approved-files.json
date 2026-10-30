@@ -1,0 +1,13 @@
+{
+  "base": "ddde6f5cc7e83c56f0c26c729d07b4e64b4e97fa",
+  "files": {
+    "app/api/mercado-pago/route.ts": {
+      "before": "eedef32a1b4e4d726046a4f03a7a5fcda13c5a4c762b2dbbac6a8a50d2ce884e",
+      "after": "900617f1bf8dec212b0d3fba85c543d51dcc41005f0d05c9b89a9bc6ca073ebc"
+    },
+    "components/mercado-pago/MercadoPagoTestPage.tsx": {
+      "before": "f342bace4c5b218fe6b8da6e370d4d6edea1b2c89152e395e5c8fab40c0168c9",
+      "after": "78f5372fc1a8ba0d06a086d56e719b00d45267c6d4b3a9417507d412d48e0196"
+    }
+  }
+}

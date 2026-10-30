@@ -30,6 +30,7 @@ type FinanceContext={
 type ApiData={
   connected:boolean;needsSetup:boolean;configured:{settlement:boolean;release:boolean};configurationOptimized:boolean;pending:boolean;
   balance:number|null;balanceSource:string|null;lastSync:string|null;movements:Move[];classificationVersion?:string;cutoverDate:string;
+  balanceReport?:ReportState;balanceFallback?:boolean;
   counts:{review:number;autoReady:number;processed:number;automatic:number;technical:number;historical:number};
   reports:{settlement:ReportState;release:ReportState};firstCollectionNotice:boolean;learnedRuleCount:number;learnedRules:LearnedRule[];
   financeContext:FinanceContext;financeConnected:boolean;
@@ -449,7 +450,7 @@ export default function MercadoPagoTestPage({financeData,financeBusy=false,finan
 
     <section className={styles.balanceHero}>
       <div className={styles.balanceIcon}>$</div>
-      <div className={styles.balanceMain}><span>Saldo disponível Mercado Pago</span><strong>{loading?"Carregando...":typeof data?.balance==="number"?money.format(data.balance):"Aguardando Liberações"}</strong><small>{typeof data?.balance==="number"?"Este saldo também compõe o Saldo projetado do Resumo.":"O DMP continua acompanhando o relatório de Liberações até o saldo ficar disponível."}</small></div>
+      <div className={styles.balanceMain}><span>Saldo disponível Mercado Pago</span><strong>{loading?"Carregando...":typeof data?.balance==="number"?money.format(data.balance):"Aguardando Liberações"}</strong><small>{typeof data?.balance==="number"?"Este saldo também compõe o Saldo projetado do Resumo.":"O DMP continua acompanhando o relatório de Liberações até o saldo ficar disponível."}</small>{typeof data?.balance==="number"&&data.balanceReport?<small>Relatório de Liberações: {date(data.balanceReport.generatedAt||"")}.{data.balanceFallback?" Usando relatório anterior enquanto o mais recente não fornece saldo válido.":""}</small>:null}</div>
       <div className={styles.balanceSync}><span>Última sincronização</span><strong>{dateTime(data?.lastSync||null)}</strong><div className={styles.syncButtons}><button className="secondary" disabled={loading||autoChecking||!connected} onClick={()=>void searchReports(true)}>{autoChecking&&!busy?"Buscando...":"Buscar relatórios agora"}</button><button className="secondary" disabled={loading||busy||Boolean(data?.pending)||!connected} onClick={()=>void generateReports(true)}>{busy||data?.pending?"Relatório em andamento":"Gerar novo relatório agora"}</button></div><em>Busca a cada 30 min · relatório automático a cada 12 h · geração manual com intervalo de 1 h</em></div>
     </section>
 

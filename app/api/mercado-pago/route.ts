@@ -736,6 +736,24 @@ function summaryReport(report:MpReport|undefined|null){
   if(!report)return null;
   return {id:report.report_id??report.id??null,status:String(report.status||"unknown"),beginDate:report.begin_date||null,endDate:report.end_date||null,generatedAt:report.generation_date||report.date_created||report.last_modified||null,fileName:report.file_name||null};
 }
+// Balance-only fallback: never feed an older CSV into reconciliation movements.
+async function availableReleaseBalance(primary:Awaited<ReturnType<typeof latestCsv>>,reports:MpReport[]){
+  const current=releaseBalance(primary.rows);
+  if(current.value!==null)return {balance:current,report:primary.report,fileName:primary.fileName,rows:primary.rows.length,fallback:false};
+  const seen=new Set<string>();
+  if(primary.fileName)seen.add(primary.fileName);
+  for(const report of sortReports(reports).filter(isProcessed).slice(0,8)){
+    if(report===primary.report)continue;
+    const fileName=await resolveFileName("release",report);
+    if(!fileName||seen.has(fileName))continue;
+    seen.add(fileName);
+    const csv=await downloadCsv("release",fileName);
+    if(!csv)continue;
+    const rows=parseCsv(csv),balance=releaseBalance(rows);
+    if(balance.value!==null)return {balance,report,fileName,rows:rows.length,fallback:true};
+  }
+  return {balance:current,report:null,fileName:null,rows:0,fallback:false};
+}
 function paid(payments:Array<{amount:number}>|undefined){return (payments||[]).reduce((sum,item)=>sum+Number(item.amount||0),0);}
 function financeContext(data:FinanceData|null):FinanceContext{
   if(!data||data.version!==1)return {competence:null,categories:[],personal:[],expenses:[]};
@@ -861,7 +879,8 @@ async function buildOverview():Promise<OverviewInternal>{
     latestCsv("settlement",settlementReports,settlementTask),latestCsv("release",releaseReports,releaseTask)
   ]);
   const movements=unifiedMovements(settlementCsv.rows,releaseCsv.rows,state);
-  const balance=releaseBalance(releaseCsv.rows);
+  const balanceResult=await availableReleaseBalance(releaseCsv,releaseReports);
+  const balance=balanceResult.balance;
   const settlementStatus=settlementTask||settlementReports[0]||null;
   const releaseStatus=releaseTask||releaseReports[0]||null;
   const latestDates=[reportDate(settlementCsv.report||{}),reportDate(releaseCsv.report||{}),reportDate(settlementTask||{}),reportDate(releaseTask||{})].filter(Boolean).sort().reverse();
@@ -870,6 +889,8 @@ async function buildOverview():Promise<OverviewInternal>{
   const operational=movements.filter(item=>!item.historical&&!item.technical);
   const response={
     connected:true,needsSetup,configured,configurationOptimized,pending,balance:balance.value,balanceSource:balance.source,lastSync:latestDates[0]||null,
+    balanceReport:balanceResult.report?summaryReport({...balanceResult.report,file_name:balanceResult.fileName||undefined}):null,
+    balanceFallback:balanceResult.fallback,
     movements,classificationVersion:CLASSIFICATION_VERSION,cutoverDate:CUTOVER_DATE,
     counts:{
       review:operational.filter(item=>item.status==="REVIEW"||item.status==="AUTO_READY").length,
@@ -881,7 +902,7 @@ async function buildOverview():Promise<OverviewInternal>{
     },
     learnedRuleCount:Object.keys(state.rules).length,learnedRules,
     reports:{settlement:summaryReport(settlementStatus),release:summaryReport(releaseStatus)},
-    sourceCounts:{settlementRows:settlementCsv.rows.length,releaseRows:releaseCsv.rows.length,unifiedMovements:movements.length},
+    sourceCounts:{settlementRows:settlementCsv.rows.length,releaseRows:releaseCsv.rows.length,balanceReleaseRows:balanceResult.rows,unifiedMovements:movements.length},
     firstCollectionNotice:configured.settlement&&movements.length===0,
     financeContext:financeContext(finance),financeConnected:Boolean(finance),readOnly:false,
   };
