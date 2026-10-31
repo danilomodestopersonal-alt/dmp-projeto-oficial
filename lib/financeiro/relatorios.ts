@@ -1,3 +1,4 @@
+import {planningAmount} from "./prior-planning";
 import type { FinanceData, FinanceExpenseKind } from "@/types/financeiro";
 import { expenseStatus, financeSummary, invoiceStatus, paid, sum, receivedInCompetence } from "./calculos";
 
@@ -83,6 +84,27 @@ export function financeReportCsv(data: FinanceData, competence = data.currentCom
   lines.push(csvRow(["A pagar", summary.payable.toFixed(2)]));
   lines.push("");
 
+  const manualRows=(data.priorPlanning||[]).filter(row=>row.competence===competence);
+  if(manualRows.length){
+    lines.push(csvRow(["PENDENCIAS ANTERIORES — INCLUSAO MANUAL, SEM MOVIMENTO BANCARIO"]));
+    lines.push(csvRow(["Origem","Destino","Natureza","Obrigacao","Valor incluido","Pendente vinculado","Ativa","Motivo"]));
+    manualRows.forEach(row=>lines.push(csvRow([row.originCompetence,row.competence,row.kind,row.sourceId,row.amount.toFixed(2),planningAmount(data,row).toFixed(2),row.active?"Sim":"Desfeita",row.reason])));
+    lines.push("");
+  }
+  const bankLinks=(data.dsBankLinks||[]).filter(row=>row.competence===competence);
+  if(bankLinks.length){
+    lines.push(csvRow(["DEVOLUCOES DS VINCULADAS AO MERCADO PAGO"]));
+    lines.push(csvRow(["PIX","Data","Identificacao","Valor","Registro DS","Ativo","Origem do registro"]));
+    bankLinks.forEach(row=>lines.push(csvRow([row.fingerprint,row.date,row.identity,row.amount.toFixed(2),row.returnId,row.active?"Sim":"Desfeito",row.createdReturn?"Conciliacao":"Manual existente"])));
+    lines.push("");
+  }
+  const operationAudit=[...(data.priorPlanningAudit||[]),...(data.dsBankAudit||[])].filter(a=>a.competence===competence);
+  if(operationAudit.length){
+    lines.push(csvRow(["AUDITORIA DE INCLUSOES MANUAIS E DEVOLUCOES PIX"]));
+    lines.push(csvRow(["Operacao","Data","Operador","Acao","Motivo","Antes","Depois"]));
+    operationAudit.forEach(a=>lines.push(csvRow([a.operationId,a.occurredAt,a.operator,a.action,a.reason,JSON.stringify(a.before),JSON.stringify(a.after)])));
+    lines.push("");
+  }
   lines.push(csvRow(["PERSONAL"]));
   lines.push(csvRow(["Aluno", "Vencimento", "Previsto", "Recebido", "Status"]));
   summary.personal.forEach(item => lines.push(csvRow([

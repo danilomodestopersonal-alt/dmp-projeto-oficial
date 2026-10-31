@@ -1,3 +1,4 @@
+import {originalDsBalance as dsBalanceFor} from "./ds-settlement";
 import {editExpenseSeries,expenseSeriesValues,type ExpenseEditScope} from "./expense-series";
 import type {
   DsKidEntry,
@@ -59,20 +60,11 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function dsBalanceFor(data: FinanceData, competence: string) {
-  const transferred = new Set((data.carriedPendencies || []).filter(item => item.originCompetence === competence && item.sourceEntryId).map(item => item.sourceEntryId as string));
-  const kidsBase = data.dsKids.filter(item => item.competence === competence && !item.excludedFromTotals && !!item.studentId && !transferred.has(item.id)).reduce((total, item) => total + item.amount, 0);
-  const carried = (data.carriedPendencies || []).filter(item => item.competence === competence && item.scope === "DS_KIDS").reduce((total, item) => total + item.amount, 0);
-  const settlement = Math.round((((kidsBase + carried) * data.dsPercent) + (data.rankingByCompetence[competence] || 0) + (data.eventsByCompetence?.[competence] || 0)) * 100) / 100;
-  const received = (data.dsReceipts[competence] || []).reduce((total, item) => total + item.amount, 0);
-  const returned = (data.dsReturns?.[competence] || []).reduce((total, item) => total + item.amount, 0);
-  return Math.round(((data.dsOpeningBalances?.[competence] || 0) + settlement - received + returned) * 100) / 100;
-}
-
 // Preenche apenas chaves ausentes de competências abertas; zero explícito é definitivo.
 export function initializeDsOpeningBalances(data: FinanceData): FinanceData {
   let next = data;
   for (const competence of Object.keys(data.competences).sort()) {
+    if (competence >= "2026-11") continue;
     if (competence < data.currentCompetence && competence !== "2026-10") continue;
     if (!isCompetenceEditable(data, competence) || Object.prototype.hasOwnProperty.call(next.dsOpeningBalances || {}, competence)) continue;
     const previous = previousCompetence(competence);
@@ -120,6 +112,10 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
     return { ...initializeDsOpeningBalances(data), currentCompetence: target };
   }
 
+  if (target >= "2026-11" && !Object.prototype.hasOwnProperty.call(data.dsOpeningBalances||{},target) &&
+      ((data.dsReceipts[target]||[]).length || (data.dsReturns?.[target]||[]).length || data.rankingByCompetence[target] || data.eventsByCompetence?.[target])) {
+    throw new Error("A competência futura já contém acerto DS sem saldo inicial definido. Confira e defina o saldo explicitamente antes de abrir o mês.");
+  }
   const sourcePersonal = data.personalInvoices
     .filter(item => item.competence === fromCompetence)
     .filter(item => !item.excludedFromTotals)
@@ -176,14 +172,14 @@ function generateNextCompetence(data: FinanceData, fromCompetence: string) {
       ...data.competences,
       [target]: { status: "OPEN", openedAt: nowIso() },
     },
-    rankingByCompetence: { ...data.rankingByCompetence, [target]: 0 },
-    eventsByCompetence: { ...(data.eventsByCompetence || {}), [target]: 0 },
-    personalInvoices: [...data.personalInvoices, ...personalInvoices],
-    dsKids: [...data.dsKids, ...dsKids],
-    dsReceipts: { ...data.dsReceipts, [target]: [] },
-    dsReturns: { ...(data.dsReturns || {}), [target]: [] },
-    dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [target]: Object.prototype.hasOwnProperty.call(data.dsOpeningBalances || {}, target) ? data.dsOpeningBalances![target] : dsBalanceFor(data, fromCompetence) },
-    expenses: [...data.expenses, ...expenses],
+    rankingByCompetence: { ...data.rankingByCompetence, [target]: data.rankingByCompetence[target] ?? 0 },
+    eventsByCompetence: { ...(data.eventsByCompetence || {}), [target]: data.eventsByCompetence?.[target] ?? 0 },
+    personalInvoices: [...data.personalInvoices, ...personalInvoices.filter(item => !data.personalInvoices.some(old => old.competence===target && (old.studentId && old.studentId===item.studentId || !old.studentId && old.studentName===item.studentName)))],
+    dsKids: [...data.dsKids, ...dsKids.filter(item => !data.dsKids.some(old => old.competence===target && old.studentId===item.studentId))],
+    dsReceipts: { ...data.dsReceipts, [target]: data.dsReceipts[target] || [] },
+    dsReturns: { ...(data.dsReturns || {}), [target]: data.dsReturns?.[target] || [] },
+    dsOpeningBalances: { ...(data.dsOpeningBalances || {}), [target]: Object.prototype.hasOwnProperty.call(data.dsOpeningBalances || {}, target) ? data.dsOpeningBalances![target] : (target >= "2026-11" ? 0 : dsBalanceFor(data, fromCompetence)) },
+    expenses: [...data.expenses, ...expenses.filter(item => !data.expenses.some(old => old.competence===target && (old.seriesId||old.id)===(item.seriesId||item.id)))],
   };
 
   return withHistory(created, historyEntry(target, "COMPETENCE_CREATED", `Competência ${target} criada automaticamente a partir de ${fromCompetence}.`));
@@ -298,12 +294,14 @@ export function applyFinanceCommand(data: FinanceData, command: FinanceCommand):
       return withHistory(updated, historyEntry(command.competence, "DS_RETURN_ADDED", "Devolução para a DS registrada.", command.amount, payment.id));
     }
 
-    case "DS_RETURN_DELETE": { const payment = (data.dsReturns?.[command.competence] || []).find(item => item.id === command.returnId); if (!payment) return data;
+    case "DS_RETURN_DELETE": {
+      if (data.dsBankLinks?.some(link=>link.active && link.competence===command.competence && link.returnId===command.returnId)) return data; const payment = (data.dsReturns?.[command.competence] || []).find(item => item.id === command.returnId); if (!payment) return data;
       const updated = { ...data, dsReturns: { ...(data.dsReturns || {}), [command.competence]: (data.dsReturns?.[command.competence] || []).filter(item => item.id !== command.returnId) } };
       return withHistory(updated, historyEntry(command.competence, "DS_RETURN_DELETED", "Devolução para a DS removida.", payment.amount, payment.id));
     }
 
     case "DS_OPENING_BALANCE_SET": {
+      if(data.priorPlanning?.some(row=>row.active&&row.competence===command.competence&&row.kind.startsWith("DS_")))return data;
       if (!command.note.trim() || !Number.isFinite(command.balance)) return data;
       const previous = data.dsOpeningBalances?.[command.competence] || 0;
       const balance = Math.round(command.balance * 100) / 100;

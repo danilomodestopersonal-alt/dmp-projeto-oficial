@@ -1,3 +1,5 @@
+import {newMonthOpeningPreserved} from "@/lib/financeiro/rollover-policy";
+import {settlementLinksPreserved} from "@/lib/financeiro/ds-bank-return";
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
@@ -78,6 +80,14 @@ export async function PUT(request: NextRequest) {
     );
 
     if (current.rows.length > 0) {
+      if (!newMonthOpeningPreserved(current.rows[0].payload, body)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({error:"A partir de novembro, novos meses não transportam saldo DS automaticamente. Atualize o aplicativo e confira a competência."},{status:409});
+      }
+      if (!settlementLinksPreserved(current.rows[0].payload, body)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({error:"Vínculos e histórico protegidos. Use a ação específica de devolução DS ou pendência anterior."},{status:409});
+      }
       if (!cancellationsPreserved(current.rows[0].payload, body)) {
         await client.query("ROLLBACK");
         return NextResponse.json({error:"Cancelamentos protegidos. Atualize e use a ação específica da cobrança."},{status:409});
@@ -115,6 +125,11 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if(current.rows.length && Object.keys(body.competences||{}).some(c=>c>="2026-11"&&!current.rows[0].payload.competences[c])) {
+      await client.query("INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(id) DO NOTHING",[
+        "finance_rollover_backup:"+iso(current.rows[0].updated_at),JSON.stringify(current.rows[0].payload)
+      ]);
+    }
     const result = await client.query(
       `
         INSERT INTO dmp_data (id, payload, updated_at)

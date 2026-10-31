@@ -15,7 +15,7 @@ export function futureFinanceView(base: FinanceData, selected: string, currentMo
   let steps = 0;
   while (month < selected && steps < 120) {
     view = preparePersonalRenewalForNextMonth(view, students, month).data;
-    view = applyFinanceCommand(view, { type: "CREATE_NEXT_COMPETENCE", fromCompetence: month });
+    try { view = applyFinanceCommand(view, { type: "CREATE_NEXT_COMPETENCE", fromCompetence: month }); } catch { return unavailable(); }
     month = nextCompetence(month);
     steps++;
   }

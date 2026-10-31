@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{loader,read}=require('./p15-harness.cjs');
+const {base,move,input}=require('./p24-finance.cjs'),load=loader(),{applyDsBankReturn}=load('lib/financeiro/ds-bank-return.ts');
+const data=base(),Comp=load('components/mercado-pago/DsReturnReconciliation.tsx').DsReturnReconciliation;
+const html=renderToStaticMarkup(React.createElement(Comp,{fingerprint:move.fingerprint,data,disabled:false,onSaved:async()=>{}}));
+assert.match(html,/Devolução para DS Tennis/);assert.match(html,/Selecione explicitamente/);assert.match(html,/Conferir dívida/);assert.match(html,/não altera o saldo bancário/);assert.doesNotMatch(html,/Confirmar devolução DS/,'must preview before enabling confirmation');
+const saved=applyDsBankReturn(data,move,input(),'operator','now');const undo=renderToStaticMarkup(React.createElement(Comp,{link:saved.dsBankLinks[0],data:saved,disabled:false,onSaved:async()=>{}}));assert.match(undo,/Desfazer classificação/);assert.match(undo,/disabled=""/);assert.match(undo,/histórico|vínculo/);
+const component=read('components/mercado-pago/DsReturnReconciliation.tsx');assert.match(component,/expectedDebt:preview!\.before/);assert.match(component,/confirmedAmount:preview!\.amount/);assert.match(component,/x-dmp-expected-updated-at/);assert.match(component,/pending.current=true/);
+const mp=read('components/mercado-pago/MercadoPagoTestPage.tsx');assert.match(mp,/option value="DS_RETURN"/);assert.match(mp,/choice.target!=="OTHER_RECEIPT"&&choice.target!=="DS_RETURN"/);assert.match(mp,/choice.target!=="DS_RETURN"\?<button/);
+const api=load('app/api/mercado-pago/route.ts',read('app/api/mercado-pago/route.ts')+'\nexport {autoTargetOptions,persistDecision,validateTarget};');
+assert.equal(api.autoTargetOptions({...move,canLearn:true,learningKey:'ds',description:'DS'},{rules:{'OUT:ds':{mode:'AUTO',target:'DS_RETURN'}}}),null);
+assert.equal(api.validateTarget('IN','DS_RETURN'),false);assert.equal(api.validateTarget('OUT','DS_RETURN'),false,'generic route cannot bypass dedicated preview');
+api.persistDecision(move,'DS_RETURN',{ruleChoice:'AUTO',automatic:true}).then(r=>{assert.equal(r.ok,false);console.log('PASS P24 INTERFACE: explicit competence, preview, individual confirmation, audit undo, no learned rule, no generic bypass.');}).catch(e=>{console.error(e);process.exitCode=1;});

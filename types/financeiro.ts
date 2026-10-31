@@ -163,7 +163,24 @@ export type FinanceCompetenceMeta = {
   reopenedAt?: string;
 };
 
+export type PriorPlanning = {
+  id:string; competence:string; originCompetence:string;
+  kind:"DS_CREDIT"|"DS_DEBT"|"PERSONAL"|"EXPENSE"|"OTHER_CREDIT"|"OTHER_DEBT";
+  sourceId:string; amount:number; reason:string; active:boolean;
+};
+export type FinanceOperationAudit = {
+  operationId:string; request:string; occurredAt:string; operator:string;
+  competence:string; entityId:string; action:string; reason:string; before:unknown; after:unknown;
+};
+export type DsBankLink = {
+  id:string; fingerprint:string; aliases:string[]; competence:string; returnId:string;
+  amount:number; date:string; identity:string; createdReturn:boolean; active:boolean;
+};
 export type FinanceData = {
+  priorPlanning?:PriorPlanning[];
+  priorPlanningAudit?:FinanceOperationAudit[];
+  dsBankLinks?:DsBankLink[];
+  dsBankAudit?:FinanceOperationAudit[];
   version: 1;
   currentCompetence: string;
   competences: Record<string, FinanceCompetenceMeta>;

@@ -1,3 +1,4 @@
+import {planningTotals} from "./prior-planning";
 import type { FinanceData, FinanceExpense, FinancePayment, PersonalInvoice } from "@/types/financeiro";
 
 export type PaymentStatus = "PENDING" | "PARTIAL" | "PAID" | "OVERDUE" | "PARTIAL_OVERDUE";
@@ -54,7 +55,8 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const extras = data.extraExpenses.filter(item => item.competence === competence);
   const receipts = data.dsReceipts[competence] || [];
   const returns = data.dsReturns?.[competence] || [];
-  const dsOpeningBalance = roundMoney(data.dsOpeningBalances?.[competence] || 0);
+  const manualPlanning = planningTotals(data,competence);
+  const dsOpeningBalance = roundMoney((data.dsOpeningBalances?.[competence] || 0) + manualPlanning.ds);
 
   const personalExpected = sum(personal.map(item => item.expectedAmount));
   // A mensalidade pertence à competência cobrada, mas a receita pertence ao
@@ -87,17 +89,22 @@ export function financeSummary(data: FinanceData, competence = data.currentCompe
   const projectedRevenue = roundMoney(personalExpected + dsSettlement);
   const otherReceipts = (data.otherReceipts || []).filter(item=>item.date.slice(0,7)===competence);
   const otherReceived = sum(otherReceipts.map(item=>item.amount));
-  const realizedRevenue = roundMoney(personalReceived + dsReceived + otherReceived);
+  const dsCashReceived = sum(Object.entries(data.dsReceipts).flatMap(([origin,rows])=>rows
+    .filter(item=>item.date && item.date.slice(0,7)>="2026-11" ? item.date.slice(0,7)===competence : competence<"2026-11" && origin===competence)
+    .map(item=>item.amount)));
+  const realizedRevenue = roundMoney(personalReceived + dsCashReceived + otherReceived);
   const realizedResult = roundMoney(realizedRevenue - totalExpensesPaid);
   const personalOpen = sum(personal.map(item => remaining(item.expectedAmount, item.payments)));
-  const receivable = roundMoney(personalOpen + Math.max(0, dsBalance));
+  const receivable = roundMoney(personalOpen + Math.max(0, dsBalance) + manualPlanning.receivable);
   // A pagar é somente o saldo individual das despesas planejadas.
   // Gastos extras e saldo da DS não entram neste cálculo.
   const plannedPayable = sum(expenses.map(item => remaining(item.expectedAmount, item.payments)));
-  const payable = roundMoney(plannedPayable);
+  const payable = roundMoney(plannedPayable + manualPlanning.payable + (manualPlanning.ds<0?Math.max(0,-dsBalance):0));
   const projectedResult = roundMoney(receivable - payable);
 
   return {
+    manualPlanning,
+    dsCashReceived,
     personal,
     kids,
     carryovers,

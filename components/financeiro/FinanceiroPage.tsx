@@ -1,4 +1,6 @@
 "use client";
+import {PriorPlanning} from "./PriorPlanning";
+import {DsReturnReconciliation} from "../mercado-pago/DsReturnReconciliation";
 import {futureFinanceView} from "@/lib/financeiro/future-preview";
 import {editExpenseSeries,type ExpenseEditScope} from "@/lib/financeiro/expense-series";
 import {PixPayerProvider,PixPayerEditButton} from "./PixPayerEditor";
@@ -127,10 +129,8 @@ function ensureCalendarCompetence(base: FinanceData): FinanceData {
   // Pagamentos/recebimentos do mês anterior permanecem apenas nele.
   while (!next.competences[target] && next.currentCompetence < target && guard < 24) {
     const fromCompetence = next.currentCompetence;
-    const generated = applyFinanceCommand(next, {
-      type: "CREATE_NEXT_COMPETENCE",
-      fromCompetence,
-    });
+    let generated:FinanceData;
+    try { generated = applyFinanceCommand(next, { type: "CREATE_NEXT_COMPETENCE", fromCompetence }); } catch { break; }
     if (generated.currentCompetence === fromCompetence) break;
     next = generated;
     guard += 1;
@@ -414,6 +414,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
       return;
     }
     if (futureReadOnly) return;
+    try { applyFinanceCommand({...storedData,currentCompetence:competence},command); } catch(error) { window.alert(error instanceof Error?error.message:"Confira a competência antes de continuar."); return; }
     if (command.type === "CREATE_NEXT_COMPETENCE") setSelectedCompetence(nextCompetence(command.fromCompetence));
     if (command.type === "CLOSE_COMPETENCE" && command.createNext) setSelectedCompetence(nextCompetence(command.competence));
     if(command.type==="EXPENSE_UPDATE"){setSyncing(true);setPayerMetadataReady(false);}
@@ -633,6 +634,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           ))}
         </nav>
 
+        <PriorPlanning data={storedData} competence={competence} disabled={futureReadOnly||!loaded||!cloudWritable||syncing||!payerMetadataReady||payerSaving} onSaved={refreshFinanceAfterMercadoPago}/>
         {futureReadOnly ? <section className={styles.closedBanner}><strong>Consulta futura · somente leitura</strong><span>{futureView.projected ? "Prévia das recorrências e parcelas pelas regras atuais. Nenhum lançamento foi gravado. Ranking, eventos e valores variáveis ainda não informados não são previstos." : "Valores já registrados, separados entre previstos e recebidos. Nenhum lançamento é criado ao consultar."}</span>{!storedData.competences[competence] ? <span>{futureView.unavailable ? "Ainda não gerado: não há base suficiente para calcular esta competência." : "Esta competência ainda não foi aberta. Os valores previstos são estimativas, não recebimentos confirmados."}</span> : null}</section> : null}
         {!editable && !futureReadOnly ? <section className={styles.closedBanner}><strong>🔒 {competenceLabel(competence)} está fechada.</strong><span>Os dados estão em modo somente leitura. Para corrigir algo, use Reabrir na aba Fechamento.</span></section> : null}
 
@@ -705,9 +707,11 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
               <div className={styles.calc}><Calc label="Kids bruto" value={summary.kidsGross} />{summary.kidsCarryoverTotal>0?<Calc label="Incluído de pendências anteriores" value={summary.kidsCarryoverTotal}/>:null}<Calc label={`Sua parte (${Math.round(data.dsPercent * 100)}%)`} value={summary.kidsNet} /><Calc label="Ranking" value={summary.ranking} /><Calc label="Eventos" value={summary.events} /><Calc label="Acerto do mês" value={summary.dsSettlement} strong /><DsOpeningBalanceRow balance={summary.dsOpeningBalance} className={styles.calcRow}/><Calc label="Recebido da DS" value={summary.dsReceived} />{summary.dsReturned>0?<Calc label="Devolvido para DS" value={summary.dsReturned}/>:null}<Calc label={summary.dsBalance >= 0 ? "A receber da DS" : "A devolver para DS"} value={Math.abs(summary.dsBalance)} strong /></div>
               <button className={`primary ${styles.fullButton}`} disabled={!editable} onClick={() => openAction({ type: "ds-receipt" })}>+ Registrar recebimento DS</button>
               <button className={`secondary ${styles.fullButton}`} disabled={!editable || summary.dsBalance>=0} onClick={() => openAction({ type: "ds-return" })}>+ Registrar devolução para DS</button>
-              <DsOpeningBalanceEditButton editable={editable} className={`secondary ${styles.fullButton}`} onEdit={() => openAction({ type: "ds-opening-balance" })}/>
+              <DsOpeningBalanceEditButton editable={editable&&!storedData.priorPlanning?.some(r=>r.active&&r.competence===competence&&r.kind.startsWith("DS_"))} className={`secondary ${styles.fullButton}`} onEdit={() => openAction({ type: "ds-opening-balance" })}/>
               <div className={styles.receiptList}>{summary.receipts.length ? summary.receipts.map(receipt => <div key={receipt.id} className={styles.receipt}><span>{pixDisplayLabel(receipt.mercadoPago,receipt.sourceName || "DS")}<small>{receipt.date ? formatDate(receipt.date) : "Data não informada na planilha"}</small></span><div className={styles.receiptActions}><strong>{money.format(receipt.amount)}</strong><PixPayerEditButton recordId={receipt.id}/><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir recebimento de ${money.format(receipt.amount)} da DS?`)) dispatch({ type: "DS_RECEIPT_DELETE", competence, receiptId: receipt.id }); }}>Excluir</button></div></div>) : <Empty text="Nenhum recebimento da DS registrado." />}</div>
-              <div className={styles.receiptList}>{summary.returns.length ? summary.returns.map(payment => <div key={payment.id} className={styles.receipt}><span>Devolução para DS<small>{formatDate(payment.date)}{payment.note?` · ${payment.note}`:""}</small></span><div className={styles.receiptActions}><strong>{money.format(payment.amount)}</strong><button disabled={!editable} onClick={() => { if (window.confirm(`Excluir devolução de ${money.format(payment.amount)} para a DS?`)) dispatch({ type: "DS_RETURN_DELETE", competence, returnId: payment.id }); }}>Excluir</button></div></div>) : null}</div>
+              {(storedData.dsBankLinks||[]).filter(l=>l.active&&l.competence===competence).map(link=><DsReturnReconciliation key={link.id} link={link} data={storedData} disabled={!editable||syncing||!cloudWritable} onSaved={refreshFinanceAfterMercadoPago}/>)}
+              {(storedData.dsBankAudit||[]).some(a=>a.competence===competence)?<details><summary>Histórico das devoluções vinculadas a PIX</summary>{storedData.dsBankAudit!.filter(a=>a.competence===competence).slice().reverse().map(a=><p key={a.operationId}>{a.occurredAt} · {a.operator} · {a.action} · {a.reason}</p>)}</details>:null}
+              <div className={styles.receiptList}>{summary.returns.length ? summary.returns.map(payment => <div key={payment.id} className={styles.receipt}><span>Devolução para DS<small>{formatDate(payment.date)}{payment.note?` · ${payment.note}`:""}</small></span><div className={styles.receiptActions}><strong>{money.format(payment.amount)}</strong><button disabled={!editable||Boolean(storedData.dsBankLinks?.some(l=>l.active&&l.returnId===payment.id&&l.competence===competence))} onClick={() => { if (window.confirm(`Excluir devolução de ${money.format(payment.amount)} para a DS?`)) dispatch({ type: "DS_RETURN_DELETE", competence, returnId: payment.id }); }}>Excluir</button></div></div>) : null}</div>
               <div className={styles.importNote}><strong>🔴 Pendências trazidas de meses anteriores</strong><span>Você escolhe somente quem deve entrar nesta competência. Esses valores entram no Kids bruto deste mês e não seguem automaticamente para o próximo.</span></div>
               <button className={`secondary ${styles.fullButton}`} disabled={!editable || !Object.keys(data.competences).some(item=>item<competence)} onClick={() => openAction({ type: "carry-create" })}>+ Trazer pendência</button>
               <div className={styles.receiptList}>{summary.kidsCarryovers.length ? summary.kidsCarryovers.slice().sort((a,b)=>a.studentName.localeCompare(b.studentName,"pt-BR")).map(item => <div key={item.id} className={styles.receipt}><span><strong>{item.studentName}</strong><small>Veio de {competenceLabel(item.originCompetence)} · {carryoverKindLabel(item.kind)}{item.note?` · ${item.note}`:""}</small></span><div className={styles.receiptActions}><strong className={styles.outValue}>{money.format(item.amount)}</strong><button disabled={!editable} onClick={() => openAction({type:"carry-edit",carry:item})}>Editar</button></div></div>) : <span className="muted">Nenhuma pendência trazida para este mês.</span>}</div>

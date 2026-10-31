@@ -1,3 +1,5 @@
+import {dsReturnTransaction} from "@/lib/mercado-pago/ds-return-transaction";
+import {DsReturnError} from "@/lib/financeiro/ds-bank-return";
 import {reportPixPayer,manualPixPayer,pixTitle,pixForDestination,type PixMetadata} from "@/lib/mercado-pago/pix-payer";
 import {reportOutgoingIdentity,type OutgoingIdentity} from "@/lib/mercado-pago/outgoing-identity";
 import { reconcileExpenses, reverseExpenseReconciliation, type ExpenseAllocationInput, type ExpenseRemainder, type ExpenseReconciliation } from "@/lib/mercado-pago/expense-reconciliation";
@@ -29,7 +31,7 @@ type ReportKind="settlement"|"release";
 type AnyRow=Record<string,string>;
 type MoveKind="IN"|"OUT";
 type MoveStatus="AUTO_READY"|"REVIEW"|"PROCESSED"|"IGNORED"|"TECHNICAL"|"HISTORICAL";
-type TargetType="EXTRA"|"PERSONAL"|"DS"|"OTHER_RECEIPT"|"EXPENSE"|"TRANSFER"|"IGNORE";
+type TargetType="DS_RETURN"|"EXTRA"|"PERSONAL"|"DS"|"OTHER_RECEIPT"|"EXPENSE"|"TRANSFER"|"IGNORE";
 type RuleMode="SUGGEST"|"AUTO";
 type RuleChoice="ONCE"|RuleMode;
 type PersonalSplitInput={targetId:string;amount:number};
@@ -1127,6 +1129,7 @@ function ruleFromChoice(move:Movement,target:TargetType,mode:RuleMode,options:{c
   return {key,label:move.learningLabel||move.description,kind:move.kind,target,category:options.category||undefined,targetName:options.targetName||undefined,expenseName:options.expenseName||undefined,mode,approvals:(current?.approvals||0)+1,createdAt:current?.createdAt||now,updatedAt:now};
 }
 async function persistDecision(move:Movement,target:TargetType,options:{receiptDescription?:string;expectedExpenseRemaining?:number;category?:string;targetId?:string;targetName?:string;expenseName?:string;ruleChoice:RuleChoice;automatic:boolean}){
+  if(target==="DS_RETURN")return {ok:false,error:"Devolução DS exige o fluxo individual com prévia e confirmação."};
   if(target==="OTHER_RECEIPT"&&(options.automatic||options.ruleChoice!=="ONCE"))return {ok:false,error:"Outros recebimentos exige confirmação individual e motivo."};
   const client=await pool.connect();
   try{
@@ -1336,6 +1339,7 @@ async function updateProcessedExtra(move:Movement,categoryInput:string,expenseNa
 }
 function autoTargetOptions(move:Movement,state:MpState){
   const learned=move.canLearn?learnedRuleFor(state,move.learningKey,move.description,move.kind)?.rule:undefined;
+  if(learned?.target==="DS_RETURN")return null;
   if(learned?.mode==="AUTO")return {target:learned.target,category:learned.category,targetName:learned.targetName,expenseName:learned.expenseName,source:"learned"};
   if(move.status==="AUTO_READY"&&move.suggestedTarget==="EXTRA")return {target:"EXTRA" as const,category:move.category,targetName:undefined,expenseName:move.expenseName,source:"builtin"};
   return null;
@@ -1355,6 +1359,7 @@ async function processAutomatic(movements:Movement[]){
   return {processed,blocked,errors:errors.slice(0,5)};
 }
 function errorResponse(error:unknown){
+  if(error instanceof DsReturnError)return NextResponse.json({ok:false,error:error.message},{status:409});
   if(error instanceof MpUpstreamError){
     const status=error.status===401||error.status===403?502:error.status>=500?502:400;
     return NextResponse.json({ok:false,error:error.message,code:error.code},{status});
@@ -1373,6 +1378,16 @@ export async function POST(request:NextRequest){
   try{
     const body=await request.json().catch(()=>({}));
     const action=String(body?.action||"sync");
+
+    if(action==="ds-return"){
+      if(request.headers.get("x-dmp-action")!=="ds-return"||!request.headers.get("content-type")?.startsWith("application/json")||(request.headers.get("sec-fetch-site")&&request.headers.get("sec-fetch-site")!=="same-origin"))return NextResponse.json({error:"Origem inválida."},{status:403});
+      const input=body.input;
+      if(!input||!["PREVIEW","APPLY","UNDO"].includes(input.action))throw new DsReturnError("Ação inválida.");
+      const snapshot=input.action!=="UNDO"?await buildOverview():null;
+      const move=snapshot?.movements.find(m=>m.fingerprint===body.fingerprint);
+      if(input.action!=="UNDO"&&!move)throw new DsReturnError("PIX não localizado no relatório atual. Atualize a leitura.");
+      return NextResponse.json(await dsReturnTransaction(move,input,request.headers.get("x-dmp-expected-updated-at")));
+    }
 
     if(action==="edit-extra"){
       const fingerprint=String(body?.fingerprint||"").trim();

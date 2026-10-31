@@ -1,0 +1,73 @@
+{
+  "base": "54b5f5d44d94c4a5a4cec57b54955c0e4e3c0903",
+  "files": {
+    "app/api/finance/route.ts": {
+      "before": "0b780b5c2865ec78a0ee84dce1bfa922f7ca9944f2e53e9858b0ba1d52634dd3",
+      "after": "9864e870f5971ef0863c66e64fa97f15581082f0c30f24c4ee7ddf6f65052980"
+    },
+    "app/api/mercado-pago/route.ts": {
+      "before": "900617f1bf8dec212b0d3fba85c543d51dcc41005f0d05c9b89a9bc6ca073ebc",
+      "after": "cea66a62ba30d68e3c3306d7b93e71e456e79d5f48157fe53fc036b350e9dc46"
+    },
+    "components/financeiro/FinanceiroPage.tsx": {
+      "before": "b1af7b951ead73ed2f4652d1d066e6ccaeb04a36a83f26a5859261d97e94046a",
+      "after": "bbf8266821a62cb4b4e0028bf41a0886ef0b9086f1cdf27281552f3b646ffdc9"
+    },
+    "components/mercado-pago/MercadoPagoTestPage.tsx": {
+      "before": "78f5372fc1a8ba0d06a086d56e719b00d45267c6d4b3a9417507d412d48e0196",
+      "after": "a0e6e74eabaa38517e571fd6c5a4c3d1697fbac423279d563d880f8f8032a8e2"
+    },
+    "lib/financeiro/calculos.ts": {
+      "before": "0df4bec0a9d2864888df7b40e5945246447ca58b8dd2d80b051cc4798049b929",
+      "after": "e266a7b4a18ad0667200e314519e97846bd367e5b45dd98c8eb595d4c75f9db2"
+    },
+    "lib/financeiro/future-preview.ts": {
+      "before": "211eac06ab5f469dec791f27834be0921769d5b24d37b27db679a07c13b9fe17",
+      "after": "4c2acb62a3d4dea9eb6b4870950beaeb59b2d06e91fd78506f1eefe60b7e33a2"
+    },
+    "lib/financeiro/operacoes.ts": {
+      "before": "35c8dfbb3bae88e5def05a326e51ab4aab440a627909090228446e5708dfcf81",
+      "after": "ca690f20e79b90940a38618c822c94668b1e3296ae4b64dba35983b1cf485127"
+    },
+    "lib/financeiro/relatorios.ts": {
+      "before": "50af11373903dbe022fff20c0c428e06a6b82a820b9ddfd955c6b46a646aaad2",
+      "after": "5e70cdb86cc74a5448ff8f3791743e14b7328f2b6f5d1f911e703281261d9183"
+    },
+    "types/financeiro.ts": {
+      "before": "1c80e5537aa85a0afb91b26a02beaca2ae303d336b2195cc1f42023edbd7495e",
+      "after": "73d96723e0af523b9c8b868d814ef3346b0637ad576db5aeef947269ff23e010"
+    },
+    "app/api/finance/prior-planning/route.ts": {
+      "before": null,
+      "after": "486706ad53f2734760359bebb87e4344b294c899d8e4872285ff50c33e270aa2"
+    },
+    "components/financeiro/PriorPlanning.tsx": {
+      "before": null,
+      "after": "e890dc8dd172b48d3123c622d1a4d3be8cf1e866d7b4c0de252c03476434febb"
+    },
+    "components/mercado-pago/DsReturnReconciliation.tsx": {
+      "before": null,
+      "after": "f443d7b41d6a3124922b1c5436bdd493bd24a63544f12be97e2963e1f03e13eb"
+    },
+    "lib/financeiro/ds-bank-return.ts": {
+      "before": null,
+      "after": "f29ca05fe5a8b550aff8f998d9f2db07f409206dd6df808f37fb97e70fbf6afe"
+    },
+    "lib/financeiro/ds-settlement.ts": {
+      "before": null,
+      "after": "3c1e21be5d6ffcc2e1887cd01eb4fd9de1aa83f0519353966be6292ea3e4ddea"
+    },
+    "lib/financeiro/prior-planning.ts": {
+      "before": null,
+      "after": "fe26c4e728b359fc58f7c24b8db5f9fec4bec1caddc29d696ddad0836e3acfd8"
+    },
+    "lib/financeiro/rollover-policy.ts": {
+      "before": null,
+      "after": "0c15d565bc08a26dc0923f74276a8e4369ca69024a75f1c12713a8d0c9368de2"
+    },
+    "lib/mercado-pago/ds-return-transaction.ts": {
+      "before": null,
+      "after": "95ec991df99bd1b13842d8e6707a9eb3ef362a1213ec27265655660c9b3b053a"
+    }
+  }
+}
