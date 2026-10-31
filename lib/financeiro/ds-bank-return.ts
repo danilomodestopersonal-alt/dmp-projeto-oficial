@@ -11,9 +11,8 @@ export function dsReturnPreview(data:FinanceData,move:DsMovement,competence:stri
   const equivalents=same.filter(r=>!data.dsBankLinks?.some(l=>l.active&&l.returnId===r.id&&l.competence===competence));
   const existing=existingId?equivalents.find(r=>r.id===existingId):undefined;
   if(existingId&&!existing)throw new DsReturnError('A devolução manual escolhida mudou ou já foi vinculada.');
-  const before=Math.max(0,-financeSummary(data,competence).dsBalance);
+  const before=-financeSummary(data,competence).dsBalance;
   if(!existing&&same.length) return {before,after:before,amount:move.amount,date:move.dateKey,competence,equivalents,blocked:'Já existe devolução de mesmo valor e data. Vincule o registro existente ou revise-o antes de criar outra.'};
-  if(!existing&&cents(move.amount)>cents(before))throw new DsReturnError('O PIX excede a dívida DS desta competência. Não será criado crédito ou abatimento excedente. Confira o acerto.');
   return {before,after:existing?before:(cents(before)-cents(move.amount))/100,amount:move.amount,date:move.dateKey,competence,equivalents,blocked:''};
 }
 export function applyDsBankReturn(data:FinanceData,move:DsMovement|undefined,input:any,operator:string,now:string):FinanceData {

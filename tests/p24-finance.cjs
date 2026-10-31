@@ -9,7 +9,7 @@ let d=base(),original=JSON.stringify(d),next=act(d,move,input());
 assert.equal(JSON.stringify(d),original);assert.equal(financeSummary(next).dsBalance,-150);assert.equal(next.dsReturns['2026-10'].length,1);assert.deepEqual(next.expenses,d.expenses);assert.deepEqual(next.extraExpenses,d.extraExpenses);assert.equal(financeSummary(next).realizedResult,financeSummary(d).realizedResult);
 assert.strictEqual(act(next,move,input()),next);assert.throws(()=>act(next,move,input({operationId:'operation-00000002'})),/já vinculado/);assert.throws(()=>act(next,move,input({reason:'Alterado'})),/já utilizada/);
 assert.equal(financeSummary(act(d,{...move,amount:200},input({confirmedAmount:200}))).dsBalance,0);
-assert.throws(()=>act(d,{...move,amount:201},input({confirmedAmount:201})),/excede/);
+assert.equal(financeSummary(act(d,{...move,amount:201},input({confirmedAmount:201}))).dsBalance,1);
 for(const amount of [-1,0,NaN,Infinity,1.001])assert.throws(()=>act(d,{...move,amount},input({confirmedAmount:amount})));
 for(const alteration of [{kind:'IN'},{technical:true},{historical:true}])assert.throws(()=>act(d,{...move,...alteration},input()));
 assert.throws(()=>act(d,move,input({expectedDebt:199})),/mudou/);assert.throws(()=>act(d,move,input({confirmedAmount:51})),/mudou/);assert.throws(()=>act(d,move,input({confirmed:false})));
@@ -44,3 +44,22 @@ const net=structuredClone(dsPlan);net.rankingByCompetence['2026-11']=500;assert.
 const csv=load('lib/financeiro/relatorios.ts').financeReportCsv;assert.match(csv(planned,'2026-11'),/PENDENCIAS ANTERIORES/);assert.match(csv(next,'2026-10'),/DEVOLUCOES DS VINCULADAS/);assert.match(csv(reversed,'2026-10'),/AUDITORIA/);
 const {newMonthOpeningPreserved}=load('lib/financeiro/rollover-policy.ts');assert(newMonthOpeningPreserved(base(),nov));const stale=structuredClone(nov);stale.dsOpeningBalances['2026-11']=-200;assert.equal(newMonthOpeningPreserved(base(),stale),false);
 assert.throws(()=>act(next,{...move,fingerprint:'different-pix'},input()),/já utilizada/,'an operation id is bound to the exact PIX');
+
+// P24B: user-confirmed settlement is independent of calculated debt.
+for(const opening of [-2000,-1746,-200,0,300]) {
+ const source=base();source.dsOpeningBalances['2026-10']=opening;
+ const pix={...move,amount:1746};const preview=dsReturnPreview(source,pix,'2026-10');
+ assert.equal(preview.blocked,'');assert.equal(-preview.before||0,opening);assert.equal(-preview.after||0,opening+1746);
+ const result=act(source,pix,input({expectedDebt:preview.before,confirmedAmount:1746}));
+ assert.equal(financeSummary(result,'2026-10').dsBalance,opening+1746);
+ assert.deepEqual(result.expenses,source.expenses);assert.deepEqual(result.extraExpenses,source.extraExpenses);
+ assert.equal(financeSummary(result,'2026-10').realizedResult,financeSummary(source,'2026-10').realizedResult);
+ const req=input({expectedDebt:preview.before,confirmedAmount:1746});assert.strictEqual(act(result,pix,req),result);
+ const november=applyFinanceCommand(result,{type:'CREATE_NEXT_COMPETENCE',fromCompetence:'2026-10'});
+ assert.equal(november.dsOpeningBalances['2026-11'],0);assert.equal(financeSummary(november,'2026-11').dsBalance,0);
+ assert.deepEqual(november.dsReturns['2026-10'],result.dsReturns['2026-10']);
+ assert.equal(financeSummary(november,'2026-10').dsBalance,opening+1746);
+ assert.equal(financeSummary(november,'2026-11').personalExpected,300);
+ const restored=act(result,undefined,{...undo,linkId:result.dsBankLinks[0].id});assert.equal(financeSummary(restored,'2026-10').dsBalance,opening);
+}
+console.log('PASS P24B: PIX above/below/equal debt, zero/positive settlement, retry/undo; November DS zero and October preserved.');
