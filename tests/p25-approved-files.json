@@ -1,0 +1,41 @@
+{
+  "base": "ca24f336d38675bc915fef07d5b1db01dda8ff52",
+  "files": {
+    "app/api/google/absence/route.ts": {
+      "before": "43e5ec31932505954a29163be4c92306e52e5418eecbf6b691e29319ea3be6d5",
+      "after": "ff6d1b2ef1d80398fc4e6005f6b80cf6ab011ac00ab1ccd768808868004f738e"
+    },
+    "app/api/students/attendance-correction/route.ts": {
+      "before": "b447342458710e29727a9e4042219cd3b16795f4c973512ed0e96e7f0c014f14",
+      "after": "e3a565f06ad9563e281fc83ef93b4525bf7b5cd021370aad6830152844ec3dc1"
+    },
+    "components/DmpApp.tsx": {
+      "before": "d0b660790656e65235c4f1025d86dadfd57de895113ec132763edfd6c81add00",
+      "after": "7a984db38cd47bc1bcc57bc23c89c1826a88998bd35eadf5e1566d3c314e68e7"
+    },
+    "components/calendar/AbsenceDateCorrections.tsx": {
+      "before": null,
+      "after": "a2cf1e739df32b9b66e232836fb712633d9d69a53481a405e2dff180a6c85fe1"
+    },
+    "components/calendar/AttendanceCorrection.tsx": {
+      "before": "960ddcde0ee3f2aac517a4e8371aaec142e361b4d0ad7b55cb1ceac86d8a1375",
+      "after": "4449abc46e1af60525fab622ec184cd271ba8ef46b3fc4bb421e1d2269fc9553"
+    },
+    "lib/calendar/attendance-correction.ts": {
+      "before": "8e48020e89872ae9919a5626f9b0e2dd243835aabb6e95738ee58587ce789bb1",
+      "after": "b78e23f19b99740ab9259760c7dbc27595f8f1338e5c01d74fb1c7c0cbe1f3a1"
+    },
+    "lib/calendar/corrected-session-guard.ts": {
+      "before": "39008a84d41c2f11390b1d818c126880e8f9165b026a4511bab030ab93735fc3",
+      "after": "c534d24960513519104bafa84988f061aa339f102708c97f9f3a42dea7e6b0aa"
+    },
+    "lib/calendar/session-history.ts": {
+      "before": null,
+      "after": "59e2039ef048dec7a4eda6401b4a5407b9e7c5dbf8e38a1b4b5528b93685048b"
+    },
+    "types/models.ts": {
+      "before": "c857fe4cd702ed037319ee187a183c5ea475ce6c0bfc04d4d3a527fecdfea452",
+      "after": "e5a2af977ad2e05e1ec49d109d8f650a8e26f6429d77f65d934e2f72ca286af7"
+    }
+  }
+}

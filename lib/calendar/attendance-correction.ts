@@ -68,6 +68,10 @@ export async function confirmCorrectionGoogle(context:Awaited<ReturnType<typeof 
  if(parent&&(await read(parent.id)).etag!==parent.etag)conflict("A série mudou após a gravação. A presença ainda não foi confirmada no DMP.");
  return String(check.etag);
 }
+export function undoAbsence(student:Student,session:Session,revision:string,googleEtag?:string):Student {
+ if(session.source!=="ABSENCE"||correctionRevision(session)!==revision)conflict("A ausência mudou. Confira novamente.");
+ return {...student,sessions:student.sessions.filter(s=>s.id!==session.id),undoneAbsences:[...(student.undoneAbsences||[]),{revision,at:new Date().toISOString(),session,googleEtag}]};
+}
 export function correctedAttendance(session:Session,previousRevision:string,googleEtag?:string):Session{
  if(session.source!=="ABSENCE"||correctionRevision(session)!==previousRevision)conflict("O registro foi alterado. Atualize o histórico.");
  return {...session,source:"ATTENDANCE",workoutName:/^aus[eê]ncia$/i.test(session.workoutName)?"Presença":session.workoutName,attendanceCorrections:[...(session.attendanceCorrections||[]),{id:previousRevision,at:new Date().toISOString(),from:"ABSENCE",to:"ATTENDANCE",previousRevision,eventId:session.calendarEvent?.id,googleEtag,previousWorkoutName:session.workoutName}]};

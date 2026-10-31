@@ -20,7 +20,7 @@ export async function POST(request:NextRequest){
  const event:CalendarEvent={id:p.event.id,summary:p.event.summary,start:p.event.start,end:p.event.end,etag:typeof p.event.etag==="string"?p.event.etag:undefined,description:String(p.event.description||"").slice(0,8000),location:String(p.event.location||"").slice(0,2000)};
  const repairEmpty=p.repairEmpty===true;
  if(repairEmpty&&(p.action!=="retry"||!event.etag))return NextResponse.json({message:"Atualize a ocorrência antes de corrigir a aula vazia."},{status:400});
- const key=absenceKey(p.studentId,event.id);let session:Session|undefined;let operation:AbsenceOperation|undefined;let refreshed:any;
+ const key=absenceKey(p.studentId,event.id);let session:Session|undefined;let operation:AbsenceOperation|undefined;let refreshed:any;let createdSession=false;
  const client=await pool.connect();let locked=false;let committed=false;
  try{
   // Serialize operations for the same occurrence, including requests from other tabs.
@@ -35,12 +35,13 @@ export async function POST(request:NextRequest){
   if(!session){
    if(student.sessions.some(s=>s.calendarEvent?.id===event.id&&s.source!=="ABSENCE"))throw new AbsenceConflict("Há presença ou treino nesta ocorrência. Revise o histórico antes de registrar ausência.");
    session={id:randomUUID(),date:day(event.start),workoutName:"Ausência",notes:"Ausência informada.",completedExercises:[],source:"ABSENCE",finishedAt:new Date().toISOString(),calendarEvent:{id:event.id,summary:event.summary,description:event.description,start:event.start,end:event.end,location:event.location}};
+   createdSession=true;
    student.sessions=[session,...student.sessions];
    await client.query("UPDATE dmp_data SET payload=$2,updated_at=NOW() WHERE id=$1",["students",JSON.stringify(students)]);
   }
   await client.query("INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,NOW()) ON CONFLICT(id) DO NOTHING",[STORE,"{}"]);
   const state=await client.query("SELECT payload FROM dmp_data WHERE id=$1 FOR UPDATE",[STORE]);const ops:Record<string,AbsenceOperation>=parse(state.rows[0].payload)||{};
-  operation=ops[key]||{key,studentId:p.studentId,event,state:"pending",message:"Ausência salva. Retirada no Google pendente.",updatedAt:new Date().toISOString()};
+  operation=(!createdSession&&ops[key])||{key,studentId:p.studentId,event,state:"pending",message:"Ausência salva. Retirada no Google pendente.",updatedAt:new Date().toISOString()};
   // A confirmed legacy removal may still have left a live empty occurrence.
   // Only this explicit repair reopens it; ordinary retries remain idempotent.
   if(repairEmpty)operation={...operation,event,repairEmpty:true,state:"pending",message:"Conferindo a ocorrência vazia no Google."};

@@ -99,6 +99,7 @@ export type Assessment = {
 };
 
 export type Student = {
+  undoneAbsences?: Array<{revision:string;at:string;session:Session;googleEtag?:string}>;
   id: string;
   name: string;
   phone: string;

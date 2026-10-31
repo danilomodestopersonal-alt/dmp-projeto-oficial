@@ -4,7 +4,7 @@ import {pool} from "@/lib/db";
 import {sameOrigin} from "@/lib/widget/devices";
 import {getGoogleAccessToken,setGoogleCookies} from "@/lib/google-calendar";
 import {absenceKey} from "@/lib/calendar/absence-removal";
-import {AttendanceCorrectionError,correctionTarget,correctionRevision,correctionGoogle,confirmCorrectionGoogle,correctedAttendance} from "@/lib/calendar/attendance-correction";
+import {AttendanceCorrectionError,correctionTarget,correctionRevision,correctionGoogle,confirmCorrectionGoogle,correctedAttendance,undoAbsence} from "@/lib/calendar/attendance-correction";
 export const runtime="nodejs";
 const validId=(value:unknown):value is string=>typeof value==="string"&&value.length>0&&value.length<=256;
 const failure=(error:unknown)=>NextResponse.json({ok:false,message:error instanceof AttendanceCorrectionError?error.message:"Não foi possível confirmar a correção. Atualize o histórico antes de repetir."},{status:error instanceof AttendanceCorrectionError?error.status:503});
@@ -29,11 +29,15 @@ export async function POST(request:NextRequest){
  if(!sameOrigin(request))return NextResponse.json({message:"Origem não autorizada."},{status:403});
  const body=await request.json().catch(()=>null);
  if(!body||body.confirmed!==true||!validId(body.studentId)||!validId(body.sessionId)||typeof body.revision!=="string"||!/^[a-f0-9]{64}$/.test(body.revision)||typeof body.eventEtag!=="string"||body.eventEtag.length>512||typeof body.parentEtag!=="string"||body.parentEtag.length>512)return NextResponse.json({message:"Reabra a confirmação da ausência."},{status:400});
+ const action=body.action||"PRESENT";
+ if(!["PRESENT","UNDO"].includes(action))return NextResponse.json({message:"Ação inválida."},{status:400});
  const client=await pool.connect();let lock="";
  try{
   // Discover the lock key without writing. Re-read the record under the row lock below.
   const initial=await client.query("SELECT payload FROM dmp_data WHERE id=$1",["students"]);
   if(!Array.isArray(initial.rows[0]?.payload))throw new AttendanceCorrectionError(503,"Histórico indisponível.");
+  const archived=initial.rows[0].payload.find((s:any)=>s.id===body.studentId)?.undoneAbsences?.find((a:any)=>a.session.id===body.sessionId&&a.revision===body.revision);
+  if(archived){if(action!=="UNDO")throw new AttendanceCorrectionError(409,"Esta ausência já foi desfeita. Atualize a Home.");return NextResponse.json({ok:true,already:true,data:initial.rows[0].payload});}
   const first=correctionTarget(initial.rows[0].payload,body.studentId,body.sessionId).session;
   lock="dmp-absence:"+(first.calendarEvent?.id||body.studentId+":"+body.sessionId);
   const acquired=await client.query("SELECT pg_try_advisory_lock(hashtext($1)) AS locked",[lock]);
@@ -41,20 +45,22 @@ export async function POST(request:NextRequest){
   await client.query("BEGIN");
   const result=await client.query("SELECT payload FROM dmp_data WHERE id=$1 FOR UPDATE",["students"]),students=result.rows[0]?.payload;
   if(!Array.isArray(students))throw new AttendanceCorrectionError(503,"Histórico indisponível.");
+  const archive=students.find((s:any)=>s.id===body.studentId)?.undoneAbsences?.find((a:any)=>a.session.id===body.sessionId&&a.revision===body.revision);
+  if(archive){if(action!=="UNDO")throw new AttendanceCorrectionError(409,"Ausência já desfeita.");await client.query("COMMIT");return NextResponse.json({ok:true,already:true,data:students});}
   const {session}=correctionTarget(students,body.studentId,body.sessionId);
-  if(session.source==="ATTENDANCE"&&session.attendanceCorrections?.some(a=>a.previousRevision===body.revision)){await client.query("COMMIT");return NextResponse.json({ok:true,already:true,data:students});}
+  if(action==="PRESENT"&&session.source==="ATTENDANCE"&&session.attendanceCorrections?.some(a=>a.previousRevision===body.revision)){await client.query("COMMIT");return NextResponse.json({ok:true,already:true,data:students});}
   if(session.source!=="ABSENCE"||correctionRevision(session)!==body.revision||session.calendarEvent?.id!==first.calendarEvent?.id)throw new AttendanceCorrectionError(409,"O registro mudou. Reabra a confirmação no histórico.");
   if(students.find(s=>s.id===body.studentId).sessions.some((s:any)=>s.id!==session.id&&s.date===session.date&&(!s.calendarEvent||!session.calendarEvent||s.calendarEvent.id===session.calendarEvent.id)))throw new AttendanceCorrectionError(409,"Existe outro registro nesta data/ocorrência. Confira o histórico para evitar duplicidade.");
   const auth=session.calendarEvent?await getGoogleAccessToken(request):null;
   if(session.calendarEvent&&!auth?.accessToken)throw new AttendanceCorrectionError(401,"Conecte a Agenda Google para confirmar a ocorrência.");
   const google=await correctionGoogle(session,body.studentId,students,auth?.accessToken||"");
   const googleEtag=await confirmCorrectionGoogle(google,body.studentId,students,{eventEtag:body.eventEtag,parentEtag:body.parentEtag});
-  const corrected=correctedAttendance(session,body.revision,googleEtag);
-  const next=students.map(s=>s.id===body.studentId?{...s,sessions:s.sessions.map((s:any)=>s.id===session.id?corrected:s)}:s);
+  const next=students.map(s=>s.id===body.studentId?(action==="UNDO"?undoAbsence(s,session,body.revision,googleEtag):{...s,sessions:s.sessions.map((s:any)=>s.id===session.id?correctedAttendance(session,body.revision,googleEtag):s)}):s);
+  await client.query("INSERT INTO dmp_data (id,payload,updated_at) VALUES ($1,$2,clock_timestamp()) ON CONFLICT (id) DO NOTHING",["attendance_backup:"+body.studentId+":"+body.revision,JSON.stringify(students)]);
   await client.query("UPDATE dmp_data SET payload=$2,updated_at=clock_timestamp() WHERE id=$1",["students",JSON.stringify(next)]);
   if(session.calendarEvent){
    const key=absenceKey(body.studentId,session.calendarEvent.id);
-   await client.query("UPDATE dmp_data SET payload=jsonb_set(payload,ARRAY[$2]::text[],(payload->$2)||$3::jsonb),updated_at=clock_timestamp() WHERE id=$1 AND payload ? $2",["dmp_absence_google_v1",key,JSON.stringify({state:"confirmed",message:"Ausência corrigida para presença pelo histórico.",updatedAt:new Date().toISOString()})]);
+   await client.query("UPDATE dmp_data SET payload=jsonb_set(payload,ARRAY[$2]::text[],(payload->$2)||$3::jsonb),updated_at=clock_timestamp() WHERE id=$1 AND payload ? $2",["dmp_absence_google_v1",key,JSON.stringify({state:"confirmed",message:action==="UNDO"?"Ausência desfeita; aula pendente, sem presença automática.":"Ausência corrigida para presença pela Home.",updatedAt:new Date().toISOString()})]);
   }
   await client.query("COMMIT");
   const response=NextResponse.json({ok:true,already:false,data:next});if(auth?.refreshed)setGoogleCookies(response,auth.refreshed);return response;

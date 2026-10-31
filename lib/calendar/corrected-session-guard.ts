@@ -1,6 +1,11 @@
 import type {Student} from "@/types/models";
 /** Old tabs cannot restore an absence over a confirmed, audited correction. */
 export function correctedSessionsPreserved(current:Student[],incoming:Student[]){
+ for(const student of [...current,...incoming]) {
+  const old=current.find(s=>s.id===student.id),next=incoming.find(s=>s.id===student.id);
+  if(JSON.stringify(old?.undoneAbsences||[])!==JSON.stringify(next?.undoneAbsences||[]))return false;
+  if(old?.undoneAbsences?.some(a=>next?.sessions?.some(s=>s.id===a.session.id)))return false;
+ }
  for(const student of current)for(const session of student.sessions||[]){
   if(!session.attendanceCorrections?.length)continue;
   const matches=incoming.filter(s=>s.id===student.id).flatMap(s=>s.sessions||[]).filter(s=>s.id===session.id);
