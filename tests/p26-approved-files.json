@@ -1,0 +1,21 @@
+{
+  "base": "f7b9fb273f493258acd4c1f55c09d4e52b912e18",
+  "files": {
+    "components/DmpApp.tsx": {
+      "before": "7a984db38cd47bc1bcc57bc23c89c1826a88998bd35eadf5e1566d3c314e68e7",
+      "after": "7a3caba7006f81db9a8c00d0c2c8dc2c5ecc6c468c9c5c4f7f983aef92f5c2fc"
+    },
+    "components/home/BirthdayWhatsApp.tsx": {
+      "before": null,
+      "after": "d9970c25342b142bd9b3094cee250f4b7c280d711fc2c9d808f16a084ca84886"
+    },
+    "components/home/BirthdayWhatsApp.module.css": {
+      "before": null,
+      "after": "52313a4386bf254e5c8761ae059b709e0949f46a67e90542984f9e68777abbb1"
+    },
+    "lib/birthday-whatsapp.ts": {
+      "before": null,
+      "after": "cbfae96ff918a827e59d1dda3e6cae05833918c3ada8ead83ee93d8e62cc4ce8"
+    }
+  }
+}

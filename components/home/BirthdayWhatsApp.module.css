@@ -1,0 +1,8 @@
+.backdrop{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:#102b25a6;padding:16px}
+.dialog{box-sizing:border-box;width:min(100%,560px);max-height:calc(100dvh - 32px);overflow:auto;background:#fff;color:#183e35;border-radius:18px;padding:22px;box-shadow:0 16px 60px #0004;overflow-wrap:anywhere}
+.heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.heading h2{margin:0;font-size:1.3rem}.dialog p{line-height:1.5;margin:14px 0}
+.heading button{flex-shrink:0;white-space:nowrap}
+.image{display:block;width:auto;max-width:100%;max-height:240px;object-fit:contain;margin:12px auto;border-radius:8px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.actions a{text-align:center;text-decoration:none;padding:12px 16px;border-radius:10px}
+.message{display:block;margin:14px 0}.message textarea{box-sizing:border-box;display:block;width:100%;margin-top:8px;resize:vertical;font:inherit;line-height:1.4;padding:10px}
+@media(max-width:480px){.dialog{padding:16px}.actions>*{flex:1 1 100%}}
