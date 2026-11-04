@@ -1,0 +1,7 @@
+{
+  "app/(institucional)/layout.tsx": "b5b6058bfc81da1ff7dcd777ceed006a298f4c8ada8071256bdafcbfd4ebb97a",
+  "app/(institucional)/publico.module.css": "237e10fad80ae91c0ec0849b385b2e868764e88581d89895020e5daac6f83080",
+  "app/(institucional)/sobre/page.tsx": "b768ea4ebd292dfeeb0ab8cc15242e78880f71aab7c37c81408ea428b6bfea2f",
+  "app/(institucional)/privacidade/page.tsx": "f0f47274baf3fdf326f67e569767866ef2bf390a210d6d9eb0766f808986e8f3",
+  "app/(institucional)/termos/page.tsx": "5b1cdf4c68a63478343e4b5477abd2c58b95830646b40babeb47ece7a499f1d1"
+}

@@ -1,0 +1,13 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Termos de Uso | DMP Personal Trainer" };
+export default function TermsPage() {
+  return <article>
+    <p>Condições de utilização</p><h1>Termos de Uso</h1><p>DMP Personal Trainer · Versão de 4 de novembro de 2026.</p>
+    <section><h2>1. Finalidade e acesso</h2><p>O DMP Personal Trainer é uma ferramenta de organização pessoal e profissional administrada por Danilo Modesto. A área de gestão é destinada ao responsável e às pessoas expressamente autorizadas. A existência destas páginas públicas não permite acesso a cadastros, agendas, dados financeiros ou históricos privados.</p></section>
+    <section><h2>2. Responsabilidades de uso</h2><p>Utilize apenas contas e dados para os quais tenha autorização. Confira os registros e as confirmações antes de executar ações. Proteja as credenciais, a conta Google e os dispositivos vinculados. Não utilize o sistema para acessar dados de terceiros sem autorização ou prejudicar seu funcionamento.</p></section>
+    <section><h2>3. Integrações e sincronização</h2><p>A integração com Google Agenda depende de consentimento e pode consultar e gerenciar eventos conforme as funções utilizadas. Você pode revogar o acesso na Conta Google. A disponibilidade das integrações depende dos serviços externos, da conexão e da validade das autorizações.</p><p>Os widgets podem exibir a última informação sincronizada quando não conseguem atualizar. Confira a data de atualização antes de tomar decisões. O DMP não garante sincronização ininterrupta nem dispensa a conferência das informações na origem.</p></section>
+    <section><h2>4. Registros e decisões</h2><p>Os recursos financeiros servem à organização e conferência dos registros; não substituem a consulta aos extratos e comprovantes das instituições. Treinos e avaliações devem ser utilizados no contexto do acompanhamento profissional adequado. O usuário responsável deve conferir a exatidão dos dados inseridos e das ações confirmadas.</p></section>
+    <section><h2>5. Privacidade e encerramento do acesso</h2><p>O tratamento de dados está descrito na <a href="/privacidade">Política de Privacidade</a>. A desconexão de uma integração ou a revogação de um dispositivo não exclui automaticamente o histórico salvo. Solicitações de correção, exclusão e encerramento de acesso podem ser encaminhadas ao responsável.</p></section>
+    <section><h2>6. Contato e alterações</h2><p>Contato: <a href="mailto:danilomodestopersonal@hotmail.com">danilomodestopersonal@hotmail.com</a>. Alterações relevantes destas condições serão apresentadas em uma versão atualizada. Estes termos não afastam direitos assegurados pela legislação aplicável.</p></section>
+  </article>;
+}
