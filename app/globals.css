@@ -8135,3 +8135,41 @@ input:focus,textarea:focus{
  #dmp-home-modern .home-main-content .performance-today-empty .highlight-lines,
  .today-highlight-grid.todoist-home-grid > .performance-today-empty .highlight-lines {flex:0 0 auto;justify-content:flex-start!important;align-content:start!important;margin-top:0!important;}
 }
+
+/* Home Personal: compact absence badge, with a comfortable touch target. */
+.calendar-slot-student>button.status-chip.absent{
+  position:relative;min-height:32px!important;min-width:64px;
+  padding:4px 9px!important;border:1px solid #e7c7bd;
+  border-radius:8px;font-size:12px!important;font-weight:600;line-height:20px;
+}
+.calendar-slot-student>button.status-chip.absent::before{
+  content:"";position:absolute;inset:-6px 0;
+}
+.calendar-slot-student>button.status-chip.absent:focus-visible{
+  outline:2px solid #19443c;outline-offset:3px;
+}
+
+/* Agenda controls: desktop layout retained, mobile controls grouped. */
+.agenda-mobile-only,.agenda-mobile-label{display:none!important}
+@media(max-width:700px){
+ .agenda-mobile-heading{padding:12px 16px!important;min-height:0!important}
+ .agenda-mobile-heading p{display:none}
+ .agenda-mobile-heading h1{margin:0;font-size:1.6rem}
+ .agenda-mobile-heading+.dashboard-content{padding-top:10px!important}
+ .agenda-view-toolbar{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;padding:10px;margin-bottom:8px}
+ .agenda-view-toolbar>div:first-child{width:100%;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+ .agenda-view-toolbar button{min-width:0;padding:8px 9px;font-size:.78rem;min-height:36px}
+ .agenda-view-toolbar>div:first-child button{padding:7px 1px;font-size:.7rem;letter-spacing:0}
+ .agenda-view-toolbar .agenda-period-nav{width:100%;display:flex;flex-wrap:nowrap;gap:6px}
+ .agenda-period-nav strong{flex:1;white-space:normal;font-size:.82rem}
+ .agenda-mobile-only{display:inline-flex!important;align-items:center;justify-content:center}
+ .agenda-mobile-label{display:inline!important}
+ .agenda-desktop-label{display:none}
+ .agenda-date-picker,.agenda-maintenance-options{display:none}
+ .agenda-date-picker.is-open{display:block;width:100%;max-width:none}
+ .agenda-maintenance-options.is-open{display:block;margin-bottom:8px}
+ .agenda-period-panel{padding:10px!important}
+ .agenda-period-panel>.panel-head{margin-bottom:8px;gap:6px}
+ .agenda-period-panel>.panel-head h2{margin:0;font-size:1rem}
+ .agenda-period-panel>.panel-head p{display:none}
+}

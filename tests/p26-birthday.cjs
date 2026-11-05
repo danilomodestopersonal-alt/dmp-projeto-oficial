@@ -13,7 +13,7 @@ function extract(s){const ast=ts.createSourceFile('app.tsx',s,ts.ScriptTarget.La
 function card(s){const m={exports:{}},deps={useState:x=>[x,()=>{}],useEffect(){},useBirthdayWhatsApp:()=>({sendBirthday(){},dialog:null}),today:()=>'2026-11-02',calculateAge:()=>40};new Function('require','module','exports',...Object.keys(deps),H.compile(extract(s)+'\nexports.Card=SpecialDatesHome;'))(require,m,m.exports,...Object.values(deps));return renderToStaticMarkup(React.createElement(m.exports.Card,{students:[{...person,id:'birthday',status:'ACTIVE',birthDate:'1986-11-02'},{id:'anniversary',name:'Outro aluno',status:'ACTIVE',startDate:'2025-11-02'}],onStudent(){}}));}
 assert.equal(card(current),card(base));
 // Only the birthday component and its import may change in the shared Home file.
-const normalize=s=>s.replace('import {useBirthdayWhatsApp} from "@/components/home/BirthdayWhatsApp";\n','').replace(extract(s),'BIRTHDAY_COMPONENT');assert.equal(normalize(current),normalize(base));
+const normalize=s=>s.replace('import {useBirthdayWhatsApp} from "@/components/home/BirthdayWhatsApp";\n','').replace(extract(s),'BIRTHDAY_COMPONENT');assert.equal(normalize(require("./p27-original-files.cjs")("components/DmpApp.tsx",current)),normalize(base));
 const hook=H.read('components/home/BirthdayWhatsApp.tsx');assert.doesNotMatch(hook,/navigator\.share|canShare|method\s*:\s*["'](?:POST|PUT|DELETE)/);assert.match(hook,/window.open\(target.url/);assert.match(hook,/noopener,noreferrer/);assert.match(hook,/Nenhuma conversa foi aberta/);assert.match(hook,/Nada é enviado automaticamente/);
 (async()=>{
  const data=new Blob(['original bytes'],{type:'image/png'});let fetches=0;

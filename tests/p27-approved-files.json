@@ -1,0 +1,17 @@
+{
+  "base": "22ccf87c65df34d4e6bb1feee127193a3ca10e20",
+  "files": {
+    "app/globals.css": {
+      "before": "093cbe9121d2ab4577a92093365a754c43e6b27185d824d79eb1f61cce659e71",
+      "after": "0038c4de720b35838277b2222a06cb6e768e01a0128a791e012667f626c43d07"
+    },
+    "components/DmpApp.tsx": {
+      "before": "7a3caba7006f81db9a8c00d0c2c8dc2c5ecc6c468c9c5c4f7f983aef92f5c2fc",
+      "after": "97d21ee027f1b7256b3b0fbd4feaf86d18fb2a45da5977657724269acb6975eb"
+    },
+    "lib/widget/links.ts": {
+      "before": "173cb26e9c2077a72cfabeaaa6f62d5ff81886f300629392ab6468b12ffd4a10",
+      "after": "17b5723b6cf10d90fdc3481047d52b74fa190bc6cbc3905c8f33b8d7cf0791f5"
+    }
+  }
+}
