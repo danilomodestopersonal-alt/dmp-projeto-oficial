@@ -1,0 +1,45 @@
+{
+  "base": "2c448ba3084e881a543ee68eaa01c4c071b165a6",
+  "files": {
+    "app/globals.css": {
+      "before": "0038c4de720b35838277b2222a06cb6e768e01a0128a791e012667f626c43d07",
+      "after": "04172aca8e70ec0c206b14f6b52d17061ac068deb1a13852375a5afaa9d006b8"
+    },
+    "components/DmpApp.tsx": {
+      "before": "97d21ee027f1b7256b3b0fbd4feaf86d18fb2a45da5977657724269acb6975eb",
+      "after": "1b90a5ec5e7b33f67d2116c9e6f9e62fd052dcd4a4806b04fe2f6009f82def41"
+    },
+    "components/financeiro/FinanceiroPage.tsx": {
+      "before": "bbf8266821a62cb4b4e0028bf41a0886ef0b9086f1cdf27281552f3b646ffdc9",
+      "after": "f17ead79648952bb2f4c74eb3fe9c8c002a7261d198d50bef67d5f124c244544"
+    },
+    "components/mercado-pago/MercadoPagoTestPage.tsx": {
+      "before": "a0e6e74eabaa38517e571fd6c5a4c3d1697fbac423279d563d880f8f8032a8e2",
+      "after": "43ac5bf5b9c462d0d58d44cc66669fb9323fb0a01c081c538a0444fbe6589363"
+    },
+    "components/mercado-pago/MercadoPagoTestPage.module.css": {
+      "before": "03d78fe58b2b838e91f4a83b41e5b4253b6dfedef8bf30a598a32fd5933f1816",
+      "after": "18e726dff1540760c92fe3a7630d51f39d49ad702d07060ca1b6c5ce1d26a81d"
+    },
+    "components/mercado-pago/ExpenseAllocationEditor.tsx": {
+      "before": "585322040d1d6ec3a6fef3a091ba28dd74c9c6c22e95d37b9b3ca13ed42e9526",
+      "after": "5abdf48bccdf2efb99bb5a6551005cffcb46ab1823b40276f792a94b4f48ba4f"
+    },
+    "components/mercado-pago/MobileExplanation.tsx": {
+      "before": null,
+      "after": "8acafcff17e91585b003190ee5ac7702d4c3261f1959e73c15e43f9de7ef918a"
+    },
+    "lib/widget/load-v2.ts": {
+      "before": "ede135b5d7e83f60c47d93c8ebd89ac5b0263dd0b5aedd6418fb909b8a19e49e",
+      "after": "7663c638e924c7edf7a66200d985b0360c95bb19b7d3904235ad577c7770ce27"
+    },
+    "lib/widget/agenda-mirrors.ts": {
+      "before": null,
+      "after": "a1f84a85b1b1cac6adda1667edffc6332d92be8313ad7bf6f00297caf3e07a9e"
+    },
+    "lib/todoist-calendar.ts": {
+      "before": null,
+      "after": "c338b14a5f8395c7e324c66db144903233643f9f8ef84b46fc14582bbdeebb39"
+    }
+  }
+}

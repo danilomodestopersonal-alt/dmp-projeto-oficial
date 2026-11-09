@@ -8173,3 +8173,7 @@ input:focus,textarea:focus{
  .agenda-period-panel>.panel-head h2{margin:0;font-size:1rem}
  .agenda-period-panel>.panel-head p{display:none}
 }
+
+/* P28: independent Todoist mark; academy orange and today's shape stay intact. */
+.mini-month-days button.todoist-day{position:relative}
+.mini-month-days .todoist-date-marker{position:absolute;left:calc(50% + 5px);bottom:0;width:5px;height:5px;border-radius:50%;background:#cbd0d3;box-shadow:0 0 0 1px #697571;pointer-events:none}

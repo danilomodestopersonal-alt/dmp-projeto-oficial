@@ -1,3 +1,5 @@
+// CSS modules in compiled React components are presentation-only in the Node harness.
+const Module=require('node:module'),originalLoad=Module._load;Module._load=function(id,...args){if(id.endsWith('.module.css'))return new Proxy({},{get:(_,key)=>String(key)});return originalLoad.call(this,id,...args);};
 const {spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),output=path.join(root,'.operational-tests');

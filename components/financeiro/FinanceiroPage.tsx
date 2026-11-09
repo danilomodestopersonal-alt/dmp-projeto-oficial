@@ -612,6 +612,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           <p>{competenceLabel(competence)} · <strong>{futureReadOnly ? "Consulta futura" : competenceStatusLabel(data.competences[competence]?.status)}</strong> · {syncing ? "sincronizando..." : cloudWritable ? "nuvem ativa" : "backup local"}</p>
         </div>
         <div className={styles.topActions}>
+          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
           <label className={styles.competencePicker}>
             <span>Competência</span>
             <select value={competence} onChange={event => dispatch({ type: "SWITCH_COMPETENCE", competence: event.target.value })}>
@@ -658,14 +659,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           <>
             <FinanceSummaryView summary={summary} mercadoPagoBalance={mercadoPagoBalance} onOpen={setTab} onFilter={(next,target)=>{setListFilter(next);setTab(target);}} />
 
-        <div className={styles.quickActions}>
-          <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
-          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
-          <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
-          <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
-          <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
-          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>Gasto extra</button>
-        </div>
+
 
             <section className="panel">
               <div className="panel-head"><div><h2>Movimentações recentes</h2><p className="muted">Seu extrato interno do Financeiro.</p></div></div>
@@ -674,16 +668,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           </>
         ) : null}
 
-        {tab !== "summary" ? (
-        <div className={styles.quickActions}>
-          <button className={`secondary ${styles.launchButton}`} onClick={() => openAction({ type: "extra-create" })}>+ Lançar</button>
-          <FinanceDeviceTrust onRevoked={onTrustRevoked} />
-          <button className="secondary" onClick={() => setTab("personal")}>Receber personal</button>
-          <button className="secondary" onClick={() => setTab("expenses")}>Pagar conta</button>
-          <button className="secondary" onClick={() => openAction({ type: "ds-receipt" })}>Recebimento DS</button>
-          <button className="secondary" onClick={() => openAction({ type: "extra-create" })}>Gasto extra</button>
-        </div>
-        ) : null}
+
 
         {tab === "personal" && !futureView.unavailable ? (
           <section className="panel">

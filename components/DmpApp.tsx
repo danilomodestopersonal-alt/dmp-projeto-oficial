@@ -65,6 +65,7 @@ import type { PerformanceActivity } from "@/types/performance";
 
 type View = "today" | "students" | "workouts-overview" | "history-overview" | "assessments-overview" | "agenda" | "finance" | "reports" | "kids" | "performance" | "data" | "settings" | "weather" | "student" | "workout-editor" | "planned-session" | "historical-workout" | "free-session" | "attendance-session";
 type StudentTab = "summary" | "timeline" | "workouts" | "history" | "assessments" | "finance" | "files";
+import {todoistCalendarDates} from "@/lib/todoist-calendar";
 type DmpNote = { id:string; title?:string; text:string; done:boolean; createdAt:string; updatedAt:string; dueDate?:string; dueTime?:string; dueString?:string; priority?:number };
 
 type AgendaRange = "day" | "week" | "month" | "year" | "list";
@@ -2735,7 +2736,7 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
   return <>
     <div className="today-highlight-grid todoist-home-grid">
 
-      <MiniMonthCalendar onSelect={onAgenda}/>
+      <MiniMonthCalendar onSelect={onAgenda} notes={notes}/>
 
       {desktop?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():commitmentsReady?(()=>{const slot=document.getElementById("home-desktop-commitments");return slot?createPortal(commitmentsCard,slot):null;})():null}
 
@@ -2892,7 +2893,8 @@ const monthAssessmentRows=students.flatMap(student=>student.assessments.filter(i
   </>;
 }
 
-function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
+function MiniMonthCalendar({onSelect,notes}:{onSelect:(date:string)=>void;notes:DmpNote[]}){
+  const todoistDates=todoistCalendarDates(notes);
   const now=new Date();
   const [cursor,setCursor]=useState(()=>new Date(now.getFullYear(),now.getMonth(),1));
   const [eventData,setEventData]=useState<import("@/types/kids").KidsEvent[]>([]);
@@ -2984,17 +2986,18 @@ function MiniMonthCalendar({onSelect}:{onSelect:(date:string)=>void}){
         const value=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
         const hasEvent=eventsByDate.has(value);
         const isToday=value===today();
-        const className=[isToday?"today":"",hasEvent?"event-day":"",selectedDate===value?"event-selected":""].filter(Boolean).join(" ");
+        const hasTodoist=todoistDates.has(value);
+        const className=[isToday?"today":"",hasEvent?"event-day":"",hasTodoist?"todoist-day":"",selectedDate===value?"event-selected":""].filter(Boolean).join(" ");
         return <button
           key={day}
           className={className}
-          title={hasEvent?(eventsByDate.get(value)||[]).map(event=>event.name).join(" · "):undefined}
+          title={[...(eventsByDate.get(value)||[]).map(event=>event.name),...(todoistDates.get(value)||[]).map(title=>`Todoist: ${title}`)].join(" · ")||undefined}
           onClick={()=>{
             if(hasEvent){setSelectedDate(value);return;}
             setSelectedDate(null);
             onSelect(value);
           }}
-        >{day}</button>;
+        >{day}{hasTodoist?<span className="todoist-date-marker" aria-label="Compromisso Todoist"/>:null}</button>;
       })}
     </div>
     {selectedDate&&selectedEvents.length?

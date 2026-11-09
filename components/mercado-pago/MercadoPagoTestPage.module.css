@@ -13,3 +13,49 @@
 .reconcileBox{gap:5px!important;margin-top:2px;padding:7px;border-radius:10px}.reconcileGrid{gap:5px 7px!important}.reconcileGrid label{gap:2px!important}.reconcileGrid label>span,.dsHint>span{font-size:.56rem!important}.reconcileGrid select,.reconcileGrid input{min-height:29px!important}.reconcileGrid input{padding:4px 7px}.dsHint{gap:1px!important;padding:5px 7px}.learningChoice{display:grid!important;align-items:start!important;justify-content:stretch;gap:2px!important;padding-top:0;border-top:0;min-width:0}.learningChoice label{gap:2px!important}.learningChoice label>span{font-size:.56rem!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.learningChoice select{width:100%}.learningChoice>small{max-width:none;font-size:.55rem!important;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.suggestionNote{font-size:.57rem;padding-top:0}
 @media(max-width:1050px){.move{grid-template-columns:30px minmax(0,1fr)}.value{grid-column:2;justify-items:start}}
 @media(max-width:700px){.move{padding:8px}.reconcileBox{padding:7px}.reconcileGrid{grid-template-columns:1fr}.learningChoice>small{white-space:normal}.learningChoice label>span{white-space:normal}.compactEdit{grid-template-columns:1fr}.compactEdit>span{justify-content:flex-start}}
+
+/* P28: disclosures affect mobile presentation only; financial state is retained. */
+.mobileReviewToggle,.mobileDisclosure{display:none!important}
+.mobileExplanation{min-width:0}
+.confirmReview{display:flex;justify-content:flex-end}
+@media(max-width:700px){
+ .move{grid-template-columns:minmax(0,1fr)!important;gap:5px!important;padding:12px!important;align-items:start}
+ .move>.icon{display:none}
+ .move>.value{grid-column:1;grid-row:1;display:flex;width:100%;align-items:center;justify-content:space-between;flex-direction:row-reverse}
+ .value>strong{font-size:1rem!important}
+ .info{grid-column:1;gap:4px!important}
+ .info>div{min-width:0;flex-wrap:wrap}
+ .info>div>strong{font-size:.9rem!important;white-space:normal;overflow-wrap:anywhere}
+ .info>small{font-size:.75rem!important;line-height:1.35}
+ .badge{font-size:.68rem!important}
+ .mobileReviewToggle,.mobileDisclosure{display:inline-flex!important;align-items:center;border:0;border-radius:7px;background:#eef3e9;color:#31553b;cursor:pointer}
+ .value .mobileReviewToggle{min-height:36px!important;padding:6px 12px!important;font-size:.85rem!important}
+ .mobileDisclosure{min-height:32px!important;padding:4px 0!important;font-size:.75rem!important;background:transparent;text-align:left}
+ .explanationClosed{display:none!important}
+ .explanationOpen{display:block}
+ .pendingMove:not(.reviewOpen) .reconcileBox,.pendingMove:not(.reviewOpen) .identityHint{display:none!important}
+ .reconcileBox{border:0!important;border-radius:0!important;background:transparent!important;padding:4px 0 0!important;margin:0!important;gap:6px!important}
+ .reconcileGrid{gap:7px!important}
+ .reconcileGrid label>span,.learningChoice label>span{font-size:.72rem!important;white-space:normal!important}
+ .reconcileGrid select,.reconcileGrid input{font-size:1rem!important;min-height:38px!important;max-width:100%;box-sizing:border-box}
+ .reconcileGrid label{font-size:.82rem!important;gap:3px!important}
+ .allocationEditor{gap:6px!important;padding:0!important;margin-top:6px}
+ .allocationHeading{display:none}
+ .allocationEditor button{min-height:32px!important;padding:4px 8px!important;font-size:.78rem!important;justify-self:start}
+ .allocationAccount{gap:4px!important;padding:6px 0!important;border:0!important;border-radius:0!important;border-bottom:1px solid #dfe4d8!important}
+ .allocationAccount>strong{font-size:.82rem!important}
+ .allocationAccount>small{font-size:.75rem!important}
+ .allocationEditor p{margin:2px 0!important;font-size:.8rem!important;line-height:1.45}
+ .allocationTotals{padding:7px!important;background:#f0f4ec;border-radius:7px}
+ .allocationEditor [role=alert]{color:#a13224;font-weight:700}
+ .confirmReview{justify-content:stretch}
+ .confirmReview button{width:100%;min-height:40px!important;padding:7px 12px!important;font-size:.9rem!important}
+ .suggestionNote,.learningChoice>small{font-size:.72rem!important;white-space:normal!important}
+}
+
+@media(max-width:700px){
+ .singleAccount>strong,.allocationTotals>.selectedBalance{display:none}
+ .allocationAccount{position:relative}
+ .allocationAccount>strong,.allocationAccount>small{padding-right:80px;min-height:28px}
+ .allocationAccount>button{position:absolute;right:0;top:1px}
+}

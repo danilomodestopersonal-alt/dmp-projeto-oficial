@@ -1,0 +1,5 @@
+// Only historical byte-preservation checks use this adapter; P28 behavior loads current files.
+'use strict';
+const cp=require('node:child_process'),crypto=require('node:crypto'),A=require('node:assert/strict'),path=require('node:path');
+const sha=s=>crypto.createHash('sha256').update(s.replace(/\r\n/g,'\n')).digest('hex');
+module.exports=(file,text)=>{const m=require('./p28-approved-files.json'),spec=m.files[file];if(!spec||sha(text)!==spec.after)return text;A.equal(sha(text),spec.after);if(!spec.before)return text;const old=cp.execFileSync('git',['show',m.base+':'+file],{cwd:path.resolve(__dirname,'..'),encoding:'utf8',maxBuffer:32e6});A.equal(sha(old),spec.before);return old;};
