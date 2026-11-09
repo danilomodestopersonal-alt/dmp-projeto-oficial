@@ -8177,3 +8177,15 @@ input:focus,textarea:focus{
 /* P28: independent Todoist mark; academy orange and today's shape stay intact. */
 .mini-month-days button.todoist-day{position:relative}
 .mini-month-days .todoist-date-marker{position:absolute;left:calc(50% + 5px);bottom:0;width:5px;height:5px;border-radius:50%;background:#cbd0d3;box-shadow:0 0 0 1px #697571;pointer-events:none}
+
+/* P28B: Todoist uses the same date-circle footprint as academy events. */
+.mini-month-days button.todoist-day{
+ width:18px!important;min-width:18px!important;max-width:18px!important;height:18px!important;
+ padding:0!important;justify-self:center!important;align-self:center!important;
+ border-radius:50%!important;font-weight:900!important;line-height:18px!important;
+}
+.mini-month-days button.todoist-day:not(.today){background:#cbd0d3!important;color:#263a35!important}
+.mini-month-days button.event-day.todoist-day:not(.today){background:linear-gradient(90deg,#f58220 0 50%,#cbd0d3 50% 100%)!important;color:#263a35!important}
+.mini-month-days button.today.todoist-day{box-shadow:0 0 0 2px #cbd0d3!important}
+.mini-month-days button.today.event-day.todoist-day{box-shadow:-2px 0 0 1px #f58220,2px 0 0 1px #cbd0d3!important}
+.mini-month-days .todoist-date-marker{display:none}

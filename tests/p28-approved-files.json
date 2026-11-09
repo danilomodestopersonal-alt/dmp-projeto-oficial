@@ -3,7 +3,7 @@
   "files": {
     "app/globals.css": {
       "before": "0038c4de720b35838277b2222a06cb6e768e01a0128a791e012667f626c43d07",
-      "after": "04172aca8e70ec0c206b14f6b52d17061ac068deb1a13852375a5afaa9d006b8"
+      "after": "f4814ff96c837e269767a9672f0942fdac7415a7c6297dce52f361f2e24f0213"
     },
     "components/DmpApp.tsx": {
       "before": "97d21ee027f1b7256b3b0fbd4feaf86d18fb2a45da5977657724269acb6975eb",
@@ -19,7 +19,7 @@
     },
     "components/mercado-pago/MercadoPagoTestPage.module.css": {
       "before": "03d78fe58b2b838e91f4a83b41e5b4253b6dfedef8bf30a598a32fd5933f1816",
-      "after": "18e726dff1540760c92fe3a7630d51f39d49ad702d07060ca1b6c5ce1d26a81d"
+      "after": "834bc441f34d1e06a6a7299c879d814ca963d65f3a0619e1b5047f72e2368941"
     },
     "components/mercado-pago/ExpenseAllocationEditor.tsx": {
       "before": "585322040d1d6ec3a6fef3a091ba28dd74c9c6c22e95d37b9b3ca13ed42e9526",
