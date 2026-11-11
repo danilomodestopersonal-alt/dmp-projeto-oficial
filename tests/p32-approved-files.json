@@ -11,7 +11,7 @@
     },
     "components/appointments/FixedAppointments.module.css": {
       "before": "4b86afec654592dea25ba4861ae830a5dc25bc3360dbc3beda77ba9fbad2f005",
-      "after": "af5d4d8db77e8c378084bf8a5befa99209e9a5d7827ae4a1d3bf4117ca7efd34"
+      "after": "dddad94f65bbb5b761375afcef73868a8aa28ff32f3fc4ccdcce710a97f033cd"
     },
     "components/students/StudentNotebook.module.css": {
       "before": null,
@@ -21,5 +21,13 @@
       "before": null,
       "after": "dd81f812d6509f148e630f1d6c35798da7114c8b996fd0f8c934665400e4e7e1"
     }
+  },
+  "amendment": {
+    "round": "P32B",
+    "base": "9b61b84872dc0944dbbece43ad00541a76038764",
+    "productionFiles": [
+      "components/appointments/FixedAppointments.module.css"
+    ],
+    "reason": "Compact fixed appointment cards; preserve student notebook and all behavior."
   }
 }
