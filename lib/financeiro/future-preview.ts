@@ -1,3 +1,4 @@
+import {filterPausedGeneration} from "@/lib/students/lifecycle";
 import type { FinanceData } from "@/types/financeiro";
 import type { Student } from "@/types/models";
 import { applyFinanceCommand, nextCompetence } from "./operacoes";
@@ -15,7 +16,7 @@ export function futureFinanceView(base: FinanceData, selected: string, currentMo
   let steps = 0;
   while (month < selected && steps < 120) {
     view = preparePersonalRenewalForNextMonth(view, students, month).data;
-    try { view = applyFinanceCommand(view, { type: "CREATE_NEXT_COMPETENCE", fromCompetence: month }); } catch { return unavailable(); }
+    try { view = filterPausedGeneration(view, applyFinanceCommand(view, { type: "CREATE_NEXT_COMPETENCE", fromCompetence: month }), students); } catch { return unavailable(); }
     month = nextCompetence(month);
     steps++;
   }

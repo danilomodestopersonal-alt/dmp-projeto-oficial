@@ -1,3 +1,4 @@
+import {pausedBillingPreserved} from "@/lib/students/lifecycle";
 import {newMonthOpeningPreserved} from "@/lib/financeiro/rollover-policy";
 import {settlementLinksPreserved} from "@/lib/financeiro/ds-bank-return";
 import { isAuthorized } from "@/lib/auth";
@@ -78,6 +79,12 @@ export async function PUT(request: NextRequest) {
       "SELECT payload, updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
       [DATA_ID]
     );
+
+    const studentRows = await client.query("SELECT payload FROM dmp_data WHERE id=$1 FOR SHARE", ["students"]);
+    if (!pausedBillingPreserved(current.rows[0]?.payload, body, studentRows.rows[0]?.payload || [])) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ok:false,error:"Há uma inativação de aluno mais recente. Atualize o Financeiro; meses suspensos não geram mensalidades automáticas."},{status:409});
+    }
 
     if (current.rows.length > 0) {
       if (!newMonthOpeningPreserved(current.rows[0].payload, body)) {

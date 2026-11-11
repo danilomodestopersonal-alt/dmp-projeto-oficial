@@ -1,3 +1,4 @@
+import {billingAllowed,invoiceFrozen} from "@/lib/students/lifecycle";
 import type { FinanceData, PersonalInvoice } from "@/types/financeiro";
 import type { Student } from "@/types/models";
 
@@ -422,7 +423,7 @@ export function preparePersonalRenewalForNextMonth(
     if (!student) return invoice;
 
     const shouldRenew =
-      student.status === "ACTIVE" && student.financialActive !== false;
+      student.status === "ACTIVE" && student.financialActive !== false && billingAllowed(student, (()=>{const [y,m]=competence.split("-").map(Number);return m===12?`${y+1}-01`:`${y}-${String(m+1).padStart(2,"0")}`;})());
 
     const next: PersonalInvoice = {
       ...invoice,
@@ -528,6 +529,7 @@ export function reconcilePersonalFinance(
     }
 
     const invoice = nextInvoices[winner.index];
+    if (invoiceFrozen(student, invoice)) continue;
 
     if (student.financialActive === undefined) {
       student.financialActive = true;
@@ -554,7 +556,7 @@ export function reconcilePersonalFinance(
   // financeira mais recente. Competências anteriores continuam históricas e
   // nunca são reescritas quando o valor mensal muda no cadastro.
   for (const student of nextStudents) {
-    if (student.financialActive !== true) continue;
+    if (student.financialActive !== true || !billingAllowed(student, managedCompetence)) continue;
     // A cancelled obligation is a tombstone for this student/month, even after reactivation.
     if (nextInvoices.some(row => row.competence === managedCompetence && row.studentId === student.id && row.cancellation?.active)) continue;
     if (student.status !== "ACTIVE") continue;
@@ -578,6 +580,7 @@ export function reconcilePersonalFinance(
     if (linkedRows.length === 1) {
       const row = linkedRows[0];
       const invoice = row.invoice;
+      if (invoiceFrozen(student, invoice)) continue;
       nextInvoices[row.index] = {
         ...invoice,
         studentName: student.name.trim(),
@@ -621,7 +624,7 @@ export function reconcilePersonalFinance(
     const student = nextStudents.find(
       (candidate) => candidate.id === invoice.studentId,
     );
-    if (!student) continue;
+    if (!student || invoiceFrozen(student, invoice)) continue;
 
     if (
       (student.status !== "ACTIVE" || student.financialActive === false) &&

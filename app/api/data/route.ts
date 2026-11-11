@@ -1,3 +1,4 @@
+import {lifecyclePreserved} from "@/lib/students/lifecycle";
 import { isAuthorized } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
@@ -96,6 +97,10 @@ export async function PUT(request: NextRequest) {
     );
 
     if (current.rows.length > 0) {
+      if (!lifecyclePreserved(current.rows[0].payload, body)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ok:false,error:"A situação do aluno mudou. Atualize o cadastro e use Inativar aluno ou Reativar aluno no caderno."},{status:409});
+      }
       if (!correctedSessionsPreserved(current.rows[0].payload, body)) {
         await client.query("ROLLBACK");
         return NextResponse.json({ok:false,error:"O histórico contém uma correção de presença mais recente. Atualize os dados antes de salvar."},{status:409});

@@ -1,0 +1,65 @@
+{
+  "base": "5153758b940f35727c2b8035a8c4b7efb01e26b4",
+  "files": {
+    "app/api/data/route.ts": {
+      "before": "7112d5ddc72314b690f8b41a3e237fd882bf808e9232dc004dccd89ba599ca7a",
+      "after": "97be3bd24aa18312ee20c2a83c01ecb1940a4e565541d41c0788e9f5d24403d1"
+    },
+    "app/api/finance/route.ts": {
+      "before": "9864e870f5971ef0863c66e64fa97f15581082f0c30f24c4ee7ddf6f65052980",
+      "after": "4e29c7c4c667fa3cdb4a4748b355f20a198129ae91452c582ada2e07f1c6478e"
+    },
+    "app/api/students/lifecycle/route.ts": {
+      "before": null,
+      "after": "b2b9c1c58169dd254d38a052e49752bb990e37e00088b3498c9dcf8884554b7a"
+    },
+    "components/DmpApp.tsx": {
+      "before": "1b90a5ec5e7b33f67d2116c9e6f9e62fd052dcd4a4806b04fe2f6009f82def41",
+      "after": "ae09c4ba4dffc0139a2bbf579c3ad9de8bf4a7a2ba316e8f57db86a5eb9e9f86"
+    },
+    "components/financeiro/FinanceiroPage.tsx": {
+      "before": "f17ead79648952bb2f4c74eb3fe9c8c002a7261d198d50bef67d5f124c244544",
+      "after": "85c570fb05cbde1b018ed133fa3cbeba6e0605ca926b1f410ec06cb4fcb7f0f1"
+    },
+    "components/home/SpotifyPanelLink.module.css": {
+      "before": null,
+      "after": "f01165ab1a5de9cc001a6f485acfae6f4f8f3c07c752ade9c9e7170e665f9850"
+    },
+    "components/home/SpotifyPanelLink.tsx": {
+      "before": null,
+      "after": "6583ff1bc86ac749596769d00d9b8ae5fe25c93dd92acecc8b6362cf822547e7"
+    },
+    "components/students/StudentLifecycle.module.css": {
+      "before": null,
+      "after": "ee6f95370d5db80222bd190529caadf07a4e3ad761ff0852f85d74c75d38a05a"
+    },
+    "components/students/StudentLifecycle.tsx": {
+      "before": null,
+      "after": "d6b5b223f49a4b5cf2fac5bffff86dbc1ecfe4f5cbe032e750c15117254c0a2a"
+    },
+    "lib/calendar/personal-maintenance.ts": {
+      "before": "30ef7d178d99794a5ec11317cca1d11d9b9375c625cbb77049f1f9a832502705",
+      "after": "035a438de7532e89237b0a9c073162c6aa695d0a8c704e9780861df96848e748"
+    },
+    "lib/financeiro/future-preview.ts": {
+      "before": "4c2acb62a3d4dea9eb6b4870950beaeb59b2d06e91fd78506f1eefe60b7e33a2",
+      "after": "7697e05f5c97ef458bbf556c6da39e4410a274284624d542405bbd00aea7187c"
+    },
+    "lib/financeiro/personal-sync.ts": {
+      "before": "0c5ea7471d2876ebd2f32072f0df9ebe4ea85d3c5da5d4f06e560ecc3778321c",
+      "after": "a09aec093de804c23a51b7fa5a8b2878d15fb1b26f2a32e443b7d4b009d62c85"
+    },
+    "lib/students/lifecycle-calendar.ts": {
+      "before": null,
+      "after": "62b9638d526a1132394177e6bffa7d473359ed6edddceceef21b46c18da3d752"
+    },
+    "lib/students/lifecycle.ts": {
+      "before": null,
+      "after": "a819c31cfce0deb19f0e88e53a438ed1028804fe9f252cdbc8ddd242299a7ca1"
+    },
+    "types/models.ts": {
+      "before": "e5a2af977ad2e05e1ec49d109d8f650a8e26f6429d77f65d934e2f72ca286af7",
+      "after": "78dafa9aaa4d31cdfe953fed5eca57f6df4b1e781ccc8bc0466351495b80a26e"
+    }
+  }
+}

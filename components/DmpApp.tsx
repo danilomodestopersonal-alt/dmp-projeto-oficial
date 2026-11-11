@@ -1,5 +1,8 @@
 // DMP_HOME_TREINO_CLICAVEL_V2
 "use client";
+import StudentLifecycle from "./students/StudentLifecycle";
+import SpotifyPanelLink from "./home/SpotifyPanelLink";
+import {pauseLabel} from "@/lib/students/lifecycle";
 import {useBirthdayWhatsApp} from "@/components/home/BirthdayWhatsApp";
 import PersonalAgendaTools from "./calendar/PersonalAgendaTools";
 import {projectHomeKidsEvents} from "@/lib/kids/home-calendar";
@@ -1670,7 +1673,8 @@ fetch("/api/google/status")
                 :null}
               </section>
               <SpecialDatesHome students={students} onStudent={openStudent} />
-            </section><aside className="home-right-rail"><div className="spotify-shortcut">
+            </section><aside className="home-right-rail"><div className="spotify-shortcut" style={{position:"relative"}}>
+{spotifyState.connected?<SpotifyPanelLink/>:null}
   {spotifyState.connected ? <>
     <div className="spotify-track">
       {spotifyState.track?.image ? <img src={spotifyState.track.image} alt=""/> : <span className="spotify-logo">S</span>}
@@ -1685,10 +1689,10 @@ fetch("/api/google/status")
         <span>{formatSpotifyTime(Number(spotifyState.durationMs))}</span>
       </div>
     </div> : null}
-    <div className="spotify-controls">
-      <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("previous")} aria-label="Música anterior">◀</button>
-      <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify(spotifyState.isPlaying?"pause":"play")} aria-label={spotifyState.isPlaying?"Pausar":"Tocar"}>{spotifyState.isPlaying?"❚❚":"▶"}</button>
-      <button type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("next")} aria-label="Próxima música">▶</button>
+    <div className="spotify-controls" style={{position:"relative",zIndex:2,pointerEvents:"none"}}>
+      <button style={{pointerEvents:"auto"}} type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("previous")} aria-label="Música anterior">◀</button>
+      <button style={{pointerEvents:"auto"}} type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify(spotifyState.isPlaying?"pause":"play")} aria-label={spotifyState.isPlaying?"Pausar":"Tocar"}>{spotifyState.isPlaying?"❚❚":"▶"}</button>
+      <button style={{pointerEvents:"auto"}} type="button" disabled={spotifyBusy} onClick={()=>void controlSpotify("next")} aria-label="Próxima música">▶</button>
     </div>
   </> : <a className="spotify-connect" href="/api/spotify/login">Conectar Spotify</a>}
 </div><DesktopAgendaRail events={calendarEvents} students={students} onOpenAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onOpenStudent={openStudent} onRefresh={()=>void refreshCalendarAutomatic(true)}/></aside></div>
@@ -2030,6 +2034,7 @@ fetch("/api/google/status")
 
           </section>
 
+          <StudentLifecycle key={selectedStudent.id} student={selectedStudent} onSaved={next=>{setStudents(next);saveStudents(next);const channel=new BroadcastChannel(STUDENTS_CHANNEL);channel.postMessage({type:"refresh"});channel.close();calendarLoadSequence.current++;void refreshCalendarAutomatic(true);}}/>
           {tab === "summary" ? <StudentConsultationSummary student={selectedStudent} events={calendarEvents.filter(event=>getCalendarEventStudents(event,students).some(item=>item.id===selectedStudent.id))} onOpenSession={session=>{setHistoricalSessionPreview({...session,completedExercises:session.completedExercises.map(exercise=>({...exercise}))});setView("historical-workout");}} onOpen={setTab} onAgenda={date=>{setCalendarAnchor(date);setView("agenda");}}/> : null}
           {tab === "summary" ? <StudentDashboardComplete student={selectedStudent} allStudents={students} onOpen={setTab} onReport={()=>void printPersonalStudentReport(selectedStudent)} onStudentUpdate={updateStudentRecord} /> : null}
           {tab === "timeline" ? <StudentTimeline student={selectedStudent} /> : null}
@@ -3052,9 +3057,9 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
 
           return <section className="agenda-rail-group" key={event.id}>
             {changed?<div className="agenda-rail-day"><span>{dayLabel}</span><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong>{date===todayKey?<button className="agenda-rail-encaixe" onClick={()=>setShowEncaixe(true)}>+ Encaixe</button>:null}</div>:null}
-            <article className={`agenda-rail-event ${kids?`kids kids-${kids.category.toLowerCase()}`:""}`}>
-              <div className="agenda-rail-time-row"><button onClick={()=>kids||event.allDay?onOpenAgenda(date):setAddingEvent(event)}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}</button>{!kids?<button type="button" className="agenda-rail-plus" onClick={()=>setAddingEvent(event)} aria-label="Adicionar aluno" title="Adicionar aluno">+</button>:null}</div>
-              {people.length?<div>{people.map(student=><button key={student.id} onClick={()=>setAddingEvent(event)}>{student.name}</button>)}</div>:null}
+            <article className={`agenda-rail-event ${kids?`kids kids-${kids.category.toLowerCase()}`:""}`} onClick={()=>kids||event.allDay?onOpenAgenda(date):setAddingEvent(event)} style={{cursor:"pointer"}}>
+              <div className="agenda-rail-time-row"><button onClick={e=>{e.stopPropagation();kids||event.allDay?onOpenAgenda(date):setAddingEvent(event);}}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}</button>{!kids?<button type="button" className="agenda-rail-plus" onClick={e=>{e.stopPropagation();setAddingEvent(event);}} aria-label="Adicionar aluno" title="Adicionar aluno">+</button>:null}</div>
+              {people.length?<div>{people.map(student=><button key={student.id} onClick={e=>{e.stopPropagation();onOpenStudent(student.id);}} title={`Abrir Dashboard de ${student.name}`}>{student.name}</button>)}</div>:null}
             </article>
           </section>
         }):<p>Nenhum próximo compromisso.</p>}
@@ -3105,7 +3110,7 @@ function StudentProfileIdentity({student,onEdit,onRegisterWorkout,onRegisterAtte
   return <div className="student-profile-command-head">
     <div className="student-profile-command-identity">
       <span className={`status-pill ${student.status === "ARCHIVED" ? "archived" : ""}`}>
-        {student.status === "ACTIVE" ? "Ativo" : "Inativo"}
+        {pauseLabel(student) || (student.status === "ACTIVE" ? "Ativo" : "Inativo")}
       </span>
       <div className="student-profile-identity-content">
         <span className="student-profile-command-kicker">CADERNO DO ALUNO</span>
@@ -4215,7 +4220,7 @@ function StudentForm({title,initialStudent,onClose,onSave}:{title:string;initial
     <label>Nome<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required /></label><label>Telefone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></label>
     <label>E-mail<input type="email" value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} /></label><label>Profissão<input value={form.profession||""} onChange={e=>setForm({...form,profession:e.target.value})} /></label>
     <label>Data de início<input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} /></label><label>Data de nascimento<input type="date" value={form.birthDate} onChange={e=>setForm({...form,birthDate:e.target.value})} />{age!==null?<small>Idade atual: {age} anos</small>:null}</label><label>Sexo<select value={form.gender||""} onChange={e=>setForm({...form,gender:(e.target.value||undefined) as Student["gender"]})}><option value="">Não informado</option><option value="MALE">Masculino</option><option value="FEMALE">Feminino</option></select></label>
-    {initialStudent?<label>Situação do cadastro<select value={form.status||"ACTIVE"} onChange={e=>setForm({...form,status:e.target.value as Student["status"]})}><option value="ACTIVE">Ativo</option><option value="ARCHIVED">Inativo</option></select><small>Use aqui quando quiser inativar ou reativar o aluno.</small></label>:null}
+    {initialStudent?<label>Situação do cadastro<select disabled title="Use Inativar aluno ou Reativar aluno no caderno." value={form.status||"ACTIVE"} onChange={e=>setForm({...form,status:e.target.value as Student["status"]})}><option value="ACTIVE">Ativo</option><option value="ARCHIVED">Inativo</option></select><small>Use a ação de inativar/reativar no caderno para conferir agenda e mensalidades.</small></label>:null}
     <label>Modalidade<input value={form.modality||""} onChange={e=>setForm({...form,modality:e.target.value})} placeholder="Ex.: musculação, tênis, corrida" /></label><label>Frequência semanal<input value={form.weeklyFrequency||""} onChange={e=>setForm({...form,weeklyFrequency:e.target.value})} placeholder="Ex.: 2x por semana" /></label>
     <label className="full">Dias e horários fixos<input value={form.trainingSchedule||""} onChange={e=>setForm({...form,trainingSchedule:e.target.value})} placeholder="Ex.: segunda 7h · quarta 7h" /><small>Informação exibida no topo do Dashboard do Aluno.</small></label>
     <fieldset className="full student-finance-box"><legend>Financeiro do Personal</legend><label className="student-finance-toggle"><input type="checkbox" checked={form.financialActive===true} onChange={e=>setForm({...form,financialActive:e.target.checked})}/><span><strong>Ativar no Financeiro</strong><small>Alunos antigos entram preenchidos com a mensalidade e o vencimento já existentes quando o vínculo é seguro.</small></span></label>{form.financialActive===true?<div className="student-finance-grid"><label>Mensalidade (R$)<input type="number" min="0" step="0.01" value={form.monthlyAmount??""} onChange={e=>setForm({...form,monthlyAmount:e.target.value===""?undefined:Number(e.target.value)})} required /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={form.financeDueDay??""} onChange={e=>setForm({...form,financeDueDay:e.target.value===""?undefined:Number(e.target.value)})} required /></label><small className="full">O cadastro passa a comandar as próximas mensalidades. Pagamentos e competências anteriores continuam preservados.</small></div>:<small className="student-finance-off">Desativado: não cria novas cobranças automáticas. O histórico existente não é apagado.</small>}</fieldset>

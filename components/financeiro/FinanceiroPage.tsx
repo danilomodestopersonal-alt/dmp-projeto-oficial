@@ -1,4 +1,5 @@
 "use client";
+import {filterPausedGeneration} from "@/lib/students/lifecycle";
 import {PriorPlanning} from "./PriorPlanning";
 import {DsReturnReconciliation} from "../mercado-pago/DsReturnReconciliation";
 import {futureFinanceView} from "@/lib/financeiro/future-preview";
@@ -106,7 +107,7 @@ type Action =
   | { type: "category-create" }
   | null;
 
-function ensureCalendarCompetence(base: FinanceData): FinanceData {
+function ensureCalendarCompetence(base: FinanceData, students: Student[] = []): FinanceData {
   const target = today().slice(0, 7);
 
   if (base.competences[target]) {
@@ -130,7 +131,7 @@ function ensureCalendarCompetence(base: FinanceData): FinanceData {
   while (!next.competences[target] && next.currentCompetence < target && guard < 24) {
     const fromCompetence = next.currentCompetence;
     let generated:FinanceData;
-    try { generated = applyFinanceCommand(next, { type: "CREATE_NEXT_COMPETENCE", fromCompetence }); } catch { break; }
+    try { generated = filterPausedGeneration(next, applyFinanceCommand(next, { type: "CREATE_NEXT_COMPETENCE", fromCompetence }), students); } catch { break; }
     if (generated.currentCompetence === fromCompetence) break;
     next = generated;
     guard += 1;
@@ -194,7 +195,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
     try {
       const cloud = await fetchFinanceCloud(financeSeedAugust2026);
       if (!cloud) return;
-      const next = ensureCalendarCompetence(cloud);
+      const next = ensureCalendarCompetence(cloud, students);
       setData(next);
       saveFinanceData(next);
       setCloudWritable(true);
@@ -258,7 +259,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         if (cancelled) return;
 
         if (!cloud) {
-          setData(ensureCalendarCompetence(local));
+          setData(ensureCalendarCompetence(local, students));
           setCloudWritable(false);
           return;
         }
@@ -284,7 +285,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
           }
         }
 
-        let next = ensureCalendarCompetence(prepared);
+        let next = ensureCalendarCompetence(prepared, students);
 
         // 1) Migra Personal existente: Financeiro atual -> cadastro.
         // 2) A partir daí cadastro -> mensalidade da competência atual.
@@ -419,7 +420,7 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
     if (command.type === "CLOSE_COMPETENCE" && command.createNext) setSelectedCompetence(nextCompetence(command.competence));
     if(command.type==="EXPENSE_UPDATE"){setSyncing(true);setPayerMetadataReady(false);}
     if(command.type.endsWith("_DELETE"))setUndoDeletion(data);
-    setData(current => applyFinanceCommand({...current,currentCompetence:competence}, command));
+    setData(current => filterPausedGeneration(current, applyFinanceCommand({...current,currentCompetence:competence}, command), students));
   }
 
   function undoLastDeletion(){if(futureReadOnly||!undoDeletion)return;setData(undoDeletion);setUndoDeletion(null);}

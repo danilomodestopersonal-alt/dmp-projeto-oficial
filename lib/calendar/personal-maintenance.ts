@@ -55,7 +55,7 @@ function isPersonal(e:Event,parent:Event|undefined,students:Student[]){
  const onlyLesson=tokens.length>0&&tokens.every(t=>["aula","personal","treino","e","de","do","da"].includes(t)||nameTokens.includes(t)||t.length>=3&&nameTokens.some(n=>n.startsWith(t)));
  return onlyLesson&&(legacy.length>0||proven);
 }
-function assertPersonal(e:Event,parent:Event|undefined,students:Student[]){if(!isPersonal(e,parent,students))fail("A identidade, propriedade ou os participantes desta aula não estão claros. Nenhum evento foi cancelado.");}
+export function assertPersonal(e:Event,parent:Event|undefined,students:Student[]){if(!isPersonal(e,parent,students))fail("A identidade, propriedade ou os participantes desta aula não estão claros. Nenhum evento foi cancelado.");}
 function hasHistory(e:Event,students:Student[]){return students.some(s=>s.sessions?.some(x=>x.calendarEvent?.id===e.id));}
 function emptyProof(e:Event,parent:Event|undefined,students:Student[]){
  const mapped=mappedPersonal(e,parent,students),r=mapped.calendarRoster!,at=Date.parse(mapped.originalStartTime||mapped.start);
@@ -70,7 +70,7 @@ function removalFields(e:Event,parent:Event|undefined,students:Student[],command
  if(JSON.stringify(edit).length>1024||JSON.stringify(fields).length>29000||Object.keys(fields).length>275)fail("Limite seguro dos participantes atingido. Revise a série no Google.");
  return {...target.extendedProperties,private:fields};
 }
-async function followingStep(command:MaintenanceCommand,event:Event,parent:Event,students:Student[],api:MaintenanceApi):Promise<MaintenanceStep>{
+export async function followingStep(command:MaintenanceCommand,event:Event,parent:Event,students:Student[],api:MaintenanceApi):Promise<MaintenanceStep>{
  if(!event.originalStartTime?.dateTime)fail("A ocorrência não possui vínculo completo com a recorrência.");
  const boundary=Date.parse(event.originalStartTime.dateTime),start=Date.parse(parent.start.dateTime);
  const recurrence:string[]=parent.recurrence||[],rules=recurrence.filter(x=>x.startsWith("RRULE:"));
