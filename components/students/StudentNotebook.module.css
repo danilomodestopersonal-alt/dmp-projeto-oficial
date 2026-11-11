@@ -1,0 +1,47 @@
+/* P32 — scoped to the notebook. Existing fields, navigation and handlers stay intact. */
+.notebook{container-name:student-notebook;container-type:inline-size}
+.notebook :global(.student-profile-command){gap:10px!important;margin-bottom:12px!important}
+.notebook :global(.student-profile-command-main){padding:16px!important;gap:14px!important;border:1px solid #dce5df;border-radius:14px!important;background:#fff;box-shadow:0 3px 14px #173e2e05}
+.notebook :global(.student-profile-command-head){display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;align-items:start!important}
+.notebook :global(.student-profile-command-identity){display:flex!important;flex-direction:row!important;gap:10px!important;min-width:0!important;align-items:flex-start!important}
+.notebook :global(.student-profile-command-identity .status-pill){font-size:12px;padding:5px 9px;flex-shrink:0;margin-top:20px!important}
+.notebook :global(.student-profile-identity-content){min-width:0;width:auto!important}
+.notebook :global(.student-profile-command-kicker){font-size:10px!important;letter-spacing:.09em;margin-bottom:3px}
+.notebook :global(.student-profile-command-identity h1){font-size:24px!important;line-height:1.2!important;letter-spacing:-.025em;margin:0!important;overflow-wrap:anywhere}
+.notebook :global(.student-profile-identity-meta){display:flex!important;flex-wrap:wrap;gap:6px 16px!important;margin-top:9px!important}
+.notebook :global(.student-profile-identity-meta>span){min-width:0!important;padding:0!important;border:0;background:transparent;gap:3px!important;max-width:100%}
+.notebook :global(.student-profile-identity-meta small){font-size:10px;letter-spacing:.03em;color:#64766d}
+.notebook :global(.student-profile-identity-meta strong){font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.notebook :global(.student-profile-schedule-meta){min-width:0!important}
+.notebook :global(.student-profile-command-contact){display:flex!important;flex-wrap:wrap;gap:6px!important;width:auto!important}
+.notebook :global(.student-profile-command-contact button),.notebook :global(.student-profile-command-contact .button-link){min-height:38px!important;padding:8px 11px!important;font-size:13px!important;line-height:1.3;width:auto!important;white-space:normal;border-radius:8px;box-shadow:none}
+.notebook :global(.student-profile-primary-tabs){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;overflow:visible!important}
+.notebook :global(.student-profile-primary-tabs button),.notebook :global(.student-profile-primary-tabs button:last-child){display:flex!important;align-items:center!important;justify-content:flex-start!important;grid-column:auto!important;min-width:0!important;min-height:66px!important;width:100%!important;padding:10px!important;gap:8px!important;text-align:left!important;border:1px solid #dce5df!important;border-radius:9px!important;background:#fbfcfa;box-shadow:none!important;overflow:visible!important}
+.notebook :global(.student-profile-primary-tabs button:hover){background:#f0f5e9;border-color:#9eb68b!important}
+.notebook :global(.student-profile-primary-tabs button.active){background:#eef5df;border-color:#5f7b37!important;box-shadow:inset 0 -3px #8fad45!important}
+.notebook :global(.student-profile-primary-tabs button:focus-visible){outline:2px solid #264f3d;outline-offset:2px}
+.notebook :global(.student-profile-tab-icon){display:grid;place-items:center;width:23px;min-width:23px;font-size:20px!important;line-height:1!important}
+.notebook :global(.student-profile-tab-text){display:grid!important;gap:3px!important;min-width:0;width:auto!important}
+.notebook :global(.student-profile-tab-text strong){font-size:14px!important;line-height:1.25!important;white-space:normal!important;overflow-wrap:normal!important;word-break:normal!important;text-align:left!important;color:#214a39}
+.notebook :global(.student-profile-tab-text small){display:block!important;font-size:11px!important;line-height:1.35!important;color:#627268;white-space:normal}
+@container student-notebook (min-width:600px){
+ .notebook :global(.student-profile-primary-tabs){grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
+@container student-notebook (min-width:1000px){
+ .notebook :global(.student-profile-primary-tabs){grid-template-columns:repeat(7,minmax(0,1fr))!important}
+ .notebook :global(.student-profile-primary-tabs button){padding:9px!important;gap:7px!important;min-height:68px!important}
+ .notebook :global(.student-profile-command-head){grid-template-columns:minmax(0,1fr) 310px!important;gap:20px!important}
+ .notebook :global(.student-profile-command-contact){display:grid!important;grid-template-columns:1fr 1fr!important}
+ .notebook :global(.student-profile-command-contact button),.notebook :global(.student-profile-command-contact .button-link){width:100%!important;justify-content:center!important}
+}
+@container student-notebook (max-width:450px){
+ .notebook :global(.student-profile-command-main){padding:12px!important;gap:12px!important}
+ .notebook :global(.student-profile-command-identity){display:grid!important;grid-template-columns:1fr!important;gap:5px!important}
+ .notebook :global(.student-profile-command-identity .status-pill){margin:0!important;grid-row:auto!important;justify-self:start}
+ .notebook :global(.student-profile-command-identity h1){font-size:22px!important}
+ .notebook :global(.student-profile-command-contact){display:grid!important;grid-template-columns:1fr 1fr!important}
+ .notebook :global(.student-profile-command-contact button),.notebook :global(.student-profile-command-contact .button-link){width:100%!important;min-height:42px!important;padding:8px!important;font-size:12px!important}
+ .notebook :global(.student-profile-primary-tabs button){padding:8px!important;gap:6px!important}
+ .notebook :global(.student-profile-tab-icon){width:20px;min-width:20px;font-size:18px!important}
+ .notebook :global(.student-profile-tab-text strong){font-size:13px!important}
+}
