@@ -1,0 +1,14 @@
+'use strict';
+const A=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),ts=require('typescript'),m=require('./p31-approved-files.json');
+const git=(...a)=>cp.execFileSync('git',a,{maxBuffer:32e6}),hash=b=>crypto.createHash('sha256').update(b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n'))).digest('hex');
+for(const [f,s]of Object.entries(m.files)){A.equal(hash(fs.readFileSync(f)),s.after,f);if(s.before)A.equal(hash(git('show',m.base+':'+f)),s.before,f);}
+let count=0;for(const f of git('ls-tree','-r','--name-only',m.base).toString().trim().split('\n')){if(f.startsWith('tests/')||m.files[f])continue;A.equal(hash(fs.readFileSync(f)),hash(git('show',m.base+':'+f)),f);count++;}
+for(const f of [...git('diff','--name-only',m.base).toString().trim().split('\n'),...git('ls-files','--others','--exclude-standard').toString().trim().split('\n')].filter(Boolean))A.ok(f.startsWith('tests/')||m.files[f],'Outside P31: '+f);
+function functions(s){const ast=ts.createSourceFile('x.tsx',s,99,true,4),out=new Map;function visit(n){if(ts.isFunctionDeclaration(n)&&n.name)out.set(n.name.text,n.getText(ast));ts.forEachChild(n,visit)}visit(ast);return out;}
+const original=functions(git('show',m.base+':components/DmpApp.tsx').toString()),now=functions(fs.readFileSync('components/DmpApp.tsx','utf8'));
+for(const [name,s]of original)if(!['DmpApp','StudentForm','CalendarTodayPanel','CalendarAgenda'].includes(name))A.equal(now.get(name),s,'unchanged Home/calendar/Spotify/counters function '+name);
+A.doesNotMatch(now.get('DmpApp'),/<StudentLifecycle/);A.match(now.get('StudentForm'),/<legend>Situação do cadastro<\/legend>/);A.match(now.get('StudentForm'),/<StudentLifecycle/);A.doesNotMatch(now.get('StudentForm'),/onChange=.*status:e/);A.match(now.get('CalendarTodayPanel'),/const own=fixedById.get/);
+const calendar=now.get('CalendarAgenda');A.equal(calendar.replace('{!widgetWeek&&!widgetEventId?<FixedAppointmentsManager anchor={anchor} events={events}/>:null}',''),original.get('CalendarAgenda'));
+const route=fs.readFileSync('app/api/appointments/route.ts','utf8');A.match(route,/FOR UPDATE/);A.match(route,/sameOrigin/);A.doesNotMatch(route,/google|todoist|finance_v1|students|DELETE FROM|process\.env/);
+const baseMaintenance=git('show',m.base+':lib/calendar/personal-maintenance.ts').toString();A.equal(fs.readFileSync('lib/calendar/personal-maintenance.ts','utf8').replace('raw={...mapped,summary:e.summary||"",calendarRoster:undefined}','raw={...mapped,calendarRoster:undefined}'),baseMaintenance,'only original title used for original identity; all ownership/conflict/execution guards untouched');
+console.log('PASS P31 SCOPE: '+Object.keys(m.files).length+' production files reviewed; '+count+' unchanged. Monthly calendar/orange/grey markers, finance, Android, OAuth, Kids and Spotify preserved.');
