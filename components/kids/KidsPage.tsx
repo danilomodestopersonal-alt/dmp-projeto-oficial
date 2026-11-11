@@ -1,4 +1,5 @@
 "use client";
+import {KidsTeacherSubstitution} from '@/components/calendar/AgendaOperations';
 import { mergeKidsStudentRegistryGroup } from "@/lib/kids/class-history";
 import { addChamadaReplacement, removeChamadaReplacement, chamadaSaveMatches } from "@/lib/kids/chamada-replacement";
 import { kidsClassAt, kidsLessonClass, kidsClassChangeConfirmed, classDefinition, type KidsClassChange } from "@/lib/kids/class-history";
@@ -1154,6 +1155,7 @@ const relatedGroup = lessonGroup(next);
           onSaveClass={async change=>{if(!window.confirm(`Salvar alteração PERMANENTE da turma a partir de ${formatDate(change.effectiveFrom)}? Chamadas antigas e a aula aberta serão preservadas.`))return false;return persist(data,"Turma salva para as aulas futuras.",undefined,change);}}
           allStudents={allStudentProfiles}
           onClose={() => setLessonId(null)}
+          onSubstituted={()=>{setLessonId(null);void load();}}
           onSave={updateLesson}
         />
       ) : null}
@@ -1624,6 +1626,7 @@ function LessonRow({
 }
 
 function LessonEditor({
+  onSubstituted,
   lesson,
   group,
   replacements,
@@ -1635,6 +1638,7 @@ function LessonEditor({
   permanentGroup,
   onSaveClass,
 }: {
+  onSubstituted:()=>void;
   lesson: KidsLesson;
   group: KidsClass;
   replacements:KidsReplacement[];
@@ -1789,6 +1793,7 @@ function LessonEditor({
           </div>
           <button type="button" aria-label="Fechar aula" disabled={editorSaving} onClick={requestClose}>×</button>
         </div>
+        <KidsTeacherSubstitution lesson={lesson} disabled={Boolean(unsaved)||editorSaving} onBusy={setEditorSaving} onDone={onSubstituted}/>
         <nav className={styles.lessonTabs} aria-label="Seções da aula" role="tablist">{["CHAMADA","PLANEJAMENTO","REGISTROS","TURMA"].map(tab=><button type="button" role="tab" aria-selected={activeTab===tab} aria-controls={`kids-panel-${tab}`} id={`kids-tab-${tab}`} key={tab} tabIndex={activeTab===tab?0:-1} onKeyDown={event=>{const tabs=["CHAMADA","PLANEJAMENTO","REGISTROS","TURMA"];const current=tabs.indexOf(tab);const next=event.key==="ArrowRight"?tabs[(current+1)%4]:event.key==="ArrowLeft"?tabs[(current+3)%4]:event.key==="Home"?tabs[0]:event.key==="End"?tabs[3]:null;if(next){event.preventDefault();setActiveTab(next);document.getElementById(`kids-tab-${next}`)?.focus();}}} onClick={()=>setActiveTab(tab)}>{tab==="TURMA"&&classChange?"Turma •":tab.charAt(0)+tab.slice(1).toLowerCase()}</button>)}</nav>
         <div className={styles.lessonBody}><fieldset disabled={editorSaving} className={styles.lessonFields}>
         {draft.status === "HOLIDAY" ? (

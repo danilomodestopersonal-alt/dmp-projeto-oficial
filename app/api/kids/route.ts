@@ -1,3 +1,4 @@
+import {teachingMetadataPreserved} from "@/lib/kids/personal-teaching";
 import { applyKidsClassChange } from "@/lib/kids/class-history";
 import { reconcileChamadaReplacements } from "@/lib/kids/chamada-replacement";
 import { AbsenceError, reconcileAbsenceRights } from "@/lib/kids/individual-absence";
@@ -96,6 +97,7 @@ export async function PUT(request: NextRequest) {
           { status: 409 }
         );
       }
+      if(!teachingMetadataPreserved(current.rows[0].payload,body)){await client.query("ROLLBACK");return NextResponse.json({ok:false,error:"A substituição de professor mudou. Atualize Aulas Kids antes de salvar."},{status:409});}
     } else if (expected) {
       await client.query("ROLLBACK");
 

@@ -29,6 +29,7 @@ export type KidsClass = {
 export type KidsLessonImage = { name:string; dataUrl:string; mimeType?:string };
 
 export type KidsLesson = {
+  teacherSubstitution?:{operationId:string;date:string;recordedAt:string;googleEventIds:string[];teacherName?:string};
   id:string;
   classId:string;
   classSnapshot?:KidsClass;

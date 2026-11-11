@@ -1,3 +1,4 @@
+import {taughtBySubstitute} from "@/lib/kids/personal-teaching";
 import { kidsLessonClass } from "@/lib/kids/class-history";
 import type {CalendarEvent} from "@/types/models";
 import type {KidsData} from "@/types/kids";
@@ -5,7 +6,7 @@ import {isKidsFifthMonthlyLesson} from "@/lib/kids/replacement-balance";
 import {categoryLabelForHome,normalizeName} from "./home-source";
 export function localKidsForHome(data:KidsData,todayKey:string):CalendarEvent[]{
 const localEvents=data.lessons
-          .filter(lesson=>lesson.date===todayKey&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY"&&(lesson.kind==="REPLACEMENT"||isKidsFifthMonthlyLesson(data,lesson)))
+          .filter(lesson=>!taughtBySubstitute(lesson)&&lesson.date===todayKey&&lesson.status!=="CANCELLED"&&lesson.status!=="HOLIDAY"&&(lesson.kind==="REPLACEMENT"||isKidsFifthMonthlyLesson(data,lesson)))
           .flatMap(lesson=>{
             const group=kidsLessonClass(data,lesson);
             const category=lesson.replacementCategory||group?.category;

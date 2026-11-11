@@ -1,0 +1,49 @@
+{
+  "base": "47d0c9169a27b0dba6ad26208bec8c7baecb06a9",
+  "files": {
+    "app/api/agenda/operations/route.ts": {
+      "before": null,
+      "after": "0539ff80903c390c6fb0d0edb6eb64a4597dd2936b1bfe265c7afda04af03a72"
+    },
+    "app/api/kids/route.ts": {
+      "before": "cbe6bceb9e0ab69c650a01787b975d9187370dbf19dfa81765a86ad79a8d6bea",
+      "after": "32de8d54e721530034875e675d0ccb38b0970916ba45dfafee6d720f798a0314"
+    },
+    "components/DmpApp.tsx": {
+      "before": "ae09c4ba4dffc0139a2bbf579c3ad9de8bf4a7a2ba316e8f57db86a5eb9e9f86",
+      "after": "f13ebb3ed7bc6b24cc92d88c665508a6a4b9d791890bef67420b9609dcf8658f"
+    },
+    "components/calendar/AgendaOperations.tsx": {
+      "before": null,
+      "after": "1deecad4a577dada57c5e4e3a5d62b769dee2ea111b4c3ee8395df323406e917"
+    },
+    "components/kids/KidsPage.tsx": {
+      "before": "91b184eb1dfbb9cb9878061ed2ea0f09ad1cea21d83d39d0a513379c8116ff07",
+      "after": "17e2daa447d3a2156d333f9b50fafa731cef07c2e938bda979580a932523b3c5"
+    },
+    "lib/calendar/agenda-operations.ts": {
+      "before": null,
+      "after": "0faf31a6d0ccf5f09afac9cfef70f7ac19732f7b01870d9f8391e239d2b790b3"
+    },
+    "lib/kids/personal-teaching.ts": {
+      "before": null,
+      "after": "e49c685327c497c3047b55994f60a33d064186ef92f62d3916e321b74d5a8c01"
+    },
+    "lib/widget/kids-source.ts": {
+      "before": "c837235eb7e5846a761833819fb7349b73fd71fc738c292d3e22689efcf2f571",
+      "after": "034956603d44ec619306feebccea50412bda221eebb2cc60ff12c8fadcf6d7eb"
+    },
+    "lib/widget/today.ts": {
+      "before": "415610340fa2798c0cb778a29f6e392a61a029532e347ec9101c6dd618bbe950",
+      "after": "50b69e61f22ecf677b3f4ce3d861da1a9ea815b787763bf78be6f1277202eed0"
+    },
+    "lib/widget/v2.ts": {
+      "before": "0c2238fc882a055f32fb97f1a7984df290a57460f843702f150fa159d5102262",
+      "after": "7e0635eca39e31cf18c076ce35616f66944ca0d1c2e91cb4d7faba32b5e31d58"
+    },
+    "types/kids.ts": {
+      "before": "2a9296358e4f741a6e8f7402c4e3a699b6c815a319690f6bea626738d5486112",
+      "after": "3e2500b22c4d2f972e6ab4c93c185c3664c0f734e62b6f4cb83070d177bb30e5"
+    }
+  }
+}

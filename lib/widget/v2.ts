@@ -1,3 +1,4 @@
+import {personalTeachingEvents} from "@/lib/kids/personal-teaching";
 import type {CalendarEvent,Student} from "@/types/models";
 import type {KidsData} from "@/types/kids";
 import type {PerformanceActivity} from "@/types/performance";
@@ -12,7 +13,7 @@ const time=(v:string)=>new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Pa
 const labels:Record<string,string>={CYCLING:"Ciclismo",STRENGTH:"Musculação",PILATES:"Pilates",RUNNING:"Corrida",TENNIS:"Tênis",OTHER:"Outro"};
 export function widgetAgendaProjection(students:Student[],google:CalendarEvent[],raw:KidsData|null,date:string){
  const data=raw?normalizeKidsData(structuredClone(raw)):null,local=data?localKidsForHome(data,date):[],matched=matchCalendarEvents(google,students);
- const merged=[...local,...matched.filter(g=>!local.some(l=>{const a=kidsCalendarRequest(g),b=kidsCalendarRequest(l);return a&&b&&a.date===b.date&&a.time===b.time&&a.category===b.category;}))];
+ const merged=personalTeachingEvents([...local,...matched.filter(g=>!local.some(l=>{const a=kidsCalendarRequest(g),b=kidsCalendarRequest(l);return a&&b&&a.date===b.date&&a.time===b.time&&a.category===b.category;}))],data);
  const projection=widgetOccurrenceHistory(students,merged,date);
  const items=projection.occurrences.sort((a,b)=>Date.parse(a.event.start)-Date.parse(b.event.start)||a.event.id.localeCompare(b.event.id)).map(item=>{
   const e=item.event,kids=kidsCalendarRequest(e),ss=item.students,category=kids?categoryLabelForHome(kids.category):null;

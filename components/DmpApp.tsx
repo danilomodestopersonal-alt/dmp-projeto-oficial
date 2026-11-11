@@ -1,5 +1,7 @@
 // DMP_HOME_TREINO_CLICAVEL_V2
 "use client";
+import {PersonalBatchCancellation} from '@/components/calendar/AgendaOperations';
+import {personalTeachingEvents,taughtBySubstitute} from '@/lib/kids/personal-teaching';
 import StudentLifecycle from "./students/StudentLifecycle";
 import SpotifyPanelLink from "./home/SpotifyPanelLink";
 import {pauseLabel} from "@/lib/students/lifecycle";
@@ -1021,7 +1023,7 @@ fetch("/api/google/status")
         const data=normalizeKidsData(raw);
         const monthKey=today().slice(0,7);
         const countedLessons=data.lessons.filter(lesson=>{
-          if(lesson.date.slice(0,7)!==monthKey)return false;
+          if(taughtBySubstitute(lesson)||lesson.date.slice(0,7)!==monthKey)return false;
           if(lesson.status==="COMPLETED")return true;
           if(lesson.status!=="SCHEDULED")return false;
           const group=data.classes.find(item=>item.id===lesson.classId);
@@ -1566,13 +1568,13 @@ fetch("/api/google/status")
     const assessmentCount = students.reduce((total, student) => total + student.assessments.length, 0);
     const todayKey = today();
     const projectedCalendarEvents=projectHomeKidsEvents(calendarEvents,homeKidsCardData,todayKey);
-    const mergedAgendaEvents=[...homeKidsCalendarEvents,...projectedCalendarEvents.filter(googleEvent=>{
+    const mergedAgendaEvents=personalTeachingEvents([...homeKidsCalendarEvents,...projectedCalendarEvents.filter(googleEvent=>{
       const googleKids=kidsCalendarRequest(googleEvent);
       return !homeKidsCalendarEvents.some(localEvent=>{
         const localKids=kidsCalendarRequest(localEvent);
         return Boolean(localKids&&googleKids&&localKids.date===googleKids.date&&localKids.time===googleKids.time&&localKids.category===googleKids.category);
       });
-    })];
+    })],homeKidsCardData);
     const homeAgendaEvents=mergedAgendaEvents.filter(event=>calendarEventDate(event)===todayKey);
     const todaySessions = students.flatMap(student => student.sessions.filter(session => session.date === todayKey).map(session => ({student, session}))).sort((a,b)=>(b.session.finishedAt||b.session.startedAt||"").localeCompare(a.session.finishedAt||a.session.startedAt||""));
     const plannedCount = students.filter(student => student.status === "ACTIVE" && getStudentWorkoutEntries(student).length > 0).length;
@@ -2149,7 +2151,7 @@ function CalendarAgenda({widgetWeek,widgetNotes,onWidgetNote,widgetEventId,onWid
     {widgetEventId&&!loading&&!events.some(e=>e.id===widgetEventId)?<WidgetOccurrenceHistory eventId={widgetEventId} date={anchor} students={students} onOpenStudent={onOpenStudent}/>:null}
     {widgetWeek&&status.connected?<WidgetWeekAgenda anchor={anchor} events={events} students={students} notes={widgetNotes||[]} onAnchor={onAnchor} onEvent={event=>{if(kidsCalendarRequest(event))onOpenKids(event);else if(event.allDay)setAddingEvent(event);else setWidgetEditingEvent(event);}} onNote={id=>onWidgetNote?.(id)} loading={loading}/>:<>
     <section className="agenda-view-toolbar"><div>{(["day","week","month","year","list"] as AgendaRange[]).map(value=><button key={value} className={range===value?"filter-active":"secondary"} onClick={()=>onRange(value)}>{agendaRangeLabel(value)}</button>)}</div><div className="agenda-period-nav"><button className="secondary" onClick={()=>navigate(-1)} aria-label="Período anterior">‹</button><strong>{agendaPeriodLabel(anchor,range)}</strong><button className="secondary" onClick={()=>navigate(1)} aria-label="Próximo período">›</button></div><button type="button" className="secondary agenda-mobile-only" aria-expanded={showAgendaDate} onClick={()=>setShowAgendaDate(value=>!value)}>Escolher data</button><input aria-label="Data da agenda" className={showAgendaDate?"agenda-date-picker is-open":"agenda-date-picker"} type="date" value={anchor} onChange={event=>{if(event.target.value){onAnchor(event.target.value);setShowAgendaDate(false);}}}/><button className="primary" onClick={onNewEvent}><span className="agenda-desktop-label">+ Novo compromisso</span><span className="agenda-mobile-label">+ Compromisso</span></button>{status.connected?<><button type="button" className="secondary agenda-mobile-only" onClick={()=>setShowMobileEncaixe(true)}>+ Encaixe</button><button type="button" className="secondary agenda-mobile-only" aria-expanded={showAgendaOptions} aria-controls="agenda-maintenance-options" onClick={()=>setShowAgendaOptions(value=>!value)}>Mais opções</button></>:null}</section>
-    {status.connected?<div id="agenda-maintenance-options" className={showAgendaOptions?"agenda-maintenance-options is-open":"agenda-maintenance-options"}><PersonalAgendaTools anchor={anchor} onRefresh={onRefresh}/></div>:null}
+    {status.connected?<div id="agenda-maintenance-options" className={showAgendaOptions?"agenda-maintenance-options is-open":"agenda-maintenance-options"}><PersonalBatchCancellation anchor={anchor} onRefresh={onRefresh}/><PersonalAgendaTools anchor={anchor} onRefresh={onRefresh}/></div>:null}
     {!status.configured?<section className="panel setup-panel"><h2>Uma configuração única</h2><p>Para ativar, crie as credenciais OAuth no Google Cloud e configure <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> e <code>APP_URL</code>. Depois o mesmo login funciona no computador e no celular.</p></section>:null}
     {status.connected?<section className="panel agenda-period-panel"><div className="panel-head"><div><h2>{agendaRangeTitle(range)}</h2><p className="muted">{agendaPeriodLabel(anchor,range)}</p></div><span className="status-chip ok">{visible.length} evento{visible.length===1?"":"s"}</span></div>{loading?<div className="calendar-empty">Carregando agenda...</div>:<AgendaRangeContent range={range} anchor={anchor} events={visible} students={students} onOpenEvent={openEvent} onOpenStudent={onOpenStudent} onStartStudent={onStartStudent} onOpenKids={onOpenKids} onAddStudent={setAddingEvent} onRemoveEvent={removeEvent} onSelectDate={date=>{onAnchor(date);onRange("day");}} onSelectMonth={date=>{onAnchor(date);onRange("month");}}/>}</section>:null}
     <section className="panel agenda-connect agenda-connect-bottom"><div className="agenda-icon">📅</div><div className="agenda-connect-main"><h2>Google Calendar</h2><p>O Google continua sendo a agenda oficial. O DMP mantém os nomes e horários como estão na sua agenda e abre os treinos dos alunos daquele horário.</p><div className="agenda-roadmap"><span>✓ Atualiza ao abrir/voltar ao DMP</span><span>✓ Revisa o dia a cada 5 min em uso</span><span>✓ Domingo: pré-carrega 7 dias</span><span>✓ Vários alunos no mesmo horário</span><span>✓ Criar/excluir compromisso pelo DMP</span></div>{status.connected?<div className="agenda-sync-summary"><strong>Sincronização automática ativa</strong><span>Hoje{sync.dailyAt?` atualizado às ${formatSyncTime(sync.dailyAt)}`:" aguardando primeira atualização"}.</span><span>{sync.weeklyAt?`Última revisão semanal: ${formatSyncDateTime(sync.weeklyAt)} · ${sync.weeklyCount} compromissos.`:"A revisão dos próximos 7 dias acontece automaticamente no primeiro uso de domingo."}</span></div>:null}</div><div className="agenda-actions">{!status.configured?<span className="status-chip">Configuração pendente</span>:status.connected?<><span className="status-chip ok">Conectado</span><button className="primary" onClick={onNewEvent}>+ Compromisso</button><button className="secondary" onClick={onRefresh}>Atualizar</button><button className="secondary" onClick={disconnect}>Desconectar</button></>:<a className="primary button-link" href="/api/google/auth">Conectar Google</a>}</div></section>
