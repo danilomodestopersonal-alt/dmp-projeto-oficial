@@ -7,7 +7,7 @@ const before=structuredClone(input),out=M.widgetV2([],input,null,[],[],now);
 assert.equal(out.commitments.length,3);assert.deepEqual(out.commitments.map(e=>e.time),['09:00','12:00','18:00']);
 assert(out.commitments.every(e=>e.source==='google'&&e.destination.includes('widget=event')));assert.deepEqual(input,before);
 const student={id:'s1',name:'Ana Silva',status:'ACTIVE',sessions:[],workouts:[],assessments:[]};
-const mixed=[...input,event('personal','10',{summary:'Ana Silva'}),event('kids','11',{summary:'Tênis Kids · Bola Laranja'}),event('cancelled','13',{cancelled:true}),event('tomorrow','14',{start:'2026-10-28T14:00:00-03:00'}),event('yesterday','15',{start:'2026-10-26T15:00:00-03:00'}),event('all','16',{allDay:true,start:date,end:'2026-10-28'})];
+const mixed=[...input,event('personal','10',{summary:'Aula · Ana Silva'}),event('kids','11',{summary:'Tênis Kids · Bola Laranja'}),event('cancelled','13',{cancelled:true}),event('tomorrow','14',{start:'2026-10-28T14:00:00-03:00'}),event('yesterday','15',{start:'2026-10-26T15:00:00-03:00'}),event('all','16',{allDay:true,start:date,end:'2026-10-28'})];
 const result=M.widgetV2([student],mixed,null,[],[{id:'one',title:'DMP/Todoist',dueTime:'08:00'}],now);
 assert.equal(result.commitments.length,5);assert(!result.commitments.some(e=>['personal','kids','cancelled','tomorrow','yesterday'].includes(e.id)));
 assert.equal(result.commitments.filter(e=>e.id==='one').length,2,'IDs from different sources must not collide');

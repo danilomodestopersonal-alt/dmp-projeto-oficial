@@ -26,7 +26,7 @@ export function categoryLabelForHome(category:KidsCategory){
   if(category==="GREEN")return "Verde";
   return "Amarela";
 }
-export function matchCalendarEvents(events:CalendarEvent[],students:Student[]):CalendarEvent[]{
+export function matchCalendarEvents(events:CalendarEvent[],students:Student[],maintenanceCandidates=false):CalendarEvent[]{
   const active=students.filter(student=>student.status==="ACTIVE");
   const firstNameCount=new Map<string,number>();
   active.forEach(student=>{const first=normalizeName(student.name).split(" ").filter(Boolean)[0];if(first)firstNameCount.set(first,(firstNameCount.get(first)||0)+1);});
@@ -62,7 +62,26 @@ export function matchCalendarEvents(events:CalendarEvent[],students:Student[]):C
         return candidates.length===1&&candidates[0].id===student.id;
       });
     });
-    const ids=matches.map(student=>student.id);
+    // Maintenance discovers candidates first and independently checks identity, ownership and conflicts.
+    if(maintenanceCandidates)return projectRoster(event,matches.map(s=>s.id),students);
+    const roster=event.calendarRoster;
+    const edits=[...(roster?.rules||[]),...(roster?.single?.eventId===event.id?[roster.single]:[])];
+    const knownTokens=new Set(students.flatMap(s=>normalizeName(s.name).split(" ")));
+    const onlyRoster=Boolean(title)&&[...tokens].every(token=>["aula","personal","treino","e","de","do","da"].includes(token)||knownTokens.has(token)||token.length>=3&&[...knownTokens].some(n=>n.startsWith(token)));
+    const lessonLabel=/^(aula|personal|treino)\b/.test(title);
+    // Stored occurrence IDs tie historical rosters to the same Google series.
+    // A similar name, weekday or time is never sufficient evidence.
+    const seriesKey=(id:string)=>id.replace(/_R\d{8}T\d{6}(?:Z)?$/,"");
+    const instanceSeries=(id:string)=>/_\d{8}T\d{6}Z$/.test(id)?id.replace(/_\d{8}T\d{6}Z$/,""):null;
+    const lessonLinks=new Set(matches.filter(student=>{
+      const explicit=edits.some(edit=>[...edit.ids,...edit.add,...edit.remove].includes(student.id));
+      const historical=student.sessions?.some(session=>{
+        const previous=session.calendarEvent;if(!previous)return false;
+        return previous.id===event.id||Boolean((event.recurringEventId||event.recurrence?.length)&&instanceSeries(previous.id)===seriesKey(event.recurringEventId||event.id));
+      });
+      return explicit||historical;
+    }).map(student=>student.id));
+    const ids=onlyRoster&&(lessonLabel||lessonLinks.size)?matches.filter(student=>lessonLinks.has(student.id)||matches.filter(other=>normalizeName(other.name)===normalizeName(student.name)).length===1).map(student=>student.id):[];
     return projectRoster(event,ids,students);
   });
 }

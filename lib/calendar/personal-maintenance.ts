@@ -38,14 +38,14 @@ export function normalizedCommand(input:any):MaintenanceCommand{
 }
 function writable(e:Event){return Boolean(e?.id&&e.etag&&e.status!=="cancelled"&&e.start?.dateTime&&e.end?.dateTime&&!e.start.date&&!e.locked&&e.organizer?.self===true&&(!e.eventType||e.eventType==="default")&&!(e.attendees||[]).some((a:any)=>!a.self));}
 export function mappedPersonal(e:Event,parent:Event|undefined,students:Student[]){
- const mapped:CalendarEvent={id:e.id,etag:e.etag,summary:e.summary||"",start:e.start?.dateTime||"",end:e.end?.dateTime||"",recurringEventId:e.recurringEventId,originalStartTime:e.originalStartTime?.dateTime,calendarRoster:calendarRoster(e.extendedProperties?.private,parent?.extendedProperties?.private)};
- return matchCalendarEvents([mapped],students)[0];
+ const mapped:CalendarEvent={id:e.id,etag:e.etag,summary:e.summary||"",start:e.start?.dateTime||"",end:e.end?.dateTime||"",recurrence:e.recurrence,recurringEventId:e.recurringEventId,originalStartTime:e.originalStartTime?.dateTime,calendarRoster:calendarRoster(e.extendedProperties?.private,parent?.extendedProperties?.private)};
+ return matchCalendarEvents([mapped],students,true)[0];
 }
 function isPersonal(e:Event,parent:Event|undefined,students:Student[]){
  if(!writable(e)||parent&&!writable(parent)||kidsCalendarRequest({id:e.id,summary:e.summary||"",start:e.start.dateTime,end:e.end.dateTime})||parent&&kidsCalendarRequest({id:parent.id,summary:parent.summary||"",start:parent.start.dateTime,end:parent.end.dateTime}))return false;
  const mapped=mappedPersonal(e,parent,students),raw={...mapped,summary:e.summary||"",calendarRoster:undefined};
  if(mapped.calendarRoster?.single&&mapped.calendarRoster.single.eventId!==e.id)return false;
- const legacy=matchCalendarEvents([raw],students)[0].matchedStudentIds||[];
+ const legacy=matchCalendarEvents([raw],students,true)[0].matchedStudentIds||[];
  if(rosterIds(mapped,legacy).some(id=>!students.some(s=>s.id===id)))return false;
  const edits=[...(mapped.calendarRoster?.rules||[]),...(mapped.calendarRoster?.single?[mapped.calendarRoster.single]:[])];
  const proven=edits.some(edit=>[...edit.ids,...edit.add,...edit.remove].some(id=>students.some(s=>s.id===id)));

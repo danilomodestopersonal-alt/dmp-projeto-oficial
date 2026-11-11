@@ -3,7 +3,7 @@ const root=path.resolve(__dirname,'..'),cache=new Map();let n=0;
 function load(file,overrides={}){if(cache.has(file)&&!Object.keys(overrides).length)return cache.get(file);const m={exports:{}};const req=name=>name in overrides?overrides[name]:name.startsWith('@/')?load(name.slice(2)+'.ts',overrides):name.startsWith('.')?load(path.posix.join(path.posix.dirname(file),name)+'.ts',overrides):require(name);new Function('require','module','exports',ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText)(req,m,m.exports);if(!Object.keys(overrides).length)cache.set(file,m.exports);return m.exports;}
 const logic=load('lib/widget/student-action.ts'),links=load('lib/widget/links.ts');
 const initial=()=>['Luciana Grespi','Juliana Revelk'].map((name,i)=>({id:'s'+i,name,status:'ACTIVE',sessions:[],workouts:[],assessments:[]}));
-const event={id:'occ-1',summary:'Luciana Grespi Juliana Revelk',start:'2026-10-14T08:30:00-03:00',end:'2026-10-14T09:30:00-03:00'};
+const event={id:'occ-1',summary:'Aula · Luciana Grespi Juliana Revelk',start:'2026-10-14T08:30:00-03:00',end:'2026-10-14T09:30:00-03:00'};
 const target=(action='presence',studentId='s0')=>({kind:'student-action',id:event.id,date:'2026-10-14',time:'08:30',studentId,action});
 const test=async(name,fn)=>{await fn();console.log('OK STUDENT ACTION '+(++n)+' '+name);};
 module.exports=(async()=>{
@@ -13,7 +13,7 @@ for(const action of ['presence','absence'])await test('isola aluno '+action,()=>
 await test('registro revisado com data exata',()=>{const p={date:'2026-10-14',completedExercises:[{id:'e',name:'Remada',sets:'3',reps:'12',load:'20'}]};assert.equal(logic.prepareStudentAction(initial(),[event],target('register'),'stable',p).session.source,'FREE');assert.throws(()=>logic.prepareStudentAction(initial(),[event],target('register'),'stable',{...p,date:'2026-10-15'}));});
 await test('repeticao e conflito',()=>{const r=logic.prepareStudentAction(initial(),[event],target(),'stable');assert.equal(logic.prepareStudentAction(r.students,[event],target(),'stable').already,true);assert.throws(()=>logic.prepareStudentAction(r.students,[event],target('absence'),'stable'));});
 await test('registro legado protegido',()=>{const s=initial();s[0].sessions=[{id:'old',date:'2026-10-14',source:'ATTENDANCE'}];assert.throws(()=>logic.prepareStudentAction(s,[event],target(),'stable'));});
-for(const changed of [{...event,id:'outro'},{...event,start:'2026-10-15T08:30:00-03:00'},{...event,start:'2026-10-14T09:00:00-03:00'},{...event,summary:'Juliana Revelk'}])await test('rejeita aula alterada '+JSON.stringify(changed),()=>assert.throws(()=>logic.prepareStudentAction(initial(),[changed],target(),'stable')));
+for(const changed of [{...event,id:'outro'},{...event,start:'2026-10-15T08:30:00-03:00'},{...event,start:'2026-10-14T09:00:00-03:00'},{...event,summary:'Aula · Juliana Revelk'}])await test('rejeita aula alterada '+JSON.stringify(changed),()=>assert.throws(()=>logic.prepareStudentAction(initial(),[changed],target(),'stable')));
 let authorized=true,calendarOk=true,state=initial(),writes=0,chain=Promise.resolve();
 class Request{constructor(url,{headers={}}={}){this.url=String(url);this.nextUrl=new URL(url);this.headers=new Headers(headers);}async json(){return this.body;}}
 const response=(body,status=200)=>({ok:status>=200&&status<300,status,body,json:async()=>body,cookies:{getAll:()=>[],set:()=>{}}});

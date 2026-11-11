@@ -1,0 +1,25 @@
+{
+  "base": "82a917566f10965403841626cdcdc242d540a018",
+  "files": {
+    "components/DmpApp.tsx": {
+      "before": "94d083a4d1dfe6b3894fa6d3249e4169dd9bd6163c4a4a0338c090b7a77d29ff",
+      "after": "3185a6641c7e713e80b1286c473abe31c170de93c4f5e8d949f4d794cb314ded"
+    },
+    "components/calendar/CalendarAppointmentDetails.tsx": {
+      "before": null,
+      "after": "8a8d16603b0bf7b1dfc4ef1ea21648a92af89ca808a185752170388ef1c6c239"
+    },
+    "lib/widget/home-source.ts": {
+      "before": "3cff7ab2aa60d389c3251ad9a73779715493d0078332c1cad84252f63dcf30c1",
+      "after": "aa54942a988c91d0ff1a316cc12266a6668ad6dc574c53841f731bb042d9d554"
+    },
+    "lib/calendar/personal-maintenance.ts": {
+      "before": "3c3e6a5e0866adec3f081ea6e7343ddf301646919bb87d97b2e411ccbfb4106d",
+      "after": "e8454dac6a741fa6081378a4fd51ba0fc6eb3f993697edb64be9f9abdb1e21cb"
+    },
+    "app/api/google/event-students/route.ts": {
+      "before": "73f7df8f35dc44e2bf2d83b31f53afec76f33d1e4f2138dd3731629faea2135a",
+      "after": "e229b1c3b4f5ba33c1b385d397f059532aed4720072a5b6e41134657f1666e00"
+    }
+  }
+}

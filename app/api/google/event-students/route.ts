@@ -25,7 +25,7 @@ export async function POST(request:NextRequest){
  const finish=()=>{const r=NextResponse.json({confirmed:true});if(refreshed)setGoogleCookies(r,refreshed);return r;};
  if(saved?.op===p.operationId){if(saved.eventId!==p.id||saved.scope!==p.scope||JSON.stringify(saved.ids)!==JSON.stringify(p.ids))return NextResponse.json({message:"Operação divergente."},{status:409});return finish();}
  const result=await pool.query("SELECT payload FROM dmp_data WHERE id = $1",["students"]);const raw=result.rows[0]?.payload;const students:Student[]=typeof raw==="string"?JSON.parse(raw):(raw||[]);
- const mapped={id:event.id,summary:event.summary||"",start:event.start.dateTime,end:event.end?.dateTime||"",originalStartTime:event.originalStartTime?.dateTime||event.start.dateTime,calendarRoster:calendarRoster(event.extendedProperties?.private,parent?.extendedProperties?.private)};
+ const mapped={id:event.id,recurringEventId:event.recurringEventId,recurrence:event.recurrence,summary:event.summary||"",start:event.start.dateTime,end:event.end?.dateTime||"",originalStartTime:event.originalStartTime?.dateTime||event.start.dateTime,calendarRoster:calendarRoster(event.extendedProperties?.private,parent?.extendedProperties?.private)};
  if(kidsCalendarRequest(mapped))return NextResponse.json({message:"Use a chamada Kids para esta aula."},{status:400});
  const current=matchCalendarEvents([mapped],students)[0].matchedStudentIds||[];const equal=(a:string[],b:string[])=>[...a].sort().join("\0")===[...b].sort().join("\0");
  if(event.etag!==p.etag||!equal(current,p.expected))return NextResponse.json({message:"A aula mudou. Reabra a agenda antes de salvar."},{status:409});

@@ -15,6 +15,7 @@ import {projectHomeKidsEvents} from "@/lib/kids/home-calendar";
 import WidgetOccurrenceHistory from "./WidgetOccurrenceHistory";
 import EvolutionReport from "@/components/evolution/EvolutionReport";
 import CalendarTimeEditor from "@/components/calendar/CalendarTimeEditor";
+import CalendarAppointmentDetails from "./calendar/CalendarAppointmentDetails";
 import CalendarRosterEditor from "@/components/calendar/CalendarRosterEditor";
 import AbsenceSyncPanel from "@/components/calendar/AbsenceSyncPanel";
 import LastPresence from "@/components/home/LastPresence";
@@ -2151,6 +2152,7 @@ function CalendarAgenda({widgetWeek,widgetNotes,onWidgetNote,widgetEventId,onWid
   const [showAgendaOptions,setShowAgendaOptions]=useState(false);
   const [timeEvent,setTimeEvent]=useState<CalendarEvent|null>(null);
   const [addingEvent,setAddingEvent]=useState<CalendarEvent|null>(null);
+  const [appointmentEvent,setAppointmentEvent]=useState<CalendarEvent|null>(null);
   const [widgetEditingEvent,setWidgetEditingEvent]=useState<CalendarEvent|null>(null);
   const widgetEventOpened=useRef<string|null>(null);
   useEffect(()=>{if(!widgetEventId||widgetEventOpened.current===widgetEventId||loading)return;const event=events.find(e=>e.id===widgetEventId);if(!event)return;widgetEventOpened.current=widgetEventId;if(kidsCalendarRequest(event))onOpenKids(event);else if(!event.allDay)setWidgetEditingEvent(event);else setAddingEvent(event);},[widgetEventId,events,loading,onOpenKids]);
@@ -2158,7 +2160,7 @@ function CalendarAgenda({widgetWeek,widgetNotes,onWidgetNote,widgetEventId,onWid
   async function removeEvent(id:string){if(!confirm("Excluir este compromisso do Google Calendar?"))return;const r=await fetch(`/api/google/events?id=${encodeURIComponent(id)}`,{method:"DELETE"});if(r.ok)onRefresh();else alert("Não foi possível excluir o compromisso.");}
   const visible:CalendarEvent[]=[...events.filter(event=>agendaRangeIncludes(event,anchor,range)),...fixed.map(o=>({id:o.id,summary:o.title,start:o.start,end:o.end,matchedStudentIds:[]}))].sort((a,b)=>Date.parse(a.start)-Date.parse(b.start)||a.id.localeCompare(b.id));
   const navigate=(direction:-1|1)=>onAnchor(shiftAgendaAnchor(anchor,range,direction));
-  const openEvent=(event:CalendarEvent)=>{const own=fixedById.get(event.id);if(own){setSelectedFixed(own);return;}const kids=kidsCalendarRequest(event);if(kids){onOpenKids(event);return;}setAddingEvent(event);};
+  const openEvent=(event:CalendarEvent)=>{const own=fixedById.get(event.id);if(own){setSelectedFixed(own);return;}const kids=kidsCalendarRequest(event);if(kids){onOpenKids(event);return;}if(!getCalendarEventStudents(event,students).length){setAppointmentEvent(event);return;}setAddingEvent(event);};
   return <>
     {widgetEventId&&!loading&&!events.some(e=>e.id===widgetEventId)?<WidgetOccurrenceHistory eventId={widgetEventId} date={anchor} students={students} onOpenStudent={onOpenStudent}/>:null}
     {widgetWeek&&status.connected?<WidgetWeekAgenda anchor={anchor} events={events} students={students} notes={widgetNotes||[]} onAnchor={onAnchor} onEvent={event=>{if(kidsCalendarRequest(event))onOpenKids(event);else if(event.allDay)setAddingEvent(event);else setWidgetEditingEvent(event);}} onNote={id=>onWidgetNote?.(id)} loading={loading}/>:<>
@@ -2172,6 +2174,7 @@ function CalendarAgenda({widgetWeek,widgetNotes,onWidgetNote,widgetEventId,onWid
     {widgetEditingEvent?<WidgetEventEditor event={widgetEditingEvent} students={getCalendarEventStudents(widgetEditingEvent,students)} onClose={()=>setWidgetEditingEvent(null)} onSaved={()=>{setWidgetEditingEvent(null);onRefresh();}} onStudents={()=>{setAddingEvent(widgetEditingEvent);setWidgetEditingEvent(null);}} onStudent={id=>{setWidgetEditingEvent(null);onOpenStudent(id);}} onPresence={id=>{setWidgetEditingEvent(null);onStartStudent(id,"attendance");}} onAbsence={student=>onWidgetAbsence?onWidgetAbsence(student,widgetEditingEvent):Promise.resolve()}/>:null}
     {showMobileEncaixe?<GoogleEventForm students={students} onClose={()=>setShowMobileEncaixe(false)} onSaved={()=>{setShowMobileEncaixe(false);onRefresh();}}/>:null}
     {timeEvent?<CalendarTimeEditor event={timeEvent} onClose={()=>setTimeEvent(null)} onSaved={()=>{setTimeEvent(null);setAddingEvent(null);onRefresh();}}/>:null}
+    {appointmentEvent?<CalendarAppointmentDetails event={appointmentEvent} onClose={()=>setAppointmentEvent(null)}/>:null}
     {addingEvent&&!timeEvent?<AddStudentsToCalendarEventModal event={addingEvent} students={students} onClose={()=>setAddingEvent(null)} onSaved={()=>{setAddingEvent(null);onRefresh();}} onChangeTime={!widgetWeek&&!widgetEventId&&!addingEvent.allDay&&!kidsCalendarRequest(addingEvent)?()=>setTimeEvent(addingEvent):undefined}/>:null}
   </>;
 }
@@ -2188,13 +2191,13 @@ function AgendaRangeContent({range,anchor,events,fixed=[],students,onOpenEvent,o
 
 function AgendaEventDetails({event,students,compact,onOpenEvent,onOpenStudent,onStartStudent,onOpenKids,onAddStudent,onRemoveEvent}:{event:CalendarEvent;students:Student[];compact:boolean;onOpenEvent:(event:CalendarEvent)=>void;onOpenStudent:(id:string)=>void;onStartStudent:(id:string,mode:"session"|"free"|"attendance")=>void;onOpenKids:(event:CalendarEvent)=>void;onAddStudent:(event:CalendarEvent)=>void;onRemoveEvent:(id:string)=>void}){
   const matchedStudents=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);
-  return <article className={`agenda-event-row agenda-event-row-multi ${compact?"agenda-list-row":""}`}><div className="agenda-event-time">{compact?<><small>{formatRailDate(event)}</small><strong>{formatCalendarTime(event)}</strong></>:formatCalendarTime(event)}</div><div className="agenda-event-body"><button className="agenda-event-title-button" onClick={()=>onOpenEvent(event)}>{event.summary}</button>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{kids?<button className="primary compact-action" onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=>{const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;return <div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onAddStudent(event)}>👤 {student.name}</button><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><span className="slot-ficha-label">{getStudentWorkoutEntries(student).length>0?"Treino montado":"Sem treino"}</span>{getStudentWorkoutEntries(student).length>0?<button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>▶ Iniciar</button>:null}<button className={getStudentWorkoutEntries(student).length>0?"secondary compact-action":"primary compact-action"} onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>})}</div>:event.allDay?<small className="muted">Evento de dia inteiro.</small>:<small className="muted">Nenhum aluno identificado no DMP.</small>}</div><div className="agenda-event-actions"><button className="secondary compact-action" onClick={()=>onAddStudent(event)}>✎ Editar alunos</button>{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}<button className="danger-link" onClick={()=>onRemoveEvent(event.id)}>Excluir</button></div></article>;
+  return <article className={`agenda-event-row agenda-event-row-multi ${compact?"agenda-list-row":""}`}><div className="agenda-event-time">{compact?<><small>{formatRailDate(event)}</small><strong>{formatCalendarTime(event)}</strong></>:formatCalendarTime(event)}</div><div className="agenda-event-body"><button className="agenda-event-title-button" onClick={()=>onOpenEvent(event)}>{event.summary}</button>{event.location?<small>📍 {event.location}</small>:null}{event.description?<small>{event.description}</small>:null}{kids?<button className="primary compact-action" onClick={()=>onOpenKids(event)}>🎾 Abrir turma e chamada</button>:matchedStudents.length?<div className="slot-workouts"><div className="slot-workouts-head"><span>🏋️ Treinos do horário</span><small>{matchedStudents.length} aluno{matchedStudents.length===1?"":"s"}</small></div>{matchedStudents.map(student=>{const latestAssessment=student.assessments.slice().sort((a,b)=>b.date.localeCompare(a.date))[0];const assessmentAgeDays=latestAssessment?Math.floor((Date.now()-new Date(latestAssessment.date+"T12:00:00").getTime())/86400000):null;const assessmentExpired=assessmentAgeDays!==null&&assessmentAgeDays>60;return <div className="slot-workout-student" key={student.id}><button className="calendar-student-link" onClick={()=>onAddStudent(event)}>👤 {student.name}</button><span className={latestAssessment?(assessmentExpired?"home-assessment-badge expired":"home-assessment-badge ok"):"home-assessment-badge none"}>{latestAssessment?`📏 ${formatDate(latestAssessment.date)}`:"📏 Sem avaliação"}</span><span className="slot-ficha-label">{getStudentWorkoutEntries(student).length>0?"Treino montado":"Sem treino"}</span>{getStudentWorkoutEntries(student).length>0?<button className="primary compact-action" onClick={()=>onStartStudent(student.id,"session")}>▶ Iniciar</button>:null}<button className={getStudentWorkoutEntries(student).length>0?"secondary compact-action":"primary compact-action"} onClick={()=>onStartStudent(student.id,"free")}>✍ Registrar</button><button className="secondary compact-action" onClick={()=>onStartStudent(student.id,"attendance")}>✓ Presença</button></div>})}</div>:event.allDay?<small className="muted">Evento de dia inteiro.</small>:<small className="muted">Compromisso · {formatCalendarTime(event)}–{formatCalendarTime({...event,start:event.end})}</small>}</div><div className="agenda-event-actions">{matchedStudents.length||kids?<button className="secondary compact-action" onClick={()=>onAddStudent(event)}>✎ Editar alunos</button>:null}{event.htmlLink?<a className="secondary button-link compact-action" href={event.htmlLink} target="_blank" rel="noreferrer">Google</a>:null}{matchedStudents.length||kids?<button className="danger-link" onClick={()=>onRemoveEvent(event.id)}>Excluir</button>:null}</div></article>;
 }
 
 function AgendaWeekView({anchor,events,fixed=[],students,onOpenEvent,onOpenStudent}:{anchor:string;events:CalendarEvent[];fixed?:FixedOccurrence[];students:Student[];onOpenEvent:(event:CalendarEvent)=>void;onOpenStudent:(id:string)=>void}){
   const fixedById=new Map(fixed.map(o=>[o.id,o]));
   const days=agendaWeekDays(anchor);
-  return <div className="agenda-week-grid">{days.map(date=>{const dayEvents=events.filter(event=>calendarEventDate(event)===date);return <section key={date} className="agenda-week-day"><header><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short"})}</strong><span>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</span></header>{dayEvents.length?dayEvents.map(event=>{const own=fixedById.get(event.id);if(own)return <FixedAppointmentRow key={own.id} occurrence={own} week coincides={overlapsFixed(own,events.filter(e=>e.id!==own.id))} onOpen={()=>onOpenEvent(event)}/>;const people=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);return <article key={event.id} className={kids?"kids":""}><button onClick={()=>onOpenEvent(event)}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}</button>{people.map(student=><button className="agenda-week-student" key={student.id} onClick={()=>onOpenEvent(event)}>{student.name}</button>)}</article>}):<p>Sem aulas</p>}</section>})}</div>;
+  return <div className="agenda-week-grid">{days.map(date=>{const dayEvents=events.filter(event=>calendarEventDate(event)===date);return <section key={date} className="agenda-week-day"><header><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short"})}</strong><span>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}</span></header>{dayEvents.length?dayEvents.map(event=>{const own=fixedById.get(event.id);if(own)return <FixedAppointmentRow key={own.id} occurrence={own} week coincides={overlapsFixed(own,events.filter(e=>e.id!==own.id))} onOpen={()=>onOpenEvent(event)}/>;const people=getCalendarEventStudents(event,students);const kids=kidsCalendarRequest(event);return <article key={event.id} className={kids?"kids":""}><button onClick={()=>onOpenEvent(event)}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}{!kids&&!people.length?<small>{event.allDay?"Compromisso · Dia inteiro":`Compromisso · ${formatCalendarTime(event)}–${formatCalendarTime({...event,start:event.end})}`}</small>:null}</button>{people.map(student=><button className="agenda-week-student" key={student.id} onClick={()=>onOpenEvent(event)}>{student.name}</button>)}</article>}):<p>Sem aulas</p>}</section>})}</div>;
 }
 
 function AgendaMonthView({anchor,events,onOpenEvent,onSelectDate}:{anchor:string;events:CalendarEvent[];onOpenEvent:(event:CalendarEvent)=>void;onSelectDate:(date:string)=>void}){
@@ -2217,7 +2220,7 @@ function GoogleEventForm({students,onClose,onSaved}:{students:Student[];onClose:
   const [endTime,setEndTime]=useState("09:00");
   const [saving,setSaving]=useState(false);
   const [repeatWeekly,setRepeatWeekly]=useState(false);const [repeatUntil,setRepeatUntil]=useState("");
-  function chooseStudent(id:string){if(!id)return;setStudentIds(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);const names=students.filter(item=>[...studentIds,id].includes(item.id)).map(item=>calendarStudentDisplayName(item));if(names.length)setSummary(names.join(" "));}
+  function chooseStudent(id:string){if(!id)return;setStudentIds(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);const names=students.filter(item=>[...studentIds,id].includes(item.id)).map(item=>calendarStudentDisplayName(item));if(names.length)setSummary("Aula · "+names.join(" · "));}
   async function save(event:FormEvent){
     event.preventDefault();
 
@@ -5840,7 +5843,7 @@ function findPreviousExercise(student:Student,name:string){
 }
 function normalizeName(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();}
 const CALENDAR_STUDENT_ALIASES:Record<string,string>={bruna:"bruna sickler"};
-function matchCalendarEvents(events:CalendarEvent[],students:Student[]):CalendarEvent[]{
+function matchCalendarEvents(events:CalendarEvent[],students:Student[],maintenanceCandidates=false):CalendarEvent[]{
   const active=students.filter(student=>student.status==="ACTIVE");
   const firstNameCount=new Map<string,number>();
   active.forEach(student=>{const first=normalizeName(student.name).split(" ").filter(Boolean)[0];if(first)firstNameCount.set(first,(firstNameCount.get(first)||0)+1);});
@@ -5876,7 +5879,26 @@ function matchCalendarEvents(events:CalendarEvent[],students:Student[]):Calendar
         return candidates.length===1&&candidates[0].id===student.id;
       });
     });
-    const ids=matches.map(student=>student.id);
+    // Maintenance discovers candidates first and independently checks identity, ownership and conflicts.
+    if(maintenanceCandidates)return projectRoster(event,matches.map(s=>s.id),students);
+    const roster=event.calendarRoster;
+    const edits=[...(roster?.rules||[]),...(roster?.single?.eventId===event.id?[roster.single]:[])];
+    const knownTokens=new Set(students.flatMap(s=>normalizeName(s.name).split(" ")));
+    const onlyRoster=Boolean(title)&&[...tokens].every(token=>["aula","personal","treino","e","de","do","da"].includes(token)||knownTokens.has(token)||token.length>=3&&[...knownTokens].some(n=>n.startsWith(token)));
+    const lessonLabel=/^(aula|personal|treino)\b/.test(title);
+    // Stored occurrence IDs tie historical rosters to the same Google series.
+    // A similar name, weekday or time is never sufficient evidence.
+    const seriesKey=(id:string)=>id.replace(/_R\d{8}T\d{6}(?:Z)?$/,"");
+    const instanceSeries=(id:string)=>/_\d{8}T\d{6}Z$/.test(id)?id.replace(/_\d{8}T\d{6}Z$/,""):null;
+    const lessonLinks=new Set(matches.filter(student=>{
+      const explicit=edits.some(edit=>[...edit.ids,...edit.add,...edit.remove].includes(student.id));
+      const historical=student.sessions?.some(session=>{
+        const previous=session.calendarEvent;if(!previous)return false;
+        return previous.id===event.id||Boolean((event.recurringEventId||event.recurrence?.length)&&instanceSeries(previous.id)===seriesKey(event.recurringEventId||event.id));
+      });
+      return explicit||historical;
+    }).map(student=>student.id));
+    const ids=onlyRoster&&(lessonLabel||lessonLinks.size)?matches.filter(student=>lessonLinks.has(student.id)||matches.filter(other=>normalizeName(other.name)===normalizeName(student.name)).length===1).map(student=>student.id):[];
     return projectRoster(event,ids,students);
   });
 }

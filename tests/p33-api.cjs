@@ -1,0 +1,15 @@
+'use strict';
+const A=require('node:assert/strict'),H=require('./p15-harness.cjs');
+const people=[{id:'alfa',name:'Alfa Teste',status:'ACTIVE',sessions:[{calendarEvent:{id:'series_20991105T130000Z'}}]},{id:'beta',name:'Beta Colega',status:'ACTIVE',sessions:[]}];
+let authorized=true,patches=0;
+let event={id:'series_20991112T130000Z',etag:'v1',summary:'Alfa Beta',recurringEventId:'series_R20991105T130000',originalStartTime:{dateTime:'2099-11-12T10:00:00-03:00'},start:{dateTime:'2099-11-12T10:00:00-03:00'},end:{dateTime:'2099-11-12T11:00:00-03:00'}};
+let parent={id:event.recurringEventId,etag:'p1',summary:event.summary,extendedProperties:{private:{untouched:'keep'}}};
+const network=async(url,opt={})=>{const id=decodeURIComponent(url.split('/').at(-1)),item=id===parent.id?parent:event;if(opt.method==='PATCH'){A.equal(opt.headers['If-Match'],item.etag);patches++;Object.assign(item,JSON.parse(opt.body));item.etag='p'+(patches+1);}return Response.json(item);};
+const load=H.loader({'@/lib/auth':{isAuthorized:async()=>authorized},'@/lib/google-calendar':{googleConfigured:()=>true,getGoogleAccessToken:async()=>({accessToken:'synthetic'}),setGoogleCookies(){}},'@/lib/db':{pool:{query:async(sql)=>{A.match(sql,/^SELECT/);return {rows:[{payload:people}]}}}},'next/server':{NextResponse:{json:H.json}}},network),api=load('app/api/google/event-students/route.ts');
+const body={id:event.id,etag:event.etag,ids:['alfa'],expected:['alfa','beta'],scope:'following',operationId:'synthetic-operation-01'};
+const req=()=>({json:async()=>structuredClone(body)});
+(async()=>{let r=await api.POST(req());A.equal(r.status,200);A.equal(patches,1);A.equal(parent.extendedProperties.private.untouched,'keep');r=await api.POST(req());A.equal(r.status,200);A.equal(patches,1);
+body.operationId='synthetic-operation-02';body.expected=['beta'];r=await api.POST(req());A.equal(r.status,409);A.equal(patches,1);
+parent.extendedProperties={private:{}};event.summary='Reunião com Alfa Teste';body.expected=['alfa'];body.ids=['beta'];r=await api.POST(req());A.equal(r.status,409);A.equal(patches,1);
+authorized=false;r=await api.POST(req());A.equal(r.status,401);A.equal(patches,1);
+console.log('PASS P33 API: linked recurring class editable, colleague and metadata preserved, idempotent replay, stale identity and common meeting blocked; all writes synthetic.');})().catch(e=>{console.error(e);process.exitCode=1});
