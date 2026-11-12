@@ -2175,7 +2175,7 @@ function CalendarAgenda({widgetWeek,widgetNotes,onWidgetNote,widgetEventId,onWid
     {widgetEditingEvent?<WidgetEventEditor event={widgetEditingEvent} students={getCalendarEventStudents(widgetEditingEvent,students)} onClose={()=>setWidgetEditingEvent(null)} onSaved={()=>{setWidgetEditingEvent(null);onRefresh();}} onStudents={()=>{setAddingEvent(widgetEditingEvent);setWidgetEditingEvent(null);}} onStudent={id=>{setWidgetEditingEvent(null);onOpenStudent(id);}} onPresence={id=>{setWidgetEditingEvent(null);onStartStudent(id,"attendance");}} onAbsence={student=>onWidgetAbsence?onWidgetAbsence(student,widgetEditingEvent):Promise.resolve()}/>:null}
     {showMobileEncaixe?<GoogleEventForm students={students} onClose={()=>setShowMobileEncaixe(false)} onSaved={()=>{setShowMobileEncaixe(false);onRefresh();}}/>:null}
     {timeEvent?<CalendarTimeEditor event={timeEvent} onClose={()=>setTimeEvent(null)} onSaved={()=>{setTimeEvent(null);setAddingEvent(null);onRefresh();}}/>:null}
-    {appointmentEvent?<CalendarAppointmentDetails event={appointmentEvent} onClose={()=>setAppointmentEvent(null)}/>:null}
+    {appointmentEvent?<CalendarAppointmentDetails event={appointmentEvent} onClose={()=>setAppointmentEvent(null)} onSaved={onRefresh}/>:null}
     {addingEvent&&!timeEvent?<AddStudentsToCalendarEventModal event={addingEvent} students={students} onClose={()=>setAddingEvent(null)} onSaved={()=>{setAddingEvent(null);onRefresh();}} onChangeTime={!widgetWeek&&!widgetEventId&&!addingEvent.allDay&&!kidsCalendarRequest(addingEvent)?()=>setTimeEvent(addingEvent):undefined}/>:null}
   </>;
 }
@@ -3105,7 +3105,7 @@ function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh
       </div>
     </aside>
     {addingEvent?<AddStudentsToCalendarEventModal event={addingEvent} students={students} onClose={()=>setAddingEvent(null)} onSaved={()=>{setAddingEvent(null);onRefresh();}}/>:null}
-    {appointment?<CalendarAppointmentDetails event={appointment} onClose={()=>setAppointment(null)}/>:null}
+    {appointment?<CalendarAppointmentDetails event={appointment} onClose={()=>setAppointment(null)} onSaved={onRefresh}/>:null}
     {selectedFixed?<div className={agendaRail.fixedManager}><FixedAppointmentsManager anchor={selectedFixed.date} events={events} selection={selectedFixed} onSelectionClose={()=>setSelectedFixed(null)}/></div>:null}
     {showEncaixe?<GoogleEventForm students={students} onClose={()=>setShowEncaixe(false)} onSaved={()=>{setShowEncaixe(false);onRefresh();}}/>:null}
   </>;

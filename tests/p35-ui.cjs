@@ -1,0 +1,11 @@
+'use strict';
+const A=require('node:assert/strict'),H=require('./p15-harness.cjs'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const M=H.loader()('components/calendar/CalendarAppointmentDetails.tsx');
+const event={id:'synthetic-meeting',etag:'v1',summary:'Reunião Adriano Almeida',start:'2026-11-12T15:00:00Z',end:'2026-11-12T16:00:00Z',location:'Sala de reuniões',description:'Detalhes sintéticos',htmlLink:'https://calendar.google.com/calendar/event?eid=synthetic'};
+const d=M.appointmentDraft(event);A.equal(d.start,'2026-11-12T12:00');A.equal(d.end,'2026-11-12T13:00');
+const b=M.appointmentBody(event,d,'','p35-ui-operation-001');A.equal(Date.parse(b.start),Date.parse(event.start));A.equal(Date.parse(b.end),Date.parse(event.end));
+const all={...event,allDay:true,start:'2026-11-12',end:'2026-11-14'},ad=M.appointmentDraft(all);A.equal(ad.end,'2026-11-13');A.equal(M.appointmentBody(all,ad,'','p35-ui-operation-002').end,all.end);
+const html=renderToStaticMarkup(React.createElement(M.default,{event,onClose:()=>A.fail('render must not close')}));A.match(html,/Reunião Adriano Almeida/);A.match(html,/12:00–13:00/);A.match(html,/Sala de reuniões/);A.match(html,/role="dialog"/);A.match(html,/Conferindo…/);A.doesNotMatch(html,/Registrar treino|Presença|Excluir|Editar alunos/);
+const hostile=renderToStaticMarkup(React.createElement(M.default,{event:{...event,htmlLink:'javascript:alert(1)',summary:'<script>bad</script>'},onClose:()=>{}}));A.doesNotMatch(hostile,/href="javascript|<script>/);A.match(hostile,/&lt;script&gt;/);
+const app=H.read('components/DmpApp.tsx');A.equal((app.match(/<CalendarAppointmentDetails[^\n]*onSaved=\{onRefresh\}/g)||[]).length,2,'both existing entry points refresh after successful save');
+console.log('PASS P35 UI: São Paulo dates, inclusive all-day display/exclusive API end, safe text/links, accessible dialog, no lesson controls and both agenda entry points refresh.');

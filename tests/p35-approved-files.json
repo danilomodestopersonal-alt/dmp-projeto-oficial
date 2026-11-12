@@ -1,0 +1,25 @@
+{
+  "base": "47987c008c1f65c72af30df9bc856afcd3d33881",
+  "files": {
+    "components/DmpApp.tsx": {
+      "before": "53372c8372549a9bc8f26e6244ccea5bf3d2b6c3ceb54ac4b6204ab698236d80",
+      "after": "fe5e1f919930fd237fa36a85dab7a03956ca7c42d754e82986b4a367d5885416"
+    },
+    "components/calendar/CalendarAppointmentDetails.tsx": {
+      "before": "8a8d16603b0bf7b1dfc4ef1ea21648a92af89ca808a185752170388ef1c6c239",
+      "after": "3b9b2107c4966e65fbc77dc255754456bbb4b32b49e58794adf628e60914f945"
+    },
+    "components/calendar/CalendarAppointmentDetails.module.css": {
+      "before": null,
+      "after": "b8bda7ee37eb30cee18681c0ebe45f839d4ff193888cb1637459df0609e57260"
+    },
+    "app/api/google/appointment/route.ts": {
+      "before": null,
+      "after": "7f7c2dc236dc3d8499d7304a1e3c0d05c283ce2132788bd6037c8c025a6dbbb9"
+    },
+    "lib/calendar/appointment-edit.ts": {
+      "before": null,
+      "after": "1d1e7d0133f2c1b15159258322c94685a860692174d5d8970d11529d39cc0df8"
+    }
+  }
+}
