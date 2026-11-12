@@ -5,6 +5,7 @@ import {personalTeachingEvents,taughtBySubstitute} from '@/lib/kids/personal-tea
 import StudentLifecycle from "./students/StudentLifecycle";
 import {FixedAppointmentsManager,FixedAppointmentRow,useFixedAppointments} from "./appointments/FixedAppointments";
 import notebook from "./students/StudentNotebook.module.css";
+import agendaRail from "./home/DesktopAgendaRail.module.css";
 import {fixedAgendaProjection} from "@/lib/appointments/agenda";
 import {type FixedOccurrence,fixedOccurrences,localDay,overlapsFixed} from "@/lib/appointments/fixed";
 import SpotifyPanelLink from "./home/SpotifyPanelLink";
@@ -3046,47 +3047,66 @@ function MiniMonthCalendar({onSelect,notes}:{onSelect:(date:string)=>void;notes:
 }
 function DesktopAgendaRail({events,students,onOpenAgenda,onOpenStudent,onRefresh}:{events:CalendarEvent[];students:Student[];onOpenAgenda:(date:string)=>void;onOpenStudent:(id:string)=>void;onRefresh:()=>void}){
   const [addingEvent,setAddingEvent]=useState<CalendarEvent|null>(null);
+  const [appointment,setAppointment]=useState<CalendarEvent|null>(null);
+  const [selectedFixed,setSelectedFixed]=useState<FixedOccurrence|null>(null);
   const [showEncaixe,setShowEncaixe]=useState(false);
+  const [desktop,setDesktop]=useState(false);
+  useEffect(()=>{const media=window.matchMedia("(min-width:901px)");const update=()=>setDesktop(media.matches);update();media.addEventListener("change",update);return()=>media.removeEventListener("change",update);},[]);
+  const fixedState=useFixedAppointments(desktop);
   const now=Date.now();
-  const todayKey=today();
-  const tomorrowDate=new Date(`${todayKey}T12:00:00`);
-  tomorrowDate.setDate(tomorrowDate.getDate()+1);
-  const tomorrowKey=localDateKey(tomorrowDate);
-  const upcoming=events.filter(event=>{
-    const date=calendarEventDate(event);
+  const todayKey=localDay();
+  const tomorrowDate=new Date(`${todayKey}T12:00:00Z`);
+  tomorrowDate.setUTCDate(tomorrowDate.getUTCDate()+1);
+  const tomorrowKey=tomorrowDate.toISOString().slice(0,10);
+  const dateOf=(event:CalendarEvent)=>event.allDay?event.start.slice(0,10):localDay(new Date(event.start));
+  const lastDate=events.reduce((last,event)=>dateOf(event)>last?dateOf(event):last,tomorrowKey);
+  const own=desktop?fixedOccurrences(fixedState.data,todayKey,lastDate):[];
+  const ownById=new Map(own.map(o=>[o.id,o]));
+  const combined:CalendarEvent[]=[...events,...own.map(o=>({id:o.id,summary:o.title,start:o.start,end:o.end,description:o.notes}))];
+  const upcoming=combined.filter(event=>{
+    const date=dateOf(event);
     if(date<todayKey)return false;
-    if(date>todayKey)return true;
-    if(event.allDay)return true;
+    if(date>todayKey||event.allDay)return true;
     return new Date(event.end||event.start).getTime()>now;
-  }).sort((a,b)=>a.start.localeCompare(b.start));
-  const hasToday=upcoming.some(event=>calendarEventDate(event)===todayKey);
+  }).sort((a,b)=>Date.parse(a.start)-Date.parse(b.start)||a.id.localeCompare(b.id));
+  const hasToday=upcoming.some(event=>dateOf(event)===todayKey);
+  const timeOf=(value:string)=>new Date(value).toLocaleTimeString("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"});
   let previousDate="";
 
   return <>
-    <aside className="desktop-agenda-rail">
+    <aside className={`desktop-agenda-rail ${agendaRail.rail}`} aria-label="Próximos horários">
       <span className="rail-resize-handle" onPointerDown={event=>beginPanelResize(event,"rail")}/>
-      <div className="agenda-rail-scroll">
+      <div className={`agenda-rail-scroll ${agendaRail.scroll}`}>
         {!hasToday?<div className="agenda-rail-day agenda-rail-day-empty"><span>Hoje</span><strong>{new Date(`${todayKey}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong><button className="agenda-rail-encaixe" onClick={()=>setShowEncaixe(true)}>+ Encaixe</button></div>:null}
         {upcoming.length?upcoming.map(event=>{
-          const people=getCalendarEventStudents(event,students);
-          const date=calendarEventDate(event);
+          const fixed=ownById.get(event.id);
+          const kids=fixed?null:kidsCalendarRequest(event);
+          const people=fixed||kids?[]:getCalendarEventStudents(event,students);
+          const date=dateOf(event);
           const changed=date!==previousDate;
           previousDate=date;
           const dayLabel=date===todayKey?"Hoje":date===tomorrowKey?"Amanhã":"Dia seguinte";
-          const kids=kidsCalendarRequest(event);
-
-          return <section className="agenda-rail-group" key={event.id}>
+          const kind=kids?"kids":people.length?"personal":"appointment";
+          const time=event.allDay?"Dia todo":timeOf(event.start);
+          const duration=event.allDay?"Dia inteiro":`${time}–${timeOf(event.end||event.start)}`;
+          const open=()=>{if(fixed){setSelectedFixed(fixed);return;}if(kids){onOpenAgenda(date);return;}if(people.length){event.allDay?onOpenAgenda(date):setAddingEvent(event);return;}setAppointment(event);};
+          return <section className={`agenda-rail-group ${agendaRail.group}`} key={event.id}>
             {changed?<div className="agenda-rail-day"><span>{dayLabel}</span><strong>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</strong>{date===todayKey?<button className="agenda-rail-encaixe" onClick={()=>setShowEncaixe(true)}>+ Encaixe</button>:null}</div>:null}
-            <article className={`agenda-rail-event ${kids?`kids kids-${kids.category.toLowerCase()}`:""}`} onClick={()=>kids||event.allDay?onOpenAgenda(date):setAddingEvent(event)} style={{cursor:"pointer"}}>
-              <div className="agenda-rail-time-row"><button onClick={e=>{e.stopPropagation();kids||event.allDay?onOpenAgenda(date):setAddingEvent(event);}}><small>{formatCalendarTime(event)}</small>{kids||!people.length?<strong>{event.summary}</strong>:null}</button>{!kids?<button type="button" className="agenda-rail-plus" onClick={e=>{e.stopPropagation();setAddingEvent(event);}} aria-label="Adicionar aluno" title="Adicionar aluno">+</button>:null}</div>
-              {people.length?<div>{people.map(student=><button key={student.id} onClick={e=>{e.stopPropagation();onOpenStudent(student.id);}} title={`Abrir Dashboard de ${student.name}`}>{student.name}</button>)}</div>:null}
+            <article className={agendaRail.card} data-kind={kind} data-category={kids?.category.toLowerCase()} data-event-id={event.id} onClick={open}>
+              <button type="button" className={agendaRail.open} aria-label={`Abrir ${people.length?"aula de "+people.map(s=>s.name).join(", "):event.summary}, ${duration}`} onClick={e=>{e.stopPropagation();open();}}/>
+              <time className={agendaRail.time} dateTime={event.start}>{time}</time>
+              <div className={agendaRail.content}>
+                {people.length?people.map(student=><button type="button" className={agendaRail.student} key={student.id} onClick={e=>{e.stopPropagation();onOpenStudent(student.id);}} title={`Abrir Dashboard de ${student.name}`}>{student.name}</button>):<><strong className={agendaRail.title}>{event.summary}</strong><small className={agendaRail.meta}>{kind==="appointment"?<HomeIcon name="agenda"/>:null}{fixed?"Compromisso fixo":kids?"Aula Kids":"Compromisso"} · {duration}</small></>}
+              </div>
             </article>
-          </section>
+          </section>;
         }):<p>Nenhum próximo compromisso.</p>}
+        {fixedState.error?<small role="status" className={agendaRail.error}>Compromissos fixos: {fixedState.error}</small>:null}
       </div>
     </aside>
-
     {addingEvent?<AddStudentsToCalendarEventModal event={addingEvent} students={students} onClose={()=>setAddingEvent(null)} onSaved={()=>{setAddingEvent(null);onRefresh();}}/>:null}
+    {appointment?<CalendarAppointmentDetails event={appointment} onClose={()=>setAppointment(null)}/>:null}
+    {selectedFixed?<div className={agendaRail.fixedManager}><FixedAppointmentsManager anchor={selectedFixed.date} events={events} selection={selectedFixed} onSelectionClose={()=>setSelectedFixed(null)}/></div>:null}
     {showEncaixe?<GoogleEventForm students={students} onClose={()=>setShowEncaixe(false)} onSaved={()=>{setShowEncaixe(false);onRefresh();}}/>:null}
   </>;
 }

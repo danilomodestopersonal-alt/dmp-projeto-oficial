@@ -1,0 +1,25 @@
+/* Local to the desktop rail; no rules for Home agenda, full calendar or Android. */
+@media (min-width:901px){
+ .rail .scroll{gap:6px;padding:8px}
+ .rail .group{gap:5px;min-width:0}
+ .rail .card{position:relative;display:grid;grid-template-columns:45px minmax(0,1fr);align-items:start;gap:8px;min-width:0;padding:8px 9px;border:1px solid #dce4df;border-left:3px solid #80988b;border-radius:9px;background:#fff;box-shadow:0 1px 3px #203e2d08;color:#283f34;cursor:pointer}
+ .rail .card:hover{background:#f8faf9;border-top-color:#bccdc3;border-right-color:#bccdc3;border-bottom-color:#bccdc3}
+ .rail .open{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;border-radius:7px;background:transparent;box-shadow:none;cursor:pointer}
+ .rail .open:focus-visible{outline:2px solid #386b90;outline-offset:2px}
+ .rail .time{position:relative;pointer-events:none;min-width:0;padding-top:3px;font-size:12px;font-weight:700;line-height:20px;font-variant-numeric:tabular-nums;color:#526d60}
+ .rail .content{position:relative;min-width:0;display:grid;gap:1px;pointer-events:none}
+ .rail .student{pointer-events:auto;position:relative;width:fit-content;max-width:100%;min-height:24px;margin:0;padding:2px 0;border:0;border-radius:4px;background:transparent;box-shadow:none;text-align:left;font-size:13px;font-weight:650;line-height:19px;color:#293f35;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+ .rail .student:hover{color:#1e5f40;text-decoration:underline;text-underline-offset:3px}
+ .rail .student:focus-visible{outline:2px solid #386b90;outline-offset:1px}
+ .rail .title{display:block;padding:3px 0 1px;font-size:13px;font-weight:650;line-height:20px;white-space:normal;overflow-wrap:anywhere}
+ .rail .meta{display:block;font-size:11px;line-height:16px;color:#63736b;font-weight:400}
+ .rail .meta svg{display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:-2px}
+ .rail .card[data-kind="appointment"]{border-left-color:#5486ad;color:#294b65}
+ .rail .card[data-kind="appointment"] .time,.rail .card[data-kind="appointment"] .meta{color:#506d85}
+ .rail .card[data-category="red"]{border-left-color:#db3b35}
+ .rail .card[data-category="orange"]{border-left-color:#ef821f}
+ .rail .card[data-category="green"]{border-left-color:#278b52}
+ .rail .card[data-category="yellow"]{border-left-color:#e5b62e}
+ .rail .error{font-size:12px;line-height:1.4;color:#89512c}
+}
+.fixedManager>button{display:none}
