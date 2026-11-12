@@ -51,7 +51,13 @@ export function kidsStudentHistory(data:KidsData,studentId:string,start=data.sem
     realized.add(`${event.lessonId}|${event.date}`);
     const usage=(data.replacementUsages||[]).find(u=>u.studentId===studentId&&u.lessonId===event.lessonId);
     const legacy=(data.replacements||[]).find(r=>r.studentId===studentId&&(r.destinationLessonId||r.sourceLessonId)===event.lessonId&&r.status==="COMPLETED");
-    rows.push({indicator:"replaced",id:event.id,date:event.date,type:"Reposição",title:`Reposição realizada · ${(usage?.attendance||legacy?.attendance)==="ABSENT"?"falta":usage||legacy?.attendance?"presença":"chamada não registrada"}`,detail:event.label});represented.add(event.lessonId);
+    const external=(data.externalReplacements||[]).find(r=>r.status==="ACTIVE"&&`external-replacement:${r.id}`===event.lessonId);
+    rows.push({indicator:"replaced",id:event.id,date:event.date,type:external?"Reposição · outro professor":"Reposição",title:external?"Reposição realizada com outro professor":`Reposição realizada · ${(usage?.attendance||legacy?.attendance)==="ABSENT"?"falta":usage||legacy?.attendance?"presença":"chamada não registrada"}`,detail:event.label});represented.add(event.lessonId);
+  }
+  for(const external of data.externalReplacements||[]) {
+    const ref=`external-replacement:${external.id}`;
+    if(external.status!=="ACTIVE"||external.studentId!==studentId||!inPeriod(external.date)||represented.has(ref))continue;
+    rows.push({id:ref,date:external.date,type:"Reposição · outro professor",title:"Reposição realizada com outro professor",detail:[external.teacher,({RED:"Vermelha",ORANGE:"Laranja",GREEN:"Verde",YELLOW:"Amarela"})[external.category],external.time,external.notes,"Fora do período do saldo atual"].filter(Boolean).join(" · ")});
   }
   for(const credit of data.replacements||[]) {
     if(credit.studentId!==studentId||credit.status!=="SCHEDULED")continue;

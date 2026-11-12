@@ -8,6 +8,7 @@ import { kidsStudentHistory } from "../../lib/kids/student-history";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./KidsPage.module.css";
+import ExternalReplacementManager from "./ExternalReplacementManager";
 import PermanentClassForm from "./PermanentClassForm";
 import { KidsReplacementOperationSummary, KidsStudentReplacementBalance } from "./KidsReplacementBalance";
 import { computeKidsClassReplacementBalance, computeKidsStudentReplacementBalance, isKidsFifthMonthlyLesson, kidsBalanceSigned, type KidsReplacementBalance } from "@/lib/kids/replacement-balance";
@@ -1070,6 +1071,7 @@ const relatedGroup = lessonGroup(next);
             <div><h2>Gestão de reposições</h2><p>Crie aulas, administre participantes, faça chamadas e consulte o histórico.</p></div>
             <button className={styles.primary} onClick={()=>setShowReplacementForm(true)}>+ Aula avulsa de reposição</button>
           </div>
+          <ExternalReplacementManager data={data} disabled={saving} onSaved={(updated,version,message)=>{window.sessionStorage.setItem("dmp_kids_cloud_updated_at",version);setData(updated);setNotice(message);}}/>
           <div className={styles.replacementWorkspace}>
             <label className={styles.replacementSearch}>
               <span>⌕</span>

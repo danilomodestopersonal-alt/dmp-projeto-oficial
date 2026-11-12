@@ -223,14 +223,16 @@ function individualReplacementEvents(
       const group = lesson
         ? data.classes.find((candidate) => candidate.id === lesson.classId)
         : undefined;
+      const external=(data.externalReplacements||[]).find(r=>r.status==="ACTIVE"&&`external-replacement:${r.id}`===item.lessonId&&r.studentId===item.studentId);
+      const category=external?({RED:"Vermelha",ORANGE:"Laranja",GREEN:"Verde",YELLOW:"Amarela"})[external.category]:"";
       return {
         id: `student:${studentId}:${item.lessonId}:recorded-replaced`,
         classId: lesson?.classId || "replacement",
-        className: group?.name || lesson?.replacementName || "Aula avulsa de reposição",
+        className: external?`Outro professor · ${external.teacher}`:group?.name || lesson?.replacementName || "Aula avulsa de reposição",
         date: item.date,
         type: "REPLACED",
         source: "RECORDED_INDIVIDUAL_REPLACEMENT",
-        label:
+        label: external? [`Reposição realizada com outro professor: ${external.teacher}`,`Categoria ${category}`,external.time,external.notes].filter(Boolean).join(" · "):
           item.attendance === "ABSENT"
             ? "Reposição consumida · falta registrada"
             : "Reposição individual realizada",

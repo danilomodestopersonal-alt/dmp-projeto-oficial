@@ -65,6 +65,19 @@ export type KidsLesson = {
   updatedAt:string;
 };
 
+/** Individual attendance outside the personal agenda; never a KidsLesson. */
+export type KidsExternalReplacement = {
+  id:string; studentId:string; studentName:string; date:string; time:string;
+  teacher:string; category:KidsCategory; notes:string;
+  status:"ACTIVE"|"VOID"; revision:number; createdAt:string; updatedAt:string;
+};
+export type KidsExternalReplacementAudit = {
+  operationId:string; requestKey:string; action:"create"|"update"|"void";
+  recordId:string; before:KidsExternalReplacement|null; after:KidsExternalReplacement;
+  balanceBefore:{due:number;replaced:number;balance:number};
+  balanceAfter:{due:number;replaced:number;balance:number}; recordedAt:string;
+};
+
 export type KidsReplacementUsage = {
   id:string;
   studentId:string;
@@ -106,6 +119,8 @@ export type KidsAbsenceAudit = {
 };
 
 export type KidsData = {
+  externalReplacements?:KidsExternalReplacement[];
+  externalReplacementAudit?:KidsExternalReplacementAudit[];
   automaticAttendanceAudit?:import("@/lib/kids/automatic-attendance").AutomaticAttendanceAudit[];
   homeAttendanceAudit?:import("@/lib/kids/home-attendance").HomeAttendanceAudit[];
   replacementRosterAudit?:Array<{lessonId:string;date:string;added:string[];removed:string[];before:string[];after:string[];recordedAt:string}>;

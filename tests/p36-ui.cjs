@@ -1,0 +1,10 @@
+'use strict';
+const A=require('node:assert/strict'),H=require('./p15-harness.cjs'),F=require('./p36-fixture.cjs'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const load=H.loader({'./ExternalReplacementManager.module.css':{__esModule:true,default:new Proxy({},{get:(_,k)=>String(k)})}}),M=load('components/kids/ExternalReplacementManager.tsx').default,D=load('lib/kids/external-replacement.ts');
+let writes=0;const data=D.planExternalReplacement(F.fixture(),F.command({teacher:'<script>teacher</script>'}),F.now).data;
+const html=renderToStaticMarkup(React.createElement(M,{data,onSaved:()=>writes++}));A.match(html,/Registrar reposição realizada/);A.match(html,/Realizada · outro professor/);A.match(html,/11\/11\/2026/);A.match(html,/Aluna Teste/);A.match(html,/&lt;script&gt;/);A.doesNotMatch(html,/<script>/);A.equal(writes,0);
+const src=H.read('components/kids/KidsReplacementBalance.tsx');const stats=load('components/kids/KidsReplacementBalance.tsx',src+'\nexport { computeKidsReplacementOperationMetrics };').computeKidsReplacementOperationMetrics;
+const metrics=stats(data,'semester');A.equal(metrics.attendancePresent,1);A.equal(metrics.attendanceAbsent,0);A.equal(metrics.rows.find(r=>r.id==='kid-aluna-teste').netBalance,-1);
+const alias=structuredClone(data);alias.classes[0].students[0].name='Nome Corrigido';const submitted=structuredClone(alias);submitted.classes[0].students[0].id='kid-nome-corrigido';const saved=D.preserveExternalReplacements(alias,submitted);A.equal(saved.externalReplacements[0].studentId,'kid-nome-corrigido');A.equal(saved.replacementUsages[0].studentId,'kid-nome-corrigido');A.equal(saved.externalReplacementAudit[0].after.studentId,'kid-aluna-teste','audit remains original');
+const voided=D.planExternalReplacement(saved,{action:'void',operationId:'rename-undo-operation',recordId:data.externalReplacements[0].id,revision:1},F.now);A.equal(voided.data.replacementUsages.length,0);
+console.log('PASS P36 interface: safe text, explicit external identity, no render writes, attendance summary and existing registry alias normalization preserve ledger/audit.');

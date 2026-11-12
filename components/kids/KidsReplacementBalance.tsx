@@ -266,6 +266,14 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
         });
     });
 
+  // A reposição externa usa o mesmo consumo, mas sua presença não depende de aula fictícia.
+  for(const record of data.externalReplacements||[]) {
+    if(record.status!=="ACTIVE"||!studentIdSet.has(record.studentId)||!periodIncludes(record.date,period,data)||!data.replacementUsages?.some(u=>u.lessonId===`external-replacement:${record.id}`&&u.studentId===record.studentId))continue;
+    const events=attendanceByStudent.get(record.studentId)||[];
+    events.push({date:record.date,status:"PRESENT",source:"REPLACEMENT",className:`Outro professor · ${record.teacher}`});
+    attendanceByStudent.set(record.studentId,events);
+  }
+
   const rows=studentIds.map((studentId):StudentOperationRow=>{
     const balance=computeKidsStudentReplacementBalance(data,studentId);
     const allDueEvents=balance.events.filter(event=>event.type==="DUE").sort((a,b)=>a.date.localeCompare(b.date));
@@ -297,7 +305,8 @@ function computeKidsReplacementOperationMetrics(data:KidsData,period:OperationPe
       allAdvanceEvents:allReplacedEvents.slice(resolved),
       scheduledDates:(scheduledByStudent.get(studentId)||[]).sort(),
       absentReplacementEvents:replacedEvents.filter(event=>
-        event.label.toLowerCase().includes("falta")||data.lessons.find(lesson=>lesson.id===event.lessonId)?.attendance?.[studentId]==="ABSENT"
+        !event.lessonId.startsWith("external-replacement:") && (
+        event.label.toLowerCase().includes("falta")||data.lessons.find(lesson=>lesson.id===event.lessonId)?.attendance?.[studentId]==="ABSENT")
       ).filter((event,index,events)=>events.findIndex(other=>other.lessonId===event.lessonId)===index),
       attendanceEvents:(attendanceByStudent.get(studentId)||[]).sort((a,b)=>a.date.localeCompare(b.date)),
       creditLedger,

@@ -1,3 +1,4 @@
+import { preserveExternalReplacements, ExternalReplacementError } from "@/lib/kids/external-replacement";
 import {teachingMetadataPreserved} from "@/lib/kids/personal-teaching";
 import { applyKidsClassChange } from "@/lib/kids/class-history";
 import { reconcileChamadaReplacements } from "@/lib/kids/chamada-replacement";
@@ -127,6 +128,8 @@ export async function PUT(request: NextRequest) {
       body = reconcileAbsenceRights(current.rows[0].payload as KidsData, body);
     }
 
+    body = preserveExternalReplacements(current.rows[0]?.payload || null, body);
+
     const result = await client.query(
       `
         INSERT INTO dmp_data (id, payload, updated_at)
@@ -152,6 +155,7 @@ export async function PUT(request: NextRequest) {
       await client.query("ROLLBACK");
     } catch {}
 
+    if(error instanceof ExternalReplacementError)return NextResponse.json({ok:false,code:error.code,error:error.message},{status:error.status});
     if(error instanceof AbsenceError) return NextResponse.json({ok:false,code:error.code,error:error.message},{status:error.status});
 
     console.error("Erro ao salvar Aulas Kids:", error);

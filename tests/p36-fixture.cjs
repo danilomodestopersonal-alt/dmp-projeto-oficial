@@ -1,0 +1,5 @@
+const now=new Date('2026-11-12T15:00:00Z');
+function fixture(){return {version:1,semesterStart:'2026-08-01',semesterEnd:'2026-12-31',updatedAt:'2026-11-12T09:00:00Z',classes:[{id:'kids-test',name:'Turma sintética',weekday:3,startTime:'10:00',endTime:'11:00',category:'RED',teacher:'Professor Teste',active:true,updatedAt:'2026-08-01T12:00:00Z',students:[{id:'kid-aluna-teste',name:'Aluna Teste',active:true,startDate:'2026-08-01'},{id:'kid-outro-aluno',name:'Outro Aluno',active:true}]}],lessons:[],replacementUsages:[],replacements:[]};}
+function lesson(overrides={}){return {id:'lesson-test',classId:'kids-test',date:'2026-11-02',status:'CANCELLED',attendance:{},objective:'Preservar planejamento',plannedPlan:'plano',actualPlan:'',notes:'',replacementEligible:true,replacementStatus:'PENDING',updatedAt:'2026-11-12T09:00:00Z',...overrides};}
+function command(overrides={}){return {action:'create',operationId:'synthetic-operation-001',studentId:'kid-aluna-teste',date:'2026-11-11',time:'14:30',teacher:'Professora Sintética',category:'ORANGE',notes:'Reposição fora da agenda.',...overrides};}
+module.exports={fixture,lesson,command,now};
