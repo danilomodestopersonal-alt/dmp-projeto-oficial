@@ -1,0 +1,12 @@
+'use strict';
+const A=require('node:assert/strict'),H=require('./p15-harness.cjs'),C=H.loader()('lib/students/lifecycle-calendar.ts');
+const now=new Date('2026-11-13T13:30:00Z'),students=[{id:'s',name:'Alfa Teste',status:'ACTIVE',sessions:[{id:'old',date:'2026-11-13',calendarEvent:{id:'past'}}],workouts:[{id:'w'}],assessments:[]},{id:'other',name:'Beta Colega',status:'ACTIVE',sessions:[]}];
+const event=(id,start,end,summary='Aula · Alfa Teste')=>({id,etag:'v-'+id,summary,organizer:{self:true},status:'confirmed',start:{dateTime:'2026-11-13T'+start+':00-03:00'},end:{dateTime:'2026-11-13T'+end+':00-03:00'}});
+(async()=>{const command=C.inactivateNowCommand('s',now);A.equal(command.from,'2026-11-13');A.equal(command.effectiveAt,now.toISOString());A.equal(C.inactivateNowCommand('s',new Date('2026-11-14T01:00:00Z')).from,'2026-11-13');
+ const events=[event('past','08:00','09:00'),event('started','10:00','11:00'),event('future','12:00','13:00'),event('shared','14:00','15:00','Aula · Alfa Teste · Beta Colega')],before=JSON.stringify(students);
+ const api={list:async()=>structuredClone(events),read:async id=>structuredClone(events.find(e=>e.id===id)),patch:()=>A.fail('read-only plan'),insert:()=>A.fail('read-only plan')};
+ const plan=await C.buildLifecyclePlan(command,students,['paid','partial','old-issued'],api,now.toISOString());A.deepEqual(plan.lessons.map(l=>l.id),['future','shared']);A.deepEqual(plan.issuedIds,['old-issued','paid','partial']);A.equal(JSON.stringify(students),before);A.ok(!plan.patches.some(p=>['past','started'].includes(p.before.id)));
+ const shared=plan.patches.find(p=>p.before.id==='shared');A.ok(!shared.body.status);A.match(shared.body.summary,/Beta Colega/);A.doesNotMatch(shared.body.summary,/Alfa Teste/);
+ const futureHistory=structuredClone(students);futureHistory[0].sessions.push({id:'recorded',date:'2026-11-13',calendarEvent:{id:'future'}});await A.rejects(()=>C.buildLifecyclePlan(command,futureHistory,[],api,now.toISOString()),/histórico/);
+ console.log('PASS P37 inactivation: server confirmation time, São Paulo date, past/started/history protected, shared participant retained, issued invoices untouched.');
+})().catch(e=>{console.error(e);process.exitCode=1});

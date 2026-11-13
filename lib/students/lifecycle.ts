@@ -1,7 +1,7 @@
 import type {Student} from '@/types/models';
 import type {FinanceData,PersonalInvoice} from '@/types/financeiro';
 
-export type PausePeriod={id:string;from:string;expectedReturn?:string;resumedOn?:string;billingFrom?:string;issuedIds:string[]};
+export type PausePeriod={id:string;from:string;effectiveAt?:string;expectedReturn?:string;resumedOn?:string;billingFrom?:string;issuedIds:string[]};
 export type StudentLifecycle={revision:string;periods:PausePeriod[];billingStart?:string;issuedIds?:string[];pending?:{operationId:string;kind:'pause'|'resume';digest:string}};
 export const saoPauloDate=(date=new Date())=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo'}).format(date);
 export function validDate(value:unknown):value is string {return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T12:00:00Z'))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;}

@@ -1,0 +1,14 @@
+export type RoutineCategory='SUPPLEMENT'|'FOOD';
+export type RoutineField='name'|'quantity'|'unit'|'timing'|'days'|'condition'|'instructions'|'notes';
+export type RoutineEvidence={page?:number;excerpt:string;confidence:'TEXT'|'OCR_REVIEW'|'MANUAL'|'UNRESOLVED';edited?:boolean};
+export type RoutineItem={id:string;sourceFileId?:string;category:RoutineCategory;name:string;quantity:string;unit:string;timing:string;clock:string;frequency:'DAILY'|'WEEKDAYS'|'REVIEW';days:number[];condition:string;conditional:boolean;cyclingOnly:boolean;instructions:string;notes:string;reviewed:boolean;evidence:Partial<Record<RoutineField,RoutineEvidence>>};
+export type RoutinePage={page:number;text:string;method:'TEXT'|'OCR'};
+export type RoutineFile={id:string;name:string;size:number;mime:string;sha256:string;uploadedAt:string;pages:RoutinePage[];warnings:string[];status:'EXTRACTED'|'NEEDS_REVIEW'|'UNREADABLE'};
+export type RoutineDraft={id:string;title:string;fileId?:string;sourceDate:string;sourceVersion?:string;items:RoutineItem[];warnings:string[];createdAt:string;updatedAt:string;baseVersionId?:string};
+export type RoutineVersion={id:string;number:number;title:string;sourceDate?:string;sourceVersion?:string;effectiveFrom:string;createdAt:string;fileId?:string;items:RoutineItem[];warnings:string[];mode:'REPLACE_CATEGORIES'|'MERGE_SELECTED'|'REPLACE_ALL';categories:RoutineCategory[];draftId:string;operationId:string};
+export type RoutineMark={date:string;itemId:string;versionId:string;status:'DONE'|'SKIPPED'|'PENDING';recordedAt:string;itemSnapshot:RoutineItem};
+export type RoutineDay={date:string;cycling:boolean;updatedAt:string};
+export type RoutineOperation={id:string;digest:string;at:string;action:string};
+export type RoutineData={schema:1;revision:number;files:RoutineFile[];drafts:RoutineDraft[];versions:RoutineVersion[];marks:RoutineMark[];days:RoutineDay[];operations:RoutineOperation[]};
+export type RoutineActivation={draftId:string;title:string;effectiveFrom:string;mode:RoutineVersion['mode'];categories:RoutineCategory[];items:RoutineItem[];acknowledgedWarnings:boolean};
+export type RoutineDifference={id:string;name:string;change:'ADDED'|'REMOVED'|'CHANGED';fields:{field:string;before:string;after:string}[]};

@@ -6,7 +6,7 @@ import {defaultHolidayConfig} from '@/lib/calendar/personal-holidays';
 
 type Event=Record<string,any>;
 export type ReturnSlot={date:string;start:string;end:string;until:string};
-export type LifecycleCommand={kind:'pause'|'resume';studentId:string;from:string;expectedReturn?:string;monthlyAmount?:number;dueDay?:number;financialActive?:boolean;billingFrom?:string;slots?:ReturnSlot[]};
+export type LifecycleCommand={kind:'pause'|'resume';studentId:string;from:string;effectiveAt?:string;expectedReturn?:string;monthlyAmount?:number;dueDay?:number;financialActive?:boolean;billingFrom?:string;slots?:ReturnSlot[]};
 export type LifecyclePlan={command:LifecycleCommand;studentVersion:string;patches:MaintenanceStep[];inserts:Event[];lessons:{id:string;start:string;label:string;action:string}[];issuedIds:string[]};
 export type LifecycleJournal={operationId:string;digest:string;plan:LifecyclePlan;maintenance:MaintenanceJournal;inserted:Record<string,string>;done?:boolean};
 const fail=(text:string):never=>{throw new MaintenanceError(text);};
@@ -28,6 +28,11 @@ export function lifecycleCommand(input:any,now=saoPauloDate()):LifecycleCommand{
  return c;
 }
 function withoutHistory(e:Event,students:Student[]){if(students.some(s=>s.sessions?.some(x=>x.calendarEvent?.id===e.id)))fail('Uma aula selecionada já tem histórico. Confira a data e a agenda antes de continuar.');}
+// Only the server calls this at confirmation; the browser cannot choose the cutoff.
+export function inactivateNowCommand(studentId:string,now=new Date()):LifecycleCommand{
+ const command=lifecycleCommand({kind:'pause',studentId,from:saoPauloDate(now)},saoPauloDate(now));
+ return {...command,effectiveAt:now.toISOString()};
+}
 function lessonFailure(e:Event,error:unknown):never{
  const when=e.start?.dateTime?new Date(e.start.dateTime).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}):'data indisponível';
  throw new MaintenanceError(`Revise a aula “${e.summary||'Sem título'}” · ${when} · ID ${e.id}. ${error instanceof Error?error.message:'Vínculo incompleto.'}`);
@@ -67,7 +72,7 @@ export async function buildLifecyclePlan(command:LifecycleCommand,students:Stude
  if(command.kind==='resume')students=students.map(s=>s.id===student!.id?{...s,status:'ACTIVE'}:s);
  const all=await api.list({singleEvents:'false',showDeleted:'true'});
  const op='p29'+maintenanceHash(command).slice(0,24),version=nextVersion(all);
- const cutoff=Math.max(Date.parse(at(command.from)),Date.parse(now));
+ const cutoff=Math.max(Date.parse(at(command.from)),Date.parse(command.effectiveAt||now));
  const live=all.filter(e=>e.status!=='cancelled');
  if(command.kind==='pause'){
   const parents=live.filter(e=>e.recurrence?.length);

@@ -61,6 +61,7 @@ import AssessmentInsights from "@/components/assessments/AssessmentInsights";
 import StudentConsultationSummary from "@/components/assessments/StudentConsultationSummary";
 import HomeStudentActions from "@/components/HomeStudentActions";
 import FinanceiroPage from "@/components/financeiro/FinanceiroPage";
+import RoutineToday from "@/components/routine/RoutineToday";
 import PerformancePage from "@/components/performance/PerformancePage";
 import BackupCenter from "@/components/backup/BackupCenter";
 import KidsPage, {type KidsLessonOpenRequest} from "@/components/kids/KidsPage";
@@ -1599,6 +1600,7 @@ fetch("/api/google/status")
             <div className="home-desktop-layout"><section className={`dashboard-content home-main-content ${homeCentral.central}`}>
               <div data-home-size-key="highlights"><TodayHighlights events={homeAgendaEvents} monthEvents={calendarEvents.filter(event=>calendarEventDate(event).slice(0,7)===todayKey.slice(0,7))} monthKidsCount={homeMonthKidsCount} monthKidsRows={homeMonthKidsCount===null?undefined:homeMonthKidsRows} students={students} sessions={todaySessions} notes={notes} performanceActivities={todayPerformanceActivities} monthPerformanceActivities={homePerformanceActivities} onAgenda={(date)=>{setCalendarAnchor(date);setView("agenda");}} onStudent={openStudent} onKids={openKidsCalendarEvent} onKidsModule={()=>{setKidsLessonRequest(null);setView("kids")}} onHistory={()=>setView("history-overview")} onAssessments={()=>setView("assessments-overview")} onPerformance={()=>{setSelectedPerformanceActivityId(null);setView("performance")}} onOpenPerformanceActivity={activity=>{setSelectedPerformanceActivityId(activity.id);setView("performance")}} onOpenNote={note=>window.open(`https://app.todoist.com/app/task/${encodeURIComponent(note.id)}`,"_blank","noopener,noreferrer")} onCompleteNote={note=>void patchNote(note.id,{done:true})} onNotes={()=>document.getElementById("todoist-notes-panel")?.scrollIntoView({behavior:"smooth",block:"start"})}/></div>
               <div data-home-size-key="calendar"><CalendarTodayPanel onCorrected={next=>{setStudents(next);saveStudents(next);const channel=new BroadcastChannel(STUDENTS_CHANNEL);channel.postMessage({type:"refresh"});channel.close();calendarLoadSequence.current++;void refreshCalendarAutomatic(true);}} kidsData={homeKidsCardData} onKidsData={acceptHomeKidsData} status={calendarStatus} events={homeAgendaEvents} loading={calendarLoading} sync={calendarSync} students={students} todaySessions={todaySessions} onOpenAgenda={() => setView("agenda")} onOpenStudent={openStudent} onStartStudent={(id,mode)=>startStudentFlow(id,mode,"today")} onAbsence={registerAbsence} onOpenKids={openKidsCalendarEvent}/></div>
+              <RoutineToday onOpen={()=>{sessionStorage.setItem("dmp.performance.openRoutine","1");setSelectedPerformanceActivityId(null);setView("performance");}}/>
               <div id="home-desktop-commitments"/>
               <section className="panel notes-panel todoist-notes-panel" id="todoist-notes-panel" data-home-size-key="notes">
                 <div className="panel-head todoist-panel-head">
@@ -1708,9 +1710,9 @@ fetch("/api/google/status")
             {showMobileActions?<MobileQuickActions onClose={()=>setShowMobileActions(false)} onNavigate={target=>{if(target==="extra")sessionStorage.setItem("dmp_finance_quick_action","extra");setShowMobileActions(false);navigateMain(target==="extra"||target==="receive"?"finance":target);}}/>:null}
           </> : null}
 
-          {view === "students" ? <>
+          {view === "students" ? <div className="students-directory">
             <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Painel de atendimento</p><h1>Alunos</h1><p>Cadastros, fichas, observações, restrições e histórico.</p></div><div className="hero-actions"><button className="secondary" onClick={resetData}>Restaurar importação</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
-            <section className="dashboard-content"><div className="dashboard-stats four-stats">
+            <section className="dashboard-content students-directory-content"><div className="dashboard-stats four-stats">
 {(()=>{
   const active=students.filter(student=>student.status==="ACTIVE");
   const inactive=students.filter(student=>student.status!=="ACTIVE");
@@ -1768,7 +1770,7 @@ fetch("/api/google/status")
                 </article>;
               })}</div>
             </section>
-          </> : null}
+          </div> : null}
 
           {view === "workouts-overview" ? (() => {
   const activeStudents = students.filter(student => student.status === "ACTIVE");
@@ -4260,7 +4262,7 @@ function StudentForm({title,initialStudent,onClose,onSave,onLifecycleSaved}:{tit
     <label>Nome<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required /></label><label>Telefone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} /></label>
     <label>E-mail<input type="email" value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})} /></label><label>Profissão<input value={form.profession||""} onChange={e=>setForm({...form,profession:e.target.value})} /></label>
     <label>Data de início<input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} /></label><label>Data de nascimento<input type="date" value={form.birthDate} onChange={e=>setForm({...form,birthDate:e.target.value})} />{age!==null?<small>Idade atual: {age} anos</small>:null}</label><label>Sexo<select value={form.gender||""} onChange={e=>setForm({...form,gender:(e.target.value||undefined) as Student["gender"]})}><option value="">Não informado</option><option value="MALE">Masculino</option><option value="FEMALE">Feminino</option></select></label>
-    {initialStudent?<fieldset className="full student-finance-box"><legend>Situação do cadastro</legend><p>{initialStudent.status==="ARCHIVED"?"Inativo":"Ativo"}</p><StudentLifecycle student={initialStudent} onSaved={next=>{const updated=next.find(x=>x.id===initialStudent.id);if(updated)setForm(f=>({...f,status:updated.status,financialActive:updated.financialActive,monthlyAmount:updated.monthlyAmount,financeDueDay:updated.financeDueDay,trainingSchedule:updated.trainingSchedule}));onLifecycleSaved?.(next);}}/><small>A inativação/reativação exige conferir agenda e mensalidades. Os demais campos deste formulário são gravados em Salvar aluno.</small></fieldset>:null}
+    {initialStudent?<fieldset className="full student-finance-box"><legend>Situação do cadastro</legend><p>{initialStudent.status==="ARCHIVED"?"Inativo":"Ativo"}</p><StudentLifecycle student={initialStudent} onSaved={next=>{const updated=next.find(x=>x.id===initialStudent.id);if(updated)setForm(f=>({...f,status:updated.status,financialActive:updated.financialActive,monthlyAmount:updated.monthlyAmount,financeDueDay:updated.financeDueDay,trainingSchedule:updated.trainingSchedule}));onLifecycleSaved?.(next);}}/><small>A inativação confere agenda e mensalidades automaticamente. Os demais campos deste formulário são gravados em Salvar aluno.</small></fieldset>:null}
     <label>Modalidade<input value={form.modality||""} onChange={e=>setForm({...form,modality:e.target.value})} placeholder="Ex.: musculação, tênis, corrida" /></label><label>Frequência semanal<input value={form.weeklyFrequency||""} onChange={e=>setForm({...form,weeklyFrequency:e.target.value})} placeholder="Ex.: 2x por semana" /></label>
     <label className="full">Dias e horários fixos<input value={form.trainingSchedule||""} onChange={e=>setForm({...form,trainingSchedule:e.target.value})} placeholder="Ex.: segunda 7h · quarta 7h" /><small>Informação exibida no topo do Dashboard do Aluno.</small></label>
     <fieldset className="full student-finance-box"><legend>Financeiro do Personal</legend><label className="student-finance-toggle"><input type="checkbox" checked={form.financialActive===true} onChange={e=>setForm({...form,financialActive:e.target.checked})}/><span><strong>Ativar no Financeiro</strong><small>Alunos antigos entram preenchidos com a mensalidade e o vencimento já existentes quando o vínculo é seguro.</small></span></label>{form.financialActive===true?<div className="student-finance-grid"><label>Mensalidade (R$)<input type="number" min="0" step="0.01" value={form.monthlyAmount??""} onChange={e=>setForm({...form,monthlyAmount:e.target.value===""?undefined:Number(e.target.value)})} required /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={form.financeDueDay??""} onChange={e=>setForm({...form,financeDueDay:e.target.value===""?undefined:Number(e.target.value)})} required /></label><small className="full">O cadastro passa a comandar as próximas mensalidades. Pagamentos e competências anteriores continuam preservados.</small></div>:<small className="student-finance-off">Desativado: não cria novas cobranças automáticas. O histórico existente não é apagado.</small>}</fieldset>

@@ -1,0 +1,101 @@
+{
+  "base": "fdb4f9112d2e910e0eea274fb6bb551010e94e4f",
+  "files": {
+    "app/api/google/appointment/delete/route.ts": {
+      "before": null,
+      "after": "75cd0eeaf3d619f1cad525c98c4e9c9dd7d821795de69891dd20e883cba1caa0"
+    },
+    "app/api/routine/files/route.ts": {
+      "before": null,
+      "after": "c859edacaebe9230fc4330c5b68b1eb7160c6bad3e39f24ce391dee127974804"
+    },
+    "app/api/routine/import/route.ts": {
+      "before": null,
+      "after": "cb1ea934c6a9cc63b569412e165e79b1965c65957ada38553287341382a14fd2"
+    },
+    "app/api/routine/route.ts": {
+      "before": null,
+      "after": "ea2681d96829df9feb2e43985a44de589245458ed82f4d6cf4f0ed99fac26f08"
+    },
+    "app/api/students/lifecycle/route.ts": {
+      "before": "b2b9c1c58169dd254d38a052e49752bb990e37e00088b3498c9dcf8884554b7a",
+      "after": "8b02844ae569ea683ca36fcaa020728cafe4e768f79b6ef4e9b3cfda134a7231"
+    },
+    "app/globals.css": {
+      "before": "f4814ff96c837e269767a9672f0942fdac7415a7c6297dce52f361f2e24f0213",
+      "after": "e299457cd7035e2fd88693bac2701adeecc62a3938fc7596ebc9a6f5f05092f3"
+    },
+    "components/DmpApp.tsx": {
+      "before": "fe5e1f919930fd237fa36a85dab7a03956ca7c42d754e82986b4a367d5885416",
+      "after": "76eb45772fdfbcfff493013eeb014f25371041e1486b79a8d2dbabb14d6d4348"
+    },
+    "components/calendar/CalendarAppointmentDetails.module.css": {
+      "before": "b8bda7ee37eb30cee18681c0ebe45f839d4ff193888cb1637459df0609e57260",
+      "after": "a5170ee06cbfc404d96c2e51ec46c619f45cc2b375192e562e81b50d5a0179f5"
+    },
+    "components/calendar/CalendarAppointmentDetails.tsx": {
+      "before": "3b9b2107c4966e65fbc77dc255754456bbb4b32b49e58794adf628e60914f945",
+      "after": "18ca6bc2d88cfa329510be3428682bbf40337ac8f6fc8fd87db9c9df4d4ed4c1"
+    },
+    "components/performance/PerformancePage.tsx": {
+      "before": "b5af8a8c4af351d57aee02546bdf77a4c6da3999eb0e5393a3c1211e46f640a2",
+      "after": "4c9001a020ead21b3bfa90d8ff5ad0f3e03f5b4cdbbcff46c874e390552bef33"
+    },
+    "components/routine/Routine.module.css": {
+      "before": null,
+      "after": "1e3be12da008920fd413344f9f96e399c64e84e95eb8c1486cfbd8642ca67d2b"
+    },
+    "components/routine/RoutineManager.tsx": {
+      "before": null,
+      "after": "fc2289fecefa92d87b57b171a543de184d3d93eb7ba0bb482cc9505e840be129"
+    },
+    "components/routine/RoutineToday.tsx": {
+      "before": null,
+      "after": "2e9a1aa16d8d1fe8dd3d7246aa06f8cb6e38928e736a5646b6dc0a9187b26d0c"
+    },
+    "components/routine/useRoutine.ts": {
+      "before": null,
+      "after": "209d08ed4ccc8b0826f1a5242bc649ebf6644aca016cdef1c6f00854f288edd6"
+    },
+    "components/students/StudentLifecycle.module.css": {
+      "before": "ee6f95370d5db80222bd190529caadf07a4e3ad761ff0852f85d74c75d38a05a",
+      "after": "8056b691379e669e3034847faa3dec9260417be7442fb8260bcba21cd20b7ca1"
+    },
+    "components/students/StudentLifecycle.tsx": {
+      "before": "d39f3daffb6e90153cd93784e9b2aca95bffa501efeba449d90b6d0292bbd8d7",
+      "after": "a4f22a60184d37c52231ea92bb7bef2ea7374009d51cbb499e91ebdeb7113ebc"
+    },
+    "lib/calendar/appointment-delete.ts": {
+      "before": null,
+      "after": "b3ff818580f51ac70002770204ba1eae1964a902510f9919dc06dafb192ec076"
+    },
+    "lib/routine/documents.ts": {
+      "before": null,
+      "after": "c64319a17fbc072967a9c2b5573f613930e8c6db6d370cdf2c76c87485ddd90f"
+    },
+    "lib/routine/extraction.ts": {
+      "before": null,
+      "after": "d6ab3cf4e06492ba5d297d543e85f36581e885b743352ab6cae6329cfd6b1056"
+    },
+    "lib/routine/model.ts": {
+      "before": null,
+      "after": "6a0c03e0692cdda0a058fc142681b13f081d29c1ffeb26eb9ad03d8835fa9309"
+    },
+    "lib/routine/store.ts": {
+      "before": null,
+      "after": "6d091b7229435f3c8ee9e8faf728b3232ea5d24870fb0ab5d8a29901e0ab26fc"
+    },
+    "lib/students/lifecycle-calendar.ts": {
+      "before": "fc47428cec363a3ed828471b1bd9bc863de2ed210abeed0497b405c8db0bb1fe",
+      "after": "82767fb08b08177553fe4ae55c16684a747ec2736410ca52599b808e3f74ad3e"
+    },
+    "lib/students/lifecycle.ts": {
+      "before": "a819c31cfce0deb19f0e88e53a438ed1028804fe9f252cdbc8ddd242299a7ca1",
+      "after": "9b17559df2b02572c3d7532760f0acfd47408ffc0f7ecaa17c61f0abb09b95a7"
+    },
+    "types/routine.ts": {
+      "before": null,
+      "after": "6a42c8703fe712d532ab44aab8272cb79c349d48b1b4270ea058f2b13907b50e"
+    }
+  }
+}

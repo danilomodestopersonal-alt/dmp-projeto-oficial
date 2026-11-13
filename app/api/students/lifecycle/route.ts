@@ -6,7 +6,7 @@ import {isAuthorized} from '@/lib/auth';
 import {sameOrigin} from '@/lib/widget/devices';
 import {getGoogleAccessToken,setGoogleCookies} from '@/lib/google-calendar';
 import {currentPause} from '@/lib/students/lifecycle';
-import {buildLifecyclePlan,lifecycleCommand,executeLifecycle,publicLifecyclePlan,type LifecycleJournal} from '@/lib/students/lifecycle-calendar';
+import {buildLifecyclePlan,lifecycleCommand,inactivateNowCommand,executeLifecycle,publicLifecyclePlan,type LifecycleJournal} from '@/lib/students/lifecycle-calendar';
 import {maintenanceHash,MaintenanceError,personalCalendarApi} from '@/lib/calendar/personal-maintenance';
 export const runtime='nodejs';
 const prefix='dmp_student_lifecycle:';
@@ -39,7 +39,9 @@ export async function POST(request:NextRequest){
  if(!await isAuthorized(request))return NextResponse.json({message:'Entre novamente no DMP.'},{status:401});
  if(!sameOrigin(request))return NextResponse.json({message:'Origem não autorizada.'},{status:403});
  const input=await request.json().catch(()=>null);
- if(!input||!['preview','execute'].includes(input.action))return NextResponse.json({message:'Pedido inválido.'},{status:400});
+ if(!input||!['preview','execute','inactivate-now'].includes(input.action))return NextResponse.json({message:'Pedido inválido.'},{status:400});
+ const immediate=input.action==='inactivate-now';
+ const confirmedAt=new Date();
  let client:PoolClient|undefined,locked=false,j:LifecycleJournal|undefined,inTransaction=false;
  try{
   const auth=await getGoogleAccessToken(request);if(!auth.accessToken)throw new MaintenanceError('Conecte o Google nesta sessão.',401);
@@ -50,26 +52,27 @@ export async function POST(request:NextRequest){
    if(s.student.lifecycle?.pending)throw new MaintenanceError('Retome primeiro a operação pendente.');
    return finish({preview:publicLifecyclePlan(await buildLifecyclePlan(c,s.students,s.issued,api))});
   }
-  if(input.confirmed!==true||!/^[-a-zA-Z0-9]{16,80}$/.test(input.operationId||'')||! /^[a-f0-9]{64}$/.test(input.digest||''))throw new MaintenanceError('Confira a prévia antes de confirmar.',400);
+  if(input.confirmed!==true||!/^[-a-zA-Z0-9]{16,80}$/.test(input.operationId||'')||(!immediate&&! /^[a-f0-9]{64}$/.test(input.digest||'')))throw new MaintenanceError('Confirme a operação antes de continuar.',400);
   client=await pool.connect();locked=(await client.query('SELECT pg_try_advisory_lock(hashtext($1)) AS locked',['dmp_calendar_time_change'])).rows[0]?.locked===true;
   if(!locked)throw new MaintenanceError('Outra alteração da agenda está em andamento. Aguarde.');
   const key=prefix+input.operationId;
   j=decode((await client.query('SELECT payload FROM dmp_data WHERE id=$1',[key])).rows[0]?.payload);
   const save=async(value:LifecycleJournal)=>{await client!.query('INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=clock_timestamp()',[key,JSON.stringify(value)]);};
   if(j){
-   if(j.digest!==input.digest||j.plan.command.studentId!==input.command?.studentId)throw new MaintenanceError('Operação divergente. Reabra o aluno.');
+   if((!immediate&&j.digest!==input.digest)||j.plan.command.studentId!==input.command?.studentId||(immediate&&(j.plan.command.kind!=='pause'||!j.plan.command.effectiveAt)))throw new MaintenanceError('Operação divergente. Reabra o aluno.');
    if(j.done)return finish({done:true,data:(await snapshot(client,j.plan.command.studentId)).students});
   }else{
-   const c=lifecycleCommand(input.command),s=await snapshot(client,c.studentId);
+   const c=immediate?inactivateNowCommand(input.command?.studentId,confirmedAt):lifecycleCommand(input.command),s=await snapshot(client,c.studentId);
    if(s.student.lifecycle?.pending)throw new MaintenanceError('Retome a operação já iniciada para este aluno.');
    const plan=await buildLifecyclePlan(c,s.students,s.issued,api);
-   if(maintenanceHash(plan)!==input.digest)throw new MaintenanceError('O cadastro, as cobranças ou a agenda mudaram. Gere uma nova prévia.');
+   if(immediate)input.digest=maintenanceHash(plan);
+   else if(maintenanceHash(plan)!==input.digest)throw new MaintenanceError('O cadastro, as cobranças ou a agenda mudaram. Gere uma nova prévia.');
    j={operationId:input.operationId,digest:input.digest,plan,inserted:{},maintenance:{operationId:input.operationId,digest:input.digest,createdAt:new Date().toISOString(),completed:{},plan:{command:{kind:'repair-batch',selection:[]},steps:plan.patches,kept:[],excluded:[],description:'Inativação/reativação individual'}}};
    await client.query('BEGIN');inTransaction=true;
    const fresh=await snapshot(client,c.studentId,true);
    if(maintenanceHash(fresh.student)!==plan.studentVersion||maintenanceHash([...fresh.issued].sort())!==maintenanceHash(plan.issuedIds))throw new MaintenanceError('O cadastro ou as cobranças mudaram. Confira novamente.');
    const periods=[...(fresh.student.lifecycle?.periods||[])];
-   if(c.kind==='pause')periods.push({id:input.operationId,from:c.from,expectedReturn:c.expectedReturn,issuedIds:plan.issuedIds});
+   if(c.kind==='pause')periods.push({id:input.operationId,from:c.from,...(c.effectiveAt?{effectiveAt:c.effectiveAt}:{}),expectedReturn:c.expectedReturn,issuedIds:plan.issuedIds});
    const lifecycle={...fresh.student.lifecycle,revision:input.operationId,periods,issuedIds:[...new Set([...(fresh.student.lifecycle?.issuedIds||[]),...plan.issuedIds])],pending:{operationId:input.operationId,kind:c.kind,digest:input.digest}};
    await client.query('UPDATE dmp_data SET payload=$2,updated_at=clock_timestamp() WHERE id=$1',['students',JSON.stringify(fresh.students.map(s=>s.id===c.studentId?{...s,lifecycle,...(c.kind==='pause'?{status:'ARCHIVED' as const}:{})}:s))]);
    await save(j);await client.query('COMMIT');inTransaction=false;

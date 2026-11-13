@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useRef,useState,type FormEvent} from 'react';
+import type {AppointmentDeletion} from '@/lib/calendar/appointment-delete';
 import type {CalendarEvent} from '@/types/models';
 import styles from './CalendarAppointmentDetails.module.css';
 
@@ -13,6 +14,9 @@ export default function CalendarAppointmentDetails({event,onClose,onSaved}:{even
  const [checked,setChecked]=useState<Checked>({event,canEdit:false,reason:'',parentEtag:''});
  const [draft,setDraft]=useState(()=>appointmentDraft(event)),[editing,setEditing]=useState(false),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[conflict,setConflict]=useState(false),[success,setSuccess]=useState(false);
  const [pending,setPending]=useState<ReturnType<typeof appointmentBody>|null>(null);
+ const [deleting,setDeleting]=useState(false),[deletePending,setDeletePending]=useState<AppointmentDeletion|null>(null),[canReconfirm,setCanReconfirm]=useState(false);
+ const deletionKey='dmp.appointment.delete:'+event.id;
+ useEffect(()=>{try{const raw=sessionStorage.getItem(deletionKey);if(raw){const c=JSON.parse(raw);if(c.id===event.id){setDeletePending(c);setDeleting(true);}}}catch{}},[event.id]);
  const close=useRef<HTMLButtonElement>(null),title=useRef<HTMLInputElement>(null),busy=useRef(false);
  useEffect(()=>{const previous=document.activeElement as HTMLElement|null;close.current?.focus();return()=>{if(previous?.isConnected)previous.focus();};},[]);
  useEffect(()=>{if(editing)title.current?.focus();},[editing]);
@@ -29,14 +33,26 @@ export default function CalendarAppointmentDetails({event,onClose,onSaved}:{even
   catch(e){setError(e instanceof Error?e.message:'A resposta não chegou.');if(e instanceof TypeError)setPending(command);}
   finally{busy.current=false;setSaving(false);}
  }
+ async function remove(){
+  if(busy.current||(!checked.canEdit&&!deletePending))return;
+  busy.current=true;setSaving(true);setError('');
+  const c:AppointmentDeletion=deletePending||{operationId:crypto.randomUUID(),calendarId:'primary',id:current.id,etag:current.etag||'',parentEtag:checked.parentEtag,scope:'single',confirmed:true};
+  setDeletePending(c);try{sessionStorage.setItem(deletionKey,JSON.stringify(c));}catch{}
+  try{
+   const r=await fetch('/api/google/appointment/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)}),d=await r.json();
+   if(!r.ok||d.confirmed!==true){setCanReconfirm(d.canReconfirm===true);if(!d.pending&&r.status>=400&&r.status<500){setDeletePending(null);sessionStorage.removeItem(deletionKey);}throw Error(d.message||'Não foi possível confirmar a exclusão.');}
+   sessionStorage.removeItem(deletionKey);setDeletePending(null);onSaved?.();onClose();
+  }catch(e){setError(e instanceof Error?e.message:'Confira o resultado antes de repetir.');}
+  finally{busy.current=false;setSaving(false);}
+ }
  const dateLabel=(value:string)=>new Date(current.allDay?value.slice(0,10)+'T12:00:00Z':value).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'short',day:'2-digit',month:'long'});
  const lastDay=current.allDay?dayAfter(current.end.slice(0,10),-1):local(current.end).slice(0,10);
  const firstDay=current.allDay?current.start.slice(0,10):local(current.start).slice(0,10);
  const duration=current.allDay?'Dia inteiro':local(current.start).slice(11)+'–'+local(current.end).slice(11);
- const dismiss=()=>{if(!saving){if(pending)onSaved?.();onClose();}};
+ const dismiss=()=>{if(!saving){if(pending||deletePending)onSaved?.();onClose();}};
  return <div className={styles.backdrop} onMouseDown={e=>{if(e.target===e.currentTarget&&!editing)dismiss();}}><section className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="appointment-title" onKeyDown={e=>{if(e.key==='Escape'&&!editing)dismiss();if(e.key==='Tab'){const nodes=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled)'));const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}}>
   <header className={styles.header}><div className={styles.icon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 2v6m10-6v6M3 11h18"/></svg></div><div className={styles.heading}><span className={styles.eyebrow}>Compromisso · Google Calendar</span><h2 id="appointment-title">{editing?'Editar compromisso':current.summary}</h2></div><button ref={close} type="button" className={styles.close} aria-label="Fechar compromisso" disabled={saving} onClick={dismiss}>×</button></header>
-  {editing?<form onSubmit={save} className={styles.form}>
+  {deleting?<div className={styles.form}><h3>Excluir compromisso?</h3><p><strong>{current.summary}</strong></p><p>{dateLabel(current.start)} · {duration}</p><p>Origem: Google Calendar. Este compromisso será excluído do Google Calendar.</p>{current.recurringEventId?<p className={styles.hint}>Alcance: <strong>somente esta ocorrência</strong>. As demais datas da série serão mantidas. A exclusão da série inteira continua no Google.</p>:null}{deletePending?<p role="status" className={styles.hint}>A solicitação pode ter sido recebida. Confira o resultado; o DMP não repetirá a exclusão às cegas.</p>:null}{error?<p role="alert" className={styles.error}>{error}</p>:null}<footer className={styles.actions}><button type="button" className={styles.secondary} disabled={saving||Boolean(deletePending)} onClick={()=>{setDeleting(false);setError('');}}>Voltar</button>{canReconfirm?<button type="button" className={styles.secondary} disabled={saving||loading} onClick={()=>{sessionStorage.removeItem(deletionKey);setDeletePending(null);setCanReconfirm(false);setDeleting(false);void reload();}}>Reabrir para revisar</button>:null}<button type="button" className={styles.danger} disabled={saving||loading||(!checked.canEdit&&!deletePending)} onClick={()=>void remove()}>{saving?'Conferindo…':deletePending?'Conferir resultado':current.recurringEventId?'Excluir somente esta ocorrência':'Confirmar exclusão'}</button></footer></div>:editing?<form onSubmit={save} className={styles.form}>
    <label>Título<input ref={title} required maxLength={300} value={draft.summary} disabled={saving||Boolean(pending)} onChange={e=>change('summary',e.target.value)}/></label>
    <div className={styles.dates}><label>{current.allDay?'Data inicial':'Início'}<input type={current.allDay?'date':'datetime-local'} required value={draft.start} disabled={saving||Boolean(pending)} onInput={e=>change('start',e.currentTarget.value)} onChange={e=>change('start',e.target.value)}/></label><label>{current.allDay?'Último dia':'Término'}<input type={current.allDay?'date':'datetime-local'} required value={draft.end} disabled={saving||Boolean(pending)} onInput={e=>change('end',e.currentTarget.value)} onChange={e=>change('end',e.target.value)}/></label></div>
    <label>Local <span className={styles.optional}>opcional</span><input maxLength={1000} placeholder="Adicionar local" value={draft.location} disabled={saving||Boolean(pending)} onChange={e=>change('location',e.target.value)}/></label>
@@ -53,7 +69,7 @@ export default function CalendarAppointmentDetails({event,onClose,onSaved}:{even
    {success?<p role="status" className={styles.success}>Alterações salvas no Google Calendar.</p>:null}
    {error?<p role="alert" className={styles.error}>{error} <button className={styles.inline} onClick={()=>void reload()}>Tentar novamente</button></p>:null}
    {!loading&&!checked.canEdit&&checked.reason?<p className={styles.hint}>{checked.reason}</p>:null}
-   <footer className={styles.actions}><button type="button" className={styles.primary} disabled={loading||!checked.canEdit} onClick={()=>{setEditing(true);setSuccess(false);setError('');}}>{loading?'Conferindo…':'Editar compromisso'}</button>{googleLink?<a className={styles.secondary} href={googleLink} target="_blank" rel="noreferrer">Abrir no Google</a>:null}</footer>
+   <footer className={styles.actions}><button type="button" className={styles.primary} disabled={loading||!checked.canEdit} onClick={()=>{setEditing(true);setSuccess(false);setError('');}}>{loading?'Conferindo…':'Editar compromisso'}</button>{googleLink?<a className={styles.secondary} href={googleLink} target="_blank" rel="noreferrer">Abrir no Google</a>:null}</footer>{!loading&&checked.canEdit?<div className={styles.deleteArea}><button type="button" className={styles.deleteLink} onClick={()=>{setError('');setDeleting(true);}}>Excluir compromisso</button></div>:null}
   </>}
  </section></div>;
 }

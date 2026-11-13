@@ -1,3 +1,4 @@
+import RoutineManager from "@/components/routine/RoutineManager";
 import { PERFORMANCE_COMPOSITION_FIELDS, emptyCompositionFields, importPerformanceAssessment, type PerformanceCompositionField } from "@/lib/assessments/performance-fields";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
@@ -19,7 +20,7 @@ import PerformanceEvolution from "./PerformanceEvolution";
 import AssessmentInsights from "@/components/assessments/AssessmentInsights";
 import StravaSyncCard from "./StravaSyncCard";
 
-type Tab = "summary" | "activities" | "goals" | "assessments" | "records";
+type Tab = "routine" | "summary" | "activities" | "goals" | "assessments" | "records";
 type Modal = "activity" | "goal" | "assessment" | null;
 
 type ActivityForm = {
@@ -380,6 +381,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
   const [error, setError] = useState("");
   const [consultMonth,setConsultMonth]=useState<string|null>(null);
   const [tab, setTab] = useState<Tab>("summary");
+  useEffect(()=>{if(sessionStorage.getItem("dmp.performance.openRoutine")==="1"){sessionStorage.removeItem("dmp.performance.openRoutine");setTab("routine");}},[]);
   const [modal, setModal] = useState<Modal>(null);
   const [activityForm, setActivityForm] = useState<ActivityForm>(emptyActivity());
   const [strengthTranscript,setStrengthTranscript]=useState("");
@@ -958,6 +960,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
       <section className={`dashboard-content ${styles.page}`}>
         {error ? <div className={styles.error}>{error}</div> : null}
 
+        {tab!=='routine'?<>
         <div className={styles.hero}>
           <div className={styles.heroCopy}>
             <span className={styles.heroBadge}>DMP PERFORMANCE</span>
@@ -1079,6 +1082,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
           </section>
         </div>
 
+        </>:null}
         <nav className={styles.tabs} aria-label="Áreas do Performance">
           {([
             ["summary", "Resumo"],
@@ -1086,11 +1090,13 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
 
             ["assessments", "Avaliações"],
             ["records", "Recordes"],
+            ["routine", "Minha Rotina"],
           ] as [Tab, string][]).map(([key, label]) => (
             <button key={key} className={tab === key ? styles.tabActive : ""} onClick={() => setTab(key)}>{label}</button>
           ))}
         </nav>
 
+        {tab === "routine" ? <RoutineManager/> : null}
         {tab === "summary" ? (
           <div className={styles.stack}>
 
