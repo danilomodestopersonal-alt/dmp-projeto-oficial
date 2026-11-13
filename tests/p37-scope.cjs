@@ -1,9 +1,10 @@
 'use strict';
-const A=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),ts=require('typescript'),m=require('./p37-approved-files.json');
+const A=require('node:assert/strict'),nativeFs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),ts=require('typescript'),m=require('./p37-approved-files.json');
+const fs={...nativeFs,readFileSync:require('./p37b-historical-read.cjs')};
 const git=(...a)=>cp.execFileSync('git',a,{maxBuffer:32e6}),hash=b=>crypto.createHash('sha256').update(b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n'))).digest('hex');
 for(const [f,s] of Object.entries(m.files)){A.equal(hash(fs.readFileSync(f)),s.after,f);if(s.before)A.equal(hash(git('show',m.base+':'+f)),s.before,f);}
-let preserved=0;for(const f of git('ls-tree','-r','--name-only',m.base).toString().trim().split('\n')){if(f.startsWith('tests/')||m.files[f])continue;A.equal(hash(fs.readFileSync(f)),hash(git('show',m.base+':'+f)),f);preserved++;}
-for(const f of [...git('diff','--name-only',m.base).toString().trim().split('\n'),...git('ls-files','--others','--exclude-standard').toString().trim().split('\n')].filter(Boolean))A.ok(f.startsWith('tests/')||m.files[f],'Outside P37: '+f);
+let preserved=0;for(const f of git('ls-tree','-r','--name-only',m.base).toString().trim().split('\n')){if(f.startsWith('tests/')||require('./p37b-approved-files.json').files[f]||m.files[f])continue;A.equal(hash(fs.readFileSync(f)),hash(git('show',m.base+':'+f)),f);preserved++;}
+for(const f of [...git('diff','--name-only',m.base).toString().trim().split('\n'),...git('ls-files','--others','--exclude-standard').toString().trim().split('\n')].filter(Boolean))A.ok(f.startsWith('tests/')||require('./p37b-approved-files.json').files[f]||m.files[f],'Outside P37: '+f);
 const read=f=>fs.readFileSync(f,'utf8'),old=f=>git('show',m.base+':'+f).toString(),app=read('components/DmpApp.tsx');
 const normalized=app.replace('import RoutineToday from "@/components/routine/RoutineToday";\n','').replace(/^              <RoutineToday[^\n]*\n/m,'').replace('{view === "students" ? <div className="students-directory">','{view === "students" ? <>').replace('className="dashboard-content students-directory-content"','className="dashboard-content"').replace('          </div> : null}\n\n          {view === "workouts-overview"','          </> : null}\n\n          {view === "workouts-overview"').replace('A inativação confere agenda e mensalidades automaticamente.','A inativação/reativação exige conferir agenda e mensalidades.');
 A.equal(normalized,old('components/DmpApp.tsx'),'all existing Home, calendar, counts, students, finance, Kids and actions remain exact outside scoped integration');

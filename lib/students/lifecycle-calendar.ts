@@ -3,6 +3,7 @@ import {currentPause,validDate,saoPauloDate} from './lifecycle';
 import {calendarRoster,ROSTER_KEY,RULE_PREFIX,rosterSummary,rosterIds,type RosterEdit} from '@/lib/calendar/roster';
 import {assertPersonal,mappedPersonal,followingStep,buildMaintenancePlan,executeMaintenance,maintenanceHash,MaintenanceError,type MaintenanceApi,type MaintenanceJournal,type MaintenanceStep} from '@/lib/calendar/personal-maintenance';
 import {defaultHolidayConfig} from '@/lib/calendar/personal-holidays';
+import {normalizeName} from '@/lib/widget/home-source';
 
 type Event=Record<string,any>;
 export type ReturnSlot={date:string;start:string;end:string;until:string};
@@ -39,9 +40,27 @@ function lessonFailure(e:Event,error:unknown):never{
 }
 function checkLesson(e:Event,check:()=>void){try{check();}catch(error){lessonFailure(e,error);}}
 function seriesKey(id:string){return id.replace(/_\d{8}T\d{6}Z$/,'').replace(/_R\d{8}T\d{6}Z?$/,'');}
+// An ambiguous short name must request review, never silently disappear from
+// inactivation planning after the display matcher rejects it. This only blocks
+// a plan; it does not assign a participant or authorize a Google mutation.
+function unresolvedTarget(e:Event,parent:Event|undefined,student:Student,students:Student[]){
+ const mapped=mappedPersonal(e,parent,students);
+ if(mapped.matchedStudentIds?.includes(student.id))return false;
+ if(mapped.calendarRoster?.single?.eventId===e.id)return false;
+ if(!rosterIds(mapped,[student.id]).includes(student.id))return false;
+ let title=' '+normalizeName(e.summary||'')+' ';
+ const otherNames=students.filter(s=>s.id!==student.id).flatMap(s=>{const p=normalizeName(s.name).split(' ');return p.length>1?[p.join(' '),p[0]+' '+p.at(-1)]:[];}).sort((a,b)=>b.length-a.length);
+ // A complete name belonging to somebody else is not evidence for the target.
+ for(const name of otherNames)title=title.replaceAll(' '+name+' ',' ');
+ const parts=normalizeName(student.name).split(' ');
+ return title.trim().split(' ').some(word=>word.length>=3&&parts.some(part=>part.startsWith(word)));
+}
 function assertTargetIdentity(e:Event,parent:Event|undefined,student:Student,students:Student[]){
  const mapped=mappedPersonal(e,parent,students);
- if(!(mapped.matchedStudentIds||[]).includes(student.id))return;
+ if(!(mapped.matchedStudentIds||[]).includes(student.id)){
+  if(unresolvedTarget(e,parent,student,students))fail('Um nome abreviado ou ambíguo exige conferir os participantes na agenda antes de inativar ou reativar.');
+  return;
+ }
  if(rosterIds(mapped,[]).includes(student.id))return;
  const normalize=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
  const parts=normalize(student.name).split(' '),title=' '+normalize(e.summary||'')+' ';
@@ -80,7 +99,7 @@ export async function buildLifecyclePlan(command:LifecycleCommand,students:Stude
   for(const parent of parents){
    const exceptions=all.filter(e=>e.recurringEventId===parent.id);
    const related=[parent,...exceptions.filter(e=>e.status!=='cancelled')];
-   const relevant=related.some(e=>(mappedPersonal(e,e===parent?undefined:parent,students).matchedStudentIds||[]).includes(student!.id))||calendarRoster(parent.extendedProperties?.private).rules.some(r=>r.add.includes(student!.id));
+   const relevant=related.some(e=>(mappedPersonal(e,e===parent?undefined:parent,students).matchedStudentIds||[]).includes(student!.id)||unresolvedTarget(e,e===parent?undefined:parent,student!,students))||calendarRoster(parent.extendedProperties?.private).rules.some(r=>r.add.includes(student!.id));
    if(!relevant)continue;
    // Only the weekly shape supported by the existing safe cancellation flow.
    if(!(parent.recurrence as string[]).some(r=>/^RRULE:FREQ=WEEKLY(?:;|$)/.test(r)))fail('Há uma recorrência fora do padrão semanal seguro. Revise essa série antes de inativar.');
@@ -98,7 +117,7 @@ export async function buildLifecyclePlan(command:LifecycleCommand,students:Stude
    if(!first.originalStartTime?.dateTime)fail('Vínculo da recorrência incompleto.');
    const boundary=first.originalStartTime.dateTime;
    if(exceptions.some(e=>e.status!=='cancelled'&&(Date.parse(e.originalStartTime?.dateTime)>=Date.parse(boundary))!==(Date.parse(e.start?.dateTime)>=cutoff)))fail('Uma exceção mudou de lado da data da inativação. Confira essa ocorrência no Google; nada será removido automaticamente.');
-   const affected=instances.filter(e=>(mappedPersonal(e,parent,students).matchedStudentIds||[]).includes(student!.id));
+   const affected=instances.filter(e=>(mappedPersonal(e,parent,students).matchedStudentIds||[]).includes(student!.id)||unresolvedTarget(e,parent,student!,students));
    if(!affected.length&&!calendarRoster(parent.extendedProperties?.private).rules.some(r=>r.add.includes(student!.id)&&Date.parse(r.from)>=cutoff))continue;
    affected.forEach(e=>checkLesson(e,()=>{assertPersonal(e,parent,students);assertTargetIdentity(e,parent,student!,students);withoutHistory(e,students);}));
    for(const e of exceptions.filter(e=>e.status!=='cancelled'&&Date.parse(e.start?.dateTime)>=cutoff)){checkLesson(e,()=>{assertPersonal(e,parent,students);withoutHistory(e,students);});}
@@ -113,7 +132,7 @@ export async function buildLifecyclePlan(command:LifecycleCommand,students:Stude
   }
   for(const e of live.filter(e=>!e.recurrence?.length&&!processed.has(e.recurringEventId)&&e.start?.dateTime&&Date.parse(e.start.dateTime)>=cutoff)){
    const parent=e.recurringEventId?live.find(p=>p.id===e.recurringEventId):undefined;
-   const ids=mappedPersonal(e,parent,students).matchedStudentIds||[];if(!ids.includes(student!.id))continue;
+   const ids=mappedPersonal(e,parent,students).matchedStudentIds||[];if(!ids.includes(student!.id)&&!unresolvedTarget(e,parent,student!,students))continue;
    checkLesson(e,()=>{assertPersonal(e,parent,students);assertTargetIdentity(e,parent,student!,students);withoutHistory(e,students);});
    if(ids.length===1){const p=await buildMaintenancePlan({kind:'roster',id:e.id,etag:e.etag,scope:'single',expected:ids},students,api,defaultHolidayConfig,now);plan.patches.push(...p.steps);}
    else{const extendedProperties=rosterFields(e,e,parent,students,student!.id,'pause','single',e.originalStartTime?.dateTime||e.start.dateTime,version,op);plan.patches.push({before:e,parent,body:{extendedProperties,summary:rosterSummary(e.summary,ids,ids.filter(id=>id!==student!.id),students)},label:e.summary,start:e.start.dateTime});}

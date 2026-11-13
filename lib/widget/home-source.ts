@@ -28,8 +28,10 @@ export function categoryLabelForHome(category:KidsCategory){
 }
 export function matchCalendarEvents(events:CalendarEvent[],students:Student[],maintenanceCandidates=false):CalendarEvent[]{
   const active=students.filter(student=>student.status==="ACTIVE");
+  // Inactive students still reserve their identity: archiving must not make a
+  // shared first name, surname or abbreviation identify a different student.
   const firstNameCount=new Map<string,number>();
-  active.forEach(student=>{const first=normalizeName(student.name).split(" ").filter(Boolean)[0];if(first)firstNameCount.set(first,(firstNameCount.get(first)||0)+1);});
+  students.forEach(student=>{const first=normalizeName(student.name).split(" ").filter(Boolean)[0];if(first)firstNameCount.set(first,(firstNameCount.get(first)||0)+1);});
   return events.map(event=>{
     if(event.allDay)return {...event,matchedStudentId:null,matchedStudentIds:[]};
     const title=normalizeName(event.summary||"");
@@ -52,13 +54,13 @@ export function matchCalendarEvents(events:CalendarEvent[],students:Student[],ma
       // Aceita qualquer parte única do nome, inclusive sobrenomes usados na agenda.
       if(parts.some(part=>{
         if(part.length<3||!tokens.has(part))return false;
-        const candidates=active.filter(item=>normalizeName(item.name).split(" ").filter(Boolean).includes(part));
+        const candidates=students.filter(item=>normalizeName(item.name).split(" ").filter(Boolean).includes(part));
         return candidates.length===1&&candidates[0].id===student.id;
       }))return true;
-      // Aceita abreviações como "Gra" somente quando apontam para um único aluno ativo.
+      // Aceita abreviações como "Gra" somente quando apontam para um único aluno cadastrado, incluindo inativos.
       return [...tokens].some(token=>{
         if(token.length<3||!first.startsWith(token))return false;
-        const candidates=active.filter(item=>normalizeName(item.name).split(" ").filter(Boolean)[0]?.startsWith(token));
+        const candidates=students.filter(item=>normalizeName(item.name).split(" ").filter(Boolean)[0]?.startsWith(token));
         return candidates.length===1&&candidates[0].id===student.id;
       });
     });
