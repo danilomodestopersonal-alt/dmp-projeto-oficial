@@ -1,0 +1,14 @@
+'use strict';
+const A=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),ts=require('typescript'),m=require('./p38-approved-files.json');
+const git=(...a)=>cp.execFileSync('git',a,{maxBuffer:32e6}),hash=b=>crypto.createHash('sha256').update(b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n'))).digest('hex');
+for(const [file,s]of Object.entries(m.files)){A.equal(hash(fs.readFileSync(file)),s.after,file);if(s.before)A.equal(hash(git('show',m.base+':'+file)),s.before,file);}
+let preserved=0;for(const file of git('ls-tree','-r','--name-only',m.base).toString().trim().split('\n')){if(file.startsWith('tests/')||m.files[file])continue;A.equal(hash(fs.readFileSync(file)),hash(git('show',m.base+':'+file)),file);preserved++;}
+for(const file of [...git('diff','--name-only',m.base).toString().trim().split('\n'),...git('ls-files','--others','--exclude-standard').toString().trim().split('\n')].filter(Boolean))A.ok(file.startsWith('tests/')||m.files[file],'Outside P38: '+file);
+const read=f=>fs.readFileSync(f,'utf8'),old=f=>git('show',m.base+':'+f).toString();
+let app=old('components/DmpApp.tsx').replace('loadStudents, resetImportedData, saveStudents','loadStudents, saveStudents');const a=app.indexOf('  function resetData() {'),b=app.indexOf('  function financeUnlocked()',a);app=(app.slice(0,a)+app.slice(b)).replace('<button className="secondary" onClick={resetData}>Restaurar importação</button>','');A.equal(read('components/DmpApp.tsx'),app,'only legacy restore action removed; identity, lessons, Home and finance unchanged');
+function functions(s){const ast=ts.createSourceFile('strava.ts',s,99,true,3);return new Map(ast.statements.filter(ts.isFunctionDeclaration).map(n=>[n.name.text,n.getText(ast)]));}
+const before=functions(old('lib/strava.ts')),after=functions(read('lib/strava.ts'));for(const name of ['stravaConfigured','stravaRedirectUri','getConnection','saveConnection','deleteConnection','basicAuth','exchangeAuthorizationCode','getValidAccessToken','revokeStrava','activityType','round','similarLegacy'])A.equal(after.get(name),before.get(name),'existing OAuth/core behavior '+name);
+for(const file of ['app/api/backup/imported/route.ts','app/api/strava/gears/route.ts'])A.match(read(file),/isAuthorized/);
+A.doesNotMatch(read('lib/performance-cycling.ts'),/fetch\(|\.query\(/);A.doesNotMatch(read('app/api/strava/gears/route.ts'),/INSERT INTO|UPDATE dmp_data|DELETE FROM/);
+A.ok(!Object.keys(m.files).some(f=>f.startsWith('android-widget/')||f.includes('kids/')||f.includes('financeiro/')||f.includes('google/')||f.includes('todoist')));
+console.log('PASS P38 scope: '+Object.keys(m.files).length+' production files; '+preserved+' preserved; no Android, student identity, Google, Kids, financial rules, OAuth or DS edits.');

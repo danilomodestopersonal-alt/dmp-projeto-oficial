@@ -1,3 +1,5 @@
+import {activityGearId,automaticCycling,mergeStravaActivity} from '@/lib/performance-cycling';
+import {resolveStravaGears} from '@/lib/strava-gears';
 import { pool } from "@/lib/db";
 import type {
   PerformanceActivity,
@@ -54,6 +56,7 @@ type StravaSummaryActivity = {
   start_date_local?: string;
   average_speed?: number;
   max_speed?: number;
+  gear_id?: string | null;
 };
 
 type StravaDetailedActivity = StravaSummaryActivity & {
@@ -299,60 +302,12 @@ function activityType(
 }
 
 
-function cyclingKind(
-  sportType: string,
-  title?: string | null,
-  gearName?: string | null,
-): PerformanceCyclingKind | null {
-  const value = `${sportType} ${title || ""} ${gearName || ""}`
-    .toLocaleLowerCase("pt-BR")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  if (
-    value.includes("virtualride") ||
-    value.includes("virtual ride") ||
-    value.includes("indoor") ||
-    value.includes("spinning") ||
-    value.includes("spin bike") ||
-    value.includes("bike indoor") ||
-    value.includes("zwift") ||
-    value.includes("rolo") ||
-    value.includes("trainer")
-  ) {
-    return "INDOOR";
-  }
-
-  if (
-    value.includes("mountainbikeride") ||
-    value.includes("mountain bike") ||
-    value.includes("mountainbike") ||
-    value.includes(" mtb") ||
-    value.startsWith("mtb") ||
-    value.includes("trilha")
-  ) {
-    return "MTB";
-  }
-
-  if (
-    value.includes("roadbike") ||
-    value.includes("road bike") ||
-    value.includes("road cycling") ||
-    value.includes("speed") ||
-    value.includes("estrada")
-  ) {
-    return "SPEED";
-  }
-
-  return activityType(sportType) === "CYCLING" ? "OTHER" : null;
-}
-
 function round(value: number, decimals = 1) {
   const f = 10 ** decimals;
   return Math.round(value * f) / f;
 }
 
-function convertActivity(
+export function convertActivity(
   item: StravaSummaryActivity | StravaDetailedActivity,
 ): PerformanceActivity {
   const sport =
@@ -391,9 +346,7 @@ function convertActivity(
     new Date().toISOString();
 
   const gearName =
-    detailed.gear?.name ||
-    detailed.gear_id ||
-    null;
+    detailed.gear?.name || null;
 
   return {
     id: `strava-${item.id}`,
@@ -468,11 +421,9 @@ function convertActivity(
         : null,
 
     gearName,
-
-    cyclingKind:
-      activityType(sport) === "CYCLING"
-        ? cyclingKind(sport, item.name, gearName)
-        : null,
+    gearId: detailed.gear_id || detailed.gear?.id || null,
+    stravaSportType: sport,
+    ...(activityType(sport) === "CYCLING" ? automaticCycling(sport) : {cyclingKind:null}),
 
     description:
       detailed.description || null,
@@ -596,10 +547,12 @@ async function fetchActivities(
 async function fetchActivityDetails(
   accessToken: string,
   activityId: number,
+  timeoutMs = 12000,
 ) {
   const response = await fetch(
     `https://www.strava.com/api/v3/activities/${activityId}`,
     {
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -629,11 +582,13 @@ async function fetchActivityDetails(
 async function enrichActivity(
   accessToken: string,
   activity: StravaSummaryActivity,
+  timeoutMs = 12000,
 ) {
   const detail =
     await fetchActivityDetails(
       accessToken,
       activity.id,
+      timeoutMs,
     );
 
   return detail
@@ -711,134 +666,50 @@ export async function syncStrava() {
       after,
     );
 
-  const activities = [
-    ...performance.activities,
-  ];
-
-  let added = 0;
-  let updated = 0;
-  let detailRequests = 0;
-
-  for (const summary of raw) {
-    let index =
-      activities.findIndex(
-        (item) =>
-          item.externalId ===
-          String(summary.id),
-      );
-
-    if (index < 0) {
-      const summaryActivity =
-        convertActivity(summary);
-
-      index =
-        activities.findIndex(
-          (item) =>
-            item.externalId?.startsWith(
-              "legacy-",
-            ) &&
-            similarLegacy(
-              item,
-              summaryActivity,
-            ),
-        );
+  const resolved=await resolveStravaGears(accessToken,[...raw.map(a=>a.gear_id||''),...performance.activities.map(a=>activityGearId(a)||'')],performance.gears||[]);
+  const incomingActivities:PerformanceActivity[]=[];
+  let detailRequests=0,detailUnavailable=false;
+  const detailDeadline=Date.now()+20000;
+  for(const summary of raw){
+    let incoming=convertActivity(summary);
+    if(detailRequests<DETAIL_REQUEST_LIMIT&&!detailUnavailable){
+      const remaining=detailDeadline-Date.now();
+      if(remaining<=0)detailUnavailable=true;
+      else {
+        detailRequests++;
+        try{incoming=await enrichActivity(accessToken,summary,Math.min(12000,remaining));}catch{
+          // Stop on rate limits, transport failure or server error; retain saved details.
+          detailUnavailable=true;
+        }
+      }
     }
-
-    let incoming: PerformanceActivity;
-
-    const existing =
-      index >= 0
-        ? activities[index]
-        : null;
-
-    const needsDetails =
-      !existing ||
-      !hasDetailedData(existing);
-
-    if (
-      needsDetails &&
-      detailRequests <
-        DETAIL_REQUEST_LIMIT
-    ) {
-      incoming =
-        await enrichActivity(
-          accessToken,
-          summary,
-        );
-
-      detailRequests += 1;
-    } else {
-      incoming =
-        convertActivity(summary);
-    }
-
-    if (index >= 0) {
-      const old =
-        activities[index];
-
-      activities[index] = {
-        ...old,
-        ...incoming,
-        id: old.id,
-        createdAt: old.createdAt,
-        calories:
-          old.calories ??
-          incoming.calories,
-        cyclingKind:
-          old.cyclingKind ??
-          incoming.cyclingKind,
-        notes:
-          old.notes?.includes(
-            "Importado da planilha histórica",
-          )
-            ? `${old.notes} • ID Strava vinculado`
-            : incoming.notes,
-        updatedAt:
-          new Date().toISOString(),
-      };
-
-      updated += 1;
-    } else {
-      activities.push(
-        incoming,
-      );
-
-      added += 1;
-    }
+    incomingActivities.push(incoming);
   }
-
-  activities.sort((a, b) =>
-    b.date.localeCompare(a.date),
-  );
-
-  const nextPerformance:
-    PerformanceData = {
-    ...performance,
-    activities,
-    metadata: {
-      ...(performance.metadata || {}),
-      source: "STRAVA",
-      notes: [
-        ...(performance.metadata
-          ?.notes || []),
-        "Sincronização oficial Strava habilitada no DMP v4.7.1.",
-      ],
-    },
-  };
-
-  await pool.query(
-    `INSERT INTO dmp_data (id, payload, updated_at)
-     VALUES ($1, $2, NOW())
-     ON CONFLICT (id)
-     DO UPDATE SET payload = EXCLUDED.payload,
-                   updated_at = NOW()`,
-    [
-      PERFORMANCE_ID,
-      JSON.stringify(
-        nextPerformance,
-      ),
-    ],
-  );
+  // A manual edit may have completed while Strava was responding. Merge into
+  // the current row under the same row lock used by the Performance editor.
+  const client=await pool.connect();let added=0,updated=0,total=0;
+  try{
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[PERFORMANCE_ID]);
+    const row=(await client.query('SELECT payload FROM dmp_data WHERE id=$1 FOR UPDATE',[PERFORMANCE_ID])).rows[0];
+    const latest:PerformanceData=row?.payload||{version:1,activities:[],goals:[],assessments:[],records:[]};
+    const gears=resolved.gears.map(g=>{const live=latest.gears?.find(x=>x.id===g.id);return live?.kindSource==='MANUAL'?{...g,cyclingKind:live.cyclingKind,kindSource:live.kindSource}:g;});
+    for(const live of latest.gears||[])if(!gears.some(g=>g.id===live.id))gears.push(live);
+    const activities=[...latest.activities];
+    for(const incoming of incomingActivities){
+      let index=activities.findIndex(a=>a.externalId===incoming.externalId);
+      if(index<0)index=activities.findIndex(a=>a.externalId?.startsWith('legacy-')&&similarLegacy(a,incoming));
+      if(index>=0){activities[index]=mergeStravaActivity(activities[index],incoming,gears);updated++;}
+      else{activities.push(mergeStravaActivity(undefined,incoming,gears));added++;}
+    }
+    // Resolve names for older activities too, without inventing or changing metrics.
+    const final=activities.map(a=>a.source==='STRAVA'?mergeStravaActivity(a,{...a,gearId:activityGearId(a)},gears):a).sort((a,b)=>b.date.localeCompare(a.date));
+    total=final.length;
+    const note='Sincronização oficial Strava habilitada no DMP v4.7.1.';
+    const nextPerformance:PerformanceData={...latest,activities:final,gears,metadata:{...latest.metadata,source:'STRAVA',notes:[...new Set([...(latest.metadata?.notes||[]),note])]}};
+    await client.query('INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,clock_timestamp()) ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=clock_timestamp()',[PERFORMANCE_ID,JSON.stringify(nextPerformance)]);
+    await client.query('COMMIT');
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
 
   const syncedConnection:
     StravaConnection = {
@@ -860,7 +731,9 @@ export async function syncStrava() {
     fetched: raw.length,
     added,
     updated,
-    total: activities.length,
+    total,
+    gearWarning: resolved.unavailable?"Alguns equipamentos não responderam. Os nomes e tipos já conhecidos foram preservados.":null,
+    detailWarning: detailUnavailable?"O Strava não entregou todos os detalhes nesta tentativa. Os dados já salvos foram preservados; tente sincronizar novamente mais tarde.":null,
     detailed: detailRequests,
     lastSyncAt:
       syncedConnection.lastSyncAt,

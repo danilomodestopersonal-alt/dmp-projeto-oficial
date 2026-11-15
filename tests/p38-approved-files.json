@@ -1,0 +1,77 @@
+{
+  "base": "0d5459215a2a6eeb5a908c9ab4438d1cf5c47c14",
+  "files": {
+    "app/api/backup/imported/route.ts": {
+      "before": null,
+      "after": "b38de2946ab784612c9901fa9dcc656f49a505c198c7e7c169cc99489ca38ff4"
+    },
+    "app/api/performance/route.ts": {
+      "before": "a9a4624271a236242d57d54c3797a7efac0d150dcbfbe079e234b056d4e4e1ab",
+      "after": "08cd7f4db49bf2d186a32c0bb71fbde15f6981a4cb073c85b31f72d425588b9a"
+    },
+    "app/api/strava/gears/route.ts": {
+      "before": null,
+      "after": "ed7baa8b13825eccda05fcf964bde40a082a7aca676fb2232df437a5a53dc03c"
+    },
+    "components/DmpApp.tsx": {
+      "before": "9b6ef062b6757b8c08d70394b33da627281598b9d8ade886bdb8ad4205a36b57",
+      "after": "6bf02ccdffe0dd1490a95902ab1e5f45fb8e99aeeeadec682b871d64fa22e328"
+    },
+    "components/backup/BackupCenter.tsx": {
+      "before": "f9d847f57c85d95ce0cb87a54b152ce6544f5f0be3f2023b4e371c2584671f47",
+      "after": "3062137023bee94cd19a3b108b9e564061582273ba842248b6d904cad77ad0bf"
+    },
+    "components/backup/ImportRecovery.tsx": {
+      "before": null,
+      "after": "7f953a5ebdb4570cfec4544af69a9f5c5c33efdddcf18422e49fc50f656a6e7a"
+    },
+    "components/performance/PerformancePage.tsx": {
+      "before": "4c9001a020ead21b3bfa90d8ff5ad0f3e03f5b4cdbbcff46c874e390552bef33",
+      "after": "5efeb2087fcfb9deba9d1ba87378c535df15eb03d95a38c3e65ff05dd0911113"
+    },
+    "components/performance/StravaBikes.tsx": {
+      "before": null,
+      "after": "f4be7120ec36469d32fe68799832bdb293bc2e6ad8dd41f23b60181048c8188a"
+    },
+    "components/performance/StravaSyncCard.tsx": {
+      "before": "4fc2e73e191050ec5b404ec500ea7ddd2d445a8d787fe32b15df658954eae794",
+      "after": "a3edf90905546fbc48de37607e24f3bb279103ca148a7ead66a594544ce3ab7c"
+    },
+    "components/routine/RoutineManager.tsx": {
+      "before": "fc2289fecefa92d87b57b171a543de184d3d93eb7ba0bb482cc9505e840be129",
+      "after": "4737206bbb564e317aca92b746336da55ad03e6156415809e9ea654b4929722d"
+    },
+    "components/routine/useRoutine.ts": {
+      "before": "209d08ed4ccc8b0826f1a5242bc649ebf6644aca016cdef1c6f00854f288edd6",
+      "after": "c88f537d28ea677721443ed357e55dd6ef50b996eb706e3b2ba02446b090c644"
+    },
+    "lib/backup.ts": {
+      "before": "40aed013b91eb2fc7b124b124945164d33df627921eedc9a3046e756ac0456dd",
+      "after": "0861507ddd588658a1a62b04de482a24db7aad4138f9439a68a5d8bbeeb13d70"
+    },
+    "lib/performance-cycling.ts": {
+      "before": null,
+      "after": "1af51e69ac7a572cb5728c6bbe6944cc0f027942861a0ceea81b8f8d16376c2e"
+    },
+    "lib/routine/client.ts": {
+      "before": null,
+      "after": "0b63722c9925bea937482c8be537c68f4cc807f85ca9723ad59cfff8feba303c"
+    },
+    "lib/strava-gears.ts": {
+      "before": null,
+      "after": "d3ee394e6835d85bcd32d593f4b4be3a955a3e2315b39b04a4e7e401d69a13a1"
+    },
+    "lib/strava.ts": {
+      "before": "e1505b695f2e16161b8a4e981bb7b047c3612606b5c11951c0d6c017ca68cc31",
+      "after": "46127c6792b4ef4947294ea012c4ec6050374160bb008181034aaeba960b0f8a"
+    },
+    "lib/students/import-recovery.ts": {
+      "before": null,
+      "after": "bc0abd06d270b7af9adec78c0b82f8e96c7ff10e0d896bfd4c301e5954fa3faf"
+    },
+    "types/performance.ts": {
+      "before": "4fb9c4fb87ac35f1d2444d656c64cb67db9faa957ac23ae62d989889d460c321",
+      "after": "05be07a5031af8058026c5cf8251ba4172b8829a27753ccf9f8e60b1351d39ba"
+    }
+  }
+}

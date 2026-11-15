@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { pool } from "@/lib/db";
+import type {PoolClient} from 'pg';
 
 export const BACKUP_FORMAT = "dmp-full-backup" as const;
 export const BACKUP_VERSION = 1 as const;
@@ -69,8 +70,8 @@ export async function ensureBackupTable() {
   await pool.query(`CREATE INDEX IF NOT EXISTS dmp_backups_created_at_idx ON dmp_backups (created_at DESC)`);
 }
 
-export async function buildBackup(kind: BackupKind): Promise<BackupEnvelope> {
-  const result = await pool.query("SELECT id, payload, updated_at FROM dmp_data ORDER BY id");
+export async function buildBackup(kind: BackupKind, client:Pick<PoolClient,'query'>=pool): Promise<BackupEnvelope> {
+  const result = await client.query("SELECT id, payload, updated_at FROM dmp_data ORDER BY id");
   const excludedIds: string[] = [];
   const rows: BackupRow[] = [];
 

@@ -1,3 +1,5 @@
+import {activityGearId,automaticCycling,gearDisplay} from '@/lib/performance-cycling';
+import type {PerformanceGear} from '@/types/performance';
 import RoutineManager from "@/components/routine/RoutineManager";
 import { PERFORMANCE_COMPOSITION_FIELDS, emptyCompositionFields, importPerformanceAssessment, type PerformanceCompositionField } from "@/lib/assessments/performance-fields";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -18,6 +20,7 @@ import styles from "./PerformancePage.module.css";
 import PerformanceSummaryInsights,{PerformanceStreak} from "./PerformanceSummaryInsights";
 import PerformanceEvolution from "./PerformanceEvolution";
 import AssessmentInsights from "@/components/assessments/AssessmentInsights";
+import StravaBikes from "./StravaBikes";
 import StravaSyncCard from "./StravaSyncCard";
 
 type Tab = "routine" | "summary" | "activities" | "goals" | "assessments" | "records";
@@ -28,6 +31,7 @@ type ActivityForm = {
   date: string;
   type: PerformanceActivityType;
   cyclingKind: PerformanceCyclingKind;
+  cyclingMode?: "MANUAL" | "AUTO";
   title: string;
   distanceKm: string;
   durationMinutes: string;
@@ -764,10 +768,11 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
     const timestamp = new Date().toISOString();
     const existing = activityForm.id ? data.activities.find(a => a.id === activityForm.id) : null;
     const activity: PerformanceActivity = {
+      ...existing,
       id: existing?.id || uid(),
       date: activityForm.date,
       type: activityForm.type,
-      cyclingKind: activityForm.type === "CYCLING" ? activityForm.cyclingKind : null,
+      ...(activityForm.type==='CYCLING'?(activityForm.cyclingMode==='AUTO'?automaticCycling(existing?.stravaSportType,data.gears?.find(g=>g.id===activityGearId(existing||{}))):{cyclingKind:activityForm.cyclingKind,cyclingKindSource:activityForm.cyclingMode==='MANUAL'||!existing?'MANUAL':existing.cyclingKindSource||'LEGACY'}):{cyclingKind:null}),
       title: activityForm.title.trim(),
       distanceKm: toNumber(activityForm.distanceKm),
       durationMinutes: toNumber(activityForm.durationMinutes),
@@ -1131,6 +1136,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             </div>
 
             <StravaSyncCard onSynced={() => void loadData()} />
+            <section className={styles.panel}><StravaBikes saved={data.gears||[]} busy={saving} onSave={async gears=>persist({...data,gears})}/></section>
           </div>
         ) : null}
 
@@ -1231,7 +1237,7 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             {detailActivity.type === "STRENGTH" && detailActivity.strengthSystem ? <div className={styles.assessmentHeadline}><strong>Sistema de treino</strong><span>{strengthSystemLabel(detailActivity.strengthSystem)}</span></div> : null}
             {detailActivity.type === "STRENGTH" && detailActivity.strengthExercises?.length ? <div className={styles.exerciseDetails}><strong>Exercícios</strong>{detailActivity.strengthExercises.map(item => <div key={item.id}><span>{item.block ? `${item.block} · ` : ""}{item.name}</span><small>{[item.sets && `${item.sets} séries`, item.reps && `${item.reps} reps`, item.load && item.load, item.notes].filter(Boolean).join(" · ")}</small></div>)}</div> : null}
             {detailActivity.type === "TENNIS" ? <div className={styles.exerciseDetails}><strong>{detailActivity.tennisKind === "MATCH" ? "Partida" : "Treino de tênis"}</strong>{detailActivity.tennisOpponent ? <div><span>Adversário</span><small>{detailActivity.tennisOpponent}</small></div> : null}{detailActivity.tennisScore ? <div><span>Placar</span><small>{detailActivity.tennisScore}</small></div> : null}</div> : null}
-            {detailActivity.gearName ? <div className={styles.assessmentHeadline}><strong>Equipamento</strong><span>{detailActivity.gearName}</span></div> : null}
+            {detailActivity.type==='CYCLING'?<><div className={styles.assessmentHeadline}><strong>Equipamento</strong><span>{gearDisplay(detailActivity,data.gears)}</span></div><p className={styles.muted}>{detailActivity.cyclingKindSource==='MANUAL'?'Classificação manual · preservada na sincronização':detailActivity.cyclingKindSource==='LEGACY'||!detailActivity.cyclingKindSource?'Classificação anterior preservada':detailActivity.cyclingKindSource==='GEAR'?'Classificação pela bicicleta':'Classificação pelo Strava'}</p>{activityGearId(detailActivity)?<GearKindEditor gear={(data.gears||[]).find(g=>g.id===activityGearId(detailActivity))||{id:activityGearId(detailActivity)!,name:gearDisplay(detailActivity)==='Equipamento não identificado'?null:detailActivity.gearName||null}} busy={saving} onSave={async gear=>persist({...data,gears:[...(data.gears||[]).filter(g=>g.id!==gear.id),gear]})}/>:null}</>:null}
             {detailActivity.description ? <div className={styles.assessmentHeadline}><strong>Descrição</strong><span>{detailActivity.description}</span></div> : null}
             {detailActivity.notes ? <div className={styles.assessmentHeadline}><strong>Observações</strong><span>{detailActivity.notes}</span></div> : null}
             <div className={styles.rowActions}>
@@ -1253,7 +1259,8 @@ export default function PerformancePage({openActivityId}:{openActivityId?:string
             <div className={styles.formGrid}>
               <Field label="Data"><input type="date" value={activityForm.date} onChange={e => setActivityForm({...activityForm,date:e.target.value})} required /></Field>
               <Field label="Modalidade"><select value={activityForm.type} onChange={e => setActivityForm({...activityForm,type:e.target.value as PerformanceActivityType})}>{Object.entries(ACTIVITY_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-              {activityForm.type === "CYCLING" ? <Field label="Tipo de ciclismo"><select value={activityForm.cyclingKind} onChange={e => setActivityForm({...activityForm,cyclingKind:e.target.value as PerformanceCyclingKind})}>{CYCLING_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field> : null}
+              {activityForm.type === "CYCLING" ? <Field label="Tipo de ciclismo"><select value={activityForm.cyclingKind} onChange={e => setActivityForm({...activityForm,cyclingKind:e.target.value as PerformanceCyclingKind,cyclingMode:"MANUAL"})}>{CYCLING_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field> : null}
+              {activityForm.type==='CYCLING'&&activityForm.id&&data.activities.find(a=>a.id===activityForm.id)?.source==='STRAVA'?<div className={styles.fieldFull}><p>{activityForm.cyclingMode==='AUTO'?'Ao salvar, usar o tipo específico do Strava ou a modalidade associada à bicicleta.':'A classificação escolhida será preservada nas sincronizações.'}</p><button type="button" className="secondary" onClick={()=>setActivityForm({...activityForm,cyclingMode:'AUTO'})}>Usar classificação automática</button></div>:null}
               <Field label="Título" full><input value={activityForm.title} onChange={e => setActivityForm({...activityForm,title:e.target.value})} placeholder="Ex.: Pedal Speed, Spinning, Musculação A, Pilates..." required /></Field>
               <Field label="Duração (min)"><input inputMode="numeric" value={activityForm.durationMinutes} onChange={e => setActivityForm({...activityForm,durationMinutes:e.target.value})} placeholder="0" /></Field>
               {activityForm.type === "CYCLING" || activityForm.type === "RUNNING" || activityForm.type === "OTHER" ? <>
@@ -1393,4 +1400,9 @@ function Field({label,full=false,children}:{label:string;full?:boolean;children:
 
 function ModalActions({saving,onCancel,label}:{saving:boolean;onCancel:()=>void;label:string}) {
   return <div className={styles.modalActions}><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button className="primary" disabled={saving}>{saving ? "Salvando..." : label}</button></div>;
+}
+
+function GearKindEditor({gear,busy,onSave}:{gear:PerformanceGear;busy:boolean;onSave:(g:PerformanceGear)=>Promise<boolean>}){
+ const [kind,setKind]=useState<PerformanceCyclingKind>(gear.cyclingKind||'OTHER'),[message,setMessage]=useState('');
+ return <details><summary>Modalidade desta bicicleta</summary><p>Associação pelo equipamento, mesmo que o nome mude no Strava. Escolhas manuais nas atividades continuam preservadas.</p><label>Modalidade da bicicleta<select value={kind} disabled={busy} onChange={e=>setKind(e.target.value as PerformanceCyclingKind)}>{CYCLING_KIND_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label><button type="button" className="secondary" disabled={busy} onClick={()=>void onSave({...gear,cyclingKind:kind,kindSource:'MANUAL'}).then(ok=>setMessage(ok?'Associação salva.':'Não foi possível salvar. Confira a mensagem do Performance.'))}>Salvar modalidade da bicicleta</button>{message?<p role="status">{message}</p>:null}</details>;
 }

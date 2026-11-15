@@ -49,6 +49,8 @@ export default function StravaSyncCard({ onSynced }: { onSynced: () => void }) {
       setMessage(result.added > 0
         ? `${result.added} nova${result.added === 1 ? "" : "s"} atividade${result.added === 1 ? "" : "s"} importada${result.added === 1 ? "" : "s"}.`
         : "Strava atualizado. Nenhuma atividade nova.");
+      if(result.gearWarning)setMessage(current=>current+" "+result.gearWarning);
+      if(result.detailWarning)setMessage(current=>current+" "+result.detailWarning);
       await loadStatus();
       onSynced();
     } catch (error) {

@@ -1,0 +1,22 @@
+'use strict';
+const A=require('node:assert/strict'),H=require('./p15-harness.cjs');
+const incoming=[{id:'s',name:'Pessoa histórica',status:'ACTIVE',sessions:[],workouts:[],assessments:[]}],current=[{...incoming[0],name:'Pessoa atual',status:'ARCHIVED',sessions:[{id:'history'}]},{...incoming[0],id:'new',name:'Outra pessoa'}];
+function db(){let rows=new Map([['students',structuredClone(current)],['finance_v1',{untouched:true}],['personal_routine_v1',{untouched:true}]]),backups=new Map(),snap;const writes=[];let corrupt=false;
+ const client={release(){},async query(sql,args=[]){sql=sql.trim();if(sql==='BEGIN'){snap={rows:structuredClone(rows),backups:structuredClone(backups)};return {rows:[]}}if(sql==='ROLLBACK'){if(snap){rows=snap.rows;backups=snap.backups;snap=null;}return {rows:[]}}if(sql==='COMMIT'){snap=null;return {rows:[]}}if(/^(CREATE|LOCK)/.test(sql))return {rows:[]};
+ if(sql==='SELECT id, payload, updated_at FROM dmp_data ORDER BY id')return {rows:[...rows].map(([id,payload])=>({id,payload:structuredClone(payload),updated_at:'2026-11-15T10:00:00Z'}))};
+ if(sql.startsWith('SELECT payload FROM dmp_backups'))return {rows:[{payload:corrupt?{}:structuredClone(backups.get(args[0]))}]};
+ if(sql.startsWith('SELECT payload'))return {rows:rows.has(args[0])?[{payload:structuredClone(rows.get(args[0]))}]:[]};
+ if(sql.startsWith('INSERT INTO dmp_backups')){backups.set(args[0],JSON.parse(args[2]));writes.push('backup');return {rows:[]}};
+ if(sql.startsWith('UPDATE dmp_data')){A.equal(args[0],'students');A.ok(backups.size);rows.set(args[0],JSON.parse(args[1]));writes.push('students');return {rows:[]}};
+ if(sql.startsWith('INSERT INTO dmp_data')){A.match(args[0],/^dmp_import_restore:/);rows.set(args[0],JSON.parse(args[1]));writes.push('audit');return {rows:[]}};throw Error(sql)}};
+ return {pool:{query:client.query,connect:async()=>client},writes,get rows(){return rows},get backups(){return backups},set corrupt(v){corrupt=v}};
+}
+(async()=>{let auth=false,origin=true;const D=db(),load=H.loader({'@/lib/db':{pool:D.pool},'@/lib/auth':{isAuthorized:async()=>auth},'@/lib/widget/devices':{sameOrigin:()=>origin},'@/lib/imported-data':{importedStudents2026:incoming}}),route=load('app/api/backup/imported/route.ts'),R=load('lib/students/import-recovery.ts'),req=b=>({json:async()=>b});
+ A.equal((await route.GET(req())).status,401);auth=true;let response=await route.GET(req()),p=(await response.json()).preview;A.equal(p.before.students,2);A.equal(p.after.students,1);A.equal(p.before.sessions,1);A.equal(p.changes.length,2);A.equal(D.writes.length,0,'preview never mutates');
+ let command={confirmation:R.IMPORT_CONFIRMATION,operationId:'p38-restore-synthetic-operation',digest:p.digest};origin=false;A.equal((await route.POST(req(command))).status,403);origin=true;A.equal((await route.POST(req({...command,confirmation:'RESTAURAR'}))).status,400);
+ D.rows.get('students')[0].name='Concurrent edit';A.equal((await route.POST(req(command))).status,409);A.equal(D.writes.length,0);D.rows.set('students',structuredClone(current));
+ D.corrupt=true;A.equal((await route.POST(req(command))).status,503);A.deepEqual(D.rows.get('students'),current);A.equal(D.backups.size,0);D.corrupt=false;
+ response=await route.POST(req(command));const result=await response.json();A.equal(response.status,200,JSON.stringify(result));A.ok(result.backupId);A.deepEqual(D.rows.get('students'),incoming);A.deepEqual(D.rows.get('finance_v1'),{untouched:true});A.deepEqual(D.rows.get('personal_routine_v1'),{untouched:true});A.equal(D.backups.size,1);A.deepEqual(D.backups.get(result.backupId).rows.find(r=>r.id==='students').payload,current);
+ response=await route.POST(req(command));A.equal((await response.json()).replayed,true);A.equal(D.backups.size,1);A.equal(D.writes.filter(x=>x==='students').length,1);A.equal((await route.POST(req({...command,digest:'b'.repeat(64)}))).status,409);
+ console.log('PASS P38 recovery: auth, origin, read-only preview, exact confirmation, concurrent changes blocked, corrupted backup rollback, verified snapshot before synthetic replacement, audit/idempotence and unrelated data preserved.');
+})().catch(e=>{console.error(e);process.exitCode=1});

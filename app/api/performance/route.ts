@@ -76,9 +76,10 @@ export async function PUT(request: NextRequest) {
     const expected = request.headers.get(VERSION_HEADER);
 
     await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))",[DATA_ID]);
 
     const current = await client.query(
-      "SELECT updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
+      "SELECT payload, updated_at FROM dmp_data WHERE id = $1 FOR UPDATE",
       [DATA_ID]
     );
 
@@ -116,6 +117,18 @@ export async function PUT(request: NextRequest) {
         },
         { status: 409 }
       );
+    }
+
+    const previous=current.rows[0]?.payload as PerformanceData|undefined;
+    if(previous){
+      if(!body.gears&&previous.gears)body.gears=previous.gears;
+      body.activities=body.activities.map(a=>{
+        const old=previous.activities.find(o=>o.id===a.id);
+        if(!old||a.source!=='STRAVA')return a;
+        const next={...old,...a};
+        if(a.type==='CYCLING'&&a.cyclingKind!==old.cyclingKind&&!['SPORT','GEAR','UNKNOWN'].includes(a.cyclingKindSource||''))next.cyclingKindSource='MANUAL';
+        return next;
+      });
     }
 
     const result = await client.query(

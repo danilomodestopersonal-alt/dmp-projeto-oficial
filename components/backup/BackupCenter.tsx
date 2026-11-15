@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import ImportRecovery from "./ImportRecovery";
 import styles from "./BackupCenter.module.css";
 
 type BackupKind = "MANUAL" | "AUTO" | "PRE_RESTORE";
@@ -160,6 +161,7 @@ export default function BackupCenter() {
         )}
       </div>
 
+      <ImportRecovery />
       <div className={styles.securityNote}>
         <strong>Segredos não entram no arquivo.</strong> Conexões OAuth, tokens e credenciais (como o vínculo do Strava) são excluídos do backup exportável. Se necessário, essas integrações podem ser reconectadas depois.
       </div>

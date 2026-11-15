@@ -50,7 +50,7 @@ import { restoredNavigation, moveDraftExercise, draftExercisesForReuse } from ".
 import { useRouter } from "next/navigation";
 import type { Assessment, CalendarEvent, Exercise, Measurements, Session, Student, TennisCategory, Workout, WorkoutProtocol, WorkoutSlot } from "@/types/models";
 import { importedStudents2026 } from "@/lib/imported-data";
-import { loadStudents, resetImportedData, saveStudents } from "@/lib/storage";
+import { loadStudents, saveStudents } from "@/lib/storage";
 import { exportStudentSessionsCsv } from "@/lib/export";
 import { exportWorkoutJpeg, exportWorkoutPdf } from "@/lib/workout-export";
 import { parseGalileuStructuredText, ocrNumber, type GalileuPdfImport } from "@/lib/assessments/text-import";
@@ -1461,12 +1461,6 @@ fetch("/api/google/status")
     router.refresh();
   }
 
-  function resetData() {
-    if (!confirm("Restaurar os dados importados de 2026? Alterações locais serão apagadas.")) return;
-    resetImportedData();
-    setStudents(importedStudents2026);
-  }
-
   function financeUnlocked() {
     if (typeof window === "undefined") return false;
     const until = Number(window.sessionStorage.getItem(FINANCE_UNLOCK_KEY) || 0);
@@ -1711,7 +1705,7 @@ fetch("/api/google/status")
           </> : null}
 
           {view === "students" ? <div className="students-directory">
-            <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Painel de atendimento</p><h1>Alunos</h1><p>Cadastros, fichas, observações, restrições e histórico.</p></div><div className="hero-actions"><button className="secondary" onClick={resetData}>Restaurar importação</button><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
+            <header className="dashboard-topbar"><div><p className="dashboard-eyebrow">Painel de atendimento</p><h1>Alunos</h1><p>Cadastros, fichas, observações, restrições e histórico.</p></div><div className="hero-actions"><button className="primary" onClick={() => setShowStudentForm(true)}>+ Novo aluno</button></div></header>
             <section className="dashboard-content students-directory-content"><div className="dashboard-stats four-stats">
 {(()=>{
   const active=students.filter(student=>student.status==="ACTIVE");

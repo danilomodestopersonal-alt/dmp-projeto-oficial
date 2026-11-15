@@ -64,9 +64,12 @@ export type PerformanceActivity = {
   relativeEffort?: number | null;
 
   gearName?: string | null;
+  gearId?: string | null;
+  stravaSportType?: string | null;
   description?: string | null;
 
   cyclingKind?: PerformanceCyclingKind | null;
+  cyclingKindSource?: 'MANUAL' | 'LEGACY' | 'GEAR' | 'SPORT' | 'UNKNOWN';
 
   strengthExercises?: PerformanceStrengthExercise[];
   strengthSystem?: PerformanceStrengthSystem | null;
@@ -157,9 +160,19 @@ export type PerformanceData = {
   goals: PerformanceGoal[];
   assessments: PerformanceAssessment[];
   records: PerformanceRecord[];
+  gears?: PerformanceGear[];
   metadata?: {
     source?: string;
     importedAt?: string;
     notes?: string[];
   };
+};
+
+export type PerformanceGear = {
+  id: string;
+  name: string | null;
+  cyclingKind?: PerformanceCyclingKind | null;
+  kindSource?: 'MANUAL' | 'STRAVA';
+  frameType?: number;
+  checkedAt?: string;
 };
