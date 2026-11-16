@@ -8,7 +8,8 @@ import {PixPayerProvider,PixPayerEditButton} from "./PixPayerEditor";
 import {pixDisplayLabel} from "@/lib/mercado-pago/pix-payer";
 import { FinanceSummaryView } from "./FinanceSummaryView";
 import { FinanceDeviceTrust } from "./FinanceDeviceTrust";
-import {InvoiceCancellation} from "./InvoiceCancellation";
+import {InvoiceCancellation, InvoiceCancellationHistory, InvoiceCancelButton} from "./InvoiceCancellation";
+import cancellationStyles from "./InvoiceCancellation.module.css";
 import { PersonalManageButton, PersonalReceipts, PaymentHistory } from "./PersonalReceipts";
 
 import { DsOpeningBalanceRow, DsOpeningBalanceEditButton } from "./DsOpeningBalance";
@@ -159,6 +160,9 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
   const [financeNavReady,setFinanceNavReady]=useState(false);
   const [tab, setTab] = useState<Tab>("summary");
   const [action, setAction] = useState<Action>(null);
+  const [cancellation,setCancellation]=useState<{invoice:PersonalInvoice;action:"CANCEL"|"RESTORE"}|null>(null);
+  const [cancellationMessage,setCancellationMessage]=useState("");
+  const invoiceResponseDocument=useRef<FinanceData|null>(null);
   const [voiceText, setVoiceText] = useState("");
   const [voicePreview, setVoicePreview] = useState<VoicePreview | null>(null);
   const [listFilter, setListFilter] = useState<Filter>("ALL");
@@ -389,6 +393,8 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
     if (!loaded) return;
     saveFinanceData(storedData);
     if (!cloudWritable || payerSaving) return;
+    // Ending an invoice request is not a local edit. Never echo a stale document after a lost response.
+    if(invoiceResponseDocument.current===storedData){invoiceResponseDocument.current=null;return;}
     setPayerMetadataReady(false);
     setSyncing(true); // Bloqueia edição de metadados também enquanto uma gravação está agendada.
     const timer = window.setTimeout(() => {
@@ -406,6 +412,21 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
     }, 450);
     return () => window.clearTimeout(timer);
   }, [storedData, loaded, cloudWritable, payerSaving]);
+
+  const cancellationDisabled=futureReadOnly||!loaded||!cloudWritable||syncing||!payerMetadataReady||payerSaving||!editable;
+  function openInvoiceCancellation(invoice:PersonalInvoice,action:"CANCEL"|"RESTORE"="CANCEL") {
+    if(cancellationDisabled)return;
+    setAction(null);setCancellationMessage("");setCancellation({invoice,action});
+  }
+  function invoiceSaving(value:boolean) {
+    if(value)invoiceResponseDocument.current=storedData;
+    setPayerSaving(value);
+  }
+  function acceptInvoiceCancellation(next:FinanceData,updatedAt:string,message:string) {
+    invoiceResponseDocument.current=next;
+    window.sessionStorage.setItem("dmp_finance_cloud_updated_at",updatedAt);
+    setData(next);saveFinanceData(next);setUndoDeletion(null);setFinanceCloudRevision(value=>value+1);setCancellationMessage(message);
+  }
 
   function dispatch(command: FinanceCommand) {
     if (command.type === "SWITCH_COMPETENCE") {
@@ -674,14 +695,15 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         {tab === "personal" && !futureView.unavailable ? (
           <section className="panel">
             <div className="panel-head"><div><h2>Personal · {competenceLabel(competence)}</h2><p className="muted">{money.format(summary.personalReceived)} recebidos de {money.format(summary.personalExpected)} previstos.{personalAudit?" · "+personalAudit.linked+" vinculados ao cadastro"+(personalAudit.ambiguous?" · "+personalAudit.ambiguous+" pendência(s) para conferência":"")+(personalAudit.unmatchedInvoices?" · "+personalAudit.unmatchedInvoices+" lançamento(s) sem aluno correspondente":""):""}</p></div><button className="primary" disabled={!editable} onClick={() => openAction({ type: "personal-create" })}>+ Mensalidade manual</button></div>
-            <InvoiceCancellation data={data} disabled={futureReadOnly||!loaded||!cloudWritable||syncing||!payerMetadataReady||payerSaving} onSaving={setPayerSaving} onSaved={async()=>{const cloud=await fetchFinanceCloud(financeSeedAugust2026);if(!cloud)throw new Error("Recarregue para conferir o resultado.");const next={...cloud,currentCompetence:data.currentCompetence};setData(next);saveFinanceData(next);setUndoDeletion(null);setFinanceCloudRevision(value=>value+1);}}/>
+            {cancellationMessage?<p role="status" className={cancellationStyles.success}>{cancellationMessage}</p>:null}
             <FilterBar value={listFilter} onChange={setListFilter} />
             <div className={styles.list}>
               {summary.personal.filter(invoice => matchesFilter(invoiceStatus(invoice), listFilter)).sort(compareDueDay).map(invoice => {
                 const received = paid(invoice.payments); const missing = remaining(invoice.expectedAmount, invoice.payments); const status = invoiceStatus(invoice);
-                return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><PersonalManageButton editable={editable} invoice={invoice} className={styles.manageButton} onManage={() => openAction({ type: invoice.profileManaged ? "personal-receipts" : "personal-edit", invoice })} /></div>;
+                return <div className={styles.rowShell} key={invoice.id}><button className={`${styles.row} ${styles.rowMain}`} disabled={!editable} onClick={() => openAction({ type: "personal-payment", invoice })}><span><strong>{invoice.studentName}</strong><small>Vence dia {invoice.dueDay} · {statusLabel(status)}{invoice.payments.length ? ` · ${invoice.payments.length} recebimento${invoice.payments.length > 1 ? "s" : ""}` : ""}</small></span><span className={styles.right}><strong>{money.format(invoice.expectedAmount)}</strong><small className={missing ? styles.openText : styles.paidText}>{missing ? `${money.format(missing)} falta` : `✓ ${money.format(received)} recebido`}</small></span></button><div className={cancellationStyles.rowActions}><PersonalManageButton editable={editable} invoice={invoice} className={styles.manageButton} onManage={() => openAction({ type: invoice.profileManaged ? "personal-receipts" : "personal-edit", invoice })} /><InvoiceCancelButton invoice={invoice} disabled={cancellationDisabled} onCancel={()=>openInvoiceCancellation(invoice)}/></div></div>;
               })}
             </div>
+            <InvoiceCancellationHistory data={data} disabled={cancellationDisabled} onRestore={invoice=>openInvoiceCancellation(invoice,"RESTORE")}/>
           </section>
         ) : null}
 
@@ -791,13 +813,14 @@ export default function FinanceiroPage({students=[],onStudentsChange,onTrustRevo
         {tab === "reports" && !futureView.unavailable ? <ReportsTab data={data} competence={competence} onDownload={downloadReport} /> : null}
       </section>
 
-      {action ? <FinanceActionModal action={action} data={data} competence={competence} kidsStudentOptions={kidsStudentOptions} onClose={() => setAction(null)} dispatch={dispatch} /> : null}
+      {cancellation?<InvoiceCancellation key={cancellation.invoice.id+":"+cancellation.action} data={storedData} invoice={cancellation.invoice} action={cancellation.action} disabled={cancellationDisabled} onSaving={invoiceSaving} onSaved={acceptInvoiceCancellation} onClose={()=>setCancellation(null)}/>:null}
+      {action ? <FinanceActionModal action={action} data={data} competence={competence} kidsStudentOptions={kidsStudentOptions} onClose={() => setAction(null)} dispatch={dispatch} onCancelInvoice={openInvoiceCancellation} cancellationDisabled={cancellationDisabled} /> : null}
     </>
     </PixPayerProvider>
   );
 }
 
-function FinanceActionModal({ action, data, competence, kidsStudentOptions, onClose, dispatch }: { action: Exclude<Action, null>; data: FinanceData; competence: string; kidsStudentOptions:Array<{id:string;name:string}>; onClose: () => void; dispatch: (command: FinanceCommand) => void }) {
+function FinanceActionModal({ action, data, competence, kidsStudentOptions, onClose, dispatch, onCancelInvoice, cancellationDisabled = false }: { action: Exclude<Action, null>; data: FinanceData; competence: string; kidsStudentOptions:Array<{id:string;name:string}>; onClose: () => void; dispatch: (command: FinanceCommand) => void; onCancelInvoice?:(invoice:PersonalInvoice)=>void; cancellationDisabled?:boolean }) {
   const invoiceId = action.type === "personal-edit" || action.type === "personal-payment" || action.type === "personal-receipts" ? action.invoice.id : null;
   const invoice = data.personalInvoices.find(item => item.id === invoiceId) || null;
   const expense = action.type === "expense-edit" || action.type === "expense-detail" || action.type === "expense-payment" || action.type === "card-value" ? action.expense : null;
@@ -1001,6 +1024,7 @@ function FinanceActionModal({ action, data, competence, kidsStudentOptions, onCl
 
   return <div className={styles.modalBackdrop} onMouseDown={event => { if (event.currentTarget === event.target) onClose(); }}><form className={`${styles.modal} ${(action.type === "expense-create" || action.type === "expense-edit" || action.type === "personal-receipts") ? styles.expenseModal : ""} ${(action.type === "personal-edit" || action.type === "expense-edit" || action.type === "personal-receipts") ? styles.modalLarge : ""}`} onSubmit={submit}><div className={styles.modalHead}><div><span className="muted">Financeiro · {competenceLabel(competence)}</span><h2>{title}</h2></div><button type="button" className="text-button" onClick={onClose}>Fechar</button></div>
     <div className={styles.modalBody}>
+    {invoice&&onCancelInvoice?<InvoiceCancelButton invoice={invoice} disabled={cancellationDisabled} onCancel={()=>onCancelInvoice(invoice)}/>:null}
 
     {action.type === "personal-create" || action.type === "personal-edit" ? <><label>Aluno<input value={name} onChange={event => setName(event.target.value)} autoFocus /></label><div className={styles.formGrid}><label>Mensalidade<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></label><label>Vencimento (dia)<input type="number" min="1" max="31" value={dueDay} onChange={event => setDueDay(event.target.value)} /></label></div>{action.type === "personal-edit" ? <PaymentHistory title="Recebimentos registrados" className={styles.paymentHistory} payments={invoice?.payments || []} onDelete={payment => { if (window.confirm(`Excluir recebimento de ${money.format(payment.amount)} em ${formatDate(payment.date)}?`)) dispatch({ type: "PERSONAL_PAYMENT_DELETE", invoiceId: action.invoice.id, paymentId: payment.id }); }} /> : null}</> : null}
 

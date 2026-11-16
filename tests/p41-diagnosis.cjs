@@ -1,0 +1,26 @@
+'use strict';
+const A=require('node:assert/strict'),cp=require('node:child_process'),{loader}=require('./p15-harness.cjs');
+const base='68f8ba6f327f7a061eeda6ae82758af8968d7396';
+const old=f=>cp.execFileSync('git',['show',base+':'+f],{encoding:'utf8'});
+const slots=[],refs=[];let i=0,j=0,calls=0,reloads=0;
+const react={useState(v){let n=i++;if(!(n in slots))slots[n]=v;return[slots[n],v=>slots[n]=v]},useRef(v){return refs[j++]??={current:v}}};
+const row={id:'synthetic-nov',studentId:'synthetic-student',studentName:'Aluno sintético',competence:'2026-11',expectedAmount:600,dueDay:10,payments:[]};
+const props={data:{currentCompetence:'2026-11',competences:{'2026-11':{status:'OPEN'}},personalInvoices:[row]},disabled:false,onSaving(){},onSaved:async()=>{reloads++;throw Error('Recarregue para conferir o resultado.')}};
+const C=loader({react},async()=>{calls++;return Response.json({ok:true})})('components/financeiro/InvoiceCancellation.tsx',old('components/financeiro/InvoiceCancellation.tsx'));
+const nodes=t=>!t||typeof t!=='object'?[]:Array.isArray(t)?t.flatMap(nodes):[t,...nodes(t.props?.children)];
+const render=()=>{i=j=0;return nodes(C.InvoiceCancellation(props))};
+global.sessionStorage={getItem:()=> '2026-11-16T12:00:00Z'};
+(async()=>{
+ let t=render();t.find(n=>n.type==='select').props.onChange({target:{value:row.id}});t=render();
+ A.equal(t.find(n=>n.type==='button').props.disabled,true);A.equal(t.some(n=>n.props?.role==='alert'),false);
+ console.log('COMPROVADO P40: motivo vazio bloqueia o botão sem mensagem de validação.');
+ t.find(n=>n.type==='textarea').props.onChange({target:{value:'Cancelamento solicitado'}});t=render();A.equal(t.find(n=>n.type==='button').props.disabled,true);
+ console.log('COMPROVADO P40: motivo válido ainda depende do checkbox separado.');
+ t.find(n=>n.type==='input').props.onChange({target:{checked:true}});t=render();t.find(n=>n.type==='button').props.onClick();await new Promise(r=>setImmediate(r));
+ A.equal(calls,1);A.equal(reloads,1);A.ok(JSON.stringify(render()).includes('Recarregue para conferir'));
+ console.log('COMPROVADO P40: POST aceito seguido de falha na releitura deixa a tela sem atualização e pede recarga manual.');
+ const api=loader({'@/lib/auth':{isAuthorized:async()=>true},'@/lib/db':{pool:{connect:async()=>{throw Error('synthetic unavailable')}}}})('app/api/finance/invoice-cancellation/route.ts',old('app/api/finance/invoice-cancellation/route.ts'));
+ await A.rejects(api.POST({headers:new Headers({'x-dmp-action':'invoice-cancellation','content-type':'application/json'}),json:async()=>({})}),/synthetic unavailable/);
+ console.log('COMPROVADO P40: falha de conexão com o banco escapa da resposta de erro estruturada.');
+ console.log('Diagnóstico sintético; não comprova qual caminho ocorreu na tentativa real do usuário. Nenhuma API real chamada.');
+})().catch(e=>{console.error(e);process.exitCode=1});

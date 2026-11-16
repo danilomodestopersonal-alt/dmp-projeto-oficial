@@ -1,0 +1,16 @@
+'use strict';
+const A=require('node:assert/strict'),H=require('./p41-harness.cjs'),{loader}=require('./p15-harness.cjs');
+const nodes=t=>!t||typeof t!=='object'?[]:Array.isArray(t)?t.flatMap(nodes):[t,...nodes(t.props?.children)];
+const state=[],refs=[];let i=0,j=0,effects=[],scheduled=0;
+const react={...require('react'),useState(v){const n=i++;if(!(n in state))state[n]=typeof v==='function'?v():v;return[state[n],v=>state[n]=typeof v==='function'?v(state[n]):v]},useRef(v){return refs[j++]??={current:v}},useEffect(f,deps){effects.push({f,deps})},useMemo:f=>f(),useCallback:f=>f};
+const local=new Map(),session=new Map();global.window={localStorage:{setItem:(k,v)=>local.set(k,v),getItem:k=>local.get(k)},sessionStorage:{setItem:(k,v)=>session.set(k,v),getItem:k=>session.get(k)},setTimeout(){scheduled++;return 1},clearTimeout(){},alert:m=>{throw Error(m)}};
+const Page=loader({react})('components/financeiro/FinanceiroPage.tsx').default;
+const render=()=>{i=j=0;effects=[];return nodes(Page({students:H.students}))};
+render();state[0]=H.fixture();state[2]=true;state[3]=true;state[6]=true;state[9]='personal';
+let tree=render();const auto=()=>effects.find(e=>String(e.f).includes('invoiceResponseDocument')).f;
+const open=()=>{tree=render();tree.find(n=>n.type?.name==='InvoiceCancelButton'&&n.props.invoice.id==='p41-nov').props.onCancel();return render().find(n=>n.type?.name==='InvoiceCancellation').props};
+let dialog=open();dialog.onSaving(true);render();auto()();A.equal(scheduled,0);dialog.onSaving(false);render();auto()();A.equal(scheduled,0,'request ending without a local edit must not PUT stale data');
+A.equal(render().find(n=>n.type?.name==='InvoiceCancellation').props.disabled,false,'retry remains available');
+dialog=render().find(n=>n.type?.name==='InvoiceCancellation').props;dialog.onSaving(true);const next=H.changeInvoiceCancellation(state[0],H.command(state[0]),'synthetic@operator.invalid','2026-11-16T12:00:00Z');dialog.onSaved(next,'2026-11-16T12:00:01.000Z','Cobrança cancelada. Totais atualizados.');dialog.onClose();dialog.onSaving(false);tree=render();auto()();A.equal(scheduled,0,'confirmed response must not be echoed as an ordinary PUT');A.equal(state[0],next);A.equal(session.get('dmp_finance_cloud_updated_at'),'2026-11-16T12:00:01.000Z');A.equal(JSON.parse(local.get('dmp_finance_v1')).personalInvoices[0].cancellation.active,true);A.ok(JSON.stringify(tree).includes('Totais atualizados'));A.equal(tree.filter(n=>n.type?.name==='InvoiceCancelButton'&&n.props.invoice.id==='p41-nov').length,0);
+const row=tree.find(n=>n.type==='button'&&JSON.stringify(n.props.children).includes('Outra pessoa'));row.props.onClick();tree=render();const modal=tree.find(n=>n.type?.name==='FinanceActionModal');modal.props.dispatch({type:'PERSONAL_PAYMENT_ADD',invoiceId:'p41-other',date:'2026-11-16',amount:50,note:'Synthetic subsequent edit'});render();auto()();A.equal(scheduled,1,'ordinary subsequent local edits still autosave');
+console.log('PASS P41 página real: erro/retry sem PUT antigo, resposta atualiza listas/totais/versão/cache e próxima edição continua salvando');

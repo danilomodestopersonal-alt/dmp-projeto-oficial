@@ -4,14 +4,16 @@ import {pool} from '@/lib/db';
 import {CancellationError,changeInvoiceCancellation} from '@/lib/financeiro/invoice-cancellation';
 import type {FinanceData} from '@/types/financeiro';
 import type {Student} from '@/types/models';
+import type {PoolClient} from 'pg';
 export const runtime='nodejs';
 
 export async function POST(request:NextRequest) {
   if (!await isAuthorized(request)) return NextResponse.json({error:'Sessão inválida.'},{status:401});
   if (request.headers.get('x-dmp-action')!=='invoice-cancellation' || !request.headers.get('content-type')?.startsWith('application/json') || (request.headers.get('sec-fetch-site') && request.headers.get('sec-fetch-site')!=='same-origin')) return NextResponse.json({error:'Origem inválida.'},{status:403});
   const body=await request.json().catch(()=>null);
-  const client=await pool.connect();
+  let client:PoolClient|undefined;
   try {
+    client=await pool.connect();
     await client.query('BEGIN');
     // Same lock order as Mercado Pago reconciliation. No external request or rule changes.
     const mp=await client.query('SELECT payload FROM dmp_data WHERE id=$1 FOR UPDATE',['mercado_pago_reconciliation_v1']);
@@ -25,7 +27,7 @@ export async function POST(request:NextRequest) {
     if (!retry && typeof body?.invoiceId==='string' && JSON.stringify(mp.rows[0]?.payload||{}).includes(body.invoiceId)) throw new CancellationError('Cobrança vinculada à conciliação Mercado Pago. Solicite revisão.');
     const now=new Date().toISOString();
     let next=changeInvoiceCancellation(data,body,operator,now);
-    if (next===data) { await client.query('ROLLBACK'); return NextResponse.json({ok:true,repeated:true}); }
+    if (next===data) { await client.query('ROLLBACK'); return NextResponse.json({ok:true,repeated:true,data,updatedAt:new Date(fr.rows[0].updated_at).toISOString()}); }
     const invoice=next.personalInvoices.find(item=>item.id===body.invoiceId)!;
     if (invoice.studentId) {
       const sr=await client.query('SELECT payload FROM dmp_data WHERE id=$1 FOR SHARE',['students']);
@@ -35,11 +37,12 @@ export async function POST(request:NextRequest) {
     }
     const backup=JSON.stringify(data);
     await client.query('INSERT INTO dmp_data(id,payload,updated_at) VALUES($1,$2,NOW())', ['finance_invoice_backup:'+body.operationId,backup]);
-    await client.query('UPDATE dmp_data SET payload=$2,updated_at=NOW() WHERE id=$1',['finance_v1',JSON.stringify(next)]);
+    const saved=await client.query('UPDATE dmp_data SET payload=$2,updated_at=NOW() WHERE id=$1 RETURNING updated_at',['finance_v1',JSON.stringify(next)]);
+    const updatedAt=new Date(saved.rows[0].updated_at).toISOString();
     await client.query('COMMIT');
-    return NextResponse.json({ok:true});
+    return NextResponse.json({ok:true,data:next,updatedAt});
   } catch(error) {
-    await client.query('ROLLBACK');
+    if(client)await client.query('ROLLBACK').catch(()=>{});
     return NextResponse.json({error:error instanceof CancellationError?error.message:'Não foi possível concluir. Atualize e confira a cobrança antes de tentar novamente.'},{status:error instanceof CancellationError?409:500});
-  } finally { client.release(); }
+  } finally { client?.release(); }
 }

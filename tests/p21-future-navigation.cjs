@@ -20,7 +20,9 @@ assert.equal(select(tree).props.value,future);
 assert(JSON.stringify(tree).includes('Consulta futura'));
 button(tree,'Personal').props.onClick();tree=render();
 assert(button(tree,'+ Mensalidade manual').props.disabled);
-const cancellation=nodes(tree,n=>n.type?.name==='InvoiceCancellation')[0];assert(cancellation.props.disabled);
+const history=nodes(tree,n=>n.type?.name==='InvoiceCancellationHistory')[0];assert(history.props.disabled);
+const cancellations=nodes(tree,n=>n.type?.name==='InvoiceCancelButton');assert(cancellations.length);for(const button of cancellations){assert(button.props.disabled);button.props.onCancel();}
+assert.equal(nodes(render(),n=>n.type?.name==='InvoiceCancellation').length,0);
 button(tree,'DS Tênis').props.onClick();tree=render();assert(button(tree,'+ Registrar recebimento DS').props.disabled);
 select(tree).props.onChange({target:{value:original.currentCompetence}});tree=render();
 assert.equal(states[0],original);assert.equal(select(tree).props.value,original.currentCompetence);

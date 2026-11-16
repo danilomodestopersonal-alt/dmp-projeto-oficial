@@ -1,0 +1,21 @@
+{
+  "base": "68f8ba6f327f7a061eeda6ae82758af8968d7396",
+  "files": {
+    "app/api/finance/invoice-cancellation/route.ts": {
+      "before": "f7d785b2b3ff1bc04e3dec4d4b4f91837217524a1f5a1ed63f8bdcfff0c16461",
+      "after": "7490c7603cd12251680c39abb928e206f67b573bd1874a8ce0072bed275f12b7"
+    },
+    "components/financeiro/FinanceiroPage.tsx": {
+      "before": "85c570fb05cbde1b018ed133fa3cbeba6e0605ca926b1f410ec06cb4fcb7f0f1",
+      "after": "19e50fb00fefd09a9da7a844abde6a826268ce1bbf200821e7ab34833decfda5"
+    },
+    "components/financeiro/InvoiceCancellation.module.css": {
+      "before": null,
+      "after": "139a04e6b570dd05f5b5837b17f12e34fd6b964508cddc2d103def6cd728b06c"
+    },
+    "components/financeiro/InvoiceCancellation.tsx": {
+      "before": "ae91c3cb21e906264ffd530dad889df72d109a5714b878a63fac3ebc0d96350b",
+      "after": "1390c2642a8b03b3369cd5a081740e10ae29091c256f38ac73b9a547ad62f6c5"
+    }
+  }
+}
