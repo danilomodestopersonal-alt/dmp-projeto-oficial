@@ -1,16 +1,16 @@
 'use strict';
 const A=require('node:assert/strict'),H=require('./p15-harness.cjs');const actual=H.loader()('lib/calendar/personal-maintenance.ts');
 const initial=[{id:'s',name:'Alfa Teste',status:'ACTIVE',financialActive:true,monthlyAmount:300,financeDueDay:5,startDate:'2026-01-01',sessions:[{id:'history',date:'2026-10-01'}],workouts:[{id:'workout'}],assessments:[{id:'assessment'}]}];
-function harness({authorized=true,origin=true,failPatch=false}={}){
+function harness({authorized=true,origin=true,failPatch=false,eventStart=new Date(Date.now()+86400000).toISOString()}={}){
  let db=new Map([['students',structuredClone(initial)],['finance_v1',{personalInvoices:[{id:'issued',studentId:'s',payments:[{amount:100}]}]}]]),backup,patches=0,queries=[];
- const event={id:'event',etag:'e1',summary:'Aula · Alfa Teste',organizer:{self:true},start:{dateTime:'2026-11-16T08:00:00-03:00'},end:{dateTime:'2026-11-16T09:00:00-03:00'},status:'confirmed'};let current=structuredClone(event),fail=failPatch;
+ const event={id:'event',etag:'e1',summary:'Aula · Alfa Teste',organizer:{self:true},start:{dateTime:eventStart},end:{dateTime:new Date(Date.parse(eventStart)+3600000).toISOString()},status:'confirmed'};let current=structuredClone(event),fail=failPatch;
  const api={list:async()=>[structuredClone(current)],read:async()=>structuredClone(current),patch:async(id,body,etag)=>{A.equal(etag,current.etag);if(fail){fail=false;throw Error('Google indisponível')}patches++;current={...current,...structuredClone(body),etag:'e2'};return structuredClone(current)},insert:async()=>{throw Error('Unexpected insert')}};
  const client={release(){},async query(sql,args=[]){queries.push([sql,args[0]]);if(sql==='BEGIN'){backup=structuredClone(db);return {rows:[]}}if(sql==='ROLLBACK'){db=backup;return {rows:[]}}if(sql==='COMMIT'){backup=undefined;return {rows:[]}}if(sql.includes('pg_try_advisory_lock'))return {rows:[{locked:true}]};if(sql.includes('pg_advisory_unlock'))return {rows:[]};if(sql.startsWith('SELECT'))return {rows:db.has(args[0])?[{payload:structuredClone(db.get(args[0]))}]:[]};if(sql.startsWith('UPDATE')||sql.startsWith('INSERT')){A.notEqual(args[0],'finance_v1','financial write prohibited');db.set(args[0],JSON.parse(args[1]));return {rows:[]}}throw Error(sql)}};
  const load=H.loader({'@/lib/db':{pool:{query:client.query,connect:async()=>client}},'@/lib/auth':{isAuthorized:async()=>authorized},'@/lib/widget/devices':{sameOrigin:()=>origin},'@/lib/google-calendar':{getGoogleAccessToken:async()=>({accessToken:'synthetic'}),setGoogleCookies:()=>{throw Error('No cookie change')}},'@/lib/calendar/personal-maintenance':{...actual,personalCalendarApi:()=>api}});
  const route=load('app/api/students/lifecycle/route.ts');return {route,get students(){return db.get('students')},get patches(){return patches},get queries(){return queries},put:(body)=>route.POST({json:async()=>body}),get:()=>route.GET({nextUrl:new URL('https://test/api?studentId=s')})};
 }
 (async()=>{
- const command={kind:'pause',studentId:'s',from:'2026-11-16'},id='p29-api-operation-0001';
+ const command={kind:'pause',studentId:'s',from:new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo'}).format(new Date())},id='p29-api-operation-0001';
  for(const config of [{authorized:false},{origin:false}]){const h=harness(config),r=await h.put({action:'preview',command});A.equal(r.status,config.authorized===false?401:403);A.equal(h.queries.length,0);}
  console.log('PASS P29 API sessão e origem negadas antes de ler/escrever');
  const h=harness(),preview=await (await h.put({action:'preview',command})).json();A.equal(preview.ok,true);A.equal(h.students[0].status,'ACTIVE');A.equal(h.patches,0);A.equal(h.queries.some(([q])=>q.startsWith('UPDATE')||q.startsWith('INSERT')),false);

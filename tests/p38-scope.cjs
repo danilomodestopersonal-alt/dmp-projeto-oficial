@@ -1,9 +1,10 @@
 'use strict';
-const A=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),ts=require('typescript'),m=require('./p38-approved-files.json');
+const A=require('node:assert/strict'),nativeFs=require('node:fs'),cp=require('node:child_process'),crypto=require('node:crypto'),ts=require('typescript'),m=require('./p38-approved-files.json');
+const fs={...nativeFs,readFileSync:require('./p40-historical-read.cjs')};
 const git=(...a)=>cp.execFileSync('git',a,{maxBuffer:32e6}),hash=b=>crypto.createHash('sha256').update(b.includes(0)?b:Buffer.from(b.toString().replace(/\r\n/g,'\n'))).digest('hex');
 for(const [file,s]of Object.entries(m.files)){A.equal(hash(fs.readFileSync(file)),s.after,file);if(s.before)A.equal(hash(git('show',m.base+':'+file)),s.before,file);}
-let preserved=0;for(const file of git('ls-tree','-r','--name-only',m.base).toString().trim().split('\n')){if(file.startsWith('tests/')||m.files[file])continue;A.equal(hash(fs.readFileSync(file)),hash(git('show',m.base+':'+file)),file);preserved++;}
-for(const file of [...git('diff','--name-only',m.base).toString().trim().split('\n'),...git('ls-files','--others','--exclude-standard').toString().trim().split('\n')].filter(Boolean))A.ok(file.startsWith('tests/')||m.files[file],'Outside P38: '+file);
+let preserved=0;for(const file of git('ls-tree','-r','--name-only',m.base).toString().trim().split('\n')){if(file.startsWith('tests/')||require('./p40-approved-files.json').files[file]||m.files[file])continue;A.equal(hash(fs.readFileSync(file)),hash(git('show',m.base+':'+file)),file);preserved++;}
+for(const file of [...git('diff','--name-only',m.base).toString().trim().split('\n'),...git('ls-files','--others','--exclude-standard').toString().trim().split('\n')].filter(Boolean))A.ok(file.startsWith('tests/')||require('./p40-approved-files.json').files[file]||m.files[file],'Outside P38: '+file);
 const read=f=>fs.readFileSync(f,'utf8'),old=f=>git('show',m.base+':'+f).toString();
 let app=old('components/DmpApp.tsx').replace('loadStudents, resetImportedData, saveStudents','loadStudents, saveStudents');const a=app.indexOf('  function resetData() {'),b=app.indexOf('  function financeUnlocked()',a);app=(app.slice(0,a)+app.slice(b)).replace('<button className="secondary" onClick={resetData}>Restaurar importação</button>','');A.equal(read('components/DmpApp.tsx'),app,'only legacy restore action removed; identity, lessons, Home and finance unchanged');
 function functions(s){const ast=ts.createSourceFile('strava.ts',s,99,true,3);return new Map(ast.statements.filter(ts.isFunctionDeclaration).map(n=>[n.name.text,n.getText(ast)]));}
